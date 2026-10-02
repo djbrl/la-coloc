@@ -1,0 +1,28 @@
+{
+  "name": "@coloc/agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The caretaker: runs on each house server, builds and runs the rooms.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@coloc/protocol": "*",
+    "dockerode": "^4.0.2",
+    "tar-fs": "^3.0.6",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.31",
+    "@types/node": "^22.9.0",
+    "@types/tar-fs": "^2.0.4",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "coloc",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "build:packages": "npm run build -w @coloc/protocol -w @coloc/domain",
+    "build": "npm run build:packages && npm run build -w @coloc/agent -w @coloc/api -w @coloc/web",
+    "test": "npm run build:packages && npm test --workspaces --if-present",
+    "dev:proxy": "docker compose -f dev/docker-compose.yml up -d",
+    "dev:api": "npm run dev -w @coloc/api",
+    "dev:agent": "npm run dev -w @coloc/agent",
+    "dev:web": "npm run dev -w @coloc/web",
+    "licences": "npx --yes license-checker-rseidelsohn --summary --excludePrivatePackages"
+  },
+  "engines": { "node": ">=22" }
+}

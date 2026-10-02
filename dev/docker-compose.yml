@@ -1,0 +1,17 @@
+# Local stand-in for a house server's front door. Rooms are served at http://<room>.coloc.localhost:8000
+services:
+  traefik:
+    image: traefik:v3.2
+    container_name: coloc-traefik
+    command:
+      - --providers.docker=true
+      # Only containers the agent labels explicitly are routed.
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --api.dashboard=false
+    ports:
+      - "8000:80"
+    volumes:
+      # Read-only. In production this goes through a socket proxy that only allows reads (see docs/dev.md).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
