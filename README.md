@@ -3,7 +3,7 @@
 Devs rent a server together, like flatmates. Everyone gets a **room** (an isolated, capped slice of the server).
 Push your repo and it's live in your room. The house splits the bill by usage and pays rent in **code reviews**.
 
-Product: [`../how-it-works.md`](../how-it-works.md) · Stack: [`../architecture.md`](../architecture.md) · Plan: [`../roadmap.md`](../roadmap.md)
+Product: [`docs/how-it-works.md`](docs/how-it-works.md) · Stack: [`docs/architecture.md`](docs/architecture.md) · Plan: [`docs/roadmap.md`](docs/roadmap.md) · Contest rules: [`docs/contest-rules.md`](docs/contest-rules.md)
 
 ## What's in here
 
