@@ -22,7 +22,7 @@ export interface AgentConfig {
 
 export function loadConfig(): AgentConfig {
   return {
-    apiUrl: process.env.COLOC_API_URL ?? "ws://localhost:4000/agent",
+    apiUrl: process.env.COLOC_API_URL ?? "ws://localhost:4100/agent",
     houseId: required("COLOC_HOUSE_ID"),
     secret: required("COLOC_AGENT_SECRET"),
     houseDomain: process.env.COLOC_HOUSE_DOMAIN ?? "coloc.localhost",

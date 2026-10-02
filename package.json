@@ -1,7 +1,10 @@
 {
   "name": "coloc",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "build:packages": "npm run build -w @coloc/protocol -w @coloc/domain",
     "build": "npm run build:packages && npm run build -w @coloc/agent -w @coloc/api -w @coloc/web",
@@ -10,7 +13,10 @@
     "dev:api": "npm run dev -w @coloc/api",
     "dev:agent": "npm run dev -w @coloc/agent",
     "dev:web": "npm run dev -w @coloc/web",
-    "licences": "npx --yes license-checker-rseidelsohn --summary --excludePrivatePackages"
+    "licences": "npx --yes license-checker-rseidelsohn --summary --excludePrivatePackages",
+    "licences:check": "npx --yes license-checker-rseidelsohn --excludePrivatePackages --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;CC0-1.0;Unlicense;BlueOak-1.0.0;Python-2.0;CC-BY-4.0' > /dev/null && echo 'licences OK: no copyleft'"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }
