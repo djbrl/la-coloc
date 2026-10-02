@@ -5,7 +5,7 @@
 ### Verified on this Mac (Docker Desktop 27.5)
 | Test | Result |
 |---|---|
-| Unit tests (domain rules, protocol, room walls, checkout safety, fridge, house service) | **35 passing** |
+| Unit tests (domain rules, protocol, room walls, checkout safety, fridge, house service) | **31 passing** |
 | Licence check | 278 packages, **0 copyleft** |
 | Agent auth: wrong secret / garbage / silence | closed with 4003 / 4000 / 4000. Real agent stays online |
 | Deploy `examples/hello` into Jib's room | cloned → built → started → health-checked → live in ~10s |
