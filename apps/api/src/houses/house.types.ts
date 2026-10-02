@@ -28,6 +28,8 @@ export interface FridgeNote {
   text: string;
   room?: string;
   at: string;
+  // Same note repeated within a few minutes is collapsed: "×4".
+  count: number;
 }
 
 export interface House {

@@ -1,7 +1,7 @@
 import type { ApiToAgent } from "@coloc/protocol";
 import { mkdir } from "node:fs/promises";
 import { loadConfig } from "./config";
-import { deploy, removeRoom } from "./deploy";
+import { deploy, removeRoom, snapshot } from "./deploy";
 import { watchRoomEvents } from "./events";
 import { connect } from "./link";
 import { sampleRooms } from "./meter";
@@ -19,6 +19,14 @@ async function main() {
     queues.set(room, next.catch(() => undefined));
   };
 
+  const sendSnapshot = async () => {
+    try {
+      link.send({ type: "rooms_snapshot", rooms: await snapshot(cfg) });
+    } catch (e) {
+      console.error(`[snapshot] ${(e as Error).message}`);
+    }
+  };
+
   const link = connect(cfg, VERSION, (cmd: ApiToAgent) => {
     switch (cmd.type) {
       case "deploy":
@@ -34,7 +42,7 @@ async function main() {
         enqueue(cmd.room, () => removeRoom(cmd.room));
         break;
     }
-  });
+  }, () => void sendSnapshot());
 
   await watchRoomEvents((e) => {
     console.log(`[event] ${e.room}: ${e.event}`);

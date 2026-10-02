@@ -56,4 +56,16 @@ export class HousesController {
     this.agents.send(id, { type: "deploy", deployId: d.id, room: target.name, kind, repo, ref, path, port, limits: target.limits, env: {} });
     return d;
   }
+
+  // Empties a room: every container in it is stopped and removed. The base for eviction.
+  @Post(":id/rooms/:room/empty")
+  empty(@Param("id") id: string, @Param("room") room: string) {
+    const house = this.houses.get(id);
+    const target = house?.rooms.get(room);
+    if (!house || !target) throw new NotFoundException();
+    if (!this.agents.isOnline(id)) throw new ConflictException("the house's agent is offline");
+    this.agents.send(id, { type: "remove_room", room: target.name });
+    this.houses.emptyRoom(id, target.name);
+    return { ok: true };
+  }
 }

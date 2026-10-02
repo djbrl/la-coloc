@@ -55,6 +55,9 @@ export class AgentsGateway implements OnGatewayConnection {
         case "room_event":
           this.houses.recordRoomEvent(houseId, msg);
           break;
+        case "rooms_snapshot":
+          this.houses.applySnapshot(houseId, msg);
+          break;
       }
     });
 

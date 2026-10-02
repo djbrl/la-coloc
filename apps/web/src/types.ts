@@ -23,6 +23,7 @@ export interface FridgeNote {
   tone: "info" | "warning" | "danger" | "thanks";
   text: string;
   at: string;
+  count: number;
 }
 
 export interface HouseView {

@@ -12,6 +12,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-di
     <p v-if="!notes.length" class="empty">No notes yet. Quiet house.</p>
     <p v-for="n in notes" :key="n.id" class="note" :class="n.tone">
       <span class="time">{{ time(n.at) }}</span> {{ n.text }}
+      <span v-if="n.count > 1" class="count">×{{ n.count }}</span>
     </p>
   </div>
 </template>
@@ -24,4 +25,5 @@ h2 { font-size: 16px; margin: 0 0 8px; }
 .note.danger { color: var(--danger); }
 .note.thanks { color: var(--live); }
 .time { opacity: 0.7; margin-right: 4px; }
+.count { font-weight: 600; margin-left: 4px; }
 </style>

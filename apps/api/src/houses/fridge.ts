@@ -2,7 +2,7 @@
 import type { DeployStatus, RoomEvent } from "@coloc/protocol";
 import type { FridgeNote } from "./house.types";
 
-type Draft = Omit<FridgeNote, "id" | "at">;
+type Draft = Omit<FridgeNote, "id" | "at" | "count">;
 
 export function noteForRoomEvent(e: RoomEvent, flatmate: string): Draft {
   switch (e.event) {

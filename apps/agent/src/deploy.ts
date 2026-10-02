@@ -1,5 +1,5 @@
 // push → live: clone, build, start the new version next to the old one, check it, swap.
-import type { DeployCommand, DeployStatus } from "@coloc/protocol";
+import type { DeployCommand, DeployKind, DeployStatus, RoomsSnapshot } from "@coloc/protocol";
 import { roomUrl, type AgentConfig } from "./config";
 import {
   buildImage,
@@ -77,4 +77,14 @@ export async function removeRoom(room: string): Promise<void> {
 
 export function roomOf(labels: Record<string, string> | undefined): string | undefined {
   return labels?.[LABEL.room];
+}
+
+export async function snapshot(cfg: AgentConfig): Promise<RoomsSnapshot["rooms"]> {
+  const containers = await docker.listContainers({ all: true, filters: { label: [LABEL.room] } });
+  return containers.map((c) => {
+    const room = c.Labels[LABEL.room];
+    const kind = c.Labels[LABEL.kind] as DeployKind;
+    const state = c.State === "running" ? "running" : c.State === "restarting" ? "restarting" : "stopped";
+    return { room, kind, state, url: roomUrl(cfg, roomHost(room, kind, cfg.houseDomain)) };
+  });
 }

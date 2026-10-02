@@ -88,7 +88,22 @@ export const RoomEvent = z.object({
 });
 export type RoomEvent = z.infer<typeof RoomEvent>;
 
-export const AgentToApi = z.discriminatedUnion("type", [Hello, DeployStatus, Usage, RoomEvent]);
+// Sent on every (re)connect: what's actually running, so the API can rebuild its picture
+// after a restart instead of trusting stale state.
+export const RoomsSnapshot = z.object({
+  type: z.literal("rooms_snapshot"),
+  rooms: z.array(
+    z.object({
+      room: RoomName,
+      kind: DeployKind,
+      state: z.enum(["running", "restarting", "stopped"]),
+      url: z.string(),
+    }),
+  ),
+});
+export type RoomsSnapshot = z.infer<typeof RoomsSnapshot>;
+
+export const AgentToApi = z.discriminatedUnion("type", [Hello, DeployStatus, Usage, RoomEvent, RoomsSnapshot]);
 export type AgentToApi = z.infer<typeof AgentToApi>;
 
 export function parseApiToAgent(raw: string): ApiToAgent {

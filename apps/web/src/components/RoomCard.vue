@@ -45,7 +45,7 @@ async function deploy() {
     <a v-if="room.url" :href="room.url" target="_blank" rel="noopener">{{ room.url }}</a>
 
     <div v-if="memory" class="meter" :title="`${memory.mb} MB used`">
-      <div class="fill" :style="{ width: memory.pct + '%' }" />
+      <div class="fill" :class="{ high: memory.pct >= 80 }" :style="{ width: memory.pct + '%' }" />
     </div>
     <p v-if="room.usage" class="usage">CPU {{ room.usage.cpuPercent.toFixed(1) }}% · RAM {{ memory?.mb }} MB</p>
 
@@ -68,6 +68,7 @@ header { display: flex; justify-content: space-between; }
 a { font-size: 13px; color: var(--accent); word-break: break-all; }
 .meter { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
 .fill { height: 100%; background: var(--live); transition: width 0.4s; }
+.fill.high { background: var(--warn); }
 form { display: grid; gap: 6px; }
 .message { margin: 0; font-size: 13px; color: var(--danger); }
 </style>

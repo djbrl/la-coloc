@@ -9,7 +9,12 @@ export interface Link {
   close: () => void;
 }
 
-export function connect(cfg: AgentConfig, version: string, onCommand: (cmd: ApiToAgent) => void): Link {
+export function connect(
+  cfg: AgentConfig,
+  version: string,
+  onCommand: (cmd: ApiToAgent) => void,
+  onConnected: () => void,
+): Link {
   let ws: WebSocket | undefined;
   let backoffMs = 1000;
   let closed = false;
@@ -26,6 +31,7 @@ export function connect(cfg: AgentConfig, version: string, onCommand: (cmd: ApiT
       ws!.send(JSON.stringify({ type: "hello", houseId: cfg.houseId, secret: cfg.secret, agentVersion: version }));
       console.log(`[link] connected to ${cfg.apiUrl}`);
       flush();
+      onConnected();
     });
     ws.on("message", (data) => {
       try {

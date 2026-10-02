@@ -16,6 +16,8 @@ export async function watchRoomEvents(onEvent: (e: RoomEvent) => void): Promise<
   })) as NodeJS.ReadableStream & { destroy: () => void };
 
   const crashed = new Set<string>();
+  // An out-of-memory kill is followed by "die" and "start"; the oom event already tells the whole story.
+  const oomed = new Set<string>();
   let buffer = "";
   stream.on("data", (chunk: Buffer) => {
     buffer += chunk.toString("utf8");
@@ -30,7 +32,12 @@ export async function watchRoomEvents(onEvent: (e: RoomEvent) => void): Promise<
       // Containers retired during a swap also "die"; only report rooms dying on their own.
       if (!room || retiring.has(ev.Actor.ID)) continue;
       const at = new Date(ev.time * 1000).toISOString();
-      if (ev.Action === "oom") onEvent({ type: "room_event", room, event: "oom", at });
+      if (ev.Action === "oom") {
+        oomed.add(name);
+        onEvent({ type: "room_event", room, event: "oom", at });
+      }
+      if (ev.Action === "start" && oomed.delete(name)) continue;
+      if (ev.Action === "die" && oomed.has(name)) continue;
       if (ev.Action === "die" && ev.Actor.Attributes.exitCode !== "0") {
         crashed.add(name);
         onEvent({ type: "room_event", room, event: "crashed", at });

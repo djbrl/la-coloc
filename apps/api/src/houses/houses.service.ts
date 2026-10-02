@@ -1,9 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import type { DeployKind, DeployStatus, RoomEvent, Usage } from "@coloc/protocol";
+import type { DeployKind, DeployStatus, RoomEvent, RoomsSnapshot, Usage } from "@coloc/protocol";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { Subject } from "rxjs";
 import { noteForDeploy, noteForRoomEvent } from "./fridge";
 import type { Deployment, FridgeNote, House, Room } from "./house.types";
+
+const NOTE_COLLAPSE_MS = 10 * 60 * 1000;
 
 // In-memory for the week-1 slice. The Postgres version keeps the same method signatures.
 @Injectable()
@@ -106,8 +108,35 @@ export class HousesService {
     const room = house.rooms.get(e.room);
     if (!room) return;
     if (e.event === "crashed") room.status = "down";
+    // Out of memory: Docker restarts it on its own, so the room is still lived in.
+    if (e.event === "oom" && room.url) room.status = "live";
     if (e.event === "restarted" && room.url) room.status = "live";
     this.addNote(house, noteForRoomEvent(e, room.flatmate));
+    this.changes.next(houseId);
+  }
+
+  emptyRoom(houseId: string, roomName: string) {
+    const room = this.mustGet(houseId).rooms.get(roomName);
+    if (!room) return;
+    room.status = "empty";
+    room.url = undefined;
+    room.usage = undefined;
+    this.changes.next(houseId);
+  }
+
+  // The agent's word is the truth about what's running: rebuild room status from it.
+  applySnapshot(houseId: string, snap: RoomsSnapshot) {
+    const house = this.mustGet(houseId);
+    for (const room of house.rooms.values()) {
+      const prod = snap.rooms.find((r) => r.room === room.name && r.kind === "prod");
+      if (!prod) {
+        if (room.status !== "deploying") room.status = "empty";
+        room.url = undefined;
+        continue;
+      }
+      room.url = prod.url;
+      room.status = prod.state === "running" ? "live" : "down";
+    }
     this.changes.next(houseId);
   }
 
@@ -125,8 +154,18 @@ export class HousesService {
     };
   }
 
-  private addNote(house: House, draft: Omit<FridgeNote, "id" | "at">) {
-    house.notes.unshift({ ...draft, id: randomUUID().slice(0, 8), at: new Date().toISOString() });
+  private addNote(house: House, draft: Omit<FridgeNote, "id" | "at" | "count">) {
+    const now = new Date();
+    const same = house.notes.findIndex(
+      (n) => n.room === draft.room && n.text === draft.text && now.getTime() - new Date(n.at).getTime() < NOTE_COLLAPSE_MS,
+    );
+    if (same >= 0) {
+      // A room crash-looping shouldn't paper the whole fridge: bump the existing note instead.
+      const [note] = house.notes.splice(same, 1);
+      house.notes.unshift({ ...note, count: note.count + 1, at: now.toISOString() });
+      return;
+    }
+    house.notes.unshift({ ...draft, id: randomUUID().slice(0, 8), at: now.toISOString(), count: 1 });
     house.notes.length = Math.min(house.notes.length, 100);
   }
 
