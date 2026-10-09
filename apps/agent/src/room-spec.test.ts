@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePort, roomContainerSpec, roomHost } from "./room-spec";
+import { resolvePort, roomContainerSpec, roomHost, roomRoute } from "./room-spec";
 
 const spec = roomContainerSpec({
   houseId: "sacre-coeur",
@@ -36,10 +36,23 @@ describe("room walls", () => {
     expect(spec.HostConfig?.NetworkMode).toBe("coloc-room-jib");
   });
 
-  it("is routed by host name", () => {
-    expect(spec.Labels?.["traefik.http.routers.jib-prod.rule"]).toBe("Host(`jib.sacre-coeur.coloc.dev`)");
+  it("gets its env and port, and no routing labels (the agent routes it)", () => {
     expect(spec.Env).toContain("PORT=3000");
     expect(spec.Env).toContain("GREETING=salut");
+    expect(Object.keys(spec.Labels ?? {}).some((k) => k.startsWith("traefik."))).toBe(false);
+  });
+});
+
+describe("routes", () => {
+  it("sends a room's host name to exactly one container, by name", () => {
+    const route = roomRoute("jib", "prod", "sacre-coeur.coloc.dev", "coloc-jib-prod-abc123", 3000);
+    expect(route.http.routers["jib-prod"].rule).toBe("Host(`jib.sacre-coeur.coloc.dev`)");
+    expect(route.http.services["jib-prod"].loadBalancer.servers).toEqual([{ url: "http://coloc-jib-prod-abc123:3000" }]);
+  });
+
+  it("keeps prod and preview apart", () => {
+    const route = roomRoute("jib", "preview", "h.coloc.dev", "c", 3000);
+    expect(route.http.routers["jib-preview"].rule).toBe("Host(`preview-jib.h.coloc.dev`)");
   });
 });
 

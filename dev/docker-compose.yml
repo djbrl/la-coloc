@@ -4,14 +4,16 @@ services:
     image: traefik:v3.2
     container_name: coloc-traefik
     command:
-      - --providers.docker=true
-      # Only containers the agent labels explicitly are routed.
-      - --providers.docker.exposedbydefault=false
+      # Routes come from files the agent writes, one per room. Traefik never talks to Docker,
+      # so it gets no Docker socket: a compromised proxy can't take over the house.
+      - --providers.file.directory=/etc/traefik/rooms
+      - --providers.file.watch=true
+      - --providers.providersThrottleDuration=200ms
       - --entrypoints.web.address=:80
       - --api.dashboard=false
     ports:
       - "8000:80"
     volumes:
-      # Read-only. In production this goes through a socket proxy that only allows reads (see docs/dev.md).
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Must match the agent's COLOC_PROXY_CONFIG_DIR. Read-only: only the agent writes routes.
+      - /tmp/coloc-agent/proxy:/etc/traefik/rooms:ro
     restart: unless-stopped

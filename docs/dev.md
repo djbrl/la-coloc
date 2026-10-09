@@ -9,6 +9,7 @@ npm run start -w @coloc/api               # API + hub on http://127.0.0.1:4100
 COLOC_HOUSE_ID=sacre-coeur \
 COLOC_AGENT_SECRET=dev-secret-change-me \
 COLOC_USAGE_INTERVAL_MS=5000 \
+COLOC_ALLOW_LOCAL_REPOS=1 \
   npm run start -w @coloc/agent           # the caretaker; connects out to the API
 npm run dev:web                           # http://localhost:5173
 ```
@@ -45,6 +46,10 @@ Moussa's container gets OOM-killed and restarted (Docker's restart policy), the 
 and Jib's loop never prints DOWN. `scripts/isolation-demo.sh` runs this automatically.
 
 ## Production notes (not done yet)
-- **Docker socket for Traefik:** mount it through a read-only socket proxy instead of directly.
+- **Traefik has no Docker socket**, even in production: the agent writes its routes to `COLOC_PROXY_CONFIG_DIR`
+  (default `/tmp/coloc-agent/proxy`, mounted read-only into Traefik by `dev/docker-compose.yml`).
+- **`COLOC_ALLOW_LOCAL_REPOS=1` is for development only.** Without it the agent refuses `file://` repos, which would
+  let a flatmate build an image from any folder on the house server.
+- **The agent refuses to connect to a remote hub over plain `ws://`**: its first message carries the house secret.
 - **userns-remap:** set in the Docker daemon by `install.sh`, so root in a room isn't root on the host.
 - **Agent secret:** hashed in the database; shown once at house creation.

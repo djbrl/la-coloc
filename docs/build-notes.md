@@ -45,7 +45,29 @@ If pulls still hang: Docker Desktop → Settings → Resources → Proxies.
 6. `packages/domain/src/*`: reviewer rotation, bill split, tontine line. Not wired to the API yet.
 
 ### Next (roadmap week 1 → 2)
-- Run the proxy for real and confirm zero-downtime swaps through Traefik.
+- ~~Run the proxy for real and confirm zero-downtime swaps through Traefik.~~ Done, see below.
 - GitHub App + login (replaces the "Deploy main" form with webhooks).
 - Postgres + Drizzle behind `HousesService`.
 - Your floor-plan art on the house page.
+
+## Day 1 evening: 02 10 2026 (Claude, with Jib)
+
+Docker Hub pulls work again; `test/cached-node18` is deleted.
+
+### Verified through the real Traefik (`traefik:v3.2`)
+| Test | Result |
+|---|---|
+| Isolation demo (`scripts/isolation-demo.sh`) | Jib's room **0 failed requests out of 45**; Moussa's room OOM-restarted 4× |
+| Redeploy under load, routing by Docker labels (the old way) | **2 failed out of 142**: Traefik kept sending visitors to the old container for a moment after it stopped |
+| Redeploy under load, routing by files the agent writes (the new way) | **0 failed out of 270**, then **0 out of 266** |
+| Traefik's mounts | only the routes folder, read-only. **No Docker socket** |
+| Agent without `COLOC_ALLOW_LOCAL_REPOS=1`, deploying `file:///etc` | refused; the house page shows the room as failed with the reason |
+| Agent pointed at `ws://coloc.dev` | refuses to start: the house secret only travels over `wss://` (or to localhost) |
+
+### What changed
+- **Routing moved from Docker labels to route files** (`apps/agent/src/proxy.ts`, `roomRoute` in `room-spec.ts`).
+  A swap is now: new version healthy → route file points at it → wait for Traefik to reload → stop the old one.
+  On startup the agent rebuilds the routes from what's running and plugs Traefik back into every room's network.
+- **A failed clone now reports "failed"**. Before, it threw before the error handling and the room stayed "deploying".
+- **A malformed Docker event is skipped** instead of crashing the agent.
+- **Once traffic has switched, a deploy never rolls back** the new version, even if removing the old one fails.

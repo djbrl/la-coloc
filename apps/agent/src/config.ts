@@ -16,21 +16,41 @@ export interface AgentConfig {
   publicScheme: "http" | "https";
   // Name of the Traefik container, which the agent plugs into every room's network.
   proxyContainer: string;
+  // Folder the proxy watches for routes. The agent writes one file per room there.
+  proxyConfigDir: string;
+  // How long to wait after changing a route before trusting the proxy follows it.
+  routeSettleMs: number;
   workDir: string;
   usageIntervalMs: number;
+  // Development only: lets the agent build from file:// repos on its own disk.
+  allowLocalRepos: boolean;
+}
+
+// The agent's first message carries the house secret, so it only goes unencrypted to this machine.
+export function assertSafeApiUrl(url: string): void {
+  const { protocol, hostname } = new URL(url);
+  if (protocol === "wss:") return;
+  const local = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+  if (protocol === "ws:" && local) return;
+  throw new Error(`COLOC_API_URL must use wss:// (got ${protocol}//${hostname})`);
 }
 
 export function loadConfig(): AgentConfig {
+  const apiUrl = process.env.COLOC_API_URL ?? "ws://localhost:4100/agent";
+  assertSafeApiUrl(apiUrl);
   return {
-    apiUrl: process.env.COLOC_API_URL ?? "ws://localhost:4100/agent",
+    apiUrl,
     houseId: required("COLOC_HOUSE_ID"),
     secret: required("COLOC_AGENT_SECRET"),
     houseDomain: process.env.COLOC_HOUSE_DOMAIN ?? "coloc.localhost",
     publicPort: Number(process.env.COLOC_PUBLIC_PORT ?? 8000),
     publicScheme: (process.env.COLOC_PUBLIC_SCHEME as "http" | "https") ?? "http",
     proxyContainer: process.env.COLOC_PROXY_CONTAINER ?? "coloc-traefik",
+    proxyConfigDir: process.env.COLOC_PROXY_CONFIG_DIR ?? "/tmp/coloc-agent/proxy",
+    routeSettleMs: Number(process.env.COLOC_ROUTE_SETTLE_MS ?? 2000),
     workDir: process.env.COLOC_WORKDIR ?? "/tmp/coloc-agent",
     usageIntervalMs: Number(process.env.COLOC_USAGE_INTERVAL_MS ?? 30_000),
+    allowLocalRepos: process.env.COLOC_ALLOW_LOCAL_REPOS === "1",
   };
 }
 

@@ -6,8 +6,14 @@ import path from "node:path";
 
 const SAFE_REF = /^[A-Za-z0-9._\/-]+$/;
 
-export function assertSafeRepo(repo: string): void {
-  if (!/^(https:\/\/|file:\/\/)/.test(repo)) throw new Error("repo must be an https:// or file:// URL");
+// file:// reads straight from the house server's disk, so a flatmate could build an image out of any
+// folder on it. Only local development turns it on.
+export function assertSafeRepo(repo: string, allowLocal = false): void {
+  if (repo.startsWith("file://")) {
+    if (!allowLocal) throw new Error("local file:// repos are only allowed in development (COLOC_ALLOW_LOCAL_REPOS=1)");
+    return;
+  }
+  if (!repo.startsWith("https://")) throw new Error("repo must be an https:// URL");
 }
 
 export function assertSafeRef(ref: string): void {
@@ -39,8 +45,8 @@ export interface Checkout {
   cleanup: () => Promise<void>;
 }
 
-export async function shallowClone(workDir: string, repo: string, ref: string): Promise<Checkout> {
-  assertSafeRepo(repo);
+export async function shallowClone(workDir: string, repo: string, ref: string, allowLocal = false): Promise<Checkout> {
+  assertSafeRepo(repo, allowLocal);
   assertSafeRef(ref);
   const dir = await mkdtemp(path.join(workDir, "checkout-"));
   try {

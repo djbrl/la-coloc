@@ -26,7 +26,13 @@ export async function watchRoomEvents(onEvent: (e: RoomEvent) => void): Promise<
       const line = buffer.slice(0, nl).trim();
       buffer = buffer.slice(nl + 1);
       if (!line) continue;
-      const ev = JSON.parse(line) as DockerEvent;
+      let ev: DockerEvent;
+      try {
+        ev = JSON.parse(line) as DockerEvent;
+      } catch {
+        console.error(`[events] skipped an unreadable Docker event`);
+        continue;
+      }
       const room = ev.Actor.Attributes[LABEL.room];
       const name = ev.Actor.Attributes.name;
       // Containers retired during a swap also "die"; only report rooms dying on their own.

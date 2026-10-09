@@ -7,6 +7,7 @@ export const LABEL = {
   room: "coloc.room",
   kind: "coloc.kind",
   deploy: "coloc.deploy",
+  port: "coloc.port",
 } as const;
 
 export function roomNetwork(room: string): string {
@@ -32,27 +33,26 @@ export interface RoomContainerInput {
   readOnlyRootfs?: boolean;
 }
 
+export function containerName(room: string, kind: DeployKind, deployId: string): string {
+  return `coloc-${room}-${kind}-${deployId}`;
+}
+
 export function roomContainerSpec(i: RoomContainerInput): Docker.ContainerCreateOptions {
-  const router = `${i.room}-${i.kind}`;
   const network = roomNetwork(i.room);
   const memoryBytes = i.limits.memoryMb * 1024 * 1024;
 
   return {
-    name: `coloc-${i.room}-${i.kind}-${i.deployId}`,
+    name: containerName(i.room, i.kind, i.deployId),
     Image: i.image,
     Env: [...Object.entries(i.env).map(([k, v]) => `${k}=${v}`), `PORT=${i.port}`],
+    // No routing labels: the agent tells the proxy where to send visitors (see roomRoute), so the
+    // proxy never needs the Docker socket.
     Labels: {
       [LABEL.house]: i.houseId,
       [LABEL.room]: i.room,
       [LABEL.kind]: i.kind,
       [LABEL.deploy]: i.deployId,
-      // Traefik reads these to route visitors. Old and new containers share the same router and
-      // service names, so during a swap Traefik load-balances across both: no downtime.
-      "traefik.enable": "true",
-      "traefik.docker.network": network,
-      [`traefik.http.routers.${router}.rule`]: `Host(\`${roomHost(i.room, i.kind, i.houseDomain)}\`)`,
-      [`traefik.http.routers.${router}.entrypoints`]: "web",
-      [`traefik.http.services.${router}.loadbalancer.server.port`]: String(i.port),
+      [LABEL.port]: String(i.port),
     },
     HostConfig: {
       // Fixed room size. Memory = swap so a hungry app can't spill onto disk either.
@@ -73,6 +73,22 @@ export function roomContainerSpec(i: RoomContainerInput): Docker.ContainerCreate
       RestartPolicy: { Name: "unless-stopped" },
       // Logs can't fill the house's disk.
       LogConfig: { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } },
+    },
+  };
+}
+
+/**
+ * The proxy's route for one room: visitors to its host name go to exactly one container, reached by
+ * name on the room's network. Swapping versions = rewriting this to point at the new container
+ * *before* the old one stops, so no visitor is ever sent to a container that's going away.
+ * Returned as plain data; the proxy reads it as YAML (JSON is valid YAML).
+ */
+export function roomRoute(room: string, kind: DeployKind, houseDomain: string, container: string, port: number) {
+  const name = `${room}-${kind}`;
+  return {
+    http: {
+      routers: { [name]: { rule: `Host(\`${roomHost(room, kind, houseDomain)}\`)`, entryPoints: ["web"], service: name } },
+      services: { [name]: { loadBalancer: { servers: [{ url: `http://${container}:${port}` }] } } },
     },
   };
 }

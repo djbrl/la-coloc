@@ -5,12 +5,15 @@ import { deploy, removeRoom, snapshot } from "./deploy";
 import { watchRoomEvents } from "./events";
 import { connect } from "./link";
 import { sampleRooms } from "./meter";
+import { syncRoutes } from "./proxy";
 
 const VERSION = "0.1.0";
 
 async function main() {
   const cfg = loadConfig();
   await mkdir(cfg.workDir, { recursive: true });
+  // The routing table must match what's running before visitors arrive.
+  await syncRoutes(cfg);
 
   // One command at a time per room, so two deploys of the same room never race.
   const queues = new Map<string, Promise<void>>();
@@ -39,7 +42,7 @@ async function main() {
         );
         break;
       case "remove_room":
-        enqueue(cmd.room, () => removeRoom(cmd.room));
+        enqueue(cmd.room, () => removeRoom(cfg, cmd.room));
         break;
     }
   }, () => void sendSnapshot());

@@ -12,13 +12,20 @@ import {
   waitHealthy,
 } from "./docker";
 import { resolveInside, shallowClone } from "./git";
-import { LABEL, resolvePort, roomContainerSpec, roomHost } from "./room-spec";
+import { routeTo, unrouteRoom } from "./proxy";
+import { LABEL, containerName, resolvePort, roomContainerSpec, roomHost } from "./room-spec";
 
 type Report = (s: Omit<DeployStatus, "type" | "deployId" | "room">) => void;
 
 export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Report): Promise<void> {
   report({ status: "cloning" });
-  const checkout = await shallowClone(cfg.workDir, cmd.repo, cmd.ref);
+  let checkout;
+  try {
+    checkout = await shallowClone(cfg.workDir, cmd.repo, cmd.ref, cfg.allowLocalRepos);
+  } catch (e) {
+    report({ status: "failed", detail: (e as Error).message });
+    return;
+  }
   let newContainerId: string | undefined;
   try {
     const shortSha = checkout.sha.slice(0, 12);
@@ -56,9 +63,15 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
       throw new Error(`${(e as Error).message}${logs ? `\n--- last logs ---\n${logs}` : ""}`);
     }
 
-    // The new version is up and Traefik already routes to it: retire the old ones.
+    // Send visitors to the new version only, and wait for the proxy to follow. Only then retire the
+    // old ones: by now nobody is being sent to them.
+    await routeTo(cfg, cmd.room, cmd.kind, containerName(cmd.room, cmd.kind, cmd.deployId), port);
+    // From here the new version is the one serving: never roll it back, even if cleanup fails.
+    newContainerId = undefined;
     const others = (await roomContainers(cmd.room, cmd.kind)).filter((c) => c.Id !== container.id);
-    await Promise.all(others.map((c) => removeContainer(c.Id)));
+    await Promise.all(others.map((c) => removeContainer(c.Id))).catch((e) =>
+      console.error(`[deploy] ${cmd.room}: couldn't remove an old version: ${(e as Error).message}`),
+    );
 
     report({ status: "live", url: roomUrl(cfg, roomHost(cmd.room, cmd.kind, cfg.houseDomain)), detail: `commit ${shortSha}` });
   } catch (e) {
@@ -70,7 +83,8 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
   }
 }
 
-export async function removeRoom(room: string): Promise<void> {
+export async function removeRoom(cfg: AgentConfig, room: string): Promise<void> {
+  await unrouteRoom(cfg, room);
   const containers = await roomContainers(room);
   await Promise.all(containers.map((c) => removeContainer(c.Id)));
 }

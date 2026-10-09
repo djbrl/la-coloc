@@ -30,7 +30,9 @@ covers the contest's required purchase on its own.
   Works behind NAT, and a stolen house can't be used to attack coloc.dev. One secret token per agent, set at install.
 - **The agent never holds GitHub credentials.** For each build, the hub sends a short-lived GitHub App installation
   token (expires in 1h) scoped to that one repo.
-- **Rooms never get the Docker socket.** Only the agent has it.
+- **Rooms never get the Docker socket, and neither does the proxy.** Only the agent has it. Traefik sits on every
+  room's network, so it reads its routes from files the agent writes instead of watching Docker: a compromised proxy
+  can't take over the house.
 - **Root in a room ≠ root on the host:** Docker's `userns-remap`, set by the install script.
 - **GitHub is the source of truth for code.** Backups only cover the kitchen DB and volumes.
 - **Review gate without admin rights:** coloc doesn't touch branch protection. On merge, it deploys and records
@@ -45,7 +47,7 @@ network:   room-jib (own bridge; Traefik is the only other member)
 container: image built from the repo
   Memory 2 GB · NanoCPUs 1.0 · PidsLimit 256
   CapDrop ALL · no-new-privileges · ReadonlyRootfs + tmpfs /tmp
-  labels:  traefik.http.routers.jib.rule=Host(`jib.sacre-coeur.coloc.dev`)
+  route:   a file the agent writes for Traefik: Host(`jib.sacre-coeur.coloc.dev`) → this container
   env:     room secrets + KITCHEN_URL (its own DB and role only)
 optional:  Runtime "runsc" (gVisor) for houses with strangers
 ```
@@ -57,7 +59,8 @@ Disk: hard per-room quotas need XFS project quotas, which is a stretch goal. MVP
 2. **hub** job: PR opened → pick a reviewer (rotation), comment, request the review, order a **preview** build.
 3. hub → agent over WebSocket: `build {repo, sha, token, room, kind: preview}`.
 4. **agent**: clone with the token → `docker build` (Dockerfile, or Nixpacks (MIT) if there's none) → start the new
-   container → health check → Traefik picks it up by its labels → stop the old one (zero downtime) → report back.
+   container → health check → rewrite the room's route file to point at it → wait for Traefik to reload → stop the
+   old one (zero downtime: nobody is sent to it any more) → report back.
 5. Merge → same thing with `kind: prod`. If the health check fails: keep the old container and report a failed deploy.
 6. hub → GitHub Deployments API + dashboard live update (server-sent events).
 
@@ -69,12 +72,13 @@ Every 30s the agent sends `docker stats` per room → `usage_samples` → monthl
 coloc/
 ├─ apps/
 │  ├─ web/                    Vue 3 + Vite (screens only, static build)
-│  │  ├─ app/(house)/         house page: floor plan, rooms, fridge, bill
-│  │  ├─ app/listings/        flatmate ads + applications
+│  │  ├─ pages/city/          the city map: every house, free rooms, presence
+│  │  ├─ pages/house/         house profile + floor plan, house channel, fridge, bill
+│  │  ├─ pages/doorbell/      knock + application thread + vote
 │  │  └─ components/floorplan/   Jib's illustrated SVG, rooms animated by live status
 │  └─ api/                    NestJS, one module per domain:
-│     │                       auth · houses · rooms · github (webhooks + bot) · agents (WebSocket gateway)
-│     │                       chores · tontine · billing · fridge
+│     │                       auth · city · houses · rooms · github (webhooks + bot) · agents (WebSocket gateway)
+│     │                       messages · applications · chores · ledger · tontine · billing · fridge
 │     ├─ agents/              connections, auth, command dispatch
 │     └─ jobs/                on-pr-opened, on-merge, sample-usage, monthly-bill, chore-deadlines
 ├─ apps/agent/               TypeScript (or Go, see stack)
@@ -98,14 +102,18 @@ coloc/
 `users` · `houses` (chef, server IP, agent token hash, size) · `memberships` (role, room size, tontine position,
 status) · `rooms` (repo, subdomain, limits, current deployment) · `deployments` (sha, PR, prod/preview, status,
 approved_by) · `chores` (PR, assignee, due, done/skipped) · `usage_samples` · `bills` + `bill_lines` (share,
-amount, Wave link, paid_at) · `fridge_notes` · `listings` + `applications` + `votes`.
+amount, Wave link, paid_at) · `fridge_notes` · `listings` + `applications` + `votes` · `channels` (one per house,
+one per application) + `messages` (author, body, at, reported) · `room_members` (who can deploy to a room: one
+person, or several for a team room). The exchange ledger is a view over `chores`, not a table.
+Presence (who's online, where) lives in memory on the API: it's live-only and rebuilt on reconnect.
 
 ## Build order (vertical slice first)
 
-1. **Week 1:** push to a repo → it's live in a room with limits. Hardcoded single house, no UI. If this works, the rest is product.
-2. **Week 2:** GitHub App + login, reviewer rotation + comments, previews, the house page with the floor plan, usage sampling.
-3. **Week 3:** bill split + Wave links, fridge notes, tontine turn, listings, invite from GitHub follows, hardening, demo script.
-**Cut first if late:** listings, web terminal, gVisor, disk quotas, tontine perks.
+1. **Done 02 10:** push to a repo → it's live in a room with limits, zero-downtime swaps, isolation demo, live house page.
+2. **Week 1:** Postgres, GitHub login, multi-house API, the city map and house profiles.
+3. **Week 2:** GitHub App (reviews, previews, deployments), knock → doorbell thread → vote → move in, house channel, presence, a real server.
+4. **Week 3:** exchange ledger, emotes, tontine, team rooms, bills, hardening, Datacloud, a seeded city, demo.
+**Cut first if late:** see [roadmap.md](roadmap.md). Never the city, the doorbell, the house channel or reviews.
 
 ## Possible team split
 - **Jib:** web app + floor-plan art + UX (20% of the score).
@@ -127,7 +135,10 @@ Avoid **Bun's** `--compile` (it embeds JavaScriptCore, which is LGPL) and **PyIn
 `/api/auth/github` login · `POST /api/houses` rent a flat → returns the install command with the agent's secret ·
 `GET /api/houses/:id` house page data · `GET /api/houses/:id/events` live updates (server-sent events) ·
 `POST /api/houses/:id/invites` · `POST /api/houses/:id/rooms` move in with a repo · `PATCH /api/rooms/:id/secrets` ·
-`POST /api/rooms/:id/restart` · `POST /api/github/webhook` (GitHub's notifications, signature checked, then queued).
+`POST /api/rooms/:id/restart` · `POST /api/github/webhook` (GitHub's notifications, signature checked, then queued) ·
+`GET /api/city` every house with its rooms, ads and presence · `GET /api/city/stream` live presence + room changes ·
+`POST /api/houses/:id/knock` opens an application thread · `POST /api/applications/:id/votes` ·
+`GET|POST /api/channels/:id/messages` (new messages also arrive on the house's live stream) · `POST /api/messages/:id/report`.
 
 **Hub jobs** (pg-boss): `pr.opened` (pick reviewer, comment, request review, order preview) · `pr.closed` (remove preview in 24h) ·
 `main.pushed` (order prod deploy, note if unreviewed) · `review.submitted` (chore done) · `chore.deadline` (fridge note, tontine penalty) ·
@@ -137,8 +148,9 @@ Avoid **Bun's** `--compile` (it embeds JavaScriptCore, which is LGPL) and **PyIn
 hub → agent: `create_room` · `deploy {room, repo, sha, token, kind}` · `remove_preview` · `pause_room` · `remove_room` · `create_kitchen_shelf`
 agent → hub: `hello {agentSecret}` · `deploy_status {building|live|failed, logs}` · `usage {room, cpu, ram, disk, net}` · `room_health`
 
-**Traefik**: the reverse proxy. Watches Docker and routes by container labels, so a new room is reachable the moment the agent
-starts it, with no config file to edit. Gets HTTPS certificates automatically. Alternatives: Caddy (Apache-2.0), Nginx (needs config reloads).
+**Traefik**: the reverse proxy. Watches a folder of route files (one per room) that the agent writes, and reloads within
+milliseconds. Decided 02 10 2026 after testing: routing by Docker labels dropped a few requests during swaps (Traefik
+learns that a container stopped a moment too late) and needed the Docker socket. Gets HTTPS certificates automatically. Alternatives: Caddy (Apache-2.0), Nginx (needs config reloads).
 
 ## Decision: Vue 3 + NestJS (02 10 2026, Jib)
 Replaces Next.js + a separate hub. Both MIT. Nest's modules give a clear structure the jury can read (30%), and the hub
@@ -148,3 +160,12 @@ and the front becomes static files (no extra server process). Lost: per-page lin
 Fix: static OG tags on the landing page, or a tiny Nest route for public house/listing previews. The agent stays **plain Node**:
 Nest is too heavy for the small program that shares the house's RAM. Avoid `@nestjs/bullmq` unless using Valkey,
 because BullMQ needs Redis, and Redis isn't permissive anymore.
+
+## Decision: the city, and chat without new infrastructure (02 10 2026, Jib)
+The product is now a city of houses ([how-it-works.md](how-it-works.md)): a map, house profiles, knocking, a doorbell
+thread per application and a channel per house. House profiles become shareable, so the "everything is behind a login"
+argument above no longer holds for them: they get OG tags from the small Nest route already planned for public previews.
+Chat reuses what exists: messages are posted over HTTP and pushed over the server-sent-events stream the house page
+already uses, stored in Postgres. No socket.io, no chat service. Two surfaces only (house channel, doorbell thread):
+no DMs, so it can't grow into a Discord clone. Later (Q3 2027), the map can become a walkable avatar lobby
+(three.js or PixiJS + Colyseus, MIT) on the same data.

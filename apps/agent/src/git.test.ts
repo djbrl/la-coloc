@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { assertSafeRef, assertSafeRepo, resolveInside } from "./git";
 
 describe("checkout safety", () => {
-  it("only clones https and file URLs", () => {
+  it("only clones https URLs, and local file:// repos only in development", () => {
     expect(() => assertSafeRepo("https://github.com/a/b.git")).not.toThrow();
+    expect(() => assertSafeRepo("file:///etc")).toThrow();
+    expect(() => assertSafeRepo("file:///Users/me/app", true)).not.toThrow();
     expect(() => assertSafeRepo("--upload-pack=touch /tmp/pwned")).toThrow();
     expect(() => assertSafeRepo("ssh://evil/repo")).toThrow();
   });
