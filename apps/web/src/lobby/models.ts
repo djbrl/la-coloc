@@ -87,6 +87,30 @@ export function makeHouse(house: Pick<CityHouse, "rooms" | "status">): HouseMode
   return { group, halfWidth: width / 2, halfDepth: depth / 2, door: new THREE.Vector3(0, 0, depth / 2 + 1.1) };
 }
 
+/**
+ * The room board by the door: one light per room, so you can read a house from the street even when its
+ * model has windows of its own. Warm: lived in. Blue: free. Amber: signed up, server not rented yet.
+ */
+export function makeRoomBoard(house: Pick<CityHouse, "rooms" | "status">): THREE.Group {
+  const g = new THREE.Group();
+  const n = house.rooms.length;
+  const width = Math.max(0.7, n * 0.32 + 0.2);
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 0.1), mat(0x5b4636));
+  post.position.y = 0.65;
+  const board = new THREE.Mesh(new THREE.BoxGeometry(width, 0.42, 0.08), mat(0x3a2e25));
+  board.position.y = 1.35;
+  g.add(post, board);
+  house.rooms.forEach((r, i) => {
+    const state = !r.occupant ? "free" : house.status === "making" ? "making" : r.status === "down" || r.status === "failed" ? "down" : "lit";
+    const color = { free: PALETTE.free, making: PALETTE.making, down: PALETTE.down, lit: PALETTE.lit }[state];
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), mat(color, { emissive: color, emissiveIntensity: 1.2 }));
+    light.position.set((i - (n - 1) / 2) * 0.32, 1.35, 0.08);
+    g.add(light);
+  });
+  g.traverse((o) => (o.castShadow = true));
+  return g;
+}
+
 /** A little person: a body, a head, a coloured top. Faces +z. */
 export function makeAvatar(color: number): THREE.Group {
   const g = new THREE.Group();

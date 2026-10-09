@@ -4,7 +4,8 @@ import * as THREE from "three";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import type { CityHouse } from "../types";
 import { PLOT, plots, rowCount, STREET_OFFSET } from "./layout";
-import { colorFor, disposeTree, type HouseModel, makeAvatar, makeHouse, PALETTE } from "./models";
+import { loadHouse, loadPerson, type Person } from "./assets";
+import { colorFor, disposeTree, type HouseModel, makeAvatar, makeHouse, makeRoomBoard, PALETTE } from "./models";
 
 const SPEED = 6; // units per second
 const RADIUS = 0.4; // how wide a person is, for bumping into walls
@@ -18,10 +19,13 @@ interface Placed {
   min: THREE.Vector2;
   max: THREE.Vector2;
   door: THREE.Vector3;
+  // The flatmates hanging around in front.
+  npcs: Npc[];
 }
 
 interface Npc {
   avatar: THREE.Group;
+  person?: Person;
   home: THREE.Vector3;
   target: THREE.Vector3;
   wait: number;
@@ -51,6 +55,13 @@ export class Lobby {
   private ray = new THREE.Raycaster();
   private resize: ResizeObserver;
   private reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  private playerPerson?: Person;
+  // What the town was last built from, to skip rebuilds when nothing changed.
+  private builtFrom = "";
+  // Where you can walk: the town plus a margin.
+  private bounds = { minX: -30, maxX: 30, minZ: -20, maxZ: 20 };
+  // Bumped on every rebuild, so models that finish loading late don't land in a town that's gone.
+  private generation = 0;
 
   constructor(
     private host: HTMLElement,
@@ -78,6 +89,12 @@ export class Lobby {
     this.player = makeAvatar(playerLogin ? colorFor(playerLogin) : 0x2f5fb3);
     this.player.add(this.label(playerLogin ? `@${playerLogin}` : "you", "lobby-label you", 1.75));
     this.scene.add(this.player);
+    loadPerson(playerLogin ?? "visitor")
+      .then((p) => {
+        this.playerPerson = p;
+        this.dress(this.player, p);
+      })
+      .catch(() => undefined);
 
     this.resize = new ResizeObserver(() => this.fit());
     this.resize.observe(host);
@@ -90,6 +107,12 @@ export class Lobby {
 
   /** Builds (or rebuilds) the neighbourhood from the city. The player stays where they are. */
   setCity(houses: CityHouse[]) {
+    // The city stream re-sends the city often (a CPU reading, someone online). Only rebuild if what's drawn changed.
+    const key = JSON.stringify(houses.map((h) => [h.id, h.name, h.status, h.demo, h.rooms.map((r) => [r.status, r.occupant?.login ?? null])]));
+    if (key === this.builtFrom) return;
+    this.builtFrom = key;
+    const gen = ++this.generation;
+    removeLabels(this.town);
     disposeTree(this.town);
     this.town.clear();
     this.placed = [];
@@ -97,8 +120,11 @@ export class Lobby {
 
     const rows = rowCount(houses.length);
     const length = PLOT.perRow * PLOT.width + 10;
+    const depth = rows * PLOT.depth;
+    this.bounds = { minX: -length / 2 - 4, maxX: length / 2 + 4, minZ: -PLOT.depth / 2 - 2, maxZ: depth };
+    // Much bigger than the town, so the camera never sees the edge of the world.
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(length + 20, rows * PLOT.depth + 24),
+      new THREE.PlaneGeometry(length + 120, depth + 120),
       new THREE.MeshStandardMaterial({ color: PALETTE.ground, roughness: 1 }),
     );
     ground.rotation.x = -Math.PI / 2;
@@ -129,8 +155,10 @@ export class Lobby {
         min: new THREE.Vector2(plot.x - model.halfWidth, plot.z - model.halfDepth),
         max: new THREE.Vector2(plot.x + model.halfWidth, plot.z + model.halfDepth),
         door,
+        npcs: [],
       };
       this.placed.push(placed);
+      if (house.status === "live") this.upgradeHouse(placed, gen);
 
       // The flatmates hang around in front of their house.
       house.rooms
@@ -141,7 +169,16 @@ export class Lobby {
           avatar.position.copy(home);
           avatar.add(this.label(r.occupant!.name ?? r.occupant!.login, "lobby-label small", 1.6));
           this.town.add(avatar);
-          this.npcs.push({ avatar, home, target: home.clone(), wait: Math.random() * 3 });
+          const npc: Npc = { avatar, home, target: home.clone(), wait: Math.random() * 3 };
+          this.npcs.push(npc);
+          placed.npcs.push(npc);
+          loadPerson(r.occupant!.login)
+            .then((p) => {
+              if (gen !== this.generation) return;
+              npc.person = p;
+              this.dress(avatar, p);
+            })
+            .catch(() => undefined);
         });
     });
 
@@ -149,6 +186,44 @@ export class Lobby {
     if (this.player.position.lengthSq() === 0 && this.placed[0]) {
       this.player.position.copy(this.placed[0].door).add(new THREE.Vector3(0, 0, 2.5));
     }
+  }
+
+  /** Swaps a house's placeholder for its model, adds the room board, and walks the footprint out to fit. */
+  private async upgradeHouse(p: Placed, gen: number) {
+    let model: THREE.Object3D;
+    try {
+      model = await loadHouse(p.house.id, 5.2);
+    } catch {
+      return; // keep the placeholder
+    }
+    if (gen !== this.generation) return;
+    const group = p.model.group;
+    group.children.forEach((c) => {
+      if (!(c instanceof CSS2DObject)) c.visible = false;
+    });
+    group.add(model);
+    const box = new THREE.Box3().setFromObject(model);
+    const board = makeRoomBoard(p.house);
+    board.position.set(box.max.x - group.position.x + 0.6, 0, box.max.z - group.position.z + 0.3);
+    group.add(board);
+    p.min.set(box.min.x, box.min.z);
+    p.max.set(box.max.x, box.max.z);
+    const moved = new THREE.Vector3((box.min.x + box.max.x) / 2, 0, box.max.z + 1.1).sub(p.door);
+    p.door.add(moved);
+    // The flatmates follow their door.
+    for (const n of p.npcs) {
+      n.home.add(moved);
+      n.target.add(moved);
+      n.avatar.position.add(moved);
+    }
+  }
+
+  /** Puts a loaded person in place of a placeholder avatar (keeping its name tag). */
+  private dress(avatar: THREE.Group, person: Person) {
+    avatar.children.forEach((c) => {
+      if (!(c instanceof CSS2DObject)) c.visible = false;
+    });
+    avatar.add(person.object);
   }
 
   /** Walks to a house's door, and goes in on arrival. */
@@ -169,6 +244,7 @@ export class Lobby {
     window.removeEventListener("keydown", this.keydown);
     window.removeEventListener("keyup", this.keyup);
     this.renderer.domElement.removeEventListener("pointerdown", this.click);
+    removeLabels(this.scene);
     disposeTree(this.scene);
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -226,7 +302,8 @@ export class Lobby {
         return;
       }
       if (hit.object.name === "ground") {
-        this.walkTo = hit.point.setY(0);
+        const b = this.bounds;
+        this.walkTo = new THREE.Vector3(THREE.MathUtils.clamp(hit.point.x, b.minX, b.maxX), 0, THREE.MathUtils.clamp(hit.point.z, b.minZ, b.maxZ));
         this.enterOnArrival = null;
         return;
       }
@@ -262,11 +339,19 @@ export class Lobby {
       // Slide along walls: try each axis on its own.
       if (!this.blocked(pos.x + dir.x, pos.z)) pos.x += dir.x;
       if (!this.blocked(pos.x, pos.z + dir.z)) pos.z += dir.z;
+      // Stay in town.
+      pos.x = THREE.MathUtils.clamp(pos.x, this.bounds.minX, this.bounds.maxX);
+      pos.z = THREE.MathUtils.clamp(pos.z, this.bounds.minZ, this.bounds.maxZ);
       this.player.rotation.y = Math.atan2(dir.x, dir.z);
-      if (!this.reducedMotion) this.player.position.y = Math.abs(Math.sin(this.clock.elapsedTime * 12)) * 0.08;
+      // The model walks; the placeholder bobs.
+      if (this.playerPerson) this.playerPerson.play("walk");
+      else if (!this.reducedMotion) this.player.position.y = Math.abs(Math.sin(this.clock.elapsedTime * 12)) * 0.08;
     } else {
       this.player.position.y = 0;
+      this.playerPerson?.play("idle");
     }
+    if (this.playerPerson) this.player.position.y = 0;
+    this.playerPerson?.mixer.update(dt);
 
     // Which door are we standing at?
     const near = this.placed.find((p) => p.door.distanceTo(this.player.position.clone().setY(0)) < DOOR_RANGE) ?? null;
@@ -286,14 +371,17 @@ export class Lobby {
             n.wait = 2 + Math.random() * 4;
           }
           n.avatar.position.y = 0;
+          n.person?.play("idle");
         } else {
           const move = to.normalize().multiplyScalar(1.2 * dt);
           n.avatar.position.add(move);
           n.avatar.rotation.y = Math.atan2(move.x, move.z);
-          n.avatar.position.y = Math.abs(Math.sin(this.clock.elapsedTime * 9 + n.home.x)) * 0.05;
+          if (n.person) n.person.play("walk");
+          else n.avatar.position.y = Math.abs(Math.sin(this.clock.elapsedTime * 9 + n.home.x)) * 0.05;
         }
       }
     }
+    for (const n of this.npcs) n.person?.mixer.update(dt);
 
     // The camera follows, from a fixed isometric angle.
     this.camera.position.copy(this.player.position).setY(0).add(CAMERA_OFFSET);
@@ -306,4 +394,11 @@ export class Lobby {
     this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
   };
+}
+
+// three.js removes a name tag's element only when the tag itself is removed, not when a group holding it is.
+function removeLabels(root: THREE.Object3D) {
+  root.traverse((o) => {
+    if (o instanceof CSS2DObject) o.element.remove();
+  });
 }

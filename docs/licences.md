@@ -13,8 +13,15 @@ Added 09 10: three.js (MIT) for the 3D lobby; smee-client (ISC, development only
 ## Art and assets
 Only assets we made ourselves, or under CC0 / a permissive licence, with the source written down here.
 **Never** artwork found on ArtStation, Pinterest or similar: it belongs to its artists, and the rules require the
-project to be free of third-party rights (Art. 6). On 09 10 the lobby uses no external assets: every shape is built
-in code (`apps/web/src/lobby/models.ts`).
+project to be free of third-party rights (Art. 6).
+
+| Asset | Where | Source | Licence |
+|---|---|---|---|
+| City Kit (Suburban) 2.0 by Kenney: 21 houses, 2 trees, a planter | `apps/web/public/lobby/houses/` | https://kenney.nl/assets/city-kit-suburban | CC0 1.0 (public domain) |
+| Mini Characters 1.0 by Kenney: 12 animated characters | `apps/web/public/lobby/people/` | https://kenney.nl/assets/mini-characters | CC0 1.0 (public domain) |
+
+Both are development placeholders until Jib's art. Downloaded 09 10 2026; licence files kept next to the models.
+If they fail to load, the lobby falls back to shapes built in code (`apps/web/src/lobby/models.ts`).
 
 ## Runtime environment (not distributed, not modified, not linked)
 Linux kernel (GPL-2.0), Docker Engine (Apache-2.0), Traefik (MIT), Postgres (PostgreSQL licence), container base images

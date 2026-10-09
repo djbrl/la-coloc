@@ -76,6 +76,7 @@ const free = (h: CityHouse) => h.rooms.filter((r) => !r.occupant).length;
 .sw.lit { background: #ffc96b; }
 .sw.free { background: #1e2638; box-shadow: 0 0 0 1.5px #6f9cff inset; }
 .sw.making { border: 1.5px dashed #e0a640; }
+.primary kbd { background: transparent; border-color: currentColor; color: inherit; }
 kbd { font: 11px ui-monospace, monospace; padding: 0 4px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; margin: 0 1px; background: var(--bg); }
 @media (max-width: 520px) {
   .help { display: none; }
