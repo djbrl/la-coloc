@@ -5,3 +5,6 @@ dist/
 .env.*
 !.env.example
 .DS_Store
+
+# GitHub App keys for development (written by scripts/github-app.mjs)
+*.pem
