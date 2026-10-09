@@ -132,3 +132,20 @@ in the working tree. **82 tests passing** (domain 14, protocol 3, agent 13, db 2
 3. **Your art.** `HouseDrawing.vue` (city) and the room cards (floor plan) are placeholders built to be swapped.
 4. **Read the new code before the jury does**: `packages/db/src/schema.ts` → `auth/auth.service.ts` →
    `doorbell/doorbell.service.ts` → `github/chores.service.ts`.
+
+## 09 10 2026: the real GitHub App
+
+**La Coloc - Dev** (https://github.com/apps/la-coloc-dev) was created with `npm run dev:github-app`: private to
+Djbrl, permissions *contents: read*, *metadata: read*, *issues: write*, *pull requests: write*; events *pull request*
+and *pull request review*. Keys in `dev/.env.github` and `dev/github-app.pem` (git-ignored).
+
+Verified against real GitHub:
+- **Log in with GitHub** → Djbrl (Djibril Sy) with their avatar. Then knock on Sacré-Cœur's room-4, voted in by
+  Jib and Awa (dev logins): Djbrl now lives in room-4.
+- App installed on the private test repo **Djbrl/coloc-test** only. The installation webhook came through the smee
+  relay, passed the signature check, and linked the repo to room-4.
+- **Djbrl/coloc-test#1** opened → Jib assigned on the rotation → the App commented on the PR. Jib is a demo flatmate
+  with no GitHub account, so he's named in plain text, not @-mentioned (a real stranger may own that login).
+
+Not verified yet: a chore being *done*, which needs a reviewer with a real GitHub account (a teammate, once they
+log in and move in). The smee relay re-encodes JSON; it hasn't broken a signature yet, but watch for 401s.
