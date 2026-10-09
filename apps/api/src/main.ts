@@ -4,7 +4,8 @@ import { WsAdapter } from "@nestjs/platform-ws";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: GitHub webhooks are signed over the exact bytes sent, so we keep them.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   // Agents connect over plain WebSockets (the `ws` library), not socket.io.
   app.useWebSocketAdapter(new WsAdapter(app));
   app.setGlobalPrefix("api");

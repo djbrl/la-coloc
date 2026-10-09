@@ -13,6 +13,8 @@ const props = defineProps<{
   agentOnline: boolean;
   viewer: Viewer | null;
   chefLogin: string | null;
+  // Reviews this flatmate has given and received.
+  ledger?: { given: number; received: number };
 }>();
 
 const repo = ref("");
@@ -83,6 +85,7 @@ async function knock() {
         </div>
         <span class="pill" :class="houseStatus === 'making' ? 'making' : room.status">{{ statusLabel }}</span>
       </header>
+      <p v-if="ledger && (ledger.given || ledger.received)" class="ledger muted">{{ ledger.given }} {{ ledger.given === 1 ? "review" : "reviews" }} given · {{ ledger.received }} received</p>
       <div v-if="room.project" class="project">
         <strong>{{ room.project }}</strong>
         <p v-if="room.projectDescription" class="muted">{{ room.projectDescription }}</p>
@@ -143,6 +146,7 @@ header { display: flex; align-items: center; gap: 10px; }
 .who { display: grid; line-height: 1.3; flex: 1; min-width: 0; }
 .who .muted { font-size: 12px; }
 .door { font-size: 24px; }
+.ledger { margin: 0; font-size: 12px; }
 .project p { margin: 0; font-size: 13px; }
 a { font-size: 13px; word-break: break-all; }
 .meter { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }

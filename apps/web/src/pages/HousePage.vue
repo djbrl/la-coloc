@@ -37,6 +37,11 @@ const perPerson = computed(() => {
   return Math.round(h.monthlyCostFcfa / Math.max(1, h.rooms.length) / 100) * 100;
 });
 const fcfa = (n: number) => n.toLocaleString("fr-FR") + " FCFA";
+const due = (iso: string) => {
+  const hours = Math.round((new Date(iso).getTime() - Date.now()) / 3600_000);
+  return hours <= 0 ? "late" : hours < 1 ? "due within the hour" : `due in ${hours}h`;
+};
+const reviews = computed(() => house.value?.ledger.reduce((n, l) => n + l.given, 0) ?? 0);
 </script>
 
 <template>
@@ -66,6 +71,10 @@ const fcfa = (n: number) => n.toLocaleString("fr-FR") + " FCFA";
           <dd>~{{ fcfa(perPerson) }} / month each</dd>
         </div>
         <div>
+          <dt>Reviews exchanged</dt>
+          <dd>{{ reviews }}</dd>
+        </div>
+        <div>
           <dt>Rooms at</dt>
           <dd class="mono">*.{{ house.domain }}</dd>
         </div>
@@ -84,6 +93,7 @@ const fcfa = (n: number) => n.toLocaleString("fr-FR") + " FCFA";
         :agent-online="house.agentOnline"
         :viewer="house.viewer"
         :chef-login="house.chef?.login ?? null"
+        :ledger="house.ledger.find((l) => l.login === room.occupant?.login)"
       />
     </section>
 
@@ -95,6 +105,18 @@ const fcfa = (n: number) => n.toLocaleString("fr-FR") + " FCFA";
         <span class="pill">{{ d.tally.yes }}/{{ d.tally.needed }} yes</span>
         <span class="go">Answer →</span>
       </RouterLink>
+    </section>
+
+    <section v-if="house.viewer?.member" class="chores">
+      <h2>Chores</h2>
+      <p v-if="!house.chores?.length" class="muted small">No reviews waiting. When a flatmate opens a pull request, someone gets picked to review it.</p>
+      <ul v-else>
+        <li v-for="c in house.chores" :key="c.id" :class="{ late: c.late, mine: c.assignee.login === house.viewer.login }">
+          <Avatar :person="c.assignee" :size="22" />
+          <span><strong>{{ c.assignee.name ?? c.assignee.login }}</strong> reviews <a :href="c.prUrl" target="_blank" rel="noopener">{{ c.repo }}#{{ c.prNumber }}</a> · {{ c.prTitle }}</span>
+          <span class="pill" :class="c.late ? 'down' : 'deploying'">{{ due(c.dueAt) }}</span>
+        </li>
+      </ul>
     </section>
 
     <section v-if="house.viewer?.member" class="living">
@@ -145,4 +167,11 @@ const fcfa = (n: number) => n.toLocaleString("fr-FR") + " FCFA";
 .knocker { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); color: var(--text); text-decoration: none; flex-wrap: wrap; }
 .knocker .go { margin-left: auto; color: var(--accent); font-weight: 600; }
 .living { margin-bottom: 24px; }
+.chores { margin-bottom: 24px; }
+.chores ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.chores li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 14px; }
+.chores li.mine { border-color: var(--accent); }
+.chores li.late { border-color: var(--danger); }
+.chores li .pill { margin-left: auto; }
+.small { font-size: 13px; margin: 0; }
 </style>

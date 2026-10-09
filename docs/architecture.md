@@ -99,6 +99,13 @@ coloc/
 
 ## Data model (Postgres, on coloc.dev)
 
+*Built 08 10 2026 in `packages/db/src/schema.ts`: `users` · `sessions` · `houses` (status making/live, `demo` flag,
+agent secret hash) · `rooms` (occupant, limits, status, project, ad) · `memberships` (role, tontine position) ·
+`deployments` · `fridge_notes` · `usage_samples` · `applications` + `votes` (the doorbell) · `messages` (house channel
+and doorbell threads) · `repos` (a GitHub repo linked to a room) · `chores` (one PR, one reviewer). The plan below
+remains the target; `bills` and `listings` aren't built yet.*
+
+
 `users` · `houses` (chef, server IP, agent token hash, size) · `memberships` (role, room size, tontine position,
 status) · `rooms` (repo, subdomain, limits, current deployment) · `deployments` (sha, PR, prod/preview, status,
 approved_by) · `chores` (PR, assignee, due, done/skipped) · `usage_samples` · `bills` + `bill_lines` (share,

@@ -192,6 +192,44 @@ export const messages = pgTable(
   (t) => [index("messages_channel_id").on(t.channel, t.id)],
 );
 
+// A GitHub repo moved into a room: installing the coloc GitHub App on it links it to its owner's room.
+export const repos = pgTable("repos", {
+  // GitHub's numeric repo id: names change, ids don't.
+  githubId: bigint("github_id", { mode: "number" }).primaryKey(),
+  fullName: text("full_name").notNull(),
+  houseId: text("house_id").notNull().references(() => houses.id, { onDelete: "cascade" }),
+  room: text("room").notNull(),
+  installationId: bigint("installation_id", { mode: "number" }).notNull(),
+  createdAt: createdAt(),
+});
+
+export type ChoreStatus = "open" | "done";
+
+// A chore is a review: one pull request, one flatmate assigned to review it.
+export const chores = pgTable(
+  "chores",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    houseId: text("house_id").notNull().references(() => houses.id, { onDelete: "cascade" }),
+    repoId: bigint("repo_id", { mode: "number" }).notNull(),
+    repoFullName: text("repo_full_name").notNull(),
+    prNumber: integer("pr_number").notNull(),
+    prTitle: text("pr_title").notNull(),
+    prUrl: text("pr_url").notNull(),
+    authorId: uuid("author_id").references(() => users.id),
+    assigneeId: uuid("assignee_id").notNull().references(() => users.id),
+    status: text("status").$type<ChoreStatus>().notNull().default("open"),
+    // How the review went: approved, changes_requested or commented.
+    outcome: text("outcome"),
+    dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+    // Set once the late fridge note has gone up, so it goes up once.
+    lateNotedAt: timestamp("late_noted_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("chores_pr").on(t.repoId, t.prNumber), index("chores_house_status").on(t.houseId, t.status)],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({ memberships: many(memberships) }));
 export const housesRelations = relations(houses, ({ many, one }) => ({
   rooms: many(rooms),

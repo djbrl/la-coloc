@@ -117,6 +117,22 @@ export interface HouseView {
   notes: FridgeNote[] | null;
   doorbell: DoorbellItem[] | null;
   channel: Message[] | null;
+  // Flatmates only: reviews waiting to be done.
+  chores: Chore[] | null;
+  // Public: reviews given and received per flatmate.
+  ledger: { login: string; given: number; received: number }[];
+}
+
+export interface Chore {
+  id: string;
+  repo: string;
+  prNumber: number;
+  prTitle: string;
+  prUrl: string;
+  assignee: Person;
+  author: Person | null;
+  dueAt: string;
+  late: boolean;
 }
 
 export interface CityHouse {

@@ -81,6 +81,28 @@ export interface HouseView {
   // Flatmates only: who's knocking, and the living-room chat.
   doorbell: DoorbellItem[] | null;
   channel: MessageView[] | null;
+  // Flatmates only: reviews waiting to be done.
+  chores: ChoreView[] | null;
+  // Public: who reviewed how much. The house's reputation in the city.
+  ledger: LedgerLine[];
+}
+
+export interface ChoreView {
+  id: string;
+  repo: string;
+  prNumber: number;
+  prTitle: string;
+  prUrl: string;
+  assignee: PersonView;
+  author: PersonView | null;
+  dueAt: string;
+  late: boolean;
+}
+
+export interface LedgerLine {
+  login: string;
+  given: number;
+  received: number;
 }
 
 // One house as the city shows it: enough to draw it and decide whether to open it.

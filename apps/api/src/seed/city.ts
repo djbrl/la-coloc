@@ -1,7 +1,7 @@
 // The development city. Sacré-Cœur is the house our local agent actually runs (see docs/dev.md).
 // Every other house is a demo house: flagged `demo`, labelled as such in the UI, with made-up flatmates
 // who have no GitHub account. They exist so the city isn't empty on screen.
-import { type Db, fridgeNotes, houses, memberships, rooms, sessions, deployments, usageSamples, users } from "@coloc/db";
+import { applications, chores, type Db, deployments, fridgeNotes, houses, memberships, messages, repos, rooms, sessions, usageSamples, users, votes } from "@coloc/db";
 import { hashSecret } from "../houses/houses.service";
 
 interface SeedRoom {
@@ -198,7 +198,7 @@ const displayName = (login: string) => NAMES[login] ?? login.charAt(0).toUpperCa
  */
 export async function seedCity(db: Db, opts: { agentSecret: string; domain: (houseId: string) => string }) {
   await db.transaction(async (tx) => {
-    for (const t of [usageSamples, fridgeNotes, deployments, sessions, memberships, rooms, houses, users]) await tx.delete(t);
+    for (const t of [messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, sessions, memberships, rooms, houses, users]) await tx.delete(t);
 
     const logins = [...new Set(CITY.flatMap((h) => h.rooms.map((r) => r.who).filter((w): w is string => !!w)))];
     const inserted = await tx

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   applications,
+  chores,
   type Db,
   deployments,
   fridgeNotes,
@@ -18,7 +19,8 @@ import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import { channelMessages, houseChannel, openDoorbell } from "../doorbell/queries";
 import { type Draft, noteForDeploy, noteForRoomEvent } from "./fridge";
-import type { CityView, DeploymentView, DoorbellItem, FridgeNoteView, HouseView, MessageView, PersonView, RoomUsage } from "./house.types";
+import { alias } from "drizzle-orm/pg-core";
+import type { ChoreView, CityView, DeploymentView, DoorbellItem, FridgeNoteView, HouseView, LedgerLine, MessageView, PersonView, RoomUsage } from "./house.types";
 
 const NOTE_COLLAPSE_MS = 10 * 60 * 1000;
 const RECENT = 20;
@@ -188,6 +190,7 @@ export class HousesService {
     let notes: FridgeNoteView[] | null = null;
     let doorbell: DoorbellItem[] | null = null;
     let channel: MessageView[] | null = null;
+    let openChores: ChoreView[] | null = null;
     let myApplication: string | null = null;
     if (mine) {
       const ds = await this.db.select().from(deployments).where(eq(deployments.houseId, houseId)).orderBy(desc(deployments.createdAt)).limit(RECENT);
@@ -196,6 +199,7 @@ export class HousesService {
       notes = ns.map((n) => ({ id: n.id, tone: n.tone, text: n.text, room: n.room, at: n.at.toISOString(), count: n.count }));
       doorbell = await openDoorbell(this.db, houseId, h.memberships.length);
       channel = await channelMessages(this.db, houseChannel(houseId));
+      openChores = await this.openChores(houseId);
     } else if (viewerId) {
       const [app] = await this.db
         .select({ id: applications.id })
@@ -242,6 +246,8 @@ export class HousesService {
       notes,
       doorbell,
       channel,
+      chores: openChores,
+      ledger: await this.ledger(houseId, h.memberships.map((m) => ({ id: m.userId, login: m.user.login }))),
     };
   }
 
@@ -265,6 +271,42 @@ export class HousesService {
         rooms: h.rooms.map((r) => ({ name: r.name, status: r.status, project: r.project, ad: r.occupantId ? null : r.ad, occupant: person(r.occupant) })),
       })),
     };
+  }
+
+  private async openChores(houseId: string): Promise<ChoreView[]> {
+    const author = alias(users, "author");
+    const rows = await this.db
+      .select({ c: chores, assignee: users, author })
+      .from(chores)
+      .innerJoin(users, eq(users.id, chores.assigneeId))
+      .leftJoin(author, eq(author.id, chores.authorId))
+      .where(and(eq(chores.houseId, houseId), eq(chores.status, "open")))
+      .orderBy(asc(chores.dueAt));
+    const now = Date.now();
+    return rows.map(({ c, assignee, author: a }) => ({
+      id: c.id,
+      repo: c.repoFullName,
+      prNumber: c.prNumber,
+      prTitle: c.prTitle,
+      prUrl: c.prUrl,
+      assignee: person(assignee)!,
+      author: person(a),
+      dueAt: c.dueAt.toISOString(),
+      late: c.dueAt.getTime() < now,
+    }));
+  }
+
+  // Reviews given and received, per flatmate: what the exchange looks like from outside.
+  private async ledger(houseId: string, members: { id: string; login: string }[]): Promise<LedgerLine[]> {
+    const done = await this.db
+      .select({ assigneeId: chores.assigneeId, authorId: chores.authorId })
+      .from(chores)
+      .where(and(eq(chores.houseId, houseId), eq(chores.status, "done")));
+    return members.map((m) => ({
+      login: m.login,
+      given: done.filter((d) => d.assigneeId === m.id).length,
+      received: done.filter((d) => d.authorId === m.id).length,
+    }));
   }
 
   private async flatmateName(userId: string | null, roomName: string): Promise<string> {
@@ -292,7 +334,7 @@ export class HousesService {
       await this.db.update(fridgeNotes).set({ count: same.count + 1, at: new Date() }).where(eq(fridgeNotes.id, same.id));
       return;
     }
-    await this.db.insert(fridgeNotes).values({ id: randomUUID().slice(0, 8), houseId, room: draft.room, tone: draft.tone, text: draft.text });
+    await this.db.insert(fridgeNotes).values({ id: randomUUID().slice(0, 8), houseId, room: draft.room ?? null, tone: draft.tone, text: draft.text });
   }
 }
 

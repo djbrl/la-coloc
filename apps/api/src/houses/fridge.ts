@@ -2,7 +2,8 @@
 import type { DeployStatus, RoomEvent } from "@coloc/protocol";
 import type { FridgeNoteView } from "./house.types";
 
-export type Draft = { tone: FridgeNoteView["tone"]; text: string; room: string };
+// `room` is left out for notes about the house as a whole, or about a repo rather than a room.
+export type Draft = { tone: FridgeNoteView["tone"]; text: string; room?: string };
 
 export function noteForRoomEvent(e: RoomEvent, flatmate: string): Draft {
   switch (e.event) {

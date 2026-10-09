@@ -6,7 +6,8 @@ The rules forbid copyleft components (GPL, AGPL, LGPL). Check before every commi
 npm run licences:check
 ```
 
-**State on 02 10 2026:** 278 packages, all permissive: MIT 227 · Apache-2.0 19 · BSD-3-Clause 14 · ISC 14 · BSD-2-Clause 2 · 0BSD 1 · Unlicense 1.
+**State on 08 10 2026:** 307 packages, all permissive: MIT 250 · Apache-2.0 22 · ISC 16 · BSD-3-Clause 15 · BSD-2-Clause 2 · 0BSD 1 · Unlicense 1.
+Added since 02 10: Drizzle ORM (Apache-2.0) and drizzle-kit (MIT), node-postgres `pg` (MIT), PGlite (Apache-2.0, tests only).
 
 ## Runtime environment (not distributed, not modified, not linked)
 Linux kernel (GPL-2.0), Docker Engine (Apache-2.0), Traefik (MIT), Postgres (PostgreSQL licence), container base images

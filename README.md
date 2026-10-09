@@ -12,7 +12,7 @@ Product: [`docs/how-it-works.md`](docs/how-it-works.md) · Stack: [`docs/archite
 
 | Folder | What | Runs where |
 |---|---|---|
-| `apps/web` | Vue 3 + Vite: the house page (rooms, fridge door, deploys) | browser |
+| `apps/web` | Vue 3 + Vite: the city, house pages, the doorbell, login | browser |
 | `apps/api` | NestJS: HTTP API + the hub that talks to every house's agent | coloc.dev |
 | `apps/agent` | Node: the caretaker on each house server. Builds repos, runs rooms, measures usage | each house server |
 | `packages/protocol` | Messages between API and agent, validated with zod on both ends | shared |
@@ -21,14 +21,19 @@ Product: [`docs/how-it-works.md`](docs/how-it-works.md) · Stack: [`docs/archite
 | `examples/` | `hello` (a well-behaved app) and `memory-hog` (the flatmate from hell) | rooms |
 | `dev/` | Local Traefik (a house's front door) and Postgres (coloc.dev's database) | Docker |
 
-## Status: week-1 slice (02 10 2026)
+## Status (08 10 2026)
 
-Works: deploy a repo into a room → it's built, started with its walls (RAM/CPU caps, no capabilities, own network),
-health-checked, swapped in with no downtime, and served at `http://<room>.coloc.localhost:8000`. A room that runs
-out of memory restarts alone and leaves a fridge note. The house page updates live.
+Works locally:
+- **Rooms:** deploy a repo into a room → built, started with its walls (RAM/CPU caps, no capabilities, own network),
+  health-checked, swapped in with no downtime, served at `http://<room>.coloc.localhost:8000`. A room that runs out of
+  memory restarts alone and leaves a fridge note.
+- **The city:** every house, its rooms (lived in, free, in the making) and what it's looking for; public house pages.
+- **Moving in:** log in (GitHub, or the dev login), knock on a free room, talk with the house, get voted in.
+- **Living together:** the house chat, the fridge door, and chores: a PR in a flatmate's repo gets a reviewer from the
+  house (GitHub App webhooks), late reviews get a note, done reviews count in the house's exchange ledger.
 
-Not yet: the city map, GitHub login + App, knocking and the doorbell thread, house channel, reviews, previews from
-PRs, database (state is in memory), kitchen, bills, tontine, exchange ledger. See the roadmap.
+Not yet: the GitHub App registered for real, PR previews, deploy on merge, the kitchen, bills, tontine turns,
+presence avatars, `install.sh` on a real server. See the roadmap.
 
 ## Run it locally
 
@@ -47,6 +52,6 @@ npm run dev:web                       # house page on :5173
 ## Checks
 
 ```bash
-npm test                # unit tests: domain rules, protocol, room walls, checkout safety, fridge notes
+npm test                # unit tests: domain rules, protocol, room walls, database, login, permissions, doorbell, chores
 npm run licences:check  # fails if any dependency is copyleft (contest rule)
 ```

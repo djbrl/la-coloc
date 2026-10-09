@@ -55,6 +55,18 @@ It logs in as Jib (the chef), moves Jib into his room with `examples/hello`, mov
 Moussa's container gets OOM-killed and restarted (Docker's restart policy), the fridge door says so, and Jib's room
 never misses a request. Afterwards, redeploy Moussa's room with `examples/hello` so the hog stops eating your CPU.
 
+## GitHub (login and chores)
+
+Register a GitHub App (see `docs/build-notes.md`, night 2, for the permissions and events), then:
+
+```bash
+COLOC_GITHUB_CLIENT_ID=…  COLOC_GITHUB_CLIENT_SECRET=…        # "Log in with GitHub"
+COLOC_GITHUB_APP_ID=…  COLOC_GITHUB_PRIVATE_KEY="$(cat app.pem)"  COLOC_GITHUB_WEBHOOK_SECRET=…   # chores
+```
+
+GitHub must reach `POST /api/github/webhook`, so in development point the App's webhook URL at a tunnel to
+`localhost:4100`. Without these variables the API runs fine: GitHub login and chores just stay off.
+
 ## Database
 
 - Schema: `packages/db/src/schema.ts`. After changing it: `npm run generate -w @coloc/db` writes a new SQL migration

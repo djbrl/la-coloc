@@ -7,6 +7,15 @@ the bottom of the next one, not the milestone.*
 **What scores** (annexe 1): relevance to "an African exchange platform built for devs by devs" 25 · technical quality 30 ·
 UX 20 · innovation 15 · public vote 10. **What gates:** top 3 of the peer vote per country, and every member votes.
 
+## Progress (08 10 2026)
+- **Done:** Phase 0's technical part; week 1's backend and web (database, GitHub login code, multi-house API, city
+  endpoint, city + house pages with placeholder art); and ahead of plan from week 2: the doorbell (knock, thread, vote,
+  move in), the house channel, GitHub webhooks with reviewer rotation and chores, and the exchange ledger.
+  Details: [build-notes.md](build-notes.md), night 2.
+- **Waiting on the team:** commits, the GitHub App registration, teammates, `coloc.dev`, the art.
+- **Still to build for week 2:** previews, Deployments API, deploy on merge (strict mode), room page (logs, restart,
+  secrets), presence avatars, onboarding (rent a flat → install command), `install.sh` on a real VPS.
+
 ## Phase 0: team & setup (Fri 02 10 → Sun 04 10)
 - ~~Rooms with walls, zero-downtime deploys, isolation demo, live house page~~: done on 02 10 (see [build-notes.md](build-notes.md)).
 - Confirm routing through the real Traefik now that Docker Hub pulls work; delete the `test/cached-node18` branch.
