@@ -8,6 +8,20 @@ Built for CADEV 2026: *an African exchange platform built for devs by devs.*
 
 Product: [`docs/how-it-works.md`](docs/how-it-works.md) · Stack: [`docs/architecture.md`](docs/architecture.md) · Plan: [`docs/roadmap.md`](docs/roadmap.md) · Contest rules: [`docs/contest-rules.md`](docs/contest-rules.md)
 
+
+## Every address
+
+Open **http://localhost:5175/start.html** once the dev server runs: it lists the site, the API, every house and its
+rooms (live, from the city) and the development tools. The short version:
+
+| What | Where |
+|---|---|
+| The site and the lobby | http://localhost:5175 |
+| Your house, inside | http://localhost:5175/?city=Dakar&in=house:sacre-coeur |
+| The API | http://127.0.0.1:4100/api |
+| A room, through Traefik | http://jib.coloc.localhost:8000 |
+| The GitHub App setup page | http://localhost:4101 (`npm run dev:github-app`) |
+
 ## What's in here
 
 | Folder | What | Runs where |

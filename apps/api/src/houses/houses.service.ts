@@ -406,7 +406,7 @@ export class HousesService {
         agentOnline: this.online.has(h.id),
         monthlyCostFcfa: h.monthlyCostFcfa,
         plot: h.plot,
-        rooms: h.rooms.map((r) => ({ name: r.name, status: r.status, project: r.project, ad: r.occupantId ? null : r.ad, occupant: person(r.occupant) })),
+        rooms: h.rooms.map((r) => ({ name: r.name, status: r.status, url: r.url, project: r.project, ad: r.occupantId ? null : r.ad, occupant: person(r.occupant) })),
       })),
     };
   }

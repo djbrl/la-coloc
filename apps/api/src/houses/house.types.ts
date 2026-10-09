@@ -120,7 +120,7 @@ export interface CityHouseView {
   monthlyCostFcfa: number | null;
   // The lobby plot it rented ("2.1.0.1"), or null: the lobby places it near the market.
   plot: string | null;
-  rooms: Pick<RoomView, "name" | "status" | "project" | "ad" | "occupant">[];
+  rooms: Pick<RoomView, "name" | "status" | "url" | "project" | "ad" | "occupant">[];
 }
 
 export interface CityView {

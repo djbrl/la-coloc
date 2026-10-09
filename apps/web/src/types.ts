@@ -149,7 +149,7 @@ export interface CityHouse {
   monthlyCostFcfa: number | null;
   // The lobby plot it rented ("block column.block row.plot column.plot row"), or null: placed near the market.
   plot: string | null;
-  rooms: Pick<Room, "name" | "status" | "project" | "ad" | "occupant">[];
+  rooms: Pick<Room, "name" | "status" | "url" | "project" | "ad" | "occupant">[];
 }
 
 export interface Me {
