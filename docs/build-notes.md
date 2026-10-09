@@ -240,3 +240,40 @@ Tests: 138 (domain 14, protocol 4, agent 13, db 2, API 91, web 14). Build and `l
   card leads out of the lobby. Jib to say whether the thread should open in the lobby too.
 - The highlight ring is hidden when the target is behind a tower (it keeps depth testing).
 - Clicking the ground doesn't close an open card; Escape or Close does.
+
+## 10 10 2026, night: never leave the lobby
+
+Jib's second ask of the day, after trying the first: stay in the game view for everything (the list view is the
+only place things are a list), see at a glance which house people belong to, hover feedback, a map to fast-travel
+from, the keys you reach for always visible, and a dash. Three subagents on disjoint files (engine, HUD, the
+inside sheet), reviewed and verified in the browser.
+
+| What | Where |
+|---|---|
+| **Inside**: a house's page, a knock's thread or a room page slide in as a wide sheet over the city. Links in them are caught and stay inside (a house → its room → back); `/` closes; `/login` leaves. Each page takes `embedded` (no top padding, no "back to the city") and tells the sheet its name. Knocking from a card or from inside reports the new thread instead of navigating. The URL keeps the place (`?in=…`), the top bar's house link sets it | `components/lobby/Inside.vue`, `place.ts`, the three pages, `RoomCard.vue`, `KnockSteps.vue` (`stay`), `App.vue` |
+| **E at a door goes in** (a house in reach opens inside straight away); a house picked from afar still gets its card, whose main action is "Go in" | `LobbyView.vue` |
+| **Hover**: an outline on whatever the mouse is over (people, houses, empty plots, lamps) and a pointer cursor. `OutlinePass` through an `EffectComposer`, used only while something is outlined (or Tab-highlighted), never on low quality | `Lobby.ts` (`aim`, `setHover`, `draw`) |
+| **Name tags say the house**: a badge in the house's colour after every name, so a group reads at a glance | `Lobby.ts` (`badge`), `style.css` |
+| **Dash**: tap Shift while moving (fires on release, so Shift+Tab stays "previous"): three times the speed for 0.22 s, a puff of dust, 0.9 s before the next | `Lobby.ts` (`dash`), `models.ts` (`makePuff`) |
+| **Minimap**, bottom right: blocks, streets, houses in their colours, lamps, everyone walking, you with your heading and the camera's wedge. Click to fast travel (`teleport` lands you on the nearest free spot). **M** opens it big with the houses listed as buttons | `components/lobby/Minimap.vue`, `Lobby.ts` (`teleport`, `onMap`) |
+| **Keys**: a one-line strip of the frequent ones (E, Tab, Shift, M, ?) bottom left; **?** opens the full list. Emotes moved to the bottom centre under the prompt | `KeyLegend.vue`, `KeysSheet.vue` |
+
+### Verified in the browser (as Jib, in Dakar)
+Walking to Sacré-Cœur opened its inside, `?in=house:sacre-coeur` in the address bar, Escape closed it with focus
+back on the stage and the parameter gone; the top bar's house link did the same; walking to le QG (a house Jib
+started from their own Chrome while this was being built) opened its inside, Knock on room-2 ran the steps and the
+thread opened in the same sheet with Back, then the knock was withdrawn from there; hovering the remote player set
+the pointer cursor and outlined five meshes; M listed the houses and Enter travelled; a click on the minimap
+teleported 26 units onto free ground; a tap of Shift while walking covered 4.2 units where walking covers 1.9.
+Tests: 138. Build and `licences:check` pass.
+
+### Fixed on the way
+- Shift+Tab also dashed (Shift arrives first): the dash now fires when Shift is released alone.
+- The engine read E, W A S D and the rest while focus was inside a sheet; it now leaves keys to any modal dialog.
+- Walking to something while a Tab highlight pointed elsewhere opened the wrong thing on arrival: setting off
+  drops the highlight.
+
+### Rough edges
+- No dash button on phones yet (`lobby.dash()` exists for one).
+- The inside sheet is the site's light pages over the dark city; in dark mode it's dark. Jib to judge the contrast.
+- On a phone the minimap hides while a card is open (the card is a bottom sheet there).

@@ -1,24 +1,29 @@
 <script setup lang="ts">
 // The full-screen lobby, one neighbourhood (city) at a time, and everything that sits on top of it: loading, the
 // welcome, the prompt for whatever is in reach, emotes, who's here, the lamps, a card for the house, person or
-// empty plot you picked (you never leave the lobby to look), the keys in the corner, and sheets to find a house
-// or travel to another city.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+// empty plot you picked, the inside of a house (its page, an application, a room) opened over the city so you
+// never leave it, a minimap you can travel from, the keys in the corner, and sheets to find a house or travel
+// to another city.
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { loading } from "../lobby/assets";
 import { type Emote, Lobby, type Target } from "../lobby/Lobby";
 import { LobbyLink } from "../lobby/link";
-import { generateNeighbourhood } from "../lobby/neighbourhood";
+import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
 import { loadMe, me } from "../session";
 import { settings } from "../settings";
 import type { CityHouse } from "../types";
 import KnockSteps from "./KnockSteps.vue";
-import { type CityRoom, freeRooms, type Home, plural, statusLine } from "./lobby/cards";
+import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam, plural, statusLine } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
 import HouseCard from "./lobby/HouseCard.vue";
+import Inside from "./lobby/Inside.vue";
 import KeyLegend from "./lobby/KeyLegend.vue";
+import KeysSheet from "./lobby/KeysSheet.vue";
+import Minimap from "./lobby/Minimap.vue";
 import PersonCard from "./lobby/PersonCard.vue";
+import { type Place, placeKey } from "./lobby/place";
 import RentSteps from "./lobby/RentSteps.vue";
 import LoadingScreen from "./LoadingScreen.vue";
 import Onboarding from "./Onboarding.vue";
@@ -43,7 +48,17 @@ const census = ref<Record<string, number>>({});
 const lamps = ref({ lit: 0, total: 0 });
 const sheet = ref<"" | "find" | "travel">("");
 const query = ref("");
+// The strip of keys, bottom left: folded or not. The full list and the big map are overlays.
 const legend = ref(true);
+const keysOpen = ref(false);
+const bigMap = ref(false);
+// The neighbourhood on screen, as generated, for the minimap; and the engine's latest word on who stands where.
+const neighbourhood = shallowRef<Neighbourhood | null>(null);
+const mapState = shallowRef<MapState | null>(null);
+// Where you are inside: the house, application or room open over the city. `place` is where the Inside sheet
+// opened; `top` is what it shows right now (it keeps its own back-stack), as the URL's `in` parameter.
+const place = ref<Place | null>(null);
+const top = ref("");
 // The knock or rent dialog on top of a card, when one is open.
 const knock = ref<{ houseId: string; room: CityRoom } | null>(null);
 const rent = ref<{ city: string; plot: string } | null>(null);
@@ -78,7 +93,9 @@ const residents = computed(() => {
 
 function build() {
   if (!lobby) return;
-  lobby.setNeighbourhood(generateNeighbourhood(city.value, here.value), here.value);
+  const n = generateNeighbourhood(city.value, here.value);
+  neighbourhood.value = n;
+  lobby.setNeighbourhood(n, here.value);
   lobby.setResidents(residents.value);
   lamps.value = lobby.lampCount();
   if (walkAfterArrival) {
@@ -105,6 +122,12 @@ function travel(to: string, thenWalkTo?: string) {
   lobby?.clearRemotes();
   build();
   link?.enter(to);
+}
+
+/** Fast travel: the engine lands you on the nearest walkable spot. From the big map, that closes it. */
+function fastTravel(x: number, z: number) {
+  lobby?.teleport(x, z);
+  bigMap.value = false;
 }
 
 // ---- Lamps, remembered per browser ----
@@ -146,7 +169,10 @@ onMounted(() => {
       {
         onNear: (t) => (near.value = t),
         onSelect: open,
+        // The engine sets the cursor and the outline itself; there's nothing to add up here.
+        onHover: () => undefined,
         onMove: (s) => link?.move(s),
+        onMap: (s) => (mapState.value = s),
         onLamps: (lit) => {
           try {
             localStorage.setItem(LAMPS_KEY, JSON.stringify(lit));
@@ -212,9 +238,15 @@ onBeforeUnmount(() => {
 // One line per thing, so we can tell "the card is already about this" from "something new".
 const keyOf = (t: Target | null) => (!t ? "" : t.kind === "house" ? `house:${t.house.id}` : t.kind === "empty" ? `empty:${t.plot.key}` : t.kind === "person" ? `person:${t.login}` : `lamp:${t.id}`);
 const cardKey = computed(() => keyOf(card.value));
+const nearKey = computed(() => keyOf(near.value));
 
+// You used something. A house you're standing at opens straight away; anything else gets a card first.
 function open(t: Target) {
   if (t.kind === "lamp") return;
+  if (t.kind === "house" && nearKey.value === keyOf(t)) {
+    goInside({ kind: "house", id: t.house.id });
+    return;
+  }
   card.value = t;
 }
 
@@ -237,7 +269,6 @@ const cardHomeHouse = computed(() => {
   const home = cardHome.value;
   return home ? (props.houses.find((h) => h.id === home.houseId) ?? null) : null;
 });
-const nearKey = computed(() => keyOf(near.value));
 
 // A card opens with a sound and takes focus itself; when it closes, focus goes back to the stage so Tab cycles
 // through the things on screen again.
@@ -268,6 +299,62 @@ function built(id: string) {
   void loadMe();
 }
 
+// ---- Inside: a house, an application or a room, over the city ----
+
+// Opens the Inside sheet on a place, and the URL remembers it (`?in=house:sacre-coeur`), so a reload or a shared
+// link lands right back here.
+function goInside(p: Place) {
+  openInside(p);
+  showInUrl(placeParam(p));
+}
+
+// Whatever was open on top of the city closes; the sheet takes its place.
+function openInside(p: Place) {
+  card.value = null;
+  knock.value = null;
+  sheet.value = "";
+  bigMap.value = false;
+  keysOpen.value = false;
+  place.value = p;
+}
+
+// The sheet went somewhere within itself (back, or deeper): the URL follows.
+function insideChanged(now: Place | null) {
+  if (now) showInUrl(placeParam(now));
+}
+
+function closeInside() {
+  place.value = null;
+  showInUrl("");
+  host.value?.focus({ preventScroll: true });
+}
+
+// Writes the `in` parameter (or removes it), keeping the rest of the address as it is.
+function showInUrl(param: string) {
+  top.value = param;
+  const query = { ...route.query };
+  delete query.in;
+  router.replace({ query: param ? { ...query, in: param } : query });
+}
+
+// The address bar is the other way in: the top bar sets `in` for your house, and a link may carry one. When it
+// names something other than what's showing, open it; when it's gone, close.
+watch(
+  () => route.query.in,
+  (v) => {
+    const param = typeof v === "string" ? v : "";
+    if (param === top.value) return;
+    const p = parsePlace(param);
+    top.value = p ? param : "";
+    if (p) openInside(p);
+    else if (place.value) {
+      place.value = null;
+      host.value?.focus({ preventScroll: true });
+    }
+  },
+  { immediate: true },
+);
+
 // ---- Sheets, keys, emotes ----
 
 // A sheet takes focus on its first control; closing it puts focus back on the stage.
@@ -276,18 +363,30 @@ watch(sheet, async (now) => {
   if (now) sheetEl.value?.querySelector<HTMLElement>("input, button")?.focus();
   else host.value?.focus({ preventScroll: true });
 });
+// The big map and the key list take focus themselves; when they close, it goes back to the stage.
+watch([bigMap, keysOpen], ([map, keys], [mapBefore, keysBefore]) => {
+  if ((!map && mapBefore) || (!keys && keysBefore)) host.value?.focus({ preventScroll: true });
+});
 
-// The lobby's own keys (walking, E, Q, R, 1, 2, Tab) live in the engine. These are the ones around it.
+// The lobby's own keys (walking, E, Q, R, 1, 2, Tab, Shift) live in the engine. These are the ones around it.
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  // A knock or rent dialog on top handles its own keys (Escape closes it), and the welcome has its own too.
-  if (knock.value || rent.value || !ready.value || failed.value || !settings.welcomed) return;
+  // A knock or rent dialog, or the Inside sheet, handles its own keys (Escape closes it), and the welcome has its
+  // own too.
+  if (knock.value || rent.value || place.value || !ready.value || failed.value || !settings.welcomed) return;
   if (e.key === "Escape") {
-    if (sheet.value) sheet.value = "";
+    if (bigMap.value) bigMap.value = false;
+    else if (keysOpen.value) keysOpen.value = false;
+    else if (sheet.value) sheet.value = "";
     else if (card.value) closeCard();
-  } else if (e.key === "?") legend.value = !legend.value;
+    return;
+  }
+  // An overlay on top: only its own key, and Escape, do anything.
+  if (e.key === "m" || e.key === "M") bigMap.value = !bigMap.value;
+  else if (e.key === "?") keysOpen.value = !keysOpen.value;
+  else if (bigMap.value || keysOpen.value) return;
   else if (e.key === "f" || e.key === "F") sheet.value = "find";
   else if (e.key === "t" || e.key === "T") sheet.value = "travel";
 }
@@ -365,6 +464,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
             :others="others"
             :near="nearKey === cardKey"
             @knock="(room) => (knock = { houseId: cardHouse!.id, room })"
+            @enter="goInside({ kind: 'house', id: cardHouse!.id })"
             @walk="lobby?.goTo(cardHouse!.id)"
             @close="closeCard"
           />
@@ -383,47 +483,63 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
           />
           <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />
         </Transition>
-        <KeyLegend v-if="settings.welcomed" :open="legend" @toggle="legend = !legend" />
+        <KeyLegend v-if="settings.welcomed" :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" />
       </div>
 
-      <!-- What's in reach (or highlighted with Tab), unless its card is already open. -->
-      <Transition name="rise">
-        <div v-if="near && settings.welcomed && nearKey !== cardKey" class="hud prompt" role="status">
-          <template v-if="near.kind === 'house'">
-            <span>
-              <strong>{{ near.house.name }}</strong>
-              <span class="soft">{{ freeRooms(near.house).length ? `, ${plural(freeRooms(near.house).length, "room", "rooms")} free` : "" }}</span>
-            </span>
-            <button class="pill" @click="lobby?.interact()">Go in <kbd>E</kbd></button>
-          </template>
-          <template v-else-if="near.kind === 'empty'">
-            <span>An empty {{ lotWord[near.plot.lot] }}.</span>
-            <button class="pill" @click="lobby?.interact()">Have a look <kbd>E</kbd></button>
-          </template>
-          <template v-else-if="near.kind === 'person'">
-            <span>
-              <strong>{{ near.name }}</strong>
-              <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : ", visiting" }}</span>
-            </span>
-            <button class="pill" @click="lobby?.interact()">Say hi <kbd>E</kbd></button>
-          </template>
-          <template v-else>
-            <span>{{ near.on ? "This lamp is lit." : "This lamp is off." }}</span>
-            <button class="pill" @click="lobby?.interact()">{{ near.on ? "Switch it off" : "Light it" }} <kbd>E</kbd></button>
-          </template>
+      <!-- Bottom centre: what's in reach (or highlighted with Tab), unless its card is already open, and the emotes. -->
+      <div class="hud centre">
+        <Transition name="rise">
+          <div v-if="near && settings.welcomed && nearKey !== cardKey" class="prompt" role="status">
+            <template v-if="near.kind === 'house'">
+              <span>
+                <strong>{{ near.house.name }}</strong>
+                <span class="soft">{{ freeRooms(near.house).length ? `, ${plural(freeRooms(near.house).length, "room", "rooms")} free` : "" }}</span>
+              </span>
+              <button class="pill" @click="lobby?.interact()">Go in <kbd>E</kbd></button>
+            </template>
+            <template v-else-if="near.kind === 'empty'">
+              <span>An empty {{ lotWord[near.plot.lot] }}.</span>
+              <button class="pill" @click="lobby?.interact()">Have a look <kbd>E</kbd></button>
+            </template>
+            <template v-else-if="near.kind === 'person'">
+              <span>
+                <strong>{{ near.name }}</strong>
+                <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : ", visiting" }}</span>
+              </span>
+              <button class="pill" @click="lobby?.interact()">Say hi <kbd>E</kbd></button>
+            </template>
+            <template v-else>
+              <span>{{ near.on ? "This lamp is lit." : "This lamp is off." }}</span>
+              <button class="pill" @click="lobby?.interact()">{{ near.on ? "Switch it off" : "Light it" }} <kbd>E</kbd></button>
+            </template>
+          </div>
+        </Transition>
+        <div v-if="me && !card" class="emotes">
+          <button aria-label="Thumbs up (1)" @click="emote('yes')">👍</button>
+          <button aria-label="Thumbs down (2)" @click="emote('no')">👎</button>
         </div>
-      </Transition>
+      </div>
 
-      <div v-if="me && !card" class="hud emotes">
-        <button aria-label="Thumbs up (1)" @click="emote('yes')">👍</button>
-        <button aria-label="Thumbs down (2)" @click="emote('no')">👎</button>
+      <!-- Bottom right: the neighbourhood from above. Click it to travel; M opens it big. -->
+      <div v-if="neighbourhood && settings.welcomed" class="hud map" :class="{ covered: !!card }">
+        <Minimap :neighbourhood="neighbourhood" :houses="here" :residents="residents" :state="mapState" @travel="fastTravel" />
       </div>
 
       <Onboarding v-if="!settings.welcomed" @focus="(on) => lobby?.focusOnPlayer(on)" @character="(c) => lobby?.setCharacter(c)" @done="settings.welcomed = true" />
 
-      <KnockSteps v-if="knock" :house-id="knock.houseId" :room="knock.room" @close="knock = null" />
+      <KnockSteps v-if="knock" :house-id="knock.houseId" :room="knock.room" stay @knocked="(id) => goInside({ kind: 'application', id })" @close="knock = null" />
       <RentSteps v-if="rent" :city="rent.city" :plot="rent.plot" @built="built" @close="rent = null" />
+
+      <Transition name="fade">
+        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="here" :residents="residents" :state="mapState" large @travel="fastTravel" @close="bigMap = false" />
+      </Transition>
+      <Transition name="fade">
+        <KeysSheet v-if="keysOpen" @close="keysOpen = false" />
+      </Transition>
     </template>
+
+    <!-- The inside of a house, over the city. Also reachable from the address bar (`?in=…`), 3D or not. -->
+    <Inside v-if="place" :key="placeKey(place)" :start="place" @change="insideChanged" @close="closeInside" />
 
     <Transition name="fade">
       <div v-if="sheet" class="scrim" @click="sheet = ''" />
@@ -482,14 +598,18 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 /* The dock stacks the card over the keys; its empty space lets clicks through to the city. */
 .dock { left: 16px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-start; gap: 12px; pointer-events: none; }
 .dock > * { pointer-events: auto; }
-.prompt { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 16px; padding: 10px 10px 10px 22px; border-radius: 980px; background: rgba(28, 24, 44, 0.72); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); white-space: nowrap; font-size: 17px; max-width: calc(100vw - 32px); }
+/* The middle column: the prompt above, the emotes under it; the gaps let clicks through. */
+.centre { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+.centre > * { pointer-events: auto; }
+.prompt { display: flex; align-items: center; gap: 16px; padding: 10px 10px 10px 22px; border-radius: 980px; background: rgba(28, 24, 44, 0.72); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); white-space: nowrap; font-size: 17px; max-width: calc(100vw - 32px); }
 .prompt strong { font-weight: 600; }
 .soft { color: rgba(245, 245, 247, 0.72); }
 .pill { border: 0; border-radius: 980px; padding: 10px 18px; min-height: 44px; font-size: 17px; font-weight: 500; background: #fff; color: #1d1d1f; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
 kbd { font: 600 11px/1 -apple-system, BlinkMacSystemFont, sans-serif; padding: 3px 5px; border-radius: 5px; border: 1px solid rgba(0, 0, 0, 0.2); color: #6e6e73; }
-.emotes { right: 16px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; gap: 8px; }
-.emotes button { width: 48px; height: 48px; min-height: 0; padding: 0; border-radius: 50%; border: 0; font-size: 22px; cursor: pointer; }
+.emotes { display: flex; gap: 8px; }
+.emotes button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; border: 0; font-size: 20px; cursor: pointer; }
 .emotes button:active { transform: scale(0.94); }
+.map { right: 16px; bottom: max(28px, env(safe-area-inset-bottom)); }
 /* Our own hovers: the site's button styles are for light pages, not this dark glass. */
 .pill:hover:not(:disabled) { background: #e8e8ed; }
 .place:hover:not(:disabled), .tools button:hover:not(:disabled), .emotes button:hover:not(:disabled) { background: rgba(28, 24, 44, 0.75); }
@@ -507,7 +627,6 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .none { color: var(--muted, #6e6e73); }
 .rise-enter-active, .rise-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .rise-enter-from, .rise-leave-to { opacity: 0; transform: translateY(8px); }
-.prompt.rise-enter-from, .prompt.rise-leave-to { transform: translate(-50%, 8px); }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .sheet-enter-active, .sheet-leave-active { transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
@@ -522,8 +641,10 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 @media (max-width: 520px) {
   .prompt { gap: 10px; padding-left: 16px; font-size: 15px; }
   .prompt .soft { display: none; }
-  .emotes { bottom: 96px; }
   .top { top: 112px; }
+  .map { right: 12px; }
+  /* A card is a sheet along the bottom edge here: the map would hide under it. */
+  .map.covered { display: none; }
   /* Cards become a sheet along the bottom edge; the keys, if a narrow window still shows them, sit above it. */
   .dock { left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
   .dock .legend, .dock .peek { order: -1; align-self: flex-start; margin: 0 16px 12px; }

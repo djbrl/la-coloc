@@ -252,3 +252,6 @@ button:focus-visible { outline-offset: 2px; }
 .lobby-label { font: 600 13px/1.2 var(--font); color: #1d1d1f; background: rgba(255, 255, 255, 0.88); padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
 .lobby-label.small { font-size: 11px; font-weight: 500; padding: 1px 6px; background: rgba(255, 255, 255, 0.7); }
 .lobby-label.you { background: #0071e3; color: #fff; }
+/* After a name, their house, on the house's colour (the same as the ring at their feet). Colours are set inline. */
+.lobby-label .home { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; font: 600 9px/14px var(--font); letter-spacing: 0.02em; vertical-align: 1px; }
+.lobby-label.small .home { margin-left: 4px; padding: 0 5px; font-size: 8px; line-height: 12px; }

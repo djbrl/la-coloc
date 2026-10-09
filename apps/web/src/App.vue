@@ -19,6 +19,10 @@ async function leave() {
   router.push("/");
 }
 
+// Your house, in the top bar: in the lobby it opens inside the city (never leaving the game); in the list view it's
+// the house's page.
+const houseLink = (id: string) => (settings.view === "lobby" ? { path: "/", query: { ...(route.path === "/" ? route.query : {}), in: `house:${id}` } } : `/houses/${id}`);
+
 // A gear: eight teeth around a hole, drawn once.
 const gear = (() => {
   const teeth = 8;
@@ -40,7 +44,7 @@ const gear = (() => {
       <div class="side">
         <template v-if="meLoaded">
           <template v-if="me">
-            <RouterLink v-for="h in me.houses" :key="h.id" :to="`/houses/${h.id}`" class="item house">{{ h.name }}</RouterLink>
+            <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item house">{{ h.name }}</RouterLink>
             <span class="item me">
               <Avatar :person="me" :size="26" decorative />
               <span class="sr-only">Logged in as {{ me.login }}</span>

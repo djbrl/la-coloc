@@ -6,7 +6,10 @@ import ChatPanel from "../components/ChatPanel.vue";
 import { loadMe, postJSON } from "../session";
 import type { Application } from "../types";
 
-const props = defineProps<{ id: string }>();
+// `embedded`: shown inside the lobby's sheet, which has its own Back and Close. The page then drops its top
+// padding and its link back to the house, and tells the sheet what to call it (`label`).
+const props = defineProps<{ id: string; embedded?: boolean }>();
+const emit = defineEmits<{ label: [text: string] }>();
 const app = ref<Application | null>(null);
 const error = ref("");
 const actionError = ref("");
@@ -32,6 +35,14 @@ async function open(id: string) {
 }
 
 watch(() => props.id, open, { immediate: true });
+watch(
+  () => app.value?.house.name,
+  (name) => {
+    const a = app.value;
+    if (!a || !name) return;
+    emit("label", a.viewer.as === "applicant" ? `Your knock on ${name}` : `${a.applicant.name ?? a.applicant.login}'s knock on ${name}`);
+  },
+);
 onBeforeUnmount(() => source?.close());
 
 const statusText = computed(() => {
@@ -60,16 +71,16 @@ async function withdraw() {
 </script>
 
 <template>
-  <div class="application-page">
+  <div class="application-page" :class="{ embedded }">
     <div v-if="error" class="wrap band">
       <h1>{{ error }}</h1>
-      <RouterLink to="/" class="more">Back to the city <span aria-hidden="true">›</span></RouterLink>
+      <RouterLink v-if="!embedded" to="/" class="more">Back to the city <span aria-hidden="true">›</span></RouterLink>
     </div>
 
     <template v-else-if="app">
       <section class="band hero">
         <div class="wrap">
-          <RouterLink :to="`/houses/${app.house.id}`" class="back"><span aria-hidden="true">‹</span> {{ app.house.name }}</RouterLink>
+          <RouterLink v-if="!embedded" :to="`/houses/${app.house.id}`" class="back"><span aria-hidden="true">‹</span> {{ app.house.name }}</RouterLink>
           <Avatar :person="app.applicant" :size="72" decorative />
           <h1>{{ app.applicant.name ?? app.applicant.login }} knocked on {{ app.room }}.</h1>
           <p class="lede muted">{{ app.house.name }}, {{ app.house.city }}. @{{ app.applicant.login }}</p>
@@ -136,6 +147,9 @@ async function withdraw() {
 
 <style scoped>
 .hero { text-align: center; padding-top: 48px; }
+/* In the lobby's sheet the bar above does the spacing. */
+.embedded .band { padding-top: 40px; padding-bottom: 40px; }
+.embedded .hero { padding-top: 8px; }
 .hero .wrap { display: grid; gap: 16px; justify-items: center; }
 .hero .wrap > :not(.back) { max-width: 680px; }
 .back { justify-self: start; }

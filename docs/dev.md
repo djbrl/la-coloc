@@ -93,6 +93,13 @@ fails the signature check (`401` in the relay's log), that's why.
   (you never leave the lobby to look); an empty building offers "Start a coloc here", which is
   `POST /api/city/houses` with `{ city, plot, name, tagline }`. The house is created "in the making" on that plot
   (`houses.plot`, a key from the neighbourhood generator) with you as chef; one house in the making per person.
+- **You never leave the lobby.** A house's inside (its page), a knock's thread and a room page open as a sheet over
+  the city (`components/lobby/Inside.vue`), and the links in them stay inside. The URL remembers it
+  (`?in=house:sacre-coeur`, `in=application:<id>`, `in=room:<house>:<room>`), so the top bar and shared links land
+  straight there. The list view (settings) is where the real pages are.
+- **Hover** outlines what the mouse is over (three.js `OutlinePass`, only while something is outlined, never on low
+  quality). Name tags carry the house in its colour. **Shift** dashes, **M** opens the map (click it to fast travel),
+  **?** lists every key.
 - **Sounds** are synthesised in the browser (`apps/web/src/lobby/sound.ts`): nothing is downloaded, so nothing to
   declare. The switch is in settings.
 

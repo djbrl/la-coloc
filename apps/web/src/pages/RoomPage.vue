@@ -7,7 +7,10 @@ import UiSteps from "../components/UiSteps.vue";
 import { sendJSON } from "../session";
 import type { RoomManage } from "../types";
 
-const props = defineProps<{ id: string; room: string }>();
+// `embedded`: shown inside the lobby's sheet, which has its own Back and Close. The page then drops its top
+// padding and its link back to the house, and tells the sheet what to call it (`label`).
+const props = defineProps<{ id: string; room: string; embedded?: boolean }>();
+const emit = defineEmits<{ label: [text: string] }>();
 const data = ref<RoomManage | null>(null);
 const error = ref("");
 const status = ref(0);
@@ -68,6 +71,14 @@ async function open() {
 }
 
 watch(() => [props.id, props.room], open, { immediate: true });
+watch(
+  () => data.value?.house.name,
+  (name) => {
+    const d = data.value;
+    if (!d || !name) return;
+    emit("label", d.as === "chef" ? `Room ${d.room.name} in ${name}` : "Your room");
+  },
+);
 onBeforeUnmount(() => {
   source?.close();
   clearInterval(followTimer);
@@ -223,19 +234,19 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "");
 </script>
 
 <template>
-  <div class="room-page">
+  <div class="room-page" :class="{ embedded }">
     <div v-if="error" class="wrap band">
       <h1>{{ error }}</h1>
       <div class="actions top-gap">
         <RouterLink v-if="status === 401" to="/login" class="more">Log in <span aria-hidden="true">›</span></RouterLink>
-        <RouterLink :to="`/houses/${id}`" class="more">Back to the house <span aria-hidden="true">›</span></RouterLink>
+        <RouterLink v-if="!embedded" :to="`/houses/${id}`" class="more">Back to the house <span aria-hidden="true">›</span></RouterLink>
       </div>
     </div>
 
     <template v-else-if="data">
       <section class="band hero">
         <div class="wrap">
-          <RouterLink :to="`/houses/${id}`" class="back"><span aria-hidden="true">‹</span> {{ data.house.name }}</RouterLink>
+          <RouterLink v-if="!embedded" :to="`/houses/${id}`" class="back"><span aria-hidden="true">‹</span> {{ data.house.name }}</RouterLink>
           <h1>{{ data.settings.project || data.room.name }}</h1>
           <p class="lede muted">
             Room {{ data.room.name }} in {{ data.house.name }}, with {{ data.room.limits.memoryMb }} MB and {{ data.room.limits.cpus }} CPU.
@@ -476,6 +487,8 @@ const bare = (url: string) => url.replace(/^https?:\/\//, "");
 
 <style scoped>
 .hero { padding-bottom: 40px; }
+/* In the lobby's sheet the bar above does the spacing. */
+.embedded .hero { padding-top: 8px; }
 .hero .wrap { display: grid; gap: 14px; justify-items: start; }
 
 .hero h1 { overflow-wrap: anywhere; }

@@ -4,6 +4,7 @@ import { computed, ref } from "vue";
 import type { HouseStatus, Room, Viewer } from "../types";
 import Avatar from "./Avatar.vue";
 import KnockSteps from "./KnockSteps.vue";
+import type { Place } from "./lobby/place";
 
 const props = defineProps<{
   houseId: string;
@@ -15,7 +16,10 @@ const props = defineProps<{
   chefLogin: string | null;
   // Reviews this flatmate has given and received.
   ledger?: { given: number; received: number };
+  // Shown inside the lobby's sheet: a knock opens its thread there (`open`) instead of navigating.
+  embedded?: boolean;
 }>();
+const emit = defineEmits<{ open: [place: Place] }>();
 
 const knocking = ref(false);
 
@@ -104,7 +108,14 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
           Knock <span aria-hidden="true">›</span>
         </button>
       </template>
-      <KnockSteps v-if="knocking" :house-id="houseId" :room="room" @close="knocking = false" />
+      <KnockSteps
+        v-if="knocking"
+        :house-id="houseId"
+        :room="room"
+        :stay="embedded"
+        @knocked="(id) => emit('open', { kind: 'application', id })"
+        @close="knocking = false"
+      />
     </template>
   </article>
 </template>

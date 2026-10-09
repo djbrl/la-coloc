@@ -8,8 +8,9 @@ import type { CityHouse } from "../types";
 import UiSteps from "./UiSteps.vue";
 
 // The room only matters by name, so the city's slimmer room shape is enough (the house page's Room fits too).
-const props = defineProps<{ houseId: string; room: CityHouse["rooms"][number] }>();
-const emit = defineEmits<{ close: [] }>();
+// With `stay`, a successful knock is reported (`knocked`) instead of navigating: the lobby opens the thread itself.
+const props = defineProps<{ houseId: string; room: CityHouse["rooms"][number]; stay?: boolean }>();
+const emit = defineEmits<{ close: []; knocked: [id: string] }>();
 const router = useRouter();
 
 const dialog = ref<HTMLDialogElement | null>(null);
@@ -54,7 +55,8 @@ async function send() {
     return;
   }
   dialog.value?.close();
-  router.push(`/applications/${res.data.id}`);
+  if (props.stay) emit("knocked", res.data.id);
+  else router.push(`/applications/${res.data.id}`);
 }
 
 // Clicks on the dimmed backdrop land on the dialog itself: treat them as Cancel.

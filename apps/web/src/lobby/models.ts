@@ -127,12 +127,33 @@ export function makeAvatar(color: number): THREE.Group {
   return g;
 }
 
+// The warm white of the Tab highlight: the ring on the ground and the outline around the thing both use it.
+export const HIGHLIGHT = 0xfff3d6;
+
 /** The ring on the ground under whatever you highlighted with Tab: light and flat. Hidden until there is one. */
 export function makeHighlight(): THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> {
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.95, 40), new THREE.MeshBasicMaterial({ color: 0xfff3d6, transparent: true, opacity: 0.85, depthWrite: false }));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.95, 40), new THREE.MeshBasicMaterial({ color: HIGHLIGHT, transparent: true, opacity: 0.85, depthWrite: false }));
   ring.rotation.x = -Math.PI / 2;
   ring.visible = false;
   return ring;
+}
+
+/**
+ * The puff of dust at your feet when you dash: two flat discs, one under you and one trailing behind (the group
+ * faces +z, like the avatar). The lobby grows and fades them over a third of a second, then throws them away.
+ */
+export function makePuff(): THREE.Group {
+  const g = new THREE.Group();
+  for (const [radius, back] of [
+    [0.35, 0],
+    [0.24, -0.45],
+  ]) {
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(radius, 18), new THREE.MeshBasicMaterial({ color: 0xfff6e8, transparent: true, opacity: 0.7, depthWrite: false }));
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.set(0, 0.05, back);
+    g.add(disc);
+  }
+  return g;
 }
 
 // Stable colour per login, so a flatmate always looks the same.

@@ -14,7 +14,8 @@ const props = defineProps<{
   // Standing at its door already? Then there's nowhere to walk.
   near: boolean;
 }>();
-const emit = defineEmits<{ knock: [room: CityRoom]; walk: []; close: [] }>();
+// `enter` opens the house's inside over the city (you never leave the lobby); `walk` sets off for its door.
+const emit = defineEmits<{ knock: [room: CityRoom]; enter: []; walk: []; close: [] }>();
 
 const mine = computed(() => me.value?.houses.some((h) => h.id === props.house.id) ?? false);
 const free = computed(() => freeRooms(props.house));
@@ -68,7 +69,7 @@ const hereLine = computed(() => {
     <RouterLink v-else-if="free.length && !me" to="/login">Log in to knock ›</RouterLink>
 
     <div class="actions">
-      <RouterLink :to="`/houses/${house.id}`">Open the house page ›</RouterLink>
+      <button class="pill" @click="emit('enter')">Go in</button>
       <button v-if="!near" class="link" @click="emit('walk')">Walk there</button>
       <button class="link quiet" @click="emit('close')">Close</button>
     </div>

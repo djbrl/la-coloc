@@ -2,7 +2,7 @@
 // (a few sine waves, a little filtered noise, and a volume curve), so there is no sound file and no licence to declare.
 import { settings } from "../settings";
 
-export type Sound = "select" | "open" | "close" | "step" | "lamp-on" | "lamp-off" | "emote" | "knock" | "arrive" | "build";
+export type Sound = "select" | "open" | "close" | "step" | "lamp-on" | "lamp-off" | "emote" | "knock" | "arrive" | "build" | "dash";
 
 // Everything a sound needs to be built: the audio context, the master volume, and a bit of noise to reuse.
 interface Audio {
@@ -148,6 +148,12 @@ const recipes: Record<Sound, (a: Audio, t: number) => void> = {
   arrive: (a, t) => {
     tone(a, t, 0.4, E5, 0.2);
     tone(a, t + 0.17, 0.5, B5, 0.18);
+  },
+
+  // A dash: a short whoosh of air, rising.
+  dash: (a, t) => {
+    puff(a, t, 0.16, 900, 0.3);
+    tone(a, t, 0.14, 300, 0.1, { to: 700, dull: 1800 });
   },
 
   // Something is being built: a quick tap, then three notes of a chord one after another.

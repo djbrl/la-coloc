@@ -3,10 +3,14 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import Avatar from "../components/Avatar.vue";
 import ChatPanel from "../components/ChatPanel.vue";
 import FridgeDoor from "../components/FridgeDoor.vue";
+import type { Place } from "../components/lobby/place";
 import RoomCard from "../components/RoomCard.vue";
 import type { HouseView } from "../types";
 
-const props = defineProps<{ id: string }>();
+// `embedded`: shown inside the lobby's sheet, which has its own Back and Close. The page then drops its top
+// padding and its link to the city, tells the sheet its name (`label`), and asks it to open places (`open`).
+const props = defineProps<{ id: string; embedded?: boolean }>();
+const emit = defineEmits<{ open: [place: Place]; label: [text: string] }>();
 const house = ref<HouseView | null>(null);
 const error = ref("");
 let source: EventSource | null = null;
@@ -27,6 +31,10 @@ async function open(id: string) {
 }
 
 watch(() => props.id, open, { immediate: true });
+watch(
+  () => house.value?.name,
+  (name) => name && emit("label", `Inside ${name}`),
+);
 onBeforeUnmount(() => source?.close());
 
 const occupied = computed(() => house.value?.rooms.filter((r) => r.occupant).length ?? 0);
@@ -48,18 +56,18 @@ const deployDot = (status: string) => (status === "live" ? "live" : status === "
 </script>
 
 <template>
-  <div class="house-page">
+  <div class="house-page" :class="{ embedded }">
     <div v-if="error" class="wrap band">
       <h1>{{ error }}</h1>
       <p class="lede muted">Maybe it moved, or the link is off by a letter.</p>
-      <RouterLink to="/" class="more">Back to the city <span aria-hidden="true">›</span></RouterLink>
+      <RouterLink v-if="!embedded" to="/" class="more">Back to the city <span aria-hidden="true">›</span></RouterLink>
     </div>
 
     <template v-else-if="house">
       <!-- Who the house is, in a few plain sentences. -->
       <section class="band hero">
         <div class="wrap">
-          <RouterLink to="/" class="back"><span aria-hidden="true">‹</span> The city</RouterLink>
+          <RouterLink v-if="!embedded" to="/" class="back"><span aria-hidden="true">‹</span> The city</RouterLink>
           <h1>{{ house.name }}</h1>
           <p class="lede muted">{{ house.city }}<template v-if="house.tagline">. {{ house.tagline }}</template></p>
 
@@ -126,6 +134,8 @@ const deployDot = (status: string) => (status === "live" ? "live" : status === "
               :viewer="house.viewer"
               :chef-login="house.chef?.login ?? null"
               :ledger="house.ledger.find((l) => l.login === room.occupant?.login)"
+              :embedded="embedded"
+              @open="(place) => emit('open', place)"
             />
           </div>
         </div>
@@ -196,6 +206,9 @@ const deployDot = (status: string) => (status === "live" ? "live" : status === "
 
 <style scoped>
 .hero { padding-top: 48px; text-align: center; }
+/* In the lobby's sheet the bar above does the spacing. */
+.embedded .band { padding-top: 40px; padding-bottom: 40px; }
+.embedded .hero { padding-top: 8px; }
 .hero .wrap { display: grid; gap: 16px; justify-items: center; }
 .hero .wrap > :not(.back) { max-width: 680px; }
 .back { justify-self: start; }
