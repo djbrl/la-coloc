@@ -342,3 +342,32 @@ Tests: 175 (domain 14, protocol 4, agent 13, db 2, API 115, web 27). Build and `
 - The workshop's caretaker is a second local process (`docs/dev.md` has the command); on the real server it's one
   more systemd unit with the same key.
 - The demo reset deletes every chat message, since messages aren't tied to a house in the schema.
+
+## 11 10 2026, later: the tutorial, one thing at a time
+
+Jib played the first tutorial and found it overwhelming: every HUD piece, the site's header and the coach at once.
+Rebuilt by four subagents (engine, tutorial flow, the inside panel, a GitHub fix), then run end to end.
+
+| What | Where |
+|---|---|
+| **A hand-made map** for the tutorial: one 60-unit street, a square to start in, tree lots and a park (nothing rentable), the workshop at the far end, about six seconds' walk | `lobby/tutorialMap.ts` (tests) |
+| **One thing at a time**: a welcome card on an empty screen (no header, no HUD), then walk in all four directions, dash, the map (opened and closed), every key (?), the camera flies to the workshop and back, turn with Q and R, walk there and press E. Each step only switches on its own controls and reveals its own piece of the HUD | `tutorial/tutorial.ts` (a DOM-free step machine, 10 tests), `useTutorial.ts`, `Coach.vue`, `Welcome.vue`, `LobbyView.vue`, `lobbyUi.chrome` |
+| **Engine hooks**: `onAction` (walk directions, dash, turns), `setControls` (walk/dash/turn on or off, houses-only targets), `showSpot` (a camera tour that resolves when it's back), `frame("left")` | `Lobby.ts` |
+| **Windows on the right**: the inside panel docks on the right with no dark scrim; the camera zooms in and puts you at 28 % across | `Inside.vue`, `Lobby.ts` (`frame`) |
+| **A rundown of the window** before the first room: four coach marks (the header, the actions, the panels, the rooms) | `house/Rundown.vue`, `HouseInside.vue` |
+| **Detected, not clicked**: opening your live room (the coach's link, or any link to it in the window) says "Well done."; linking GitHub too | `tutorial.ts`, `Inside.vue` (`link`) |
+| **The ending**: "That's it." says what your room is and what it can do; then a second welcome for the city (meet developers, visit houses, the map, other cities, settings for help) | `Coach.vue`, `Welcome.vue` |
+| **GitHub linking mid-tutorial**: an install by someone still in the tutorial links to their workshop room, even if they live in a real house too; `linked` counts any room they live in | `github/chores.service.ts`, `tutorial.service.ts`, 7 tests |
+
+### Verified
+In a headless Chrome with its own throwaway profile (the app's browser pane was hidden, which freezes animation
+frames and stalls requests), logged in as Jib: the start showed only the welcome card; every step advanced on the
+real key events; the camera tour went to the workshop, held, came back and resolved; walking in opened the window
+with the rundown, framed with Jib at 28 % across and the panel from 52 %; the room was taken, the sample built and
+went live, opening it said "Well done."; GitHub was skipped; "Into the city" and "Let's go" left the full HUD on
+Dakar with the profile marked done; no errors. Then the demo was reset from the API.
+Tests: 197. Build and `licences:check` pass.
+
+### Rough edges
+- Other learners' workshop rooms show up as flatmates standing outside the workshop.
+- On touch screens the dash and keys steps are skipped (no Shift, no key list).

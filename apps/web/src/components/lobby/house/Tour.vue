@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // The first time you step inside a house: four short cards at the bottom of the panel, Next or Skip. Seen once
-// per browser; the list of tours already seen lives in localStorage under "coloc.tours".
+// per browser (tours.ts remembers it). The tutorial's rundown (Rundown.vue) stands in for it.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Icon from "./Icon.vue";
 import type { IconName } from "./icons";
+import { markTourSeen, toursSeen } from "./tours";
 
 const props = defineProps<{
   // The last card depends on who's looking: the chef of a house in the making, a flatmate, or a visitor.
@@ -11,27 +12,10 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ done: [] }>();
 
-const KEY = "coloc.tours";
+// The house tour's name in the list of tours seen (tours.ts).
 const NAME = "house";
 
-// The tours this browser has finished or skipped. Storage can be missing or blocked: then every tour shows.
-function seen(): string[] {
-  try {
-    const list = JSON.parse(localStorage.getItem(KEY) ?? "[]");
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
-}
-function markSeen() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify([...new Set([...seen(), NAME])]));
-  } catch {
-    // No storage: the tour will show again next time, which is fine.
-  }
-}
-
-const open = ref(!seen().includes(NAME));
+const open = ref(!toursSeen().includes(NAME));
 const step = ref(0);
 const next = ref<HTMLButtonElement | null>(null);
 
@@ -50,7 +34,7 @@ const current = computed(() => steps.value[step.value]);
 const isLast = computed(() => step.value === steps.value.length - 1);
 
 function finish() {
-  markSeen();
+  markTourSeen(NAME);
   open.value = false;
   emit("done");
 }

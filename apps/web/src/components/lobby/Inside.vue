@@ -1,16 +1,27 @@
 <script setup lang="ts">
-// Going inside without leaving the lobby: a house page, a knock's thread or a room, shown as a floating panel in
-// the middle of the 3D city (a bottom sheet on a phone). The panel keeps its own back-stack, so a link from one
-// page to another opens on top and Back returns. It never touches the router: the list view keeps the real pages,
-// this only shows them.
+// Going inside without leaving the lobby: a house page, a knock's thread or a room, shown as a flat panel docked
+// on the right of the 3D city, so the camera can keep your character in view on the left (a bottom sheet on a
+// phone). The panel keeps its own back-stack, so a link from one page to another opens on top and Back returns.
+// It never touches the router: the list view keeps the real pages, this only shows them.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import ApplicationPage from "../../pages/ApplicationPage.vue";
 import HouseInside from "./HouseInside.vue";
 import RoomPage from "../../pages/RoomPage.vue";
 import { type Place, placeFromPath, placeKey } from "./place";
 
-const props = defineProps<{ start: Place }>();
-const emit = defineEmits<{ change: [top: Place | null]; close: [] }>();
+const props = defineProps<{
+  start: Place;
+  // The tutorial asks a house's view for the window's rundown (HouseInside, house/Rundown.vue).
+  rundown?: boolean;
+}>();
+const emit = defineEmits<{
+  change: [top: Place | null];
+  close: [];
+  // An outside link in the panel was clicked (the browser still follows it): its full address.
+  link: [url: string];
+  // The rundown ended (Got it, or Escape).
+  rundownDone: [];
+}>();
 
 const sheet = ref<HTMLElement | null>(null);
 const stack = ref<Place[]>([props.start]);
@@ -34,6 +45,13 @@ function back() {
 
 function closeAll() {
   stack.value = [];
+}
+
+// The rundown runs once per panel: going to a room and back to the house doesn't start it over.
+const rundownSeen = ref(false);
+function rundownEnded() {
+  rundownSeen.value = true;
+  emit("rundownDone");
 }
 
 watch(topKey, (now) => {
@@ -75,6 +93,7 @@ const fallback = computed(() => {
 // knock links open as places here; "/" closes the sheet. Log in, outside links, and clicks that ask for a new
 // tab (cmd, ctrl, shift, middle button) are left alone.
 function onClick(e: MouseEvent) {
+  reportOutsideLink(e);
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   const a = (e.target as Element | null)?.closest("a[href]");
   if (!a || a.getAttribute("target") === "_blank") return;
@@ -86,6 +105,17 @@ function onClick(e: MouseEvent) {
   e.stopPropagation();
   if (place === "city") closeAll();
   else go(place);
+}
+
+// A link to another site (a room's live address, a pull request on GitHub) is reported before the browser
+// follows it; the tutorial listens, to see you open your room. Any button and any modifier counts: a plain or
+// modified click arrives here through onClick, a middle click through auxclick. Nothing is stopped.
+function reportOutsideLink(e: MouseEvent) {
+  if (e.type === "auxclick" && e.button !== 1) return;
+  const a = (e.target as Element | null)?.closest?.("a[href]");
+  if (!(a instanceof HTMLAnchorElement)) return;
+  // `a.href` is the address fully resolved; a relative one always lands on our own origin.
+  if ((a.protocol === "http:" || a.protocol === "https:") && a.origin !== location.origin) emit("link", a.href);
 }
 
 // The sheet keeps its keys to itself: the lobby listens on the window (W A S D, E, Tab, Q, R, 1, 2) and must
@@ -122,6 +152,8 @@ function trapTab(e: KeyboardEvent) {
 
 <template>
   <div class="inside" @keyup.stop>
+    <!-- Over the rest of the lobby: a click there closes the panel. Dimmed only on a narrow screen; on a wide one it's
+         clear, so the city stays lit beside the panel. -->
     <div class="scrim" @click="closeAll" />
     <section
       v-if="top"
@@ -132,6 +164,7 @@ function trapTab(e: KeyboardEvent) {
       :aria-label="label || fallback"
       tabindex="-1"
       @click.capture="onClick"
+      @auxclick.capture="reportOutsideLink"
       @keydown="onKey"
     >
       <div class="bar">
@@ -145,7 +178,15 @@ function trapTab(e: KeyboardEvent) {
       <!-- One page at a time, keyed by place: going back mounts the page afresh, and a popped page closes its own stream. -->
       <div class="page-host">
         <!-- A house inside is its own game-like view (HouseInside); the list view keeps the full page. -->
-        <HouseInside v-if="top.kind === 'house'" :key="topKey" :id="top.id" @open="go" @label="(l) => (label = l)" />
+        <HouseInside
+          v-if="top.kind === 'house'"
+          :key="topKey"
+          :id="top.id"
+          :rundown="!!rundown && !rundownSeen"
+          @open="go"
+          @label="(l) => (label = l)"
+          @rundown-done="rundownEnded"
+        />
         <ApplicationPage v-else-if="top.kind === 'application'" :key="topKey" :id="top.id" embedded @label="(l) => (label = l)" />
         <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded @label="(l) => (label = l)" />
       </div>
@@ -154,14 +195,17 @@ function trapTab(e: KeyboardEvent) {
 </template>
 
 <style scoped>
-/* Above the HUD (10) and the lobby's own find and travel sheets (50): the scrim over the city, the panel centred on it. */
-.inside { position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; }
-.scrim { position: absolute; inset: 0; background: var(--scrim); animation: fade-in 0.25s var(--ease); }
-/* A flat floating panel on the site's surface; the page scrolls inside it. */
+/* Above the HUD (10) and the lobby's own find and travel sheets (50). */
+.inside { position: absolute; inset: 0; z-index: 60; }
+/* On a wide screen the click-catcher over the city is clear: no dimming, the city stays lit. */
+.scrim { position: absolute; inset: 0; }
+/* A flat panel on the site's surface, docked on the right under the top bar; the page scrolls inside it. */
 .sheet {
-  position: relative;
-  width: min(760px, 100vw - 32px);
-  max-height: calc(100dvh - 96px);
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  bottom: 16px;
+  width: min(600px, 48vw);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -171,13 +215,13 @@ function trapTab(e: KeyboardEvent) {
   box-shadow: var(--shadow);
   outline: none;
   overflow-wrap: anywhere;
-  animation: rise-in 0.25s var(--ease);
+  animation: slide-in 0.25s var(--ease);
 }
 /* Back and Close stay in reach while the page scrolls under them. */
 .bar {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -189,15 +233,23 @@ function trapTab(e: KeyboardEvent) {
 .bar .link { font-size: 15px; }
 .close { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; }
 .page-host { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(16px); }
+}
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(12px); }
 }
 @keyframes fade-in {
   from { opacity: 0; }
 }
-/* On a phone the panel is a sheet along the bottom edge, with rounded top corners. */
-@media (max-width: 520px) {
-  .inside { place-items: end stretch; }
-  .sheet { width: 100%; max-height: 88dvh; border-radius: 20px 20px 0 0; }
+/* Narrower than 720px there's no room beside the panel: it becomes a sheet along the bottom edge, with rounded
+   top corners, over a dimmed city. */
+@media (max-width: 719px) {
+  .inside { display: grid; place-items: end stretch; }
+  .scrim { background: var(--scrim); animation: fade-in 0.25s var(--ease); }
+  .sheet { position: relative; inset: auto; width: 100%; max-height: 88dvh; border-radius: 20px 20px 0 0; animation-name: rise-in; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .scrim { animation: none; }
 }
 </style>

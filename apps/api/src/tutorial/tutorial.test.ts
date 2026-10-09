@@ -116,6 +116,23 @@ describe("taking a room in the workshop", () => {
   });
 });
 
+describe("when GitHub counts as linked", () => {
+  it("counts a repo in a real room the newcomer lives in, not only the workshop room", async () => {
+    await tutorial.room(req, response());
+    expect((await tutorial.state(req)).github.linked).toBe(false);
+    const fatou = await user("fatou");
+    await db.insert(rooms).values({ houseId: "sacre-coeur", name: "fatou-real", occupantId: fatou.id, memoryMb: 256, cpus: 0.5 });
+    await db.insert(repos).values({ githubId: 8, fullName: "fatou/real", houseId: "sacre-coeur", room: "fatou-real", installationId: 1 });
+    expect((await tutorial.state(req)).github.linked).toBe(true);
+  });
+
+  it("doesn't count someone else's repo", async () => {
+    await tutorial.room(req, response());
+    await db.insert(repos).values({ githubId: 9, fullName: "jib/hello", houseId: "sacre-coeur", room: "room-4", installationId: 1 });
+    expect((await tutorial.state(req)).github.linked).toBe(false);
+  });
+});
+
 describe("putting the sample online", () => {
   it("deploys the sample into the newcomer's room", async () => {
     await tutorial.room(req, response());

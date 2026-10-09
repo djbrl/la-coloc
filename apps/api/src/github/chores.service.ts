@@ -1,7 +1,7 @@
 // Chores: every pull request in a flatmate's repo gets a reviewer from the house, picked on a rotation.
 // GitHub tells us what happens (webhooks); we pick, comment, request the review, and keep score.
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { chores, type Db, memberships, repos, rooms, users } from "@coloc/db";
+import { chores, type Db, houses, memberships, repos, rooms, users } from "@coloc/db";
 import { pickReviewer, type ReviewLoad } from "@coloc/domain";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import { DB } from "../db/db.module";
@@ -75,6 +75,10 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
   /**
    * Installing the App on your repos moves them into your room: whoever installed it must be a coloc user
    * (logged in with that GitHub account) who lives in exactly one room. Anything else is ignored.
+   *
+   * One exception, for the tutorial: someone who is still taking it has a room in the workshop. If they also live
+   * in a real house they have two rooms, and the rule above would never link anything, so the tutorial would wait
+   * for ever. While the tutorial isn't finished, the first repo goes to the workshop room (if it has no repo yet).
    */
   private async linkRepos(p: GhEvent): Promise<string> {
     const list = p.repositories_added ?? p.repositories ?? [];
@@ -82,16 +86,35 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
     const [u] = await this.db.select().from(users).where(eq(users.githubId, p.sender.id));
     if (!u) return "installer isn't a coloc user";
     const theirRooms = await this.db.select().from(rooms).where(eq(rooms.occupantId, u.id));
-    if (theirRooms.length !== 1) return "installer doesn't live in exactly one room";
-    const [room] = theirRooms;
-    for (const r of list) {
+    const onlyRoom = theirRooms.length === 1 ? theirRooms[0] : undefined;
+    const tutorialRoom = await this.freeTutorialRoom(u, theirRooms);
+    if (!onlyRoom && !tutorialRoom) return "installer doesn't live in exactly one room";
+
+    // Each repo goes to a room: the first to the tutorial room if it is free, the others by the usual rule.
+    const moved = new Map<typeof rooms.$inferSelect, string[]>();
+    for (const [i, r] of list.entries()) {
+      const room = i === 0 && tutorialRoom ? tutorialRoom : onlyRoom;
+      if (!room) continue;
       await this.db
         .insert(repos)
         .values({ githubId: r.id, fullName: r.full_name, houseId: room.houseId, room: room.name, installationId: p.installation.id })
         .onConflictDoUpdate({ target: repos.githubId, set: { fullName: r.full_name, houseId: room.houseId, room: room.name, installationId: p.installation.id } });
+      moved.set(room, [...(moved.get(room) ?? []), r.full_name]);
     }
-    await this.houses.note(room.houseId, { tone: "info", room: room.name, text: `${u.name ?? u.login} moved ${list.map((r) => r.full_name).join(", ")} into ${room.name}.` });
-    return `linked ${list.length}`;
+    for (const [room, names] of moved) {
+      await this.houses.note(room.houseId, { tone: "info", room: room.name, text: `${u.name ?? u.login} moved ${names.join(", ")} into ${room.name}.` });
+    }
+    return `linked ${[...moved.values()].flat().length}`;
+  }
+
+  /** The workshop room of someone mid-tutorial, if it has no repo yet. Otherwise undefined. */
+  private async freeTutorialRoom(u: typeof users.$inferSelect, theirRooms: (typeof rooms.$inferSelect)[]) {
+    if (u.tutorialDoneAt) return undefined;
+    const workshops = await this.db.select({ id: houses.id }).from(houses).where(eq(houses.tutorial, true));
+    const room = theirRooms.find((r) => workshops.some((h) => h.id === r.houseId));
+    if (!room) return undefined;
+    const [taken] = await this.db.select().from(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name)));
+    return taken ? undefined : room;
   }
 
   /** A PR opened in a flatmate's repo: pick the next reviewer, tell them on the PR. */

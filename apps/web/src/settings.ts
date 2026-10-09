@@ -40,6 +40,10 @@ export const settings = reactive<Settings>(read());
 // "take the tutorial again", stamped with the time it was asked so the lobby notices each time. Neither is saved.
 export const settingsPane = reactive({ open: false, tutorialRequested: 0 });
 
+// What the lobby wants of the page around it, not saved either: `chrome` is the site's top bar, which the tutorial
+// hides until the very end so the screen shows one thing at a time. App.vue reads it.
+export const lobbyUi = reactive({ chrome: true });
+
 watch(settings, (s) => {
   try {
     localStorage.setItem(KEY, JSON.stringify(s));

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import Avatar from "./components/Avatar.vue";
 import SettingsPane from "./components/SettingsPane.vue";
 import { logout, me, meLoaded } from "./session";
-import { settings, settingsPane } from "./settings";
+import { lobbyUi, settings, settingsPane } from "./settings";
 
 const route = useRoute();
 const router = useRouter();
@@ -45,7 +45,8 @@ const gear = (() => {
 
 <template>
   <a class="skip" href="#main">Skip to content</a>
-  <header class="bar" :class="{ float: fullscreen }">
+  <!-- The lobby can ask for the bar to go (the tutorial does, until its last step). -->
+  <header v-show="lobbyUi.chrome" class="bar" :class="{ float: fullscreen }">
     <nav class="inner" aria-label="Main">
       <RouterLink to="/" class="logo">La Coloc</RouterLink>
       <div class="side">

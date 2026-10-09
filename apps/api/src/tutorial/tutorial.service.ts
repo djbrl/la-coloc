@@ -58,7 +58,7 @@ export class TutorialService {
   async state(user: User) {
     const house = await this.workshop();
     const room = await this.roomOf(house.id, user.id);
-    const [repo] = room ? await this.db.select().from(repos).where(and(eq(repos.houseId, house.id), eq(repos.room, room.name))) : [];
+    const linked = await this.hasLinkedRepo(user.id);
     return {
       house: { id: house.id, name: house.name, city: house.city, agentOnline: this.agents.isOnline(house.id) },
       room: room ? roomView(room) : null,
@@ -66,7 +66,7 @@ export class TutorialService {
       github: {
         // Installing the App on a repo moves that repo into the installer's room (see ChoresService).
         installUrl: this.github?.slug ? `https://github.com/apps/${this.github.slug}/installations/new` : null,
-        linked: !!repo,
+        linked,
       },
       done: !!user.tutorialDoneAt,
     };
@@ -155,6 +155,19 @@ export class TutorialService {
     const [house] = await this.db.select().from(houses).where(eq(houses.tutorial, true)).orderBy(asc(houses.createdAt)).limit(1);
     if (!house) throw new NotFoundException("There's no workshop on this server.");
     return house;
+  }
+
+  // Has a repo been linked to a room the newcomer lives in? Their workshop room counts, and so does a room in
+  // a real house: the installation may have gone there. We don't keep a list of installations by account, so a
+  // login without a GitHub id (the dev login) can never be traced to one.
+  private async hasLinkedRepo(userId: string): Promise<boolean> {
+    const found = await this.db
+      .select({ id: repos.githubId })
+      .from(repos)
+      .innerJoin(rooms, and(eq(rooms.houseId, repos.houseId), eq(rooms.name, repos.room)))
+      .where(eq(rooms.occupantId, userId))
+      .limit(1);
+    return found.length > 0;
   }
 
   private async roomOf(houseId: string, userId: string): Promise<Room | undefined> {

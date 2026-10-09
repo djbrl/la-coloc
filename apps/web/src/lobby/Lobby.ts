@@ -4,7 +4,9 @@
 // or press Tab to pick one from afar; whatever the mouse is over gets an outline. A lamp flips; anything else is
 // reported to Vue, which draws the card and does the navigating. Anything far away is walked to along a route
 // found on a grid (path.ts), so you can get to a building from whichever side you're on. Shift dashes, and
-// `teleport` is fast travel.
+// `teleport` is fast travel. For the tutorial, Vue can switch controls off one by one (`setControls`), hears each
+// one you use (`onAction`), and can send the camera to show you a spot (`showSpot`); `frame` makes room for a
+// window on the right of the screen.
 // Pure three.js; Vue only mounts it and draws what sits on top (cards, the minimap it's fed by `onMap`).
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -35,11 +37,25 @@ const STUCK = { moved: 0.05, after: 0.5 };
 // screen reaches ground that a closer camera would clip.
 const CAMERA_OFFSET = new THREE.Vector3(42, 48, 42);
 const ZOOM = { min: 7, max: 26, start: 13 }; // half the view's width, in world units
+// Showing a spot (`showSpot`): how long the camera takes to glide there (and back), and how long it stays, in seconds.
+const TOUR = { glide: 1.2, hold: 2 };
+// A window open on the right (`frame("left")`): zoomed in to this half-width, with you this far across the screen
+// from the left. A screen narrower than `narrow` pixels shows windows as a bottom sheet: it only zooms.
+const FRAMED = { half: 6.5, at: 0.28, narrow: 720 };
 const LAMP_LIGHT = 0xffc078;
 const TAG_RANGE = 10; // people's name tags show within this distance of you
 const NOBODY = 0xd8d8de; // the ring colour of someone without a house
 
 export type Emote = "yes" | "no";
+// The controls you use, as Vue hears about them (see `onAction`).
+export type Action = "walk-up" | "walk-down" | "walk-left" | "walk-right" | "dash" | "turn-left" | "turn-right";
+// What you're allowed to do (see `setControls`). `targets: "houses"` leaves only houses to aim at.
+export interface Controls {
+  walk: boolean;
+  dash: boolean;
+  turn: boolean;
+  targets: "all" | "houses";
+}
 export type Target =
   | { kind: "house"; house: CityHouse }
   // An empty building or lot: a shop, a tower or a tree lot. Rentable: "start a coloc here". `key` is Plot.key.
@@ -69,6 +85,9 @@ export interface LobbyEvents {
   onHover(target: Target | null): void;
   // For the minimap, five times a second: you, everyone else on the map, and which way the camera is turned.
   onMap(state: { you: { x: number; z: number; ry: number }; people: { login: string; x: number; z: number }[]; angle: number }): void;
+  // You used a control that's switched on: a walk key went down (not a key held down repeating), a dash happened
+  // (Shift, or `dash()`), or the camera turned (Q, R, or `rotate()`). The tutorial ticks its steps off with this.
+  onAction(name: Action): void;
 }
 
 export interface LobbyOptions {
@@ -137,6 +156,18 @@ interface Lamp extends Thing {
   on: boolean;
 }
 
+// The walk keys, and the action each one reports.
+const WALK_KEYS = new Map<string, Action>([
+  ["w", "walk-up"],
+  ["arrowup", "walk-up"],
+  ["s", "walk-down"],
+  ["arrowdown", "walk-down"],
+  ["a", "walk-left"],
+  ["arrowleft", "walk-left"],
+  ["d", "walk-right"],
+  ["arrowright", "walk-right"],
+]);
+
 const yaw = (f: Facing) => (f * Math.PI) / 2;
 // (x, z) turned by angle `a` around y, the same way three.js turns an object by rotation.y = a.
 const rotate = (x: number, z: number, a: number) => new THREE.Vector3(x * Math.cos(a) + z * Math.sin(a), 0, -x * Math.sin(a) + z * Math.cos(a));
@@ -197,7 +228,7 @@ export class Lobby {
   private puffs: { group: THREE.Group; age: number }[] = [];
   private lastMap = 0;
   private scratch = new THREE.Vector3();
-  private frame = 0;
+  private animationFrame = 0;
   private ray = new THREE.Raycaster();
   private resize: ResizeObserver;
   private zoom = ZOOM.start;
@@ -209,6 +240,17 @@ export class Lobby {
   private lastOffset: THREE.Vector3 | null = null;
   // Set when the camera should jump to you rather than glide (first frame, arriving in a neighbourhood).
   private snap = true;
+  // What you may do right now: everything, until Vue says otherwise. Kept across neighbourhoods.
+  private controls: Controls = { walk: true, dash: true, turn: true, targets: "all" };
+  // The camera showing you a spot: where it glided from, the spot, how long the glides and the stay last, when it
+  // set off (seconds on the clock), and what to call once it's back. Null when it's following you.
+  private tour: { from: THREE.Vector3; to: THREE.Vector3; glide: number; hold: number; start: number; done: () => void } | null = null;
+  // "left" while a window is open on the right of the screen: you're framed in the part that's left (see `frame`).
+  private framing: "follow" | "left" = "follow";
+  // The screen's width over its height, and whether it's too narrow to frame you beside a window (windows are a
+  // bottom sheet there). Both set by `fit`, so the frame loop never has to measure the page.
+  private aspect = 1;
+  private narrow = false;
   private lastSent = { at: 0, key: "" };
   private sun: THREE.DirectionalLight;
   private builtCity = "";
@@ -419,9 +461,63 @@ export class Lobby {
     this.focus = on ? 4.5 : null;
   }
 
-  /** Turns the camera a quarter turn: +1 one way, -1 the other. */
+  /** Turns the camera a quarter turn: +1 one way (R), -1 the other (Q). Not while turning is switched off. */
   rotate(by: 1 | -1) {
-    this.turn += by;
+    this.turnView(by, true);
+  }
+
+  /**
+   * Switches controls on or off; whatever isn't mentioned stays as it was. Walking off: keys and clicks don't move
+   * you, and a route you're on stops. Dash off: Shift does nothing. Turn off: Q and R do nothing. Targets
+   * "houses": houses are the only things to aim at (Tab, reach, hover and clicks pass over everything else).
+   */
+  setControls(c: Partial<Controls>) {
+    const { walk = this.controls.walk, dash = this.controls.dash, turn = this.controls.turn, targets = this.controls.targets } = c;
+    this.controls = { walk, dash, turn, targets };
+    if (!walk) {
+      this.keys.clear();
+      this.stop();
+    }
+    // Anything you'd picked out that isn't a target any more is let go.
+    if (this.useOnArrival && !this.allowed(this.useOnArrival)) this.stop();
+    if (this.highlighted && !this.allowed(this.highlighted)) this.clearHighlight();
+    if (this.hover && !this.allowed(this.hover)) this.setHover(null);
+  }
+
+  /**
+   * Shows you a spot: the camera leaves you, glides to (x, z), stays there `hold` seconds, and glides back. You
+   * stand still meanwhile, and walking, dashing and turning wait. Resolves once the camera is back with you. With
+   * calm motion it cuts instead of gliding. A second call while one is running takes over from where the camera
+   * is (the first one resolves straight away).
+   */
+  showSpot(x: number, z: number, opts: { hold?: number } = {}): Promise<void> {
+    this.endTour();
+    this.keys.clear();
+    this.stop();
+    this.dashUntil = 0;
+    this.shiftAlone = false;
+    // The point the camera looks at right now: it starts from there.
+    const from = this.lastOffset ? this.camera.position.clone().sub(this.lastOffset).setY(0) : this.player.position.clone().setY(0);
+    return new Promise((resolve) => {
+      this.tour = {
+        from,
+        to: new THREE.Vector3(x, 0, z),
+        glide: this.opts.reduceMotion ? 0 : TOUR.glide,
+        hold: Math.max(0, opts.hold ?? TOUR.hold),
+        start: this.clock.elapsedTime,
+        done: resolve,
+      };
+    });
+  }
+
+  /**
+   * How the camera frames you. "left": a window is open on the right of the screen, so the camera zooms in and
+   * slides over until you stand in the part of the screen that's left, about a quarter of the way across (on a
+   * narrow screen, where windows are bottom sheets, it only zooms). "follow": back to normal, at the zoom the wheel
+   * chose. Eased either way, unless motion is calm.
+   */
+  frame(mode: "follow" | "left") {
+    this.framing = mode;
   }
 
   /** Walks to a house's door, then selects it. */
@@ -435,6 +531,7 @@ export class Lobby {
    * free, then a burst of speed. Then a breather before the next one.
    */
   dash() {
+    if (!this.can("dash")) return;
     const now = this.clock.elapsedTime;
     if (now < this.dashReadyAt) return;
     const pos = this.player.position;
@@ -454,6 +551,7 @@ export class Lobby {
     this.dashUntil = now + DASH.length;
     this.dashReadyAt = this.dashUntil + DASH.cooldown;
     play("dash");
+    this.events.onAction("dash");
   }
 
   /** Fast travel: puts you at the nearest free spot (not inside a building) and snaps the camera to you. */
@@ -483,9 +581,10 @@ export class Lobby {
   /** Uses what you highlighted, else what you're standing next to. Something far away: walk there first. */
   interact() {
     const thing = this.highlighted ?? this.near;
-    if (!thing) return;
+    // Not while the camera is away showing you something.
+    if (!thing || this.tour) return;
     if (this.distanceTo(thing) < REACH) this.use(thing);
-    else this.walkToward(thing);
+    else if (this.controls.walk) this.walkToward(thing);
   }
 
   /** Highlights the next (or previous) target on screen, nearest to you first, round and round. */
@@ -576,7 +675,8 @@ export class Lobby {
   }
 
   dispose() {
-    cancelAnimationFrame(this.frame);
+    cancelAnimationFrame(this.animationFrame);
+    this.endTour();
     this.resize.disconnect();
     window.removeEventListener("keydown", this.keydown);
     window.removeEventListener("keyup", this.keyup);
@@ -596,7 +696,32 @@ export class Lobby {
 
   /** Every target in the neighbourhood right now. */
   private things(): Thing[] {
+    if (this.controls.targets === "houses") return [...this.placed];
     return [...this.placed, ...this.plots, ...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values(), ...this.lamps];
+  }
+
+  /** Whether a thing is a target at all right now: everything is, unless only houses are (see `setControls`). */
+  private allowed(t: Thing): boolean {
+    return this.controls.targets === "all" || t.target.kind === "house";
+  }
+
+  /** Whether you may walk, dash or turn the camera right now: it's switched on, and the camera isn't away. */
+  private can(what: "walk" | "dash" | "turn"): boolean {
+    return this.controls[what] && !this.tour;
+  }
+
+  /** A quarter turn of the camera, when turning is allowed; `tell` reports it to Vue. */
+  private turnView(by: 1 | -1, tell: boolean) {
+    if (!this.can("turn")) return;
+    this.turn += by;
+    if (tell) this.events.onAction(by < 0 ? "turn-left" : "turn-right");
+  }
+
+  /** Ends a camera tour where it is, and lets whoever was waiting for it go on. */
+  private endTour() {
+    const tour = this.tour;
+    this.tour = null;
+    tour?.done();
   }
 
   /** Whether a spot is inside the view: projected through the camera, it lands within the screen's edges. */
@@ -621,14 +746,16 @@ export class Lobby {
       range = d;
       return true;
     };
-    for (const l of this.lamps) if (closer(l)) best = l;
+    // Only houses are targets: skip straight to them.
+    const all = this.controls.targets === "all";
+    if (all) for (const l of this.lamps) if (closer(l)) best = l;
     if (best) return best;
     range = REACH;
-    for (const n of this.npcs) if (n.avatar.visible && closer(n)) best = n;
-    for (const r of this.remotes.values()) if (closer(r)) best = r;
+    if (all) for (const n of this.npcs) if (n.avatar.visible && closer(n)) best = n;
+    if (all) for (const r of this.remotes.values()) if (closer(r)) best = r;
     if (best) return best;
     for (const p of this.placed) if (closer(p)) best = p;
-    for (const p of this.plots) if (closer(p)) best = p;
+    if (all) for (const p of this.plots) if (closer(p)) best = p;
     return best;
   }
 
@@ -1132,6 +1259,8 @@ export class Lobby {
     const w = this.host.clientWidth;
     const h = this.host.clientHeight;
     if (!w || !h) return;
+    this.aspect = w / h;
+    this.narrow = w < FRAMED.narrow;
     this.renderer.setSize(w, h);
     this.labels.setSize(w, h);
     if (this.composer) {
@@ -1142,13 +1271,31 @@ export class Lobby {
   }
 
   private project(half = this.viewHalf) {
-    const w = this.host.clientWidth || 1;
-    const h = this.host.clientHeight || 1;
-    // A phone held upright is narrow: show a little less of the town rather than shrinking everyone.
-    const aspect = w / h;
-    const width = aspect < 1 ? half * 0.85 : half;
-    Object.assign(this.camera, { left: -width, right: width, top: width / aspect, bottom: -width / aspect });
+    const width = this.halfWidth(half);
+    Object.assign(this.camera, { left: -width, right: width, top: width / this.aspect, bottom: -width / this.aspect });
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Half of the view's width on the ground, for a zoom of `half`. */
+  private halfWidth(half = this.viewHalf): number {
+    // A phone held upright is narrow: show a little less of the town rather than shrinking everyone.
+    return this.aspect < 1 ? half * 0.85 : half;
+  }
+
+  /**
+   * Where the camera aims to look: at you, or, with a window open on the right, at a point to your right, so you
+   * stand about a quarter of the way across the screen. Writes into `out`.
+   */
+  private followPoint(out: THREE.Vector3): THREE.Vector3 {
+    out.copy(this.player.position).setY(0);
+    if (this.framing === "left" && !this.narrow) {
+      // The screen's right, on the ground (the way D walks), turned with the camera. You're at the centre of the
+      // screen plus `shift` to the left; the screen is 2 × halfWidth wide, so that puts you at FRAMED.at across.
+      const right = rotate(1, -1, this.angle).normalize();
+      const shift = (1 - 2 * FRAMED.at) * this.halfWidth();
+      out.addScaledVector(right, shift);
+    }
+    return out;
   }
 
   private keydown = (e: KeyboardEvent) => {
@@ -1160,10 +1307,15 @@ export class Lobby {
     if (t?.closest?.('[aria-modal="true"], dialog')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) {
-      this.keys.add(k);
-      this.stop();
+    const walk = WALK_KEYS.get(k);
+    if (walk) {
       e.preventDefault();
+      // A walk key held down repeats: walking goes on, but Vue only hears about the first press.
+      if (this.can("walk")) {
+        this.keys.add(k);
+        this.stop();
+        if (!e.repeat) this.events.onAction(walk);
+      }
     }
     if (k === "tab") {
       // Tab picks targets only while the page itself has focus. Inside a card or a sheet it moves focus as usual.
@@ -1178,8 +1330,8 @@ export class Lobby {
     if (k === "shift" && !e.repeat) this.shiftAlone = true;
     else if (e.shiftKey && !e.repeat) this.shiftAlone = false;
     if (k === "e" || k === "enter") this.interact();
-    if (k === "q") this.rotate(-1);
-    if (k === "r") this.rotate(1);
+    if (k === "q") this.turnView(-1, !e.repeat);
+    if (k === "r") this.turnView(1, !e.repeat);
     if (k === "1") this.emote("yes");
     if (k === "2") this.emote("no");
   };
@@ -1201,8 +1353,9 @@ export class Lobby {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const pointer = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.ray.setFromCamera(pointer, this.camera);
-    // People are small: aim at a generous sphere around each one, nearest first.
-    const people: (Npc | Remote)[] = [...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values()];
+    // People are small: aim at a generous sphere around each one, nearest first. Unless only houses are targets.
+    const all = this.controls.targets === "all";
+    const people: (Npc | Remote)[] = all ? [...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values()] : [];
     const hitPerson = people
       .map((who) => ({ who, d: this.ray.ray.distanceSqToPoint(who.avatar.position.clone().setY(0.8)) }))
       .filter((x) => x.d < 1.6)
@@ -1213,6 +1366,8 @@ export class Lobby {
       let o: THREE.Object3D | null = hit.object;
       while (o && !o.userData.houseId && !o.userData.plotKey && !o.userData.lampId) o = o.parent;
       const { houseId, plotKey, lampId } = o?.userData ?? {};
+      // Only houses are targets: look past a plot or a lamp, to whatever is behind it (the ground, usually).
+      if (!all && !houseId && (plotKey || lampId)) continue;
       if (houseId) return { thing: this.placed.find((p) => p.house.id === houseId) ?? null, ground: null };
       if (plotKey) return { thing: this.plots.find((p) => p.key === plotKey) ?? null, ground: null };
       if (lampId) return { thing: this.lamps.find((l) => l.id === lampId) ?? null, ground: null };
@@ -1225,11 +1380,14 @@ export class Lobby {
   }
 
   // Click someone to see who they are; a house, a plot or a lamp to walk up to it and use it; the ground to walk there.
+  // With walking switched off, only what's already in reach can be used. Nothing while the camera is away.
   private click = (e: PointerEvent) => {
+    if (this.tour) return;
     const { thing, ground } = this.aim(e);
     if (thing?.target.kind === "person") this.events.onSelect(thing.target);
-    else if (thing) this.walkToward(thing);
-    else if (ground) this.routeTo(ground);
+    else if (thing && this.controls.walk) this.walkToward(thing);
+    else if (thing && this.distanceTo(thing) < REACH) this.use(thing);
+    else if (ground && this.controls.walk) this.routeTo(ground);
   };
 
   // The same aim as a click, as the mouse moves (a few times a second, never for a finger): what it's over gets
@@ -1263,7 +1421,9 @@ export class Lobby {
     if (this.keys.has("a") || this.keys.has("arrowleft")) (dx -= 1), (dz += 1);
     if (this.keys.has("d") || this.keys.has("arrowright")) (dx += 1), (dz -= 1);
     const dir = dx || dz ? rotate(dx, dz, this.angle) : new THREE.Vector3();
-    if (!dir.lengthSq() && this.route) {
+    // While the camera is away showing a spot, you wait: no keys are held (see `showSpot`), and no route is walked.
+    if (this.tour) this.stuck.at = this.clock.elapsedTime;
+    if (!dir.lengthSq() && this.route && !this.tour) {
       const u = this.useOnArrival;
       // Someone you're walking to may be strolling: keep aiming the last leg at the spot beside them.
       if (u && u.target.kind === "person") this.beside(u, this.route[this.route.length - 1]);
@@ -1390,11 +1550,13 @@ export class Lobby {
       for (const r of this.remotes.values()) r.tag.style.visibility = r === h || r.avatar.position.distanceTo(centre) < tagRange * 1.6 ? "" : "hidden";
     }
 
-    // The camera follows from the isometric angle, turned and gliding (or snapping, for calm motion).
+    // The camera follows from the isometric angle, turned and gliding (or snapping, for calm motion). It looks at
+    // you, or beside you when a window is open (see `followPoint`), or at the spot a tour is showing.
     const offset = rotate(CAMERA_OFFSET.x, CAMERA_OFFSET.z, this.angle).setY(CAMERA_OFFSET.y);
-    const goal = this.player.position.clone().setY(0);
+    const goal = this.followPoint(new THREE.Vector3());
     const look = this.camera.position.clone().sub(this.lastOffset ?? offset).setY(0);
-    if (calm || this.snap) look.copy(goal);
+    if (this.tour) this.touring(look, goal);
+    else if (calm || this.snap) look.copy(goal);
     else look.lerp(goal, 1 - Math.exp(-6 * dt));
     this.snap = false;
     this.camera.position.copy(look).add(offset);
@@ -1425,8 +1587,8 @@ export class Lobby {
       for (const m of this.skyline) m.visible = m.position.clone().sub(look).setY(0).dot(toCamera) < 6;
     }
 
-    // Zoom eases towards the wheel's choice (or the onboarding's close-up).
-    const want = this.focus ?? this.zoom;
+    // Zoom eases towards the wheel's choice (or the onboarding's close-up, or the close-up beside a window).
+    const want = this.focus ?? (this.framing === "left" ? FRAMED.half : this.zoom);
     if (Math.abs(this.viewHalf - want) > 0.01) {
       this.viewHalf = calm ? want : this.viewHalf + (want - this.viewHalf) * (1 - Math.exp(-8 * dt));
       this.project(this.viewHalf);
@@ -1440,6 +1602,24 @@ export class Lobby {
       const people = this.npcs.filter((n) => n.avatar.visible).map((n) => ({ login: n.login, x: n.avatar.position.x, z: n.avatar.position.z }));
       for (const [login, r] of this.remotes) people.push({ login, x: r.avatar.position.x, z: r.avatar.position.z });
       this.events.onMap({ you: { x: you.x, z: you.z, ry: this.player.rotation.y }, people, angle: this.angle });
+    }
+  }
+
+  /**
+   * Where the camera looks during a tour, written into `look`: gliding from where it was to the spot, staying,
+   * then gliding back to `goal` (you). Ends the tour once it's back. Glides are eased in and out; with calm motion
+   * they take no time, so the camera cuts.
+   */
+  private touring(look: THREE.Vector3, goal: THREE.Vector3) {
+    const tour = this.tour!;
+    const t = this.clock.elapsedTime - tour.start;
+    const { glide, hold } = tour;
+    if (t < glide) look.lerpVectors(tour.from, tour.to, easeInOut(t / glide));
+    else if (t < glide + hold) look.copy(tour.to);
+    else if (t < glide + hold + glide) look.lerpVectors(tour.to, goal, easeInOut((t - glide - hold) / glide));
+    else {
+      look.copy(goal);
+      this.endTour();
     }
   }
 
@@ -1471,7 +1651,7 @@ export class Lobby {
   }
 
   private loop = () => {
-    this.frame = requestAnimationFrame(this.loop);
+    this.animationFrame = requestAnimationFrame(this.loop);
     this.step(Math.min(this.clock.getDelta(), 0.05));
     this.draw();
     this.labels.render(this.scene, this.camera);
@@ -1482,6 +1662,11 @@ export class Lobby {
 function footprint(x: number, z: number, facing: Facing, w: number, d: number): Box {
   const [hw, hd] = facing % 2 === 0 ? [w / 2, d / 2] : [d / 2, w / 2];
   return { minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd };
+}
+
+/** Slow, then fast, then slow again: 0 → 0, ½ → ½, 1 → 1 (a cubic). */
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
 function shortestAngle(from: number, to: number): number {

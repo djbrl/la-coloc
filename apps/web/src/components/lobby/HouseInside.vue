@@ -12,12 +12,18 @@ import ActionRow, { type Action } from "./house/ActionRow.vue";
 import Icon from "./house/Icon.vue";
 import RentServer from "./house/RentServer.vue";
 import RoomTile from "./house/RoomTile.vue";
+import Rundown from "./house/Rundown.vue";
 import { evenSplit, fcfa, type ServerInfo } from "./house/server";
 import Tour from "./house/Tour.vue";
+import { markTourSeen } from "./house/tours";
 import type { Place } from "./place";
 
-const props = defineProps<{ id: string }>();
-const emit = defineEmits<{ open: [place: Place]; label: [text: string] }>();
+const props = defineProps<{
+  id: string;
+  // The tutorial asks for the window's rundown (Rundown.vue) in place of the first-time tour.
+  rundown?: boolean;
+}>();
+const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: [] }>();
 
 // The chef's server info is new on the API side; reading it through this type works whether or not the shared
 // HouseView type has caught up.
@@ -187,6 +193,27 @@ const occupants = computed(() => house.value?.rooms.filter((r) => r.occupant).ma
 const share = computed(() => (house.value?.monthlyCostFcfa ? evenSplit(house.value.monthlyCostFcfa, occupants.value.length) : null));
 
 const tourLast = computed(() => (chef.value && making.value ? "chef" : member.value ? "flatmate" : "visitor"));
+
+// The rundown can be asked for when the window opens, or later while it's open (the tutorial reaches its step).
+// It runs once; from then on it stands in for the first-time tour, which stays hidden and counts as seen.
+const rundownOn = ref(false);
+const rundownHad = ref(false);
+watch(
+  () => props.rundown,
+  (asked) => {
+    if (!asked || rundownHad.value) return;
+    rundownHad.value = true;
+    rundownOn.value = true;
+    // The last part it shows is the rooms grid.
+    segment.value = "rooms";
+  },
+  { immediate: true },
+);
+function rundownEnded() {
+  rundownOn.value = false;
+  markTourSeen("house");
+  emit("rundownDone");
+}
 </script>
 
 <template>
@@ -198,7 +225,7 @@ const tourLast = computed(() => (chef.value && making.value ? "chef" : member.va
 
     <template v-else-if="house">
       <!-- One line: the name, the state, the city. -->
-      <header class="head">
+      <header class="head" data-tour="header">
         <h2>{{ house.name }}</h2>
         <p class="line">
           <span class="dot" :class="status.dot" aria-hidden="true" />{{ status.word }}
@@ -213,10 +240,10 @@ const tourLast = computed(() => (chef.value && making.value ? "chef" : member.va
         <span class="chev" aria-hidden="true">›</span>
       </button>
 
-      <ActionRow :actions="actions" @act="act" />
+      <ActionRow data-tour="actions" :actions="actions" @act="act" />
 
       <!-- One panel at a time. -->
-      <div class="segments" role="tablist" aria-label="Parts of the house">
+      <div class="segments" role="tablist" aria-label="Parts of the house" data-tour="segments">
         <button
           v-for="s in segments"
           :id="`seg-${s.key}`"
@@ -235,7 +262,7 @@ const tourLast = computed(() => (chef.value && making.value ? "chef" : member.va
       </div>
 
       <div :id="`panel-${segment}`" class="panel" role="tabpanel" :aria-labelledby="`seg-${segment}`">
-        <div v-if="segment === 'rooms'" class="rooms">
+        <div v-if="segment === 'rooms'" class="rooms" data-tour="rooms">
           <RoomTile
             v-for="room in house.rooms"
             :key="room.name"
@@ -322,7 +349,9 @@ const tourLast = computed(() => (chef.value && making.value ? "chef" : member.va
         </template>
       </div>
 
-      <Tour :last="tourLast" />
+      <Tour v-if="!rundownHad" :last="tourLast" />
+      <!-- The parts it points at carry data-tour="header | actions | segments | rooms". -->
+      <Rundown v-if="rundownOn" @done="rundownEnded" />
 
       <RentServer v-if="renting" :house-id="house.id" :live="live" :resume="keyMade" @close="renting = false" />
       <KnockSteps
@@ -340,7 +369,8 @@ const tourLast = computed(() => (chef.value && making.value ? "chef" : member.va
 </template>
 
 <style scoped>
-.inside-house { display: grid; gap: 20px; padding: 8px var(--gutter) 24px; }
+/* Positioned, so the rundown can place its ring and bubble over the parts in this box's own pixels. */
+.inside-house { position: relative; display: grid; gap: 20px; padding: 8px var(--gutter) 24px; }
 .empty { padding: 24px 0; display: grid; gap: 8px; }
 .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
 .head h2 { font-size: 28px; }
