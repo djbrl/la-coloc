@@ -149,3 +149,14 @@ Verified against real GitHub:
 
 Not verified yet: a chore being *done*, which needs a reviewer with a real GitHub account (a teammate, once they
 log in and move in). The smee relay re-encodes JSON; it hasn't broken a signature yet, but watch for 401s.
+
+## 09 10 2026: deploy on merge, against real GitHub
+
+- **Strict house, unreviewed merge** (Djbrl/coloc-test#1): not deployed; the App commented why on the PR and a note
+  went on the fridge.
+- **Relaxed house** (Sacré-Cœur switched in the dev database for the test, then back to strict), Djbrl/coloc-test#2
+  merged: the agent cloned the private repo with a one-hour installation token, built it, and swapped it into room-4
+  (`http://room-4.coloc.localhost:8000` → `{"hello":"from coloc-test","version":2}`). The App commented
+  "Deployed to … Live now." on the PR. The token is in no log and not in the database (`https://***@github.com/…`).
+- Found while writing the tests: a reviewer who first requested changes and later approved was stuck at "changes
+  requested", so a strict house would never deploy. The assignee's latest review now decides.

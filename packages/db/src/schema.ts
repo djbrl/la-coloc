@@ -109,6 +109,9 @@ export const deployments = pgTable(
     status: text("status").$type<DeploymentStatus>().notNull(),
     detail: text("detail"),
     requestedBy: uuid("requested_by").references(() => users.id),
+    // Set when a merged pull request triggered it, so the result can be reported back on the PR.
+    githubRepoId: bigint("github_repo_id", { mode: "number" }),
+    prNumber: integer("pr_number"),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

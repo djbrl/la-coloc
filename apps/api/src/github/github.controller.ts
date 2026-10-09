@@ -1,5 +1,6 @@
 import { BadRequestException, Controller, Headers, HttpCode, Inject, Logger, Post, Req, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { ChoresService, type GhEvent } from "./chores.service";
+import { DeploysService } from "./deploys.service";
 import type { GithubAppConfig } from "./github.config";
 import { verifySignature } from "./webhook";
 
@@ -11,6 +12,7 @@ export class GithubController {
 
   constructor(
     private readonly chores: ChoresService,
+    private readonly deploys: DeploysService,
     @Inject(GITHUB_CONFIG) private readonly config: GithubAppConfig | null,
   ) {}
 
@@ -32,7 +34,9 @@ export class GithubController {
     } catch {
       throw new BadRequestException("not JSON");
     }
-    const result = await this.chores.handle(event, payload);
+    // Each side takes the events it cares about; "ignored" from both means nobody did.
+    const results = [await this.chores.handle(event, payload), await this.deploys.handle(event, payload)].filter((r) => r !== "ignored");
+    const result = results.join("; ") || "ignored";
     this.log.log(`${event}${payload.action ? `.${payload.action}` : ""} (${delivery ?? "?"}): ${result}`);
     return { result };
   }

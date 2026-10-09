@@ -19,6 +19,7 @@ interface GhUser {
 interface GhRepo {
   id: number;
   full_name: string;
+  default_branch?: string;
 }
 export interface GhEvent {
   action?: string;
@@ -27,7 +28,15 @@ export interface GhEvent {
   repository?: GhRepo;
   repositories?: GhRepo[];
   repositories_added?: GhRepo[];
-  pull_request?: { number: number; title: string; html_url: string; draft?: boolean; user: GhUser };
+  pull_request?: {
+    number: number;
+    title: string;
+    html_url: string;
+    draft?: boolean;
+    user: GhUser;
+    merged?: boolean;
+    base?: { ref: string };
+  };
   review?: { state: string; user: GhUser };
 }
 
@@ -151,8 +160,13 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       .innerJoin(users, eq(users.id, chores.assigneeId))
       .where(and(eq(chores.repoId, p.repository.id), eq(chores.prNumber, p.pull_request.number)));
     if (!chore) return "no chore for this PR";
-    if (chore.chore.status === "done") return "already done";
     if (chore.assignee.githubId !== p.review.user.id) return "not the assignee";
+    if (chore.chore.status === "done") {
+      // The chore was already done (say, "changes requested"); the reviewer's latest word is what counts for
+      // deploying, e.g. an approval once the changes are in.
+      await this.db.update(chores).set({ outcome: p.review.state.toLowerCase() }).where(eq(chores.id, chore.chore.id));
+      return `outcome now ${p.review.state.toLowerCase()}`;
+    }
     await this.db
       .update(chores)
       .set({ status: "done", outcome: p.review.state.toLowerCase(), doneAt: new Date() })

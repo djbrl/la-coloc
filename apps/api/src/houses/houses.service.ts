@@ -39,6 +39,8 @@ function person(u: Pick<UserRow, "login" | "name" | "avatarUrl"> | null | undefi
 export class HousesService {
   // Pings live pages (house page, city) with the id of the house that changed.
   readonly changes = new Subject<string>();
+  // A deployment went live or failed. The GitHub side listens, to report back on the pull request.
+  readonly deployFinished = new Subject<{ houseId: string; deployment: typeof deployments.$inferSelect; url: string | null }>();
   // Live-only state: rebuilt when agents reconnect, so it isn't worth a database write.
   private online = new Set<string>();
   private usage = new Map<string, Map<string, RoomUsage>>();
@@ -85,11 +87,30 @@ export class HousesService {
     return m;
   }
 
-  async createDeployment(houseId: string, room: string, kind: DeployKind, repo: string, ref: string, requestedBy?: string): Promise<DeploymentView> {
+  async createDeployment(
+    houseId: string,
+    room: string,
+    kind: DeployKind,
+    repo: string,
+    ref: string,
+    requestedBy?: string | null,
+    github?: { repoId: number; prNumber: number },
+  ): Promise<DeploymentView> {
     const id = randomUUID().slice(0, 8);
     const [d] = await this.db
       .insert(deployments)
-      .values({ id, houseId, room, kind, repo: redactToken(repo), ref, status: "queued", requestedBy })
+      .values({
+        id,
+        houseId,
+        room,
+        kind,
+        repo: redactToken(repo),
+        ref,
+        status: "queued",
+        requestedBy: requestedBy ?? null,
+        githubRepoId: github?.repoId ?? null,
+        prNumber: github?.prNumber ?? null,
+      })
       .returning();
     if (kind === "prod") {
       const r = await this.room(houseId, room);
@@ -121,6 +142,7 @@ export class HousesService {
     const note = room ? noteForDeploy(s, await this.flatmateName(room.occupantId, room.name)) : null;
     if (note) await this.addNote(houseId, note);
     this.changes.next(houseId);
+    if (d && (s.status === "live" || s.status === "failed")) this.deployFinished.next({ houseId, deployment: d, url: s.url ?? null });
   }
 
   async recordUsage(houseId: string, u: Usage) {

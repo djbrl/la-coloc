@@ -16,8 +16,9 @@ UX 20 · innovation 15 · public vote 10. **What gates:** top 3 of the peer vote
   shapes: houses, your avatar (keys or click), flatmates around their houses, walk up to a door to go in. The list
   view stays as the text version.
 - **Waiting on the team:** commits, the GitHub App registration, teammates, `coloc.dev`, the art.
-- **Still to build for week 2:** previews, Deployments API, deploy on merge (strict mode), room page (logs, restart,
-  secrets), presence avatars, onboarding (rent a flat → install command), `install.sh` on a real VPS.
+- **09 10: deploy on merge works against real GitHub** (strict and relaxed houses, results commented on the PR).
+- **Still to build for week 2:** previews, GitHub's Deployments panel (needs one more App permission), room page
+  (logs, restart, secrets), presence avatars, onboarding (rent a flat → install command), `install.sh` on a real VPS.
 
 ## Phase 0: team & setup (Fri 02 10 → Sun 04 10)
 - ~~Rooms with walls, zero-downtime deploys, isolation demo, live house page~~: done on 02 10 (see [build-notes.md](build-notes.md)).

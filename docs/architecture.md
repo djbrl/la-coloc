@@ -62,6 +62,9 @@ Disk: hard per-room quotas need XFS project quotas, which is a stretch goal. MVP
    container → health check → rewrite the room's route file to point at it → wait for Traefik to reload → stop the
    old one (zero downtime: nobody is sent to it any more) → report back.
 5. Merge → same thing with `kind: prod`. If the health check fails: keep the old container and report a failed deploy.
+   *Built 09 10 2026 (`apps/api/src/github/deploys.service.ts`): a PR merged into the default branch deploys into the
+   author's room; a strict house needs the assigned flatmate's approval (their latest review counts). For now the
+   result is a PR comment; GitHub's Deployments panel needs the `deployments: write` permission added to the App.*
 6. hub → GitHub Deployments API + dashboard live update (server-sent events).
 
 Every 30s the agent sends `docker stats` per room → `usage_samples` → monthly bill split.
