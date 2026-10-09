@@ -1,11 +1,14 @@
 <script setup lang="ts">
-// The neighbourhood from above, north up, on a small glass panel: blocks, streets, a dot per house in its colour,
-// the lamps, everyone walking around, and you with a tick for the way you face and a faint wedge for the way the
-// camera looks. Click anywhere to travel there. With `large` it fills the middle of the screen (the M key), with
-// the houses listed beside it as buttons that travel to their door. Drawn on a canvas, only when something moved.
+// The neighbourhood from above, north up, on a small flat panel: a muted ground with the blocks on it (the market
+// and the park in their own tints), a round marker per house in its colour, a dot per person in their house's
+// colour, and you as a ring. Nothing else: the map is there to see where you are, who's around, and to click a
+// block to go there. With `large` it fills the middle of the screen (the M key), every house named next to its
+// marker, and the houses listed beside it as buttons that travel to their door. Drawn on a canvas, only when
+// something moved, in the site's own colours so it follows day and night.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { colorFor } from "../../lobby/models";
 import type { Neighbourhood } from "../../lobby/neighbourhood";
+import { settings } from "../../settings";
 import type { CityHouse } from "../../types";
 import { type Home, type MapState, statusLine } from "./cards";
 
@@ -24,11 +27,17 @@ const emit = defineEmits<{ travel: [x: number, z: number]; close: [] }>();
 const canvas = ref<HTMLCanvasElement | null>(null);
 // The house buttons beside the big map (Vue fills the array from the v-for); the first one takes focus.
 const houseButtons = ref<HTMLButtonElement[]>([]);
-// The house under the mouse, named in a small label.
+// The house under the mouse on the small map, named in a small label (the big map names them all).
 const hover = ref<{ name: string; x: number; y: number } | null>(null);
 const size = ref(pickSize());
 
-const NOBODY = "#d8d8de"; // the colour of someone without a house, like their ring in the city
+// Marker sizes, small map / big map, in CSS pixels across.
+const HOUSE = { small: 9, big: 16 };
+const PERSON = { small: 5, big: 9 };
+const YOU = { small: 12, big: 18 };
+// The two fixed colours: markers get a white edge, and you a dark one, so they read on any ground.
+const WHITE = "#ffffff";
+const DARK = "#1d1d1f";
 
 /** The panel's size: small in the corner (smaller still on a phone), big in the middle. */
 function pickSize(): { w: number; h: number } {
@@ -41,6 +50,20 @@ function pickSize(): { w: number; h: number } {
 }
 
 const css = (hex: number) => `#${hex.toString(16).padStart(6, "0")}`;
+
+// ---- The site's colours, read from its tokens so the map matches day or night ----
+
+/** A token's value as the page has it right now ("#1d1d1f"). */
+function token(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/** A hex colour at some opacity, as a string the canvas understands. */
+function fade(hex: string, alpha: number): string {
+  const n = parseInt(hex.replace("#", ""), 16);
+  if (hex.length !== 7 || Number.isNaN(n)) return hex;
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
 
 // Each house on the map: its plot, and what the city says about it.
 const housesOnMap = computed(() => {
@@ -57,6 +80,12 @@ const housesOnMap = computed(() => {
 
 // "Sacré-Cœur, 3 rooms free" / "Bè Kpota, full".
 const line = (h: CityHouse) => `${h.name}, ${statusLine(h).replace(/\.$/, "").toLowerCase()}`;
+
+// "3 people here", under the small map, so a glance (or a screen reader) gets the gist without the dots.
+const peopleLine = computed(() => {
+  const n = props.state?.people.length ?? 0;
+  return n === 0 ? "You're the only one here" : n === 1 ? "1 person here" : `${n} people here`;
+});
 
 // ---- World to canvas and back: a uniform scale, with a margin, centred ----
 
@@ -91,74 +120,80 @@ function draw() {
   const { scale, toX, toY } = frame();
   const n = props.neighbourhood;
   const big = props.large;
-  const dot = (x: number, z: number, r: number, fill: string) => {
+  const text = token("--text");
+  const surface = token("--surface");
+  const muted = token("--muted");
+
+  /** A filled circle with an edge; `dashed` for the sample houses. */
+  const marker = (x: number, z: number, across: number, fill: string, edge: string, edgeWidth: number, dashed = false) => {
     ctx.beginPath();
-    ctx.arc(toX(x), toY(z), r, 0, Math.PI * 2);
+    ctx.arc(toX(x), toY(z), across / 2, 0, Math.PI * 2);
     ctx.fillStyle = fill;
     ctx.fill();
+    ctx.setLineDash(dashed ? [edgeWidth * 1.5, edgeWidth * 1.5] : []);
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = edgeWidth;
+    ctx.stroke();
+    ctx.setLineDash([]);
   };
 
-  // Blocks: pale, the market warm, the park green. Streets are the faint gaps between them.
+  // The ground: the text colour, very faint, over the panel's surface. Streets are the ground itself, so only the
+  // blocks are drawn on it, a shade stronger; the market and the park get their own muted tints.
+  ctx.fillStyle = fade(text, 0.06);
+  ctx.fillRect(0, 0, w, h);
   for (const b of n.blocks) {
-    ctx.fillStyle = b.kind === "market" ? "rgba(255, 190, 110, 0.3)" : b.kind === "park" ? "rgba(120, 205, 135, 0.3)" : "rgba(255, 255, 255, 0.12)";
+    ctx.fillStyle = b.kind === "market" ? "rgba(235, 160, 60, 0.4)" : b.kind === "park" ? "rgba(70, 170, 100, 0.4)" : fade(text, 0.1);
     ctx.fillRect(toX(b.x - b.width / 2), toY(b.z - b.depth / 2), b.width * scale, b.depth * scale);
   }
-  ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
-  for (const s of n.streets) ctx.fillRect(toX(s.x - s.width / 2), toY(s.z - s.depth / 2), s.width * scale, s.depth * scale);
 
-  for (const l of n.lamps) dot(l.x, l.z, big ? 1.5 : 0.9, "rgba(255, 192, 120, 0.75)");
+  // Houses: a round marker in the house's colour. Sample houses get a dashed edge instead of a solid one.
+  for (const p of housesOnMap.value) marker(p.x, p.z, big ? HOUSE.big : HOUSE.small, css(colorFor(p.house.id)), WHITE, 2, p.house.demo);
 
-  // Houses, in their colour; sample houses paler.
-  for (const p of housesOnMap.value) {
-    ctx.globalAlpha = p.house.demo ? 0.45 : 1;
-    dot(p.x, p.z, big ? 6 : 3.2, css(colorFor(p.house.id)));
+  // The big map names every house next to its marker, with a halo in the surface colour so it reads on any block.
+  if (big) {
+    ctx.font = `600 12px ${token("--font")}`;
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = surface;
+    ctx.fillStyle = text;
+    for (const p of housesOnMap.value) {
+      const gap = HOUSE.big / 2 + 5;
+      const width = ctx.measureText(p.house.name).width;
+      // To the right of the marker, unless that runs off the edge; then to the left.
+      const right = toX(p.x) + gap + width <= w - 4;
+      ctx.textAlign = right ? "left" : "right";
+      const x = toX(p.x) + (right ? gap : -gap);
+      ctx.strokeText(p.house.name, x, toY(p.z));
+      ctx.fillText(p.house.name, x, toY(p.z));
+    }
   }
-  ctx.globalAlpha = 1;
 
   const s = props.state;
   if (!s) return;
 
+  // People: a small dot in their house's colour; grey when they're just visiting.
   for (const p of s.people) {
     const home = props.residents.get(p.login);
-    dot(p.x, p.z, big ? 3.5 : 2, home ? css(colorFor(home.houseId)) : NOBODY);
+    marker(p.x, p.z, big ? PERSON.big : PERSON.small, home ? css(colorFor(home.houseId)) : muted, WHITE, 1.5);
   }
 
-  // The camera sits at you + (42, 42) turned by `angle`, and looks back at you: the wedge opens the way it looks.
-  const you = { x: toX(s.you.x), y: toY(s.you.z) };
-  const look = Math.atan2(-(-Math.sin(s.angle) + Math.cos(s.angle)), -(Math.cos(s.angle) + Math.sin(s.angle)));
-  const spread = Math.PI / 4.5;
+  // You: a white ring with a dark edge, and a dot in the middle.
+  const across = big ? YOU.big : YOU.small;
+  marker(s.you.x, s.you.z, across, WHITE, DARK, 2);
   ctx.beginPath();
-  ctx.moveTo(you.x, you.y);
-  ctx.arc(you.x, you.y, 12 * scale, look - spread, look + spread); // twelve units ahead of you
-  ctx.closePath();
-  ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+  ctx.arc(toX(s.you.x), toY(s.you.z), across / 6, 0, Math.PI * 2);
+  ctx.fillStyle = DARK;
   ctx.fill();
-
-  // You: a bigger white marker, with a tick for the way you face (a model turned by ry faces (sin ry, cos ry)).
-  const r = big ? 6.5 : 4;
-  ctx.beginPath();
-  ctx.moveTo(you.x, you.y);
-  ctx.lineTo(you.x + Math.sin(s.you.ry) * (r + (big ? 7 : 4)), you.y + Math.cos(s.you.ry) * (r + (big ? 7 : 4)));
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = big ? 2.5 : 2;
-  ctx.lineCap = "round";
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(you.x, you.y, r, 0, Math.PI * 2);
-  ctx.fillStyle = "#fff";
-  ctx.fill();
-  ctx.strokeStyle = "rgba(28, 24, 44, 0.8)";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
 }
 
-// ---- The mouse: a name on hover, travel on click ----
+// ---- The mouse: a name on hover (small map), travel on click ----
 
 function onMove(e: MouseEvent) {
+  if (props.large) return;
   const { toX, toY } = frame();
-  const reach = props.large ? 10 : 7;
   let best: { name: string; x: number; y: number } | null = null;
-  let bestD = reach;
+  let bestD = 7;
   for (const p of housesOnMap.value) {
     const d = Math.hypot(toX(p.x) - e.offsetX, toY(p.z) - e.offsetY);
     if (d < bestD) {
@@ -187,8 +222,8 @@ onMounted(() => {
 });
 onBeforeUnmount(() => window.removeEventListener("resize", resize));
 
-// Redraw when the engine speaks or the city changes, never every frame.
-watch(() => [props.state, props.neighbourhood, props.houses, props.residents, size.value], draw, { flush: "post" });
+// Redraw when the engine speaks, the city changes or the look switches between day and night, never every frame.
+watch(() => [props.state, props.neighbourhood, props.houses, props.residents, size.value, settings.theme], draw, { flush: "post" });
 
 // Enter presses the focused button, and must not also reach the lobby, which would read it as E.
 function onKey(e: KeyboardEvent) {
@@ -197,29 +232,23 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <!-- Big: a veil dims the city, and a click on it (not on the panel) closes. -->
+  <!-- Big: a scrim dims the city, and a click on it (not on the panel) closes. -->
   <div v-if="large" class="veil" @click.self="emit('close')">
     <section class="big" role="dialog" aria-modal="true" :aria-label="`Map of ${neighbourhood.city}`" @keydown.esc.stop="emit('close')" @keydown="onKey">
       <h2>{{ neighbourhood.city }}</h2>
-      <p class="soft">Click the map to travel there, or pick a house.</p>
+      <p class="soft">Click a block to go there, or pick a house.</p>
       <div class="row">
-        <div class="holder">
-          <canvas
-            ref="canvas"
-            role="img"
-            :aria-label="`Map of ${neighbourhood.city}. Click to travel there.`"
-            :style="{ width: `${size.w}px`, height: `${size.h}px` }"
-            @mousemove="onMove"
-            @mouseleave="hover = null"
-            @click="onClick"
-          />
-          <span v-if="hover" class="tip" :style="{ left: `${hover.x}px`, top: `${hover.y}px` }" aria-hidden="true">{{ hover.name }}</span>
-          <span class="north" aria-hidden="true">N</span>
-        </div>
+        <canvas
+          ref="canvas"
+          role="img"
+          :aria-label="`Map of ${neighbourhood.city}: ${peopleLine.toLowerCase()}. Click a block to go there.`"
+          :style="{ width: `${size.w}px`, height: `${size.h}px` }"
+          @click="onClick"
+        />
         <ul>
           <li v-for="p in housesOnMap" :key="p.house.id">
             <button ref="houseButtons" @click="emit('travel', p.x, p.z)">
-              <span class="swatch" :style="{ background: css(colorFor(p.house.id)), opacity: p.house.demo ? 0.5 : 1 }" aria-hidden="true" />
+              <span class="swatch" :class="{ sample: p.house.demo }" :style="{ background: css(colorFor(p.house.id)) }" aria-hidden="true" />
               {{ line(p.house) }}
             </button>
           </li>
@@ -230,48 +259,50 @@ function onKey(e: KeyboardEvent) {
   </div>
 
   <div v-else class="small">
-    <canvas
-      ref="canvas"
-      role="img"
-      :aria-label="`Map of ${neighbourhood.city}. Click to travel there.`"
-      :style="{ width: `${size.w}px`, height: `${size.h}px` }"
-      @mousemove="onMove"
-      @mouseleave="hover = null"
-      @click="onClick"
-    />
-    <span v-if="hover" class="tip" :style="{ left: `${hover.x}px`, top: `${hover.y}px` }" aria-hidden="true">{{ hover.name }}</span>
-    <span class="north" aria-hidden="true">N</span>
+    <div class="holder">
+      <canvas
+        ref="canvas"
+        role="img"
+        :aria-label="`Map of ${neighbourhood.city}: ${peopleLine.toLowerCase()}. Click a block to go there.`"
+        :style="{ width: `${size.w}px`, height: `${size.h}px` }"
+        @mousemove="onMove"
+        @mouseleave="hover = null"
+        @click="onClick"
+      />
+      <span v-if="hover" class="tip" :style="{ left: `${hover.x}px`, top: `${hover.y}px` }" aria-hidden="true">{{ hover.name }}</span>
+    </div>
+    <p class="count">{{ peopleLine }}</p>
   </div>
 </template>
 
 <style scoped>
-.small, .big { color: #f5f5f7; background: rgba(28, 24, 44, 0.6); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
-.small { position: relative; padding: 6px; border-radius: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
+/* Both panels are flat: the site's surface, a hairline edge, a shadow for lift. */
+.small, .big { color: var(--text); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow); }
+.small { display: grid; gap: 6px; padding: 8px; border-radius: 14px; }
 .holder { position: relative; }
-canvas { display: block; border-radius: 10px; cursor: pointer; }
-.tip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); padding: 3px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.95); color: #1d1d1f; font-size: 12px; font-weight: 500; white-space: nowrap; pointer-events: none; }
-.north { position: absolute; top: 8px; left: 10px; font-size: 10px; font-weight: 600; color: rgba(245, 245, 247, 0.55); pointer-events: none; }
-.big .north { top: 6px; left: 8px; font-size: 12px; }
-.veil { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); }
+canvas { display: block; border-radius: 8px; cursor: pointer; }
+.count { margin: 0; font-size: 12px; line-height: 1.3; color: var(--muted); text-align: center; }
+.tip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); padding: 3px 8px; border-radius: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--hairline); box-shadow: var(--lift); font-size: 12px; font-weight: 500; white-space: nowrap; pointer-events: none; }
+.veil { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: var(--scrim); }
 .big {
   width: min(880px, calc(100vw - 32px));
   max-height: calc(100dvh - 64px);
   overflow-y: auto;
   padding: 22px 24px 18px;
   border-radius: 22px;
-  background: rgba(28, 24, 44, 0.85);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
   display: grid;
   gap: 12px;
 }
-h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; color: #fff; }
-.soft { margin: 0; font-size: 15px; color: rgba(245, 245, 247, 0.72); }
+h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+.soft { margin: 0; font-size: 15px; color: var(--muted); }
 .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px; }
 ul { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 220px; display: grid; }
-li button { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 6px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; background: none; color: inherit; font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
-li button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: #fff; }
+li button { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 6px; border: 0; border-bottom: 1px solid var(--hairline); border-radius: 8px; background: none; color: inherit; font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+li button:hover:not(:disabled) { background: var(--fill); }
+/* The swatch matches the marker on the map: a sample house has a dashed edge. */
 .swatch { width: 10px; height: 10px; flex: none; border-radius: 50%; }
-.close { justify-self: start; border: 0; border-radius: 980px; padding: 8px 18px; min-height: 40px; font-size: 15px; font-weight: 500; background: #fff; color: #1d1d1f; cursor: pointer; }
-.close:hover:not(:disabled) { background: #e8e8ed; }
-button:focus-visible { outline: 3px solid #6eb4ff; outline-offset: 2px; }
+.swatch.sample { outline: 1.5px dashed var(--muted); outline-offset: 1px; }
+.close { justify-self: start; border: 0; border-radius: 980px; padding: 8px 18px; min-height: 40px; font-size: 15px; font-weight: 500; background: var(--fill); color: var(--text); cursor: pointer; }
+.close:hover:not(:disabled) { background: var(--fill-hover); }
+button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 </style>

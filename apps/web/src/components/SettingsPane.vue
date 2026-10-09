@@ -10,6 +10,13 @@ const router = useRouter();
 const panel = ref<HTMLElement | null>(null);
 let opener: Element | null = null;
 
+// "Looks like: the system / day / night": the site's light or dark look, or the system's choice.
+const themes: { value: typeof settings.theme; word: string }[] = [
+  { value: "system", word: "the system" },
+  { value: "light", word: "day" },
+  { value: "dark", word: "night" },
+];
+
 watch(
   () => settingsPane.open,
   async (open) => {
@@ -63,6 +70,13 @@ function replayWelcome() {
       </section>
 
       <section>
+        <p class="lead">Looks like</p>
+        <div class="segmented" role="radiogroup" aria-label="Looks like">
+          <button v-for="t in themes" :key="t.value" role="radio" :aria-checked="settings.theme === t.value" :class="{ on: settings.theme === t.value }" @click="settings.theme = t.value">{{ t.word }}</button>
+        </div>
+      </section>
+
+      <section>
         <button class="row" role="switch" :aria-checked="settings.quality === 'high'" @click="settings.quality = settings.quality === 'high' ? 'low' : 'high'">
           <span>
             <span class="lead">Sharper graphics</span>
@@ -94,32 +108,33 @@ function replayWelcome() {
 </template>
 
 <style scoped>
-.scrim { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, 0.32); }
-.pane { position: fixed; top: 0; right: 0; bottom: 0; z-index: 100; width: min(400px, 100vw); padding: 24px 24px 32px; overflow-y: auto; display: grid; align-content: start; gap: 28px; background: var(--bg, #fff); color: var(--text, #1d1d1f); box-shadow: -20px 0 60px rgba(0, 0, 0, 0.18); outline: none; }
+.scrim { position: fixed; inset: 0; z-index: 90; background: var(--scrim); }
+.pane { position: fixed; top: 0; right: 0; bottom: 0; z-index: 100; width: min(400px, 100vw); padding: 24px 24px 32px; overflow-y: auto; display: grid; align-content: start; gap: 28px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); outline: none; }
 .top { display: flex; align-items: center; justify-content: space-between; }
 h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
-.close { width: 36px; height: 36px; border-radius: 50%; border: 0; display: grid; place-items: center; background: color-mix(in srgb, currentColor 8%, transparent); color: inherit; cursor: pointer; padding: 0; }
+.close { width: 36px; height: 36px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--fill); color: inherit; cursor: pointer; padding: 0; }
 section { display: grid; gap: 4px; }
 .lead { display: block; font-size: 17px; font-weight: 500; margin: 0 0 8px; }
-.sub { display: block; font-size: 14px; line-height: 1.4; color: var(--muted, #6e6e73); }
-.segmented { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 12px; background: color-mix(in srgb, currentColor 8%, transparent); }
+.sub { display: block; font-size: 14px; line-height: 1.4; color: var(--muted); }
+/* A segmented control: one column per choice, the chosen one raised on the surface. */
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: 12px; background: var(--fill); }
 .segmented button { border: 0; border-radius: 9px; min-height: 40px; background: none; color: inherit; font-size: 15px; cursor: pointer; }
-.segmented button.on { background: var(--bg, #fff); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); font-weight: 500; }
-.row { display: flex; align-items: center; gap: 16px; justify-content: space-between; text-align: left; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--border, #d2d2d7); background: none; color: inherit; font: inherit; cursor: pointer; }
+.segmented button.on { background: var(--surface); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); font-weight: 500; }
+.row { display: flex; align-items: center; gap: 16px; justify-content: space-between; text-align: left; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--hairline); background: none; color: inherit; font: inherit; cursor: pointer; }
 .row .lead { margin: 0 0 2px; }
-.switch { flex: none; position: relative; width: 51px; height: 31px; border-radius: 31px; background: color-mix(in srgb, currentColor 18%, transparent); transition: background 0.2s; }
+.switch { flex: none; position: relative; width: 51px; height: 31px; border-radius: 31px; background: var(--fill-hover); transition: background 0.2s; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); transition: transform 0.2s; }
-.switch.on { background: #34c759; }
+.switch.on { background: var(--live); }
 .switch.on::after { transform: translateX(20px); }
-.link { justify-self: start; border: 0; background: none; padding: 8px 0; color: var(--accent, #0071e3); font-size: 17px; cursor: pointer; text-align: left; }
+.link { justify-self: start; border: 0; background: none; padding: 8px 0; color: var(--accent); font-size: 17px; cursor: pointer; text-align: left; }
 /* Our own hovers and sizes, so the site's general button style doesn't reshape these controls. */
 .close { min-height: 36px; }
-.close:hover:not(:disabled) { background: color-mix(in srgb, currentColor 14%, transparent); }
+.close:hover:not(:disabled) { background: var(--fill-hover); }
 .segmented button { padding: 0 12px; }
 .segmented button:hover:not(:disabled):not(.on) { background: color-mix(in srgb, currentColor 6%, transparent); }
-.segmented button.on:hover { background: var(--bg, #fff); }
+.segmented button.on:hover { background: var(--surface); }
 .row:hover:not(:disabled), .link:hover:not(:disabled) { background: none; }
-button:focus-visible { outline: 3px solid var(--accent, #0071e3); outline-offset: 2px; }
+button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }

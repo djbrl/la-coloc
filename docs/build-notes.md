@@ -277,3 +277,36 @@ Tests: 138. Build and `licences:check` pass.
 - No dash button on phones yet (`lobby.dash()` exists for one).
 - The inside sheet is the site's light pages over the dark city; in dark mode it's dark. Jib to judge the contrast.
 - On a phone the minimap hides while a card is open (the card is a bottom sheet there).
+
+## 10 10 2026, late: a game screen, not a page
+
+Jib's third round after playing the second: the dash wasn't snappy and cooled down too long; the map was
+transparent and busy; you got stuck on a wall when a building faced away; cards should be flat and floating, no
+glass, with a day / night choice; and opening a house showed too much text, with no clear way for a new chef to
+finish signing up. Four subagents (engine, looks, the house inside, the API), reviewed and verified in the browser.
+
+| What | Where |
+|---|---|
+| **Routes, not straight lines**: a 0.5-unit grid over the neighbourhood, A* (8 directions, no corner cutting), string-pulled; any side of a building counts as reached (distance to its footprint); a route that makes no progress for half a second is dropped | `lobby/path.ts` (9 tests), `Lobby.ts` (`routeTo`, `reach`) |
+| **Dash**: an instant 0.9-unit hop, then 4.5× speed for 0.14 s, 0.35 s cooldown; works standing still | `Lobby.ts` (`dash`) |
+| **Day / night / system** in settings; `data-theme` on `<html>`; every lobby panel flat on the site's tokens (no blur, no glass); the Inside view is a centred floating panel (a bottom sheet on phones) | `settings.ts`, `App.vue`, `style.css`, `components/lobby/*` |
+| **The map**, plain: ground, blocks (market and park tinted), houses as round markers in their colour (dashed ring for samples, names on the big map), people as dots, you as a ring; nothing else; "{n} people here" under it | `Minimap.vue` |
+| **Inside a house** as a game screen: header (name, status dot, city), icon actions by role (chef setting up: Rent · Invite · Rules; flatmate: My room · Chores · Channel · Fridge · Bill; visitor: Knock · People), one panel at a time, room tiles with a state icon and one action, a four-step first-time tour | `HouseInside.vue`, `lobby/house/*` |
+| **Rent the server**: pick a size (7 000 / 12 000 / 22 000 FCFA a month), get the one-line command, wait; the house goes live when its agent phones in with the key. The key is shown once (`renew` replaces it and hangs up the old agent) | `RentServer.vue`, `POST /api/houses/:id/server`, `agents.gateway.ts` (`markLive`), migration `0007_house_plan`, 9 API tests |
+| **install.sh**: Node 22, Docker with userns-remap, the repo, Traefik without a Docker socket, the agent as a systemd service. Not yet run on a real server | `apps/web/public/install.sh` |
+
+### Verified in the browser (as Jib, in Dakar, day theme)
+Walking to Sacré-Cœur from behind it reached the house and opened its inside; the tour stepped through and was
+remembered; M showed the plain map and the house list; a throwaway house (Test Villa) started on a free plot, its
+inside showed "Next: rent the server", the rent steps gave the command, a second local caretaker started with that
+key, the API logged "house is live", the dialog said "It's live." and the action row switched to the flatmate set
+(then the caretaker was stopped and the house deleted); a dash covered about twice a plain walk in the same window;
+night theme and phone width checked. Tests: 159. Build and `licences:check` pass.
+
+### Rough edges
+- Rules tile is read-only (no endpoint to switch strict reviews yet).
+- `install.sh` has never run on a real server; HTTPS for rooms needs the agent's route files to add the `websecure`
+  entrypoint.
+- The dev install command points the agent at `ws://localhost:5175/agent`; Vite doesn't proxy `/agent`, so a local
+  caretaker should use port 4100 (the real site serves both on one host).
+- The bill is an even split for now; the usage-based split in `packages/domain` isn't wired to the page yet.

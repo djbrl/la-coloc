@@ -25,18 +25,19 @@ const quick: { key: string; does: string }[] = [
 </template>
 
 <style scoped>
-.legend, .peek { color: rgba(245, 245, 247, 0.8); background: rgba(28, 24, 44, 0.5); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+/* A flat strip on the site's surface; the words in the quiet colour, the keys as small flat keycaps. */
+.legend, .peek { color: var(--muted); background: var(--surface); box-shadow: var(--lift); }
 .legend { display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 12px; border-radius: 980px; font-size: 12px; white-space: nowrap; }
 /* A thin dot between the items. */
 .item + .item::before { content: "·"; margin: 0 8px 0 4px; opacity: 0.5; }
 .keys { min-height: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-.keys:hover:not(:disabled) { background: none; color: #fff; }
-kbd { font: 600 10px/1 -apple-system, BlinkMacSystemFont, sans-serif; padding: 3px 4px; min-width: 16px; text-align: center; border-radius: 4px; background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.18); color: #fff; }
+.keys:hover:not(:disabled) { background: none; color: var(--text); }
+kbd { font: 600 10px/1 var(--font); padding: 3px 4px; min-width: 16px; text-align: center; border-radius: 4px; background: var(--fill); border: 1px solid var(--border); color: var(--text); }
 .hide { width: 24px; height: 24px; min-height: 0; margin-left: 4px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: inherit; cursor: pointer; }
-.hide:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+.hide:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .peek { width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 50%; font-size: 14px; font-weight: 600; cursor: pointer; }
-.peek:hover:not(:disabled) { background: rgba(28, 24, 44, 0.75); }
-button:focus-visible { outline: 3px solid #6eb4ff; outline-offset: 2px; }
+.peek:hover:not(:disabled) { background: var(--fill); color: var(--text); }
+button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 /* No keyboard, no keys to list. */
 @media (hover: none) {
   .legend, .peek { display: none; }

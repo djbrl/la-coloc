@@ -100,6 +100,17 @@ fails the signature check (`401` in the relay's log), that's why.
 - **Hover** outlines what the mouse is over (three.js `OutlinePass`, only while something is outlined, never on low
   quality). Name tags carry the house in its colour. **Shift** dashes, **M** opens the map (click it to fast travel),
   **?** lists every key.
+- **Inside a house** is its own game-like view (`components/lobby/HouseInside.vue`): a one-line header, a row of
+  icon actions for what you can do, one panel at a time (rooms, people, channel, chores, fridge, bill), a
+  first-time walkthrough (remembered in `localStorage` under `coloc.tours`). The list view keeps the full page.
+- **Renting the server**: the chef of a house in the making picks a size, gets the one-line install command
+  (`POST /api/houses/:id/server`, the key is shown once; `renew: true` replaces it and hangs up the old agent),
+  and the house goes **live** the moment an agent phones in with that key. The command fetches
+  `apps/web/public/install.sh` (served at `/install.sh`; never yet run on a real server, see its header).
+- **Walking** follows real routes: a half-unit grid over the neighbourhood and A* (`lobby/path.ts`, tested), so
+  you reach a building from any side and never grind on a wall. Shift dashes (an instant hop, then a burst).
+- **Looks**: the settings pane has a day / night / system switch (`settings.theme`, applied as `data-theme` on
+  `<html>`; the tokens in `style.css` follow it). Every lobby panel is flat, built from the site's tokens.
 - **Sounds** are synthesised in the browser (`apps/web/src/lobby/sound.ts`): nothing is downloaded, so nothing to
   declare. The switch is in settings.
 

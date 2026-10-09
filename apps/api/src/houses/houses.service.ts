@@ -6,6 +6,7 @@ import {
   deployments,
   fridgeNotes,
   houses,
+  type HousePlan,
   memberships,
   rooms,
   type RoomStatus,
@@ -13,12 +14,13 @@ import {
   users,
 } from "@coloc/db";
 import { type DeployKind, type DeployStatus, type RoomEvent, RoomName, type RoomsSnapshot, type Usage } from "@coloc/protocol";
-import { and, asc, desc, eq, gt } from "drizzle-orm";
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { and, asc, desc, eq, gt, isNull } from "drizzle-orm";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import { channelMessages, houseChannel, openDoorbell } from "../doorbell/queries";
 import { type Draft, noteForDeploy, noteForRoomEvent } from "./fridge";
+import { PLAN_COST_FCFA } from "./server";
 import { alias } from "drizzle-orm/pg-core";
 import type { ChoreView, CityView, DeploymentView, DoorbellItem, FridgeNoteView, HouseView, LedgerLine, MessageView, PersonView, RoomUsage } from "./house.types";
 
@@ -81,6 +83,41 @@ export class HousesService {
     // Unknown house or no agent yet: still compare against something, so timing says nothing.
     const b = Buffer.from(h?.hash ?? hashSecret(randomUUID()), "hex");
     return !!h?.hash && timingSafeEqual(a, b);
+  }
+
+  /**
+   * The chef rents the house's server: picks a size and gets a fresh agent secret to install with.
+   * Only the secret's SHA-256 is stored; the secret itself is returned once, here, and never logged.
+   * A house that already has a key keeps it unless `renew` is true: then the new key replaces the old one,
+   * and an agent still holding the old key can no longer get in.
+   */
+  async rentServer(houseId: string, plan: HousePlan, renew: boolean): Promise<{ secret: string; plan: HousePlan; monthlyCostFcfa: number; domain: string }> {
+    const secret = randomBytes(32).toString("base64url");
+    const monthlyCostFcfa = PLAN_COST_FCFA[plan];
+    // One statement, so two clicks at once can't both make a key: without `renew`, it only matches a house with none.
+    const updated = await this.db
+      .update(houses)
+      .set({ agentSecretHash: hashSecret(secret), plan, monthlyCostFcfa })
+      .where(renew ? eq(houses.id, houseId) : and(eq(houses.id, houseId), isNull(houses.agentSecretHash)))
+      .returning({ domain: houses.domain });
+    if (!updated.length) {
+      if (!(await this.exists(houseId))) throw new NotFoundException();
+      throw new ConflictException("This house already has a key. Make a new one to replace it.");
+    }
+    this.changes.next(houseId);
+    return { secret, plan, monthlyCostFcfa, domain: updated[0].domain };
+  }
+
+  /** The house's agent just proved its secret: a house still in the making is now live. Returns true if it flipped. */
+  async markLive(houseId: string): Promise<boolean> {
+    const flipped = await this.db
+      .update(houses)
+      .set({ status: "live" })
+      .where(and(eq(houses.id, houseId), eq(houses.status, "making")))
+      .returning({ id: houses.id });
+    if (!flipped.length) return false;
+    this.changes.next(houseId);
+    return true;
   }
 
   setAgentOnline(houseId: string, online: boolean) {
@@ -291,6 +328,8 @@ export class HousesService {
       doorbell,
       channel,
       chores: openChores,
+      // The chef only: which server they rented and whether its key exists. Never the key or its hash.
+      server: mine?.role === "chef" ? { plan: h.plan, keyMade: !!h.agentSecretHash } : null,
       ledger: await this.ledger(houseId, h.memberships.map((m) => ({ id: m.userId, login: m.user.login }))),
     };
   }

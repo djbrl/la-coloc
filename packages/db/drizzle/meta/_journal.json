@@ -50,6 +50,13 @@
       "when": 1791553536403,
       "tag": "0006_house_plot",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791567104291,
+      "tag": "0007_house_plan",
+      "breakpoints": true
     }
   ]
 }

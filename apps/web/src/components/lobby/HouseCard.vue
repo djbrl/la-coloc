@@ -78,7 +78,8 @@ const hereLine = computed(() => {
 
 <style scoped>
 .rooms { list-style: none; margin: 4px 0 0; padding: 0; display: grid; }
-.rooms li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, 0.12); font-size: 15px; }
+.rooms li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--hairline); font-size: 15px; }
 .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.door { width: 32px; height: 32px; flex: none; border-radius: 8px; border: 2px solid #6f9cff; box-shadow: 0 0 10px rgba(111, 156, 255, 0.6); }
+/* A free room's door: the same blue as a free window in the city, flat. */
+.door { width: 32px; height: 32px; flex: none; border-radius: 8px; border: 2px solid var(--accent-fill); background: var(--accent-soft); }
 </style>

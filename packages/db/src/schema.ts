@@ -31,6 +31,9 @@ export const sessions = pgTable("sessions", {
 
 export type HouseStatus = "making" | "live";
 
+// The server size the chef rents. Sets the monthly cost (see apps/api/src/houses/server.ts).
+export type HousePlan = "small" | "medium" | "large";
+
 export const houses = pgTable("houses", {
   // A slug: it becomes the house's subdomain (jib.sacre-coeur.coloc.dev).
   id: text("id").primaryKey(),
@@ -48,6 +51,8 @@ export const houses = pgTable("houses", {
   chefId: uuid("chef_id").references(() => users.id),
   // Server cost per month, in whole FCFA. Split between flatmates at month end.
   monthlyCostFcfa: integer("monthly_cost_fcfa"),
+  // The server size the chef rented. Null: no server rented yet.
+  plan: text("plan").$type<HousePlan>(),
   // House rules. strictReviews: an unreviewed merge doesn't deploy.
   rules: jsonb("rules").$type<{ strictReviews: boolean }>().notNull().default({ strictReviews: true }),
   // Seeded so the city isn't empty for the demo. The UI labels them, so nobody mistakes them for real houses.

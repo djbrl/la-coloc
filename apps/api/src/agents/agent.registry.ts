@@ -17,6 +17,11 @@ export class AgentRegistry {
     if (this.sockets.get(houseId) === socket) this.sockets.delete(houseId);
   }
 
+  // Cuts the house's line, if it's up: used when the house's key is replaced, so the old key stops working at once.
+  hangUp(houseId: string, reason: string) {
+    this.sockets.get(houseId)?.close(4003, reason);
+  }
+
   isOnline(houseId: string): boolean {
     return this.sockets.get(houseId)?.readyState === 1;
   }

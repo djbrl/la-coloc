@@ -62,6 +62,8 @@ export class AgentsGateway implements OnGatewayConnection {
       authenticated(msg.houseId);
       this.registry.register(msg.houseId, socket);
       this.houses.setAgentOnline(msg.houseId, true);
+      // The first time a new house's agent phones in, the house is no longer "in the making".
+      if (await this.houses.markLive(msg.houseId)) this.log.log(`house is live: ${msg.houseId}`);
       this.log.log(`agent online: ${msg.houseId} (v${msg.agentVersion})`);
       return;
     }

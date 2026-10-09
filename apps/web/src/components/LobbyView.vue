@@ -584,15 +584,19 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 /* Its own stacking context: three.js gives every name tag a z-index, which would otherwise float over the sheets. */
 .stage { position: absolute; inset: 0; z-index: 0; isolation: isolate; outline: none; }
 .stage :deep(canvas) { display: block; }
-.failed { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 24px; text-align: center; color: #f5f5f7; font-size: 17px; }
-.hud { position: absolute; z-index: 10; color: #f5f5f7; }
-.glass, .place, .tools button, .emotes button { background: rgba(28, 24, 44, 0.55); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+/* No WebGL: one flat card in the middle says so. */
+.failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
+/* Everything on top of the city is a flat piece of the site's surface, lifted by a shadow: no glass, no blur. */
+.hud { position: absolute; z-index: 10; color: var(--text); }
+.place, .tools button, .emotes button { background: var(--surface); color: var(--text); box-shadow: var(--lift); }
 .place { top: 60px; left: 16px; display: flex; align-items: baseline; gap: 6px; padding: 8px 16px; min-height: 44px; border: 0; border-radius: 980px; cursor: pointer; }
 .place .city { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
-.place .chev { font-size: 20px; opacity: 0.7; }
-.top { top: 64px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
-.top p { margin: 0; font-size: 15px; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45); }
-.top .lamps { margin-top: 2px; font-size: 13px; color: rgba(245, 245, 247, 0.75); }
+.place .chev { font-size: 20px; color: var(--muted); }
+/* Who's here, in a pill at the top; it never catches clicks. */
+.top { top: 64px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 980px; background: var(--surface); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
+.top:empty { display: none; }
+.top p { margin: 0; font-size: 15px; }
+.top .lamps { margin-top: 1px; font-size: 13px; color: var(--muted); }
 .tools { top: 60px; right: 16px; display: grid; gap: 8px; }
 .tools button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; }
 /* The dock stacks the card over the keys; its empty space lets clicks through to the city. */
@@ -601,30 +605,31 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 /* The middle column: the prompt above, the emotes under it; the gaps let clicks through. */
 .centre { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .centre > * { pointer-events: auto; }
-.prompt { display: flex; align-items: center; gap: 16px; padding: 10px 10px 10px 22px; border-radius: 980px; background: rgba(28, 24, 44, 0.72); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); white-space: nowrap; font-size: 17px; max-width: calc(100vw - 32px); }
+.prompt { display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 22px; border-radius: 980px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); white-space: nowrap; font-size: 17px; max-width: calc(100vw - 32px); }
 .prompt strong { font-weight: 600; }
-.soft { color: rgba(245, 245, 247, 0.72); }
-.pill { border: 0; border-radius: 980px; padding: 10px 18px; min-height: 44px; font-size: 17px; font-weight: 500; background: #fff; color: #1d1d1f; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
-kbd { font: 600 11px/1 -apple-system, BlinkMacSystemFont, sans-serif; padding: 3px 5px; border-radius: 5px; border: 1px solid rgba(0, 0, 0, 0.2); color: #6e6e73; }
+.soft { color: var(--muted); }
+/* The one main action: the accent pill, with the key it answers to. */
+.pill { border: 0; border-radius: 980px; padding: 10px 18px; min-height: 44px; font-size: 17px; font-weight: 500; background: var(--accent-fill); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+kbd { font: 600 11px/1 var(--font); padding: 3px 5px; border-radius: 5px; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; }
 .emotes { display: flex; gap: 8px; }
 .emotes button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; border: 0; font-size: 20px; cursor: pointer; }
 .emotes button:active { transform: scale(0.94); }
 .map { right: 16px; bottom: max(28px, env(safe-area-inset-bottom)); }
-/* Our own hovers: the site's button styles are for light pages, not this dark glass. */
-.pill:hover:not(:disabled) { background: #e8e8ed; }
-.place:hover:not(:disabled), .tools button:hover:not(:disabled), .emotes button:hover:not(:disabled) { background: rgba(28, 24, 44, 0.75); }
-button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #6eb4ff; outline-offset: 2px; }
-.scrim { position: absolute; inset: 0; z-index: 40; background: rgba(0, 0, 0, 0.35); }
-.sheet { position: absolute; z-index: 50; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); padding: 72px 20px 24px; display: grid; grid-template-rows: auto 1fr auto; gap: 16px; background: var(--bg, #fff); color: var(--text, #1d1d1f); }
+/* Our own hovers, so the site's grey button hover doesn't paint over these. */
+.pill:hover:not(:disabled) { background: var(--accent-fill-hover); }
+.place:hover:not(:disabled), .tools button:hover:not(:disabled), .emotes button:hover:not(:disabled) { background: var(--fill); }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); }
+.sheet { position: absolute; z-index: 50; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); padding: 72px 20px 24px; display: grid; grid-template-rows: auto 1fr auto; gap: 16px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .sheet h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
-.sheet input { width: 100%; min-height: 44px; padding: 10px 16px; border-radius: 12px; border: 0; background: color-mix(in srgb, currentColor 8%, transparent); color: inherit; font-size: 17px; }
+.sheet input { width: 100%; min-height: 44px; padding: 10px 16px; border-radius: 12px; border: 0; background: var(--fill); color: inherit; font-size: 17px; }
 .sheet ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
-.sheet li button { width: 100%; text-align: left; display: grid; gap: 2px; padding: 14px 4px; min-height: 0; border: 0; border-bottom: 1px solid var(--border, #d2d2d7); border-radius: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.sheet li button { width: 100%; text-align: left; display: grid; gap: 2px; padding: 14px 4px; min-height: 0; border: 0; border-bottom: 1px solid var(--hairline); border-radius: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .sheet li button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 4%, transparent); }
 .sheet li strong { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
-.sheet li span { font-size: 15px; color: var(--muted, #6e6e73); }
-.sheet li .youre-here { font-size: 15px; font-weight: 400; color: var(--accent, #0071e3); }
-.none { color: var(--muted, #6e6e73); }
+.sheet li span { font-size: 15px; color: var(--muted); }
+.sheet li .youre-here { font-size: 15px; font-weight: 400; color: var(--accent); }
+.none { color: var(--muted); }
 .rise-enter-active, .rise-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .rise-enter-from, .rise-leave-to { opacity: 0; transform: translateY(8px); }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }

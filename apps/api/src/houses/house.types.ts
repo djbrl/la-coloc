@@ -1,5 +1,5 @@
 // What the website sees. Built by HousesService from the database plus the live state it keeps in memory.
-import type { DeploymentStatus, HouseStatus, MemberRole, NoteTone, RoomStatus } from "@coloc/db";
+import type { DeploymentStatus, HousePlan, HouseStatus, MemberRole, NoteTone, RoomStatus } from "@coloc/db";
 import type { DeployKind, RoomLimits } from "@coloc/protocol";
 
 export interface PersonView {
@@ -83,6 +83,8 @@ export interface HouseView {
   channel: MessageView[] | null;
   // Flatmates only: reviews waiting to be done.
   chores: ChoreView[] | null;
+  // The chef only: the server size they rented (null: none yet) and whether its agent key has been made.
+  server: { plan: HousePlan | null; keyMade: boolean } | null;
   // Public: who reviewed how much. The house's reputation in the city.
   ledger: LedgerLine[];
 }

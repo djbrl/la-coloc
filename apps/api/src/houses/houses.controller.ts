@@ -20,6 +20,7 @@ import { AgentRegistry } from "../agents/agent.registry";
 import { AuthService } from "../auth/auth.service";
 import type { HttpRequest } from "../auth/http";
 import { HousesService } from "./houses.service";
+import { installCommand } from "./server";
 
 // Starting a coloc on an empty lobby plot. The plot key comes from the lobby's neighbourhood generator:
 // block column, block row, plot column, plot row ("2.1.0.1").
@@ -34,6 +35,12 @@ const RentBody = z.object({
     .max(120, "Keep the tagline under 120 characters.")
     .nullish()
     .transform((t) => t || null),
+});
+
+// Renting the house's server. `renew`: make a new agent key even though one exists (the old one stops working).
+const ServerBody = z.object({
+  plan: z.enum(["small", "medium", "large"], { errorMap: () => ({ message: "Pick a small, medium or large server." }) }),
+  renew: z.boolean().optional(),
 });
 
 function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, body: unknown): T {
@@ -73,6 +80,25 @@ export class HousesController {
     );
     const heartbeat = interval(25_000).pipe(map(() => ({ type: "ping", data: "" }) as MessageEvent));
     return merge(updates, heartbeat);
+  }
+
+  /**
+   * The chef rents the house's server and gets the command that installs the agent on it. The answer holds
+   * the agent's secret in clear: it's shown once, here, and only its hash is kept. Once the agent phones in
+   * with it, the house goes live (see the agents gateway).
+   */
+  @Post(":id/server")
+  @HttpCode(201)
+  async rentServer(@Param("id") id: string, @Body() body: unknown, @Req() req: HttpRequest) {
+    const user = await this.auth.userFromRequest(req);
+    if (!user) throw new UnauthorizedException("Log in first.");
+    if (!(await this.houses.exists(id))) throw new NotFoundException();
+    if ((await this.houses.membership(id, user.id))?.role !== "chef") throw new ForbiddenException("Only the chef rents the server.");
+    const input = parse(ServerBody, body);
+    const { secret, plan, monthlyCostFcfa, domain } = await this.houses.rentServer(id, input.plan, input.renew === true);
+    // A new key replaces the old one: an agent still on the line with the old key is hung up on.
+    if (input.renew) this.agents.hangUp(id, "the house's key was replaced");
+    return { secret, command: installCommand(id, secret, this.auth.config.publicUrl, domain), plan, monthlyCostFcfa };
   }
 
   // Empties a room: every container in it is stopped and removed. The base for eviction, so chef only.

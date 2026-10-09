@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// Going inside without leaving the lobby: a house page, a knock's thread or a room, shown as a wide sheet over
-// the 3D city. The sheet keeps its own back-stack, so a link from one page to another slides in on top and Back
-// returns. It never touches the router: the list view keeps the real pages, this only shows them.
+// Going inside without leaving the lobby: a house page, a knock's thread or a room, shown as a floating panel in
+// the middle of the 3D city (a bottom sheet on a phone). The panel keeps its own back-stack, so a link from one
+// page to another opens on top and Back returns. It never touches the router: the list view keeps the real pages,
+// this only shows them.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import ApplicationPage from "../../pages/ApplicationPage.vue";
-import HousePage from "../../pages/HousePage.vue";
+import HouseInside from "./HouseInside.vue";
 import RoomPage from "../../pages/RoomPage.vue";
 import { type Place, placeFromPath, placeKey } from "./place";
 
@@ -143,7 +144,8 @@ function trapTab(e: KeyboardEvent) {
 
       <!-- One page at a time, keyed by place: going back mounts the page afresh, and a popped page closes its own stream. -->
       <div class="page-host">
-        <HousePage v-if="top.kind === 'house'" :key="topKey" :id="top.id" embedded @open="go" @label="(l) => (label = l)" />
+        <!-- A house inside is its own game-like view (HouseInside); the list view keeps the full page. -->
+        <HouseInside v-if="top.kind === 'house'" :key="topKey" :id="top.id" @open="go" @label="(l) => (label = l)" />
         <ApplicationPage v-else-if="top.kind === 'application'" :key="topKey" :id="top.id" embedded @label="(l) => (label = l)" />
         <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded @label="(l) => (label = l)" />
       </div>
@@ -152,25 +154,24 @@ function trapTab(e: KeyboardEvent) {
 </template>
 
 <style scoped>
-/* Above the HUD (10) and the lobby's own find and travel sheets (50). */
-.scrim { position: absolute; inset: 0; z-index: 60; background: var(--scrim); animation: fade-in 0.25s var(--ease); }
+/* Above the HUD (10) and the lobby's own find and travel sheets (50): the scrim over the city, the panel centred on it. */
+.inside { position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; }
+.scrim { position: absolute; inset: 0; background: var(--scrim); animation: fade-in 0.25s var(--ease); }
+/* A flat floating panel on the site's surface; the page scrolls inside it. */
 .sheet {
-  position: absolute;
-  z-index: 70;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(760px, 100vw);
-  max-width: 100vw;
+  position: relative;
+  width: min(760px, 100vw - 32px);
+  max-height: calc(100dvh - 96px);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--bg);
+  border-radius: 22px;
+  background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
   outline: none;
   overflow-wrap: anywhere;
-  animation: slide-in 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: rise-in 0.25s var(--ease);
 }
 /* Back and Close stay in reach while the page scrolls under them. */
 .bar {
@@ -182,18 +183,21 @@ function trapTab(e: KeyboardEvent) {
   justify-content: space-between;
   min-height: 56px;
   padding: 6px var(--gutter);
-  background: var(--nav-bg);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
+  background: var(--surface);
   border-bottom: 1px solid var(--hairline);
 }
 .bar .link { font-size: 15px; }
 .close { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; }
 .page-host { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
-@keyframes slide-in {
-  from { transform: translateX(100%); }
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(12px); }
 }
 @keyframes fade-in {
   from { opacity: 0; }
+}
+/* On a phone the panel is a sheet along the bottom edge, with rounded top corners. */
+@media (max-width: 520px) {
+  .inside { place-items: end stretch; }
+  .sheet { width: 100%; max-height: 88dvh; border-radius: 20px 20px 0 0; }
 }
 </style>

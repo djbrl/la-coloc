@@ -43,7 +43,9 @@
   --nav-bg: rgba(255, 255, 255, 0.72);
   --nav-bg-float: rgba(255, 255, 255, 0.5);
   --scrim: rgba(0, 0, 0, 0.32);
+  /* Two shadows: --shadow lifts a card or a panel, --lift a pill or a small button. */
   --shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  --lift: 0 6px 20px rgba(0, 0, 0, 0.14);
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -52,8 +54,47 @@
   --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   color-scheme: light dark;
 }
+
+/*
+ * Day and night. The light tokens above are the default. The dark ones apply when the settings pane asks for
+ * night (App.vue sets data-theme="dark" on <html>), or when the system prefers dark and the pane hasn't asked for
+ * day. A media query and an attribute can't share one selector, so the same list appears twice.
+ */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --bg-alt: #1d1d1f;
+  --surface: #1d1d1f;
+  --sunken: #1d1d1f;
+  --tile: #1d1d1f;
+  --fill: #333336;
+  --fill-hover: #424245;
+  --text: #f5f5f7;
+  --muted: #a1a1a6;
+  --border: #424245;
+  --hairline: rgba(255, 255, 255, 0.14);
+  --accent: #2997ff;
+  --accent-soft: #0b2a4a;
+  --focus: rgba(41, 151, 255, 0.7);
+  --live: #30d158;
+  --live-soft: #0f2e18;
+  --warn: #ff9f0a;
+  --warn-soft: #3a2709;
+  --danger: #ff6961;
+  --danger-soft: #3d1517;
+  --roof: #a5583a;
+  --wall: #3a332b;
+  --window-off: #4a4339;
+  --code-bg: #1d1d1f;
+  --nav-bg: rgba(22, 22, 23, 0.8);
+  --nav-bg-float: rgba(22, 22, 23, 0.55);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  --lift: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #000000;
     --bg-alt: #1d1d1f;
     --surface: #1d1d1f;
@@ -82,6 +123,7 @@
     --nav-bg-float: rgba(22, 22, 23, 0.55);
     --scrim: rgba(0, 0, 0, 0.6);
     --shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    --lift: 0 6px 20px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -247,11 +289,11 @@ button:focus-visible { outline-offset: 2px; }
 /* The same, when someone turns on "calmer motion" in the settings pane. */
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 
-/* Names floating over the 3D lobby (rendered outside Vue's scoped styles). */
+/* Names floating over the 3D lobby (rendered outside Vue's scoped styles): small flat tags in the site's colours. */
 .lobby-labels { position: absolute; inset: 0; pointer-events: none; }
-.lobby-label { font: 600 13px/1.2 var(--font); color: #1d1d1f; background: rgba(255, 255, 255, 0.88); padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
-.lobby-label.small { font-size: 11px; font-weight: 500; padding: 1px 6px; background: rgba(255, 255, 255, 0.7); }
-.lobby-label.you { background: #0071e3; color: #fff; }
+.lobby-label { font: 600 13px/1.2 var(--font); color: var(--text); background: var(--surface); padding: 3px 8px; border-radius: 8px; white-space: nowrap; box-shadow: var(--lift); }
+.lobby-label.small { font-size: 11px; font-weight: 500; padding: 1px 6px; }
+.lobby-label.you { background: var(--accent-fill); color: var(--on-accent); }
 /* After a name, their house, on the house's colour (the same as the ring at their feet). Colours are set inline. */
 .lobby-label .home { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; font: 600 9px/14px var(--font); letter-spacing: 0.02em; vertical-align: 1px; }
 .lobby-label.small .home { margin-left: 4px; padding: 0 5px; font-size: 8px; line-height: 12px; }

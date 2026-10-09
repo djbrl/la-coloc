@@ -10,6 +10,8 @@ export interface Settings {
   reduceMotion: boolean;
   // Little sounds for doors, lamps and friends.
   sound: boolean;
+  // Day or night: the site's light or dark look, or whatever the system says (App.vue applies it).
+  theme: "system" | "light" | "dark";
   // Seen the welcome? Set once the onboarding is done.
   welcomed: boolean;
 }
@@ -20,6 +22,7 @@ const defaults: Settings = {
   quality: "high",
   reduceMotion: typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   sound: true,
+  theme: "system",
   welcomed: false,
 };
 

@@ -2,7 +2,9 @@
 // at dusk. Your character, the flatmates hanging around their houses, and everyone else who's online in this
 // neighbourhood, live. Every house, empty plot, person and lamp is a target: walk up to one and press E, click it,
 // or press Tab to pick one from afar; whatever the mouse is over gets an outline. A lamp flips; anything else is
-// reported to Vue, which draws the card and does the navigating. Shift dashes, and `teleport` is fast travel.
+// reported to Vue, which draws the card and does the navigating. Anything far away is walked to along a route
+// found on a grid (path.ts), so you can get to a building from whichever side you're on. Shift dashes, and
+// `teleport` is fast travel.
 // Pure three.js; Vue only mounts it and draws what sits on top (cards, the minimap it's fed by `onMap`).
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -14,17 +16,21 @@ import type { CityHouse } from "../types";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
 import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff, makeRoomBoard } from "./models";
 import { type Facing, FACING_DIR, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
+import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
 import { play } from "./sound";
 import { groundMaterial, textures } from "./textures";
 
 const SPEED = 6; // units per second
-// A dash (Shift): a short burst at three times the speed, then a breather before the next one. In seconds.
-const DASH = { speed: 3, length: 0.22, cooldown: 0.9 };
+// A dash (Shift): an instant hop forward, a burst at 4.5 times the speed, then a breather before the next one.
+// Lengths in units, times in seconds.
+const DASH = { hop: 0.9, speed: 4.5, length: 0.14, cooldown: 0.35 };
 const PUFF_TIME = 0.3; // how long the dust at your feet lasts
 const HOVER_EVERY = 60; // milliseconds between two looks at what's under the mouse
 const MAP_EVERY = 200; // milliseconds between two reports to the minimap
-const RADIUS = 0.4; // how wide a person is, for bumping into walls
-const REACH = 1.6; // how close you stand to use a door, a person or a lamp
+const REACH = 1.6; // how close you stand to use a building, a person or a lamp
+const GRID_CELL = 0.5; // the walk grid's cell size, in units
+// Following a route but moved less than this in this long (a wall, a lost cause): the route is dropped.
+const STUCK = { moved: 0.05, after: 0.5 };
 // Far back along the isometric angle: an orthographic view looks the same from any distance, and a full-height
 // screen reaches ground that a closer camera would clip.
 const CAMERA_OFFSET = new THREE.Vector3(42, 48, 42);
@@ -73,29 +79,31 @@ export interface LobbyOptions {
   litLamps: string[];
 }
 
-interface Box {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-}
-
 // Anything you can aim at, whatever it is: what Vue hears about it, and where it stands.
 interface Thing {
   target: Target;
-  // Where you go to use it: in front of a door or a plot, at a lamp's foot, or a person's feet (it moves with them).
+  // Where it is, for the ring, the minimap and Tab's nearest-first order: a lamp's foot, a person's feet (it moves
+  // with them), or, for a building, its door when you're not on your way there and the nearest point of its reach
+  // band to you when you are.
   spot: THREE.Vector3;
+  // A building's footprint. You can use it from any side: "in reach" means within REACH of this box.
+  box?: Box;
+  // A building's door: where `spot` rests.
+  door?: THREE.Vector3;
 }
 
 interface Placed extends Thing {
   house: CityHouse;
   group: THREE.Group;
   box: Box;
+  door: THREE.Vector3;
   npcs: Npc[];
 }
 
 interface EmptyPlot extends Thing {
   key: string;
+  box: Box;
+  door: THREE.Vector3;
   // What's drawn on it (the forecourt, the building, the trees): outlined together when you point at the plot.
   objects: THREE.Object3D[];
 }
@@ -154,9 +162,16 @@ export class Lobby {
   private lamps: Lamp[] = [];
   private lit: Set<string>;
   private keys = new Set<string>();
-  private walkTo: THREE.Vector3 | null = null;
+  // The waypoints you're walking through, first one first; null when you're not going anywhere.
+  private route: THREE.Vector3[] | null = null;
   // What to use when you get there: after a click, a goTo, or E on something far away.
   private useOnArrival: Thing | null = null;
+  // Where you were when the route last made progress: see STUCK.
+  private stuck = { at: 0, x: 0, z: 0 };
+  // The walk grid, built from the buildings' footprints. A footprint that changes (a house model loading in)
+  // marks it dirty, and the next route rebuilds it.
+  private walkGrid: Grid | null = null;
+  private gridDirty = true;
   // The thing in reach of you, and the one you picked with Tab (which can be far away).
   private near: Thing | null = null;
   private highlighted: Thing | null = null;
@@ -170,10 +185,11 @@ export class Lobby {
   private hoverPass: OutlinePass | null = null;
   private tabPass: OutlinePass | null = null;
   private ring = makeHighlight();
-  // Whether you moved this frame, when the dash ends, and when the next one may start (seconds on the clock).
-  private moving = false;
+  // When the dash ends, when the next one may start (seconds on the clock), and the way it carries you when no
+  // key or route says otherwise.
   private dashUntil = 0;
   private dashReadyAt = 0;
+  private dashDir = new THREE.Vector3();
   // Shift went down and nothing else has been pressed since: letting go of it is a dash.
   private shiftAlone = false;
   private puffs: { group: THREE.Group; age: number }[] = [];
@@ -317,9 +333,13 @@ export class Lobby {
         if (house) this.placeHouse(house, p.x, p.z, p.facing, gen);
         continue;
       }
-      // Everything else is empty and up for rent: a target you reach from the sidewalk in front of it.
+      // Everything else is empty and up for rent: a target you reach from any side, its ring at the front.
       const front = frontOf(p, PLOT / 2 + 0.4);
-      const plot: EmptyPlot = { key: p.key, objects: [], target: { kind: "empty", plot: { key: p.key, lot: lot.kind, x: p.x, z: p.z } }, spot: new THREE.Vector3(front.x, 0, front.z) };
+      const door = new THREE.Vector3(front.x, 0, front.z);
+      // A tree lot has no walls: its footprint is the ground the trees stand on, and you may walk right in.
+      const size = lot.kind === "shop" ? 5.6 : lot.kind === "tower" ? 5.8 : PLOT - 2.5;
+      const box = lot.kind === "trees" ? footprint(p.x, p.z, p.facing, size, size) : this.solid(p.x, p.z, p.facing, size, size);
+      const plot: EmptyPlot = { key: p.key, objects: [], box, door, target: { kind: "empty", plot: { key: p.key, lot: lot.kind, x: p.x, z: p.z } }, spot: door.clone() };
       this.plots.push(plot);
       if (lot.kind === "trees") {
         for (let i = 0; i < lot.count; i++) this.tree(p.x + (rand() - 0.5) * (PLOT - 2.5), p.z + (rand() - 0.5) * (PLOT - 2.5), rand, gen, plot);
@@ -331,8 +351,6 @@ export class Lobby {
       court.userData.plotKey = p.key;
       plot.objects.push(court);
       const url = lot.kind === "shop" ? SHOPS[lot.variant] : TOWERS[lot.variant];
-      const size = lot.kind === "shop" ? 5.6 : 5.8;
-      this.solid(p.x, p.z, p.facing, size, size);
       this.load(gen, loadModel(url, size), (m) => {
         m.position.set(p.x, 0.14, p.z);
         m.rotation.y = yaw(p.facing);
@@ -360,10 +378,13 @@ export class Lobby {
       });
     }
 
+    // The walk grid, from every footprint placed above. House models that load later refine theirs: see `grid`.
+    this.gridDirty = true;
+    this.grid();
+
     if (arriving) {
       this.player.position.set(n.spawn.x, 0, n.spawn.z);
-      this.walkTo = null;
-      this.useOnArrival = null;
+      this.stop();
       this.snap = true;
       play("arrive");
     }
@@ -407,27 +428,37 @@ export class Lobby {
     if (p) this.walkToward(p);
   }
 
-  /** A short burst of speed (Shift), only while you're already moving. Then a breather before the next one. */
+  /**
+   * A dash (Shift), the way you're facing, standing still or not: an instant hop forward when the ground there is
+   * free, then a burst of speed. Then a breather before the next one.
+   */
   dash() {
     const now = this.clock.elapsedTime;
-    if (!this.moving || now < this.dashReadyAt) return;
-    this.dashUntil = now + DASH.length;
-    this.dashReadyAt = this.dashUntil + DASH.cooldown;
-    play("dash");
-    // Dust at your feet, pointing the way you're going.
+    if (now < this.dashReadyAt) return;
+    const pos = this.player.position;
+    // Dust where you took off, pointing the way you're going.
     const puff = makePuff();
-    puff.position.copy(this.player.position).setY(0);
+    puff.position.copy(pos).setY(0);
     puff.rotation.y = this.player.rotation.y;
     this.scene.add(puff);
     this.puffs.push({ group: puff, age: 0 });
+    // The avatar faces +z, turned by rotation.y: that's the way to go.
+    this.dashDir.set(Math.sin(this.player.rotation.y), 0, Math.cos(this.player.rotation.y));
+    const b = this.bounds;
+    const hopX = THREE.MathUtils.clamp(pos.x + this.dashDir.x * DASH.hop, b.minX, b.maxX);
+    const hopZ = THREE.MathUtils.clamp(pos.z + this.dashDir.z * DASH.hop, b.minZ, b.maxZ);
+    // Never through a wall: the landing and the halfway point must both be clear.
+    if (!this.blocked(hopX, hopZ) && !this.blocked((pos.x + hopX) / 2, (pos.z + hopZ) / 2)) pos.set(hopX, pos.y, hopZ);
+    this.dashUntil = now + DASH.length;
+    this.dashReadyAt = this.dashUntil + DASH.cooldown;
+    play("dash");
   }
 
   /** Fast travel: puts you at the nearest free spot (not inside a building) and snaps the camera to you. */
   teleport(x: number, z: number) {
     const spot = this.freeSpotNear(x, z);
     this.player.position.set(spot.x, 0, spot.z);
-    this.walkTo = null;
-    this.useOnArrival = null;
+    this.stop();
     this.dashUntil = 0;
     this.clearHighlight();
     this.setHover(null);
@@ -451,7 +482,7 @@ export class Lobby {
   interact() {
     const thing = this.highlighted ?? this.near;
     if (!thing) return;
-    if (apart(thing.spot, this.player.position) < REACH) this.use(thing);
+    if (this.distanceTo(thing) < REACH) this.use(thing);
     else this.walkToward(thing);
   }
 
@@ -532,7 +563,7 @@ export class Lobby {
     this.scene.remove(r.avatar);
     disposeTree(r.avatar);
     this.remotes.delete(login);
-    if (this.useOnArrival === r) this.useOnArrival = null;
+    if (this.useOnArrival === r) this.stop();
     if (this.highlighted === r) this.clearHighlight();
     if (this.hover === r) this.setHover(null);
     for (const n of this.npcs) if (n.login === login) n.avatar.visible = true;
@@ -572,14 +603,18 @@ export class Lobby {
     return Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1;
   }
 
-  /** The thing you're standing next to: a lamp first (they're small), then a person, then a door or a plot's front. */
+  /** How far you are from a thing: to a building's walls (any side), else to its spot. */
+  private distanceTo(thing: Thing): number {
+    return thing.box ? distanceToBox(this.player.position, thing.box) : apart(thing.spot, this.player.position);
+  }
+
+  /** The thing you're standing next to: a lamp first (they're small), then a person, then a building's walls. */
   private reach(): Thing | null {
-    const here = this.player.position;
     let best: Thing | null = null;
     let range = REACH * 0.9;
     // Whether `t` beats the best so far; if so, it sets the bar.
     const closer = (t: Thing): boolean => {
-      const d = apart(t.spot, here);
+      const d = this.distanceTo(t);
       if (d >= range) return false;
       range = d;
       return true;
@@ -607,12 +642,64 @@ export class Lobby {
     else this.events.onSelect(thing.target);
   }
 
-  /** Sets off for a thing, to use it on arrival. For a person, you stop a step away on your side of them. */
+  /**
+   * Sets off for a thing, to use it on arrival. A building can be used from any side: you head for the free
+   * ground within reach of its walls that's nearest by foot. For a person, you stop a step away on your side of
+   * them.
+   */
   private walkToward(thing: Thing) {
     // Setting off for something else drops the Tab highlight, so what's in reach on arrival is what you use.
     if (this.highlighted && this.highlighted !== thing) this.clearHighlight();
-    this.walkTo = thing.target.kind === "person" ? this.beside(thing, new THREE.Vector3()) : thing.spot.clone();
-    this.useOnArrival = thing;
+    if (thing.box) {
+      // The ring moves to the nearest point of the reach band to you, which is the side you'll arrive on.
+      const near = nearestOnBox(this.player.position, grow(thing.box, REACH));
+      thing.spot.set(near.x, 0, near.z);
+      // Any cell whose centre is a little less than REACH from the walls: stopping within a step of it still
+      // leaves you in reach.
+      this.routeTo(grow(thing.box, REACH - GRID_CELL / 2), thing);
+    } else if (thing.target.kind === "person") this.routeTo(this.beside(thing, new THREE.Vector3()), thing);
+    else this.routeTo(thing.spot, thing);
+  }
+
+  /**
+   * Sets off along a route to a point, or to any free cell inside a box, and remembers what to use on arrival.
+   * With no way through (an island), you walk straight at it as far as the walls allow, and `step` gives up
+   * once you stop making progress.
+   */
+  private routeTo(goal: Point | Box, use: Thing | null = null) {
+    const here = { x: this.player.position.x, z: this.player.position.z };
+    const grid = this.grid();
+    const found = findPath(grid, here, goal);
+    const points = found ? smooth(grid, found).slice(1) : ["minX" in goal ? nearestOnBox(here, goal) : goal];
+    this.route = points.map((p) => new THREE.Vector3(p.x, 0, p.z));
+    this.useOnArrival = use;
+    this.stuck = { at: this.clock.elapsedTime, x: here.x, z: here.z };
+  }
+
+  /** Ends the route, wherever you are. A building you were heading for gets its ring back at its door. */
+  private stop() {
+    const u = this.useOnArrival;
+    if (u?.door) u.spot.copy(u.door);
+    this.route = null;
+    this.useOnArrival = null;
+  }
+
+  /** Whether you're close enough to use what you're walking to, short of the route's end. */
+  private arrived(thing: Thing): boolean {
+    if (thing.box) return distanceToBox(this.player.position, thing.box) < REACH;
+    // Close enough to a person to talk: they may be standing against a wall.
+    return thing.target.kind === "person" && apart(thing.spot, this.player.position) < 1.2;
+  }
+
+  /** The walk grid, rebuilt when a footprint changed. Cells within a person's width (and a half cell) of a wall are blocked. */
+  private grid(): Grid {
+    if (!this.walkGrid || this.gridDirty) {
+      // Padding by half a cell more than a person's width means a free cell is walkable over its whole area, so a
+      // straight leg between two free cells never scrapes a wall.
+      this.walkGrid = buildGrid(this.bounds, this.solids, GRID_CELL, RADIUS + GRID_CELL / 2);
+      this.gridDirty = false;
+    }
+    return this.walkGrid;
   }
 
   /** The point one step away from someone, towards you. Writes into `out`. */
@@ -778,7 +865,7 @@ export class Lobby {
     group.add(this.label(house.name, house.demo ? "lobby-label house demo" : "lobby-label house", 6.4));
     this.town.add(group);
     const box = this.solid(x, z, facing, placeholder.halfWidth * 2, placeholder.halfDepth * 2);
-    const placed: Placed = { house, group, box, npcs: [], target: { kind: "house", house }, spot: new THREE.Vector3() };
+    const placed: Placed = { house, group, box, door: new THREE.Vector3(), npcs: [], target: { kind: "house", house }, spot: new THREE.Vector3() };
     this.placed.push(placed);
     this.fitDoor(placed, facing, placeholder.halfDepth);
 
@@ -811,8 +898,9 @@ export class Lobby {
           const board = makeRoomBoard(house);
           board.position.set(local.max.x + 0.6, 0, local.max.z + 0.3);
           group.add(board);
-          // The real footprint replaces the placeholder's.
+          // The real footprint replaces the placeholder's; the walk grid follows on the next route.
           Object.assign(box, footprint(x, z, facing, local.max.x - local.min.x, local.max.z - local.min.z));
+          this.gridDirty = true;
           this.fitDoor(placed, facing, local.max.z);
         })
         .catch(() => undefined);
@@ -828,7 +916,7 @@ export class Lobby {
         avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
         this.town.add(avatar);
         const npc: Npc = { login, avatar, home: new THREE.Vector3(), goal: new THREE.Vector3(), wait: Math.random() * 3, tag, target: { kind: "person", login, name }, spot: avatar.position };
-        npc.home.copy(placed.spot).add(rotate((k - 1) * 1.3, 0.9, yaw(facing)));
+        npc.home.copy(placed.door).add(rotate((k - 1) * 1.3, 0.9, yaw(facing)));
         npc.goal.copy(npc.home);
         avatar.position.copy(npc.home);
         this.npcs.push(npc);
@@ -843,13 +931,15 @@ export class Lobby {
       });
   }
 
-  /** Puts the door spot just in front of the house's face (`front` units from its centre), moving the flatmates along. */
+  /** Puts the door just in front of the house's face (`front` units from its centre), moving the flatmates along. */
   private fitDoor(p: Placed, facing: Facing, front: number) {
     const dir = FACING_DIR[facing];
     const door = new THREE.Vector3(p.group.position.x + dir.x * (front + 1.1), 0, p.group.position.z + dir.z * (front + 1.1));
-    const first = p.spot.lengthSq() === 0;
-    const moved = door.clone().sub(p.spot);
-    p.spot.copy(door);
+    const first = p.door.lengthSq() === 0;
+    const moved = door.clone().sub(p.door);
+    p.door.copy(door);
+    // The ring rests at the door, unless you're on your way to this house from another side.
+    if (this.useOnArrival !== p) p.spot.copy(door);
     if (first) return;
     for (const n of p.npcs) {
       n.home.add(moved);
@@ -1069,8 +1159,7 @@ export class Lobby {
     const k = e.key.toLowerCase();
     if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) {
       this.keys.add(k);
-      this.walkTo = null;
-      this.useOnArrival = null;
+      this.stop();
       e.preventDefault();
     }
     if (k === "tab") {
@@ -1137,10 +1226,7 @@ export class Lobby {
     const { thing, ground } = this.aim(e);
     if (thing?.target.kind === "person") this.events.onSelect(thing.target);
     else if (thing) this.walkToward(thing);
-    else if (ground) {
-      this.walkTo = ground;
-      this.useOnArrival = null;
-    }
+    else if (ground) this.routeTo(ground);
   };
 
   // The same aim as a click, as the mouse moves (a few times a second, never for a finger): what it's over gets
@@ -1174,25 +1260,31 @@ export class Lobby {
     if (this.keys.has("a") || this.keys.has("arrowleft")) (dx -= 1), (dz += 1);
     if (this.keys.has("d") || this.keys.has("arrowright")) (dx += 1), (dz -= 1);
     const dir = dx || dz ? rotate(dx, dz, this.angle) : new THREE.Vector3();
-    if (!dir.lengthSq() && this.walkTo) {
+    if (!dir.lengthSq() && this.route) {
       const u = this.useOnArrival;
-      // Someone you're walking to may be strolling: keep aiming for the spot beside them.
-      if (u && u.target.kind === "person") this.beside(u, this.walkTo);
-      dir.subVectors(this.walkTo, this.player.position).setY(0);
-      // There: on the spot, or close enough to a person to talk (they may stand against a wall).
-      const there = dir.length() < 0.15 || (u?.target.kind === "person" && apart(u.spot, this.player.position) < 1.2);
+      // Someone you're walking to may be strolling: keep aiming the last leg at the spot beside them.
+      if (u && u.target.kind === "person") this.beside(u, this.route[this.route.length - 1]);
+      // Past a waypoint: on to the next one.
+      dir.subVectors(this.route[0], this.player.position).setY(0);
+      while (dir.length() < 0.15 && this.route.length > 1) {
+        this.route.shift();
+        dir.subVectors(this.route[0], this.player.position).setY(0);
+      }
+      // There: at the last waypoint, or already close enough to use what you came for.
+      const there = dir.length() < 0.15 || (u !== null && this.arrived(u));
       if (there) {
-        this.walkTo = null;
-        this.useOnArrival = null;
+        this.stop();
         dir.set(0, 0, 0);
         if (u) this.use(u);
       }
     }
+    // A dash carries you the way you faced when you had nothing else to go by.
+    const dashing = this.clock.elapsedTime < this.dashUntil;
+    if (!dir.lengthSq() && dashing) dir.copy(this.dashDir);
     const moving = dir.lengthSq() > 0;
-    this.moving = moving;
     if (moving) {
-      // Three times as fast for the length of a dash.
-      const speed = this.clock.elapsedTime < this.dashUntil ? SPEED * DASH.speed : SPEED;
+      // Much faster for the length of a dash.
+      const speed = dashing ? SPEED * DASH.speed : SPEED;
       dir.normalize().multiplyScalar(speed * dt);
       const pos = this.player.position;
       // Slide along walls: try each axis on its own.
@@ -1206,6 +1298,12 @@ export class Lobby {
     } else {
       this.player.position.y = 0;
       this.playerPerson?.play("idle");
+    }
+    // On a route but going nowhere (against a wall, with no way round): give up rather than walk forever.
+    if (this.route && this.clock.elapsedTime - this.stuck.at >= STUCK.after) {
+      const pos = this.player.position;
+      if (Math.hypot(pos.x - this.stuck.x, pos.z - this.stuck.z) < STUCK.moved) this.stop();
+      else this.stuck = { at: this.clock.elapsedTime, x: pos.x, z: pos.z };
     }
     if (this.playerPerson) this.player.position.y = 0;
     this.playerPerson?.mixer.update(dt);

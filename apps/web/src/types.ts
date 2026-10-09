@@ -119,6 +119,8 @@ export interface HouseView {
   channel: Message[] | null;
   // Flatmates only: reviews waiting to be done.
   chores: Chore[] | null;
+  // The chef only: the server size they rented (null: none yet) and whether its agent key has been made.
+  server: { plan: "small" | "medium" | "large" | null; keyMade: boolean } | null;
   // Public: reviews given and received per flatmate.
   ledger: { login: string; given: number; received: number }[];
 }

@@ -144,7 +144,7 @@ function onClick(e: MouseEvent) {
   box-shadow: var(--shadow);
 }
 .sheet[open] { animation: sheet-in 0.25s var(--ease); }
-.sheet::backdrop { background: var(--scrim); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.sheet::backdrop { background: var(--scrim); }
 @keyframes sheet-in {
   from { opacity: 0; transform: translateY(16px) scale(0.98); }
 }

@@ -14,6 +14,13 @@ const fullscreen = computed(() => route.meta.fullscreen === true);
 // "Calmer motion" in the settings pane quiets the whole site, not only the lobby.
 watchEffect(() => document.documentElement.classList.toggle("reduce-motion", settings.reduceMotion));
 
+// Day or night: the <html> element carries `data-theme="light"` or `"dark"`, and style.css picks the tokens from it.
+// "System" means no attribute at all, so the system's own preference decides.
+watchEffect(() => {
+  if (settings.theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = settings.theme;
+});
+
 async function leave() {
   await logout();
   router.push("/");
@@ -77,17 +84,16 @@ const gear = (() => {
 .skip { position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: 980px; background: var(--accent-fill); color: var(--on-accent); }
 .skip:focus { top: 8px; }
 
+/* A flat bar: the site's surface and a hairline, no blur. Over the lobby it floats at the top edge, the same way. */
 .bar {
   position: sticky;
   top: 0;
   z-index: 50;
   height: 48px;
-  background: var(--nav-bg);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
+  background: var(--surface);
   border-bottom: 1px solid var(--hairline);
 }
-.bar.float { position: fixed; left: 0; right: 0; background: var(--nav-bg-float); border-bottom-color: transparent; }
+.bar.float { position: fixed; left: 0; right: 0; }
 .inner { height: 100%; max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .logo { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); white-space: nowrap; }
 .logo:hover { text-decoration: none; }

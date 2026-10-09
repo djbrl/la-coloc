@@ -63,7 +63,7 @@ function ask() {
 </template>
 
 <style scoped>
-.home { padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.home { padding-top: 6px; border-top: 1px solid var(--hairline); }
 .rooms { list-style: none; margin: 0; padding: 0; display: grid; }
 .rooms button { text-align: left; min-height: 40px; }
 </style>
