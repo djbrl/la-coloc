@@ -7,6 +7,7 @@ import { GithubClientModule } from "./github/github-client.module";
 import { GithubModule } from "./github/github.module";
 import { RoomsModule } from "./rooms/rooms.module";
 import { HousesModule } from "./houses/houses.module";
+import { LobbyModule } from "./lobby/lobby.module";
 
-@Module({ imports: [DbModule, AuthModule, HousesModule, AgentsModule, DoorbellModule, GithubClientModule, RoomsModule, GithubModule] })
+@Module({ imports: [DbModule, AuthModule, HousesModule, AgentsModule, DoorbellModule, GithubClientModule, RoomsModule, GithubModule, LobbyModule] })
 export class AppModule {}

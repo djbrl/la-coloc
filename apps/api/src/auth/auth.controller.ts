@@ -1,11 +1,13 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Logger, Post, Query, Req, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Logger, Patch, Post, Query, Req, Res, UnauthorizedException } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { AuthService, SESSION_COOKIE, SESSION_DAYS, STATE_COOKIE } from "./auth.service";
 import { clearCookie, type HttpRequest, type HttpResponse, parseCookies, setCookie } from "./http";
 import { MembershipsService } from "./memberships.service";
+import { AVATARS } from "../lobby/presence";
 
 const DevLoginBody = z.object({ login: z.string().min(1).max(39) });
+const MeBody = z.object({ avatar: z.enum(AVATARS as [string, ...string[]]) });
 
 @Controller()
 export class AuthController {
@@ -80,9 +82,21 @@ export class AuthController {
         login: user.login,
         name: user.name,
         avatarUrl: user.avatarUrl,
+        avatar: user.avatar,
         houses: await this.memberships.housesOf(user.id),
       },
     };
+  }
+
+  // Your character in the lobby.
+  @Patch("me")
+  async updateMe(@Req() req: HttpRequest, @Body() body: unknown) {
+    const user = await this.auth.userFromRequest(req);
+    if (!user) throw new UnauthorizedException();
+    const parsed = MeBody.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("Pick one of the characters.");
+    await this.auth.setAvatar(user.id, parsed.data.avatar);
+    return { ok: true };
   }
 
   private async startSession(res: HttpResponse, userId: string) {

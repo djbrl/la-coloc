@@ -118,6 +118,10 @@ export class AuthService {
     });
   }
 
+  async setAvatar(userId: string, avatar: string) {
+    await this.db.update(users).set({ avatar }).where(eq(users.id, userId));
+  }
+
   /** Development only (COLOC_DEV_LOGIN=1): be anyone, creating them if needed. */
   async devLogin(login: string): Promise<User> {
     if (!this.config.devLogin) throw new Error("dev login is off");

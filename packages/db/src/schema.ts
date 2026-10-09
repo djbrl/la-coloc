@@ -15,6 +15,8 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   bio: text("bio"),
   location: text("location"),
+  // Their character in the lobby: one of the models in apps/web/public/lobby/people ("female-a" … "male-f").
+  avatar: text("avatar"),
   createdAt: createdAt(),
 });
 
