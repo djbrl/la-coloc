@@ -480,9 +480,9 @@ export class Lobby {
   private project(half = this.viewHalf) {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
-    // A phone held upright sees less sideways: zoom out a little so the street still fits.
+    // A phone held upright is narrow: show a little less of the town rather than shrinking everyone.
     const aspect = w / h;
-    const width = aspect < 1 ? half * 1.4 : half;
+    const width = aspect < 1 ? half * 0.85 : half;
     Object.assign(this.camera, { left: -width, right: width, top: width / aspect, bottom: -width / aspect });
     this.camera.updateProjectionMatrix();
   }

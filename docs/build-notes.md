@@ -160,3 +160,30 @@ log in and move in). The smee relay re-encodes JSON; it hasn't broken a signatur
   "Deployed to … Live now." on the PR. The token is in no log and not in the database (`https://***@github.com/…`).
 - Found while writing the tests: a reviewer who first requested changes and later approved was stuck at "changes
   requested", so a strict house would never deploy. The assignee's latest review now decides.
+
+## Night 3: 09 → 10 10 2026 (Claude, with one subagent, while Jib slept)
+
+### Built and verified
+| What | Checked how |
+|---|---|
+| **Room page**: project, build settings (repo, branch, folder, port), secrets, logs (live follow), restart, redeploy, history | In the browser as Jib: saved a repo + folder, redeployed, the history followed live; the container's environment had the decrypted secret (`GREETING=salut`) and `PORT` |
+| **Secrets**: AES-256-GCM before storage, names only ever shown, refused names (`PORT`), size limits | Unit tests (tampering, wrong key) + the database row holds no plaintext |
+| **Agent**: `restart_room`, `get_logs` (answered by request id; a reply from another house is ignored), `remove_preview` | Live: logs came back, restart left the room answering |
+| **PR previews** | Real GitHub, Djbrl/coloc-test#3: preview built at `preview-room-4…` (version 3) while the room kept version 2; the PR was told once; closing the PR removed the container and its route (404) |
+| **Lobby presence** (`/lobby-ws`) | Two WebSocket clients: join, move, emote, leave all relayed; a visitor watches without appearing; another site's origin is refused (4003). In the browser: a scripted Awa walked around and waved, Jib's page showed her, hid her standing-around figure, and said "You and one other person are here." |
+| **Full-screen lobby**: dusk lighting, live players, your look (saved to your profile), emotes, lamps you light with E (counted, remembered), finder sheet, zoom, loading screen, five-step welcome, settings sheet | In the browser, step by step |
+
+### Fixed on the way
+- Name tags floated above the welcome sheet and the loading screen (three.js sets a z-index on each tag); the scene now
+  has its own stacking context.
+- At full height the camera clipped the ground in a straight line (near plane); it now sits far back on the same angle.
+- Lamps on the far kerb hid behind the next row's roofs; they're on the near kerb.
+- The camera glided in from the world's origin on arrival; it now starts on you.
+- A watcher I first wrote to reconnect the lobby on login would have reloaded the page forever; the city page now
+  rebuilds the lobby when the logged-in person changes instead.
+
+### Design direction (Jib, 09 10)
+Apple's design philosophy for every page: system font, big headlines, whitespace, sections instead of cards, one
+primary action per view, no visible labels (accessible names stay, hidden), multi-step flows. Apple's own UI kits
+and fonts are licensed only for Apple-platform design, so we follow the principles, not the files. For the lobby:
+2XKO's hangout lobby (warm lights, emotes over heads, an interact prompt, a corner card with who's here).

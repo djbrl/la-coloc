@@ -78,6 +78,17 @@ Then install the App on a repo you live with (the link is on the setup page's la
 runs fine: GitHub login and chores just stay off. Known catch: smee re-encodes the JSON it relays; if a webhook ever
 fails the signature check (`401` in the relay's log), that's why.
 
+## Rooms, previews, the lobby
+
+- **Room page** (`/houses/:id/rooms/:room`, the room's flatmate or the chef): build settings, secrets, logs,
+  restart, redeploy. Secrets need `COLOC_SECRETS_KEY` (32 bytes, base64); the API's `start` script reads it from the
+  git-ignored `dev/.env.local`. Create one with `openssl rand -base64 32` if it's missing.
+- **Previews**: an open pull request in a linked repo is built at `preview-<room>.<house domain>` on every push and
+  removed when it closes. Never for pull requests from forks.
+- **The lobby's live line** is a WebSocket at `/lobby-ws` (proxied by Vite in development). Only pages from
+  `COLOC_PUBLIC_URL`'s origin may connect. In the browser console (development builds), `window.lobby` is the
+  running lobby.
+
 ## Database
 
 - Schema: `packages/db/src/schema.ts`. After changing it: `npm run generate -w @coloc/db` writes a new SQL migration

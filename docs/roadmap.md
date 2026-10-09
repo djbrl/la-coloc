@@ -17,8 +17,11 @@ UX 20 · innovation 15 · public vote 10. **What gates:** top 3 of the peer vote
   view stays as the text version.
 - **Waiting on the team:** commits, the GitHub App registration, teammates, `coloc.dev`, the art.
 - **09 10: deploy on merge works against real GitHub** (strict and relaxed houses, results commented on the PR).
-- **Still to build for week 2:** previews, GitHub's Deployments panel (needs one more App permission), room page
-  (logs, restart, secrets), presence avatars, onboarding (rent a flat → install command), `install.sh` on a real VPS.
+- **09 10 (night 3):** the room page (settings, encrypted secrets, logs, restart, redeploy), PR previews, live presence
+  in the lobby (characters, emotes, lamps), the full-screen lobby with a welcome, loading screen and settings, and
+  an Apple-style rework of the other pages.
+- **Still to build:** GitHub's Deployments panel (needs one more App permission), rent a flat (onboarding for a new
+  chef → install command), `install.sh` on a real VPS, bills, tontine turns.
 
 ## Phase 0: team & setup (Fri 02 10 → Sun 04 10)
 - ~~Rooms with walls, zero-downtime deploys, isolation demo, live house page~~: done on 02 10 (see [build-notes.md](build-notes.md)).

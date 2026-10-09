@@ -19,6 +19,8 @@ const current = computed(() => steps.value[step.value]);
 const look = ref(Math.max(0, CHARACTERS.indexOf(me.value?.avatar ?? "")));
 const error = ref("");
 const title = ref<HTMLElement | null>(null);
+// Phones and tablets: talk about tapping, not keys.
+const touch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
 
 function go(to: number) {
   error.value = "";
@@ -85,7 +87,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
         </template>
         <template v-else-if="current === 'walk'">
           <h2 id="onboarding-title" ref="title" tabindex="-1">Walk around.</h2>
-          <p>Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or click where you want to go. Step up to a door and press <kbd>E</kbd> to go in. <kbd>1</kbd> and <kbd>2</kbd> wave yes or no.</p>
+          <p v-if="touch">Tap where you want to go. Walk up to a door and tap the button that appears to go in. The thumbs wave yes or no.</p>
+          <p v-else>Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or click where you want to go. Step up to a door and press <kbd>E</kbd> to go in. <kbd>1</kbd> and <kbd>2</kbd> wave yes or no.</p>
         </template>
         <template v-else-if="current === 'look'">
           <h2 id="onboarding-title" ref="title" tabindex="-1">Pick your look.</h2>
@@ -103,7 +106,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
         </template>
         <template v-else>
           <h2 id="onboarding-title" ref="title" tabindex="-1">One more thing.</h2>
-          <p>Some street lamps in town are off. Walk up to one and press <kbd>E</kbd>. See if you can light them all.</p>
+          <p>Some street lamps in town are off. Walk up to one and {{ touch ? "tap Light it" : "press E" }}. See if you can light them all.</p>
         </template>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>

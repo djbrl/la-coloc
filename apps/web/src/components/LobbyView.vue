@@ -263,6 +263,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid #6eb4ff; outline-
 @media (prefers-reduced-motion: reduce) {
   .rise-enter-active, .rise-leave-active, .fade-enter-active, .fade-leave-active, .sheet-enter-active, .sheet-leave-active { transition: none; }
 }
+/* No keyboard, no key hints. */
+@media (hover: none) {
+  kbd { display: none; }
+}
 @media (max-width: 520px) {
   .prompt { gap: 10px; padding-left: 16px; font-size: 15px; }
   .prompt .soft { display: none; }
