@@ -37,6 +37,14 @@ export class GithubAppClient {
     return body.token;
   }
 
+  /** The repo's default branch: what a redeploy builds when the room doesn't pin one. */
+  async defaultBranch(installationId: number, repo: string): Promise<string> {
+    const token = await this.installationToken(installationId);
+    const res = await this.fetch(`${API}/repos/${repo}`, { headers: this.headers(`token ${token}`) });
+    if (!res.ok) throw new Error(`couldn't read ${repo} (${res.status})`);
+    return ((await res.json()) as { default_branch: string }).default_branch;
+  }
+
   async comment(installationId: number, repo: string, issue: number, text: string): Promise<void> {
     await this.call(installationId, "POST", `/repos/${repo}/issues/${issue}/comments`, { body: text });
   }

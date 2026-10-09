@@ -41,7 +41,31 @@ export const RemoveRoomCommand = z.object({
 });
 export type RemoveRoomCommand = z.infer<typeof RemoveRoomCommand>;
 
-export const ApiToAgent = z.discriminatedUnion("type", [DeployCommand, RemoveRoomCommand]);
+// Restarts what runs in a room, as is (no rebuild).
+export const RestartRoomCommand = z.object({
+  type: z.literal("restart_room"),
+  room: RoomName,
+});
+export type RestartRoomCommand = z.infer<typeof RestartRoomCommand>;
+
+// Removes a room's preview (the pull request closed). The room itself keeps running.
+export const RemovePreviewCommand = z.object({
+  type: z.literal("remove_preview"),
+  room: RoomName,
+});
+export type RemovePreviewCommand = z.infer<typeof RemovePreviewCommand>;
+
+// Asks for the last lines a room's app printed. The agent answers with a `logs` message carrying the same requestId.
+export const GetLogsCommand = z.object({
+  type: z.literal("get_logs"),
+  requestId: z.string().min(1).max(64),
+  room: RoomName,
+  kind: DeployKind.default("prod"),
+  lines: z.number().int().min(1).max(1000).default(200),
+});
+export type GetLogsCommand = z.infer<typeof GetLogsCommand>;
+
+export const ApiToAgent = z.discriminatedUnion("type", [DeployCommand, RemoveRoomCommand, RestartRoomCommand, RemovePreviewCommand, GetLogsCommand]);
 export type ApiToAgent = z.infer<typeof ApiToAgent>;
 
 // ---- agent → API ----
@@ -103,7 +127,17 @@ export const RoomsSnapshot = z.object({
 });
 export type RoomsSnapshot = z.infer<typeof RoomsSnapshot>;
 
-export const AgentToApi = z.discriminatedUnion("type", [Hello, DeployStatus, Usage, RoomEvent, RoomsSnapshot]);
+export const Logs = z.object({
+  type: z.literal("logs"),
+  requestId: z.string(),
+  room: RoomName,
+  // Plain text, oldest line first. Capped so a chatty app can't flood the line.
+  text: z.string().max(256_000),
+  error: z.string().optional(),
+});
+export type Logs = z.infer<typeof Logs>;
+
+export const AgentToApi = z.discriminatedUnion("type", [Hello, DeployStatus, Usage, RoomEvent, RoomsSnapshot, Logs]);
 export type AgentToApi = z.infer<typeof AgentToApi>;
 
 export function parseApiToAgent(raw: string): ApiToAgent {

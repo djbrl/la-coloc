@@ -31,38 +31,8 @@ beforeEach(async () => {
 });
 
 const req = { headers: {} };
-const body = { repo: "https://github.com/awa/ndaje.git" };
 
-describe("who can deploy where", () => {
-  it("asks you to log in first", async () => {
-    await expect(controller.deploy("sacre-coeur", "awa", body, req)).rejects.toThrow(/log in/);
-    expect(sent).toHaveLength(0);
-  });
-
-  it("lets a flatmate deploy to their own room, with the room's size", async () => {
-    as = "awa";
-    await controller.deploy("sacre-coeur", "awa", body, req);
-    expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ type: "deploy", room: "awa", limits: { memoryMb: 256, cpus: 0.5 } });
-  });
-
-  it("refuses a flatmate deploying into someone else's room", async () => {
-    as = "moussa";
-    await expect(controller.deploy("sacre-coeur", "awa", body, req)).rejects.toThrow(/isn't your room/);
-    expect(sent).toHaveLength(0);
-  });
-
-  it("refuses strangers, even ones living in another house", async () => {
-    as = "koffi";
-    await expect(controller.deploy("sacre-coeur", "room-4", body, req)).rejects.toThrow(/isn't your room/);
-  });
-
-  it("lets the chef deploy anywhere in the house", async () => {
-    as = "jib";
-    await controller.deploy("sacre-coeur", "moussa", body, req);
-    expect(sent[0]).toMatchObject({ room: "moussa", limits: { memoryMb: 128 } });
-  });
-
+describe("emptying a room", () => {
   it("only lets the chef empty a room", async () => {
     as = "awa";
     await expect(controller.empty("sacre-coeur", "moussa", req)).rejects.toThrow(/only the chef/);

@@ -74,6 +74,12 @@ export const rooms = pgTable(
     // A free room's ad: "looking for a mobile dev".
     ad: text("ad"),
     lastDeployId: text("last_deploy_id"),
+    // How the room builds. branch: null means the repo's default. buildPath: the folder holding the Dockerfile.
+    // port: null means the image's EXPOSE, then 3000. source: the repo URL for manual deploys (never a token).
+    branch: text("branch"),
+    buildPath: text("build_path").notNull().default("."),
+    port: integer("port"),
+    source: text("source"),
   },
   (t) => [uniqueIndex("rooms_house_name").on(t.houseId, t.name)],
 );
@@ -193,6 +199,21 @@ export const messages = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("messages_channel_id").on(t.channel, t.id)],
+);
+
+// A room's secrets (API keys, passwords), encrypted with AES-256-GCM before they're stored. Only their names
+// ever go back to the browser; values only leave the API inside a deploy command, to that room's agent.
+export const roomSecrets = pgTable(
+  "room_secrets",
+  {
+    houseId: text("house_id").notNull().references(() => houses.id, { onDelete: "cascade" }),
+    room: text("room").notNull(),
+    name: text("name").notNull(),
+    // iv.tag.ciphertext, base64url.
+    value: text("value").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.houseId, t.room, t.name] })],
 );
 
 // A GitHub repo moved into a room: installing the coloc GitHub App on it links it to its owner's room.

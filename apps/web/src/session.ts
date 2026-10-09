@@ -29,3 +29,16 @@ export async function postJSON<T = unknown>(url: string, body: unknown): Promise
   const message = typeof data.message === "string" ? data.message : res.status === 401 ? "Log in first." : "That didn't work.";
   return { ok: false, message };
 }
+
+// Any other JSON request (PATCH, PUT, DELETE), same error handling as postJSON.
+export async function sendJSON<T = unknown>(method: string, url: string, body?: unknown): Promise<{ ok: true; data: T } | { ok: false; message: string }> {
+  const res = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) return { ok: true, data: data as T };
+  const message = typeof data.message === "string" ? data.message : res.status === 401 ? "Log in first." : "That didn't work.";
+  return { ok: false, message };
+}

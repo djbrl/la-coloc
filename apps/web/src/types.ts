@@ -154,3 +154,39 @@ export interface Me {
   avatarUrl: string | null;
   houses: { id: string; name: string; role: MemberRole; room: string | null }[];
 }
+
+// The room page: GET /api/houses/:id/rooms/:room/manage (the room's flatmate, or the chef).
+export interface RoomManage {
+  house: { id: string; name: string; domain: string; agentOnline: boolean; strictReviews: boolean };
+  as: "flatmate" | "chef";
+  room: {
+    name: string;
+    status: RoomStatus;
+    url: string | null;
+    previewUrl: string | null;
+    limits: { memoryMb: number; cpus: number };
+    usage: RoomUsage | null;
+    occupant: Person | null;
+  };
+  settings: {
+    project: string | null;
+    projectDescription: string | null;
+    branch: string | null;
+    buildPath: string;
+    port: number | null;
+    source: string | null;
+  };
+  github: { fullName: string; url: string } | null;
+  secrets: { name: string; updatedAt: string }[];
+  secretsEnabled: boolean;
+  deployments: {
+    id: string;
+    kind: "prod" | "preview";
+    ref: string;
+    status: string;
+    detail: string | null;
+    prNumber: number | null;
+    createdAt: string;
+    updatedAt: string;
+  }[];
+}

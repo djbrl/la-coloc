@@ -1,7 +1,7 @@
 import type { ApiToAgent } from "@coloc/protocol";
 import { mkdir } from "node:fs/promises";
 import { loadConfig } from "./config";
-import { deploy, removeRoom, snapshot } from "./deploy";
+import { deploy, removePreview, removeRoom, restartRoom, roomLogs, snapshot } from "./deploy";
 import { watchRoomEvents } from "./events";
 import { connect } from "./link";
 import { sampleRooms } from "./meter";
@@ -43,6 +43,19 @@ async function main() {
         break;
       case "remove_room":
         enqueue(cmd.room, () => removeRoom(cfg, cmd.room));
+        break;
+      case "remove_preview":
+        enqueue(cmd.room, () => removePreview(cfg, cmd.room));
+        break;
+      case "restart_room":
+        console.log(`[restart] ${cmd.room}`);
+        enqueue(cmd.room, () => restartRoom(cmd.room).catch((e) => console.error(`[restart] ${cmd.room}: ${e.message}`)));
+        break;
+      case "get_logs":
+        // Not queued: reading logs never waits behind a build.
+        roomLogs(cmd.room, cmd.kind, cmd.lines)
+          .then((text) => link.send({ type: "logs", requestId: cmd.requestId, room: cmd.room, text }))
+          .catch((e) => link.send({ type: "logs", requestId: cmd.requestId, room: cmd.room, text: "", error: (e as Error).message }));
         break;
     }
   }, () => void sendSnapshot());

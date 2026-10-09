@@ -4,6 +4,7 @@ import { parseAgentToApi } from "@coloc/protocol";
 import type WebSocket from "ws";
 import { HousesService } from "../houses/houses.service";
 import { AgentRegistry } from "./agent.registry";
+import { LogsBroker } from "./logs.broker";
 
 const HELLO_TIMEOUT_MS = 5000;
 
@@ -16,6 +17,7 @@ export class AgentsGateway implements OnGatewayConnection {
   constructor(
     private readonly houses: HousesService,
     private readonly registry: AgentRegistry,
+    private readonly logs: LogsBroker,
   ) {}
 
   handleConnection(socket: WebSocket) {
@@ -76,6 +78,9 @@ export class AgentsGateway implements OnGatewayConnection {
         break;
       case "rooms_snapshot":
         await this.houses.applySnapshot(houseId, msg);
+        break;
+      case "logs":
+        this.logs.deliver(houseId, msg);
         break;
     }
   }

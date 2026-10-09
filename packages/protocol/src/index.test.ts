@@ -27,6 +27,13 @@ describe("protocol", () => {
     }
   });
 
+  it("bounds log requests and replies", () => {
+    const req = parseApiToAgent(JSON.stringify({ type: "get_logs", requestId: "r1", room: "jib" }));
+    expect(req).toMatchObject({ kind: "prod", lines: 200 });
+    expect(() => parseApiToAgent(JSON.stringify({ type: "get_logs", requestId: "r1", room: "jib", lines: 100000 }))).toThrow();
+    expect(() => parseAgentToApi(JSON.stringify({ type: "logs", requestId: "r1", room: "jib", text: "x".repeat(300_000) }))).toThrow();
+  });
+
   it("rejects unknown message types", () => {
     expect(() => parseAgentToApi(JSON.stringify({ type: "rm_rf" }))).toThrow();
   });

@@ -24,6 +24,10 @@ export async function routeTo(cfg: AgentConfig, room: string, kind: DeployKind, 
   await new Promise((r) => setTimeout(r, cfg.routeSettleMs));
 }
 
+export async function unroute(cfg: AgentConfig, room: string, kind: DeployKind): Promise<void> {
+  await rm(routeFile(cfg, room, kind), { force: true });
+}
+
 export async function unrouteRoom(cfg: AgentConfig, room: string): Promise<void> {
   await Promise.all((["prod", "preview"] as const).map((kind) => rm(routeFile(cfg, room, kind), { force: true })));
 }

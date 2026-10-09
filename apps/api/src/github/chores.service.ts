@@ -36,6 +36,8 @@ export interface GhEvent {
     user: GhUser;
     merged?: boolean;
     base?: { ref: string };
+    // Where the changes come from. A different repo id than `repository` means a fork.
+    head?: { ref: string; sha?: string; repo?: { id: number } | null };
   };
   review?: { state: string; user: GhUser };
 }

@@ -8,11 +8,12 @@ import {
   imageExposedPorts,
   lastLogs,
   removeContainer,
+  retiring,
   roomContainers,
   waitHealthy,
 } from "./docker";
 import { resolveInside, shallowClone } from "./git";
-import { routeTo, unrouteRoom } from "./proxy";
+import { routeTo, unroute, unrouteRoom } from "./proxy";
 import { LABEL, containerName, resolvePort, roomContainerSpec, roomHost } from "./room-spec";
 
 type Report = (s: Omit<DeployStatus, "type" | "deployId" | "room">) => void;
@@ -87,6 +88,32 @@ export async function removeRoom(cfg: AgentConfig, room: string): Promise<void> 
   await unrouteRoom(cfg, room);
   const containers = await roomContainers(room);
   await Promise.all(containers.map((c) => removeContainer(c.Id)));
+}
+
+/** The pull request closed: its preview leaves. The room's real app isn't touched. */
+export async function removePreview(cfg: AgentConfig, room: string): Promise<void> {
+  await unroute(cfg, room, "preview");
+  const previews = await roomContainers(room, "preview");
+  await Promise.all(previews.map((c) => removeContainer(c.Id)));
+}
+
+/** Restarts what runs in a room, without rebuilding. Its stop and start aren't reported as a crash. */
+export async function restartRoom(room: string): Promise<void> {
+  const running = await roomContainers(room, "prod");
+  for (const c of running) {
+    retiring.add(c.Id);
+    setTimeout(() => retiring.delete(c.Id), 60_000).unref();
+    await docker.getContainer(c.Id).restart({ t: 10 });
+  }
+}
+
+/** The last lines the room's app printed (stdout and stderr), newest last. */
+export async function roomLogs(room: string, kind: DeployKind, lines: number): Promise<string> {
+  const containers = (await roomContainers(room, kind)).sort((a, b) => b.Created - a.Created);
+  if (!containers.length) return "";
+  const text = await lastLogs(docker.getContainer(containers[0].Id), lines);
+  // The protocol caps a reply; keep the end, it's what people want.
+  return text.length > 250_000 ? text.slice(-250_000) : text;
 }
 
 export function roomOf(labels: Record<string, string> | undefined): string | undefined {

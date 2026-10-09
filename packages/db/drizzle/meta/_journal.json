@@ -29,6 +29,13 @@
       "when": 1791518393945,
       "tag": "0003_deploy_on_merge",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791519308026,
+      "tag": "0004_room_settings",
+      "breakpoints": true
     }
   ]
 }

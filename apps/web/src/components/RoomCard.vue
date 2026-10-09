@@ -17,10 +17,6 @@ const props = defineProps<{
   ledger?: { given: number; received: number };
 }>();
 
-const repo = ref("");
-const path = ref(".");
-const sending = ref(false);
-const message = ref("");
 const router = useRouter();
 const knocking = ref(false);
 const knockMessage = ref("");
@@ -37,21 +33,6 @@ const memory = computed(() => {
   if (!u || !u.memoryLimitBytes) return null;
   return { mb: Math.round(u.memoryBytes / 1048576), pct: Math.min(100, Math.round((u.memoryBytes / u.memoryLimitBytes) * 100)) };
 });
-
-async function deploy() {
-  message.value = "";
-  if (!repo.value.trim()) {
-    message.value = "Enter a repo URL first.";
-    return;
-  }
-  sending.value = true;
-  const res = await postJSON(`/api/houses/${props.houseId}/rooms/${props.room.name}/deploy`, {
-    repo: repo.value.trim(),
-    path: path.value.trim() || ".",
-  });
-  sending.value = false;
-  if (!res.ok) message.value = res.message;
-}
 
 async function knock() {
   knockError.value = "";
@@ -99,13 +80,9 @@ async function knock() {
         {{ room.limits.memoryMb }} MB · {{ room.limits.cpus }} CPU<template v-if="room.usage"> · using {{ room.usage.cpuPercent.toFixed(1) }}% CPU, {{ memory?.mb }} MB</template>
       </p>
 
-      <form v-if="canDeploy && houseStatus === 'live'" class="deploy" @submit.prevent="deploy">
-        <p class="label">{{ mine ? "Deploy your room" : `Deploy ${room.occupant.name ?? room.name}'s room (chef)` }}</p>
-        <input v-model="repo" placeholder="https://github.com/you/your-app.git" aria-label="Repo URL" @input="message = ''" />
-        <input v-model="path" placeholder="sub-folder (.)" aria-label="Sub-folder" />
-        <button class="primary" :disabled="sending || !agentOnline">{{ sending ? "Sending…" : agentOnline ? "Deploy main" : "Server offline" }}</button>
-        <p v-if="message" class="message" role="alert">{{ message }}</p>
-      </form>
+      <RouterLink v-if="canDeploy && houseStatus === 'live'" class="manage" :to="`/houses/${houseId}/rooms/${room.name}`">
+        {{ mine ? "Manage your room" : "Manage as chef" }} →
+      </RouterLink>
     </template>
 
     <template v-else>
@@ -153,8 +130,7 @@ a { font-size: 13px; word-break: break-all; }
 .fill { height: 100%; background: var(--live); transition: width 0.4s; }
 .fill.high { background: var(--warn); }
 .limits { margin: 0; font-size: 12px; }
-.deploy { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
-.label { margin: 0; font-size: 12px; color: var(--muted); }
+.manage { padding-top: 8px; border-top: 1px solid var(--border); font-size: 14px; font-weight: 600; text-decoration: none; }
 .message { margin: 0; font-size: 13px; color: var(--danger); }
 .ad { margin: 0; }
 .knock { justify-self: start; }
