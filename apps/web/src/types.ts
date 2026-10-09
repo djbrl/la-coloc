@@ -52,6 +52,48 @@ export interface Viewer {
   member: boolean;
   role: MemberRole | null;
   room: string | null;
+  // Their open knock on this house, if any.
+  application: string | null;
+}
+
+export interface Message {
+  id: string;
+  // Null: the house itself ("Fatou knocked", "the house said yes").
+  author: Person | null;
+  body: string;
+  at: string;
+}
+
+export interface VoteTally {
+  flatmates: number;
+  yes: number;
+  no: number;
+  needed: number;
+}
+
+export interface DoorbellItem {
+  id: string;
+  room: string;
+  applicant: Person;
+  tally: VoteTally;
+  createdAt: string;
+}
+
+export interface Application {
+  id: string;
+  house: { id: string; name: string; city: string };
+  room: string;
+  applicant: Person;
+  message: string;
+  repo: string | null;
+  status: "open" | "admitted" | "declined" | "withdrawn";
+  createdAt: string;
+  decidedAt: string | null;
+  tally: VoteTally;
+  // Flatmates see who voted what; the applicant only the counts.
+  votes: { voter: Person; yes: boolean }[] | null;
+  viewer: { login: string; as: "applicant" | "flatmate"; vote: boolean | null };
+  messages: Message[];
 }
 
 export interface HouseView {
@@ -73,6 +115,8 @@ export interface HouseView {
   // Flatmates only; null for everyone else.
   deployments: Deployment[] | null;
   notes: FridgeNote[] | null;
+  doorbell: DoorbellItem[] | null;
+  channel: Message[] | null;
 }
 
 export interface CityHouse {

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  applications,
   type Db,
   deployments,
   fridgeNotes,
@@ -15,8 +16,9 @@ import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
+import { channelMessages, houseChannel, openDoorbell } from "../doorbell/queries";
 import { type Draft, noteForDeploy, noteForRoomEvent } from "./fridge";
-import type { CityView, DeploymentView, FridgeNoteView, HouseView, PersonView, RoomUsage } from "./house.types";
+import type { CityView, DeploymentView, DoorbellItem, FridgeNoteView, HouseView, MessageView, PersonView, RoomUsage } from "./house.types";
 
 const NOTE_COLLAPSE_MS = 10 * 60 * 1000;
 const RECENT = 20;
@@ -184,11 +186,22 @@ export class HousesService {
 
     let recentDeployments: DeploymentView[] | null = null;
     let notes: FridgeNoteView[] | null = null;
+    let doorbell: DoorbellItem[] | null = null;
+    let channel: MessageView[] | null = null;
+    let myApplication: string | null = null;
     if (mine) {
       const ds = await this.db.select().from(deployments).where(eq(deployments.houseId, houseId)).orderBy(desc(deployments.createdAt)).limit(RECENT);
       const ns = await this.db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, houseId)).orderBy(desc(fridgeNotes.at)).limit(RECENT);
       recentDeployments = ds.map(deploymentView);
       notes = ns.map((n) => ({ id: n.id, tone: n.tone, text: n.text, room: n.room, at: n.at.toISOString(), count: n.count }));
+      doorbell = await openDoorbell(this.db, houseId, h.memberships.length);
+      channel = await channelMessages(this.db, houseChannel(houseId));
+    } else if (viewerId) {
+      const [app] = await this.db
+        .select({ id: applications.id })
+        .from(applications)
+        .where(and(eq(applications.houseId, houseId), eq(applications.applicantId, viewerId), eq(applications.status, "open")));
+      myApplication = app?.id ?? null;
     }
 
     return {
@@ -222,10 +235,13 @@ export class HousesService {
             member: !!mine,
             role: mine?.role ?? null,
             room: h.rooms.find((r) => r.occupantId === viewerId)?.name ?? null,
+            application: myApplication,
           }
         : null,
       deployments: recentDeployments,
       notes,
+      doorbell,
+      channel,
     };
   }
 
@@ -255,6 +271,12 @@ export class HousesService {
     if (!userId) return roomName;
     const [u] = await this.db.select({ name: users.name, login: users.login }).from(users).where(eq(users.id, userId));
     return u?.name ?? u?.login ?? roomName;
+  }
+
+  // Pins a note on a house's fridge door (collapsing repeats) and tells live pages.
+  async note(houseId: string, draft: Draft) {
+    await this.addNote(houseId, draft);
+    this.changes.next(houseId);
   }
 
   private async addNote(houseId: string, draft: Draft) {

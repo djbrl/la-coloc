@@ -54,6 +54,8 @@ export interface ViewerView {
   role: MemberRole | null;
   // The room this viewer lives in, if any: the one they can deploy to.
   room: string | null;
+  // Their open knock on this house, if they have one.
+  application: string | null;
 }
 
 // The house profile. Public: anyone can see who lives there and what they're building.
@@ -76,6 +78,9 @@ export interface HouseView {
   viewer: ViewerView | null;
   deployments: DeploymentView[] | null;
   notes: FridgeNoteView[] | null;
+  // Flatmates only: who's knocking, and the living-room chat.
+  doorbell: DoorbellItem[] | null;
+  channel: MessageView[] | null;
 }
 
 // One house as the city shows it: enough to draw it and decide whether to open it.
@@ -94,4 +99,46 @@ export interface CityHouseView {
 
 export interface CityView {
   houses: CityHouseView[];
+}
+
+export interface MessageView {
+  id: string;
+  // Null: the house itself speaking (someone knocked, the vote's result).
+  author: PersonView | null;
+  body: string;
+  at: string;
+}
+
+export interface VoteTally {
+  flatmates: number;
+  yes: number;
+  no: number;
+  // Yes votes needed: a strict majority of flatmates.
+  needed: number;
+}
+
+// An open knock, as the house sees it on its page.
+export interface DoorbellItem {
+  id: string;
+  room: string;
+  applicant: PersonView;
+  tally: VoteTally;
+  createdAt: string;
+}
+
+export interface ApplicationView {
+  id: string;
+  house: { id: string; name: string; city: string };
+  room: string;
+  applicant: PersonView;
+  message: string;
+  repo: string | null;
+  status: "open" | "admitted" | "declined" | "withdrawn";
+  createdAt: string;
+  decidedAt: string | null;
+  tally: VoteTally;
+  // Who voted what: flatmates see names, the applicant only sees the counts.
+  votes: { voter: PersonView; yes: boolean }[] | null;
+  viewer: { login: string; as: "applicant" | "flatmate"; vote: boolean | null };
+  messages: MessageView[];
 }

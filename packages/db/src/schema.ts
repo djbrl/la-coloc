@@ -2,7 +2,7 @@
 // Durable things live here. Live-only things (is the agent online, the latest CPU reading, who's looking at
 // the city right now) stay in the API's memory and are rebuilt when an agent reconnects.
 import { relations } from "drizzle-orm";
-import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
@@ -145,6 +145,53 @@ export const usageSamples = pgTable(
   (t) => [index("usage_samples_house_at").on(t.houseId, t.at)],
 );
 
+export type ApplicationStatus = "open" | "admitted" | "declined" | "withdrawn";
+
+// Someone knocked on a free room. The house chats with them in the application's thread, then votes.
+export const applications = pgTable(
+  "applications",
+  {
+    id: text("id").primaryKey(),
+    houseId: text("house_id").notNull().references(() => houses.id, { onDelete: "cascade" }),
+    room: text("room").notNull(),
+    applicantId: uuid("applicant_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    // What they'd build in the room.
+    message: text("message").notNull(),
+    repo: text("repo"),
+    status: text("status").$type<ApplicationStatus>().notNull().default("open"),
+    createdAt: createdAt(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [index("applications_house").on(t.houseId, t.status)],
+);
+
+// One vote per flatmate per application. A flatmate may change their mind until it's decided.
+export const votes = pgTable(
+  "votes",
+  {
+    applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+    voterId: uuid("voter_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    yes: boolean("yes").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.applicationId, t.voterId] })],
+);
+
+// Chat. A channel is either a house's living room ("house:<id>") or an application's thread ("application:<id>").
+export const messages = pgTable(
+  "messages",
+  {
+    // Increasing, so a channel reads in the order things were said (timestamps can tie inside a transaction).
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    channel: text("channel").notNull(),
+    // Null: said by the house itself ("Fatou knocked", "the house said yes").
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("messages_channel_id").on(t.channel, t.id)],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({ memberships: many(memberships) }));
 export const housesRelations = relations(houses, ({ many, one }) => ({
   rooms: many(rooms),
@@ -158,4 +205,16 @@ export const roomsRelations = relations(rooms, ({ one }) => ({
 export const membershipsRelations = relations(memberships, ({ one }) => ({
   house: one(houses, { fields: [memberships.houseId], references: [houses.id] }),
   user: one(users, { fields: [memberships.userId], references: [users.id] }),
+}));
+export const applicationsRelations = relations(applications, ({ one, many }) => ({
+  house: one(houses, { fields: [applications.houseId], references: [houses.id] }),
+  applicant: one(users, { fields: [applications.applicantId], references: [users.id] }),
+  votes: many(votes),
+}));
+export const votesRelations = relations(votes, ({ one }) => ({
+  application: one(applications, { fields: [votes.applicationId], references: [applications.id] }),
+  voter: one(users, { fields: [votes.voterId], references: [users.id] }),
+}));
+export const messagesRelations = relations(messages, ({ one }) => ({
+  author: one(users, { fields: [messages.authorId], references: [users.id] }),
 }));

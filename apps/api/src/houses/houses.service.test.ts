@@ -86,11 +86,11 @@ describe("the house profile", () => {
     expect(visitor.viewer).toBeNull();
 
     const stranger = (await svc.view("sacre-coeur", await userId("koffi")))!;
-    expect(stranger.viewer).toEqual({ login: "koffi", member: false, role: null, room: null });
+    expect(stranger.viewer).toEqual({ login: "koffi", member: false, role: null, room: null, application: null });
     expect(stranger.notes).toBeNull();
 
     const awa = (await svc.view("sacre-coeur", await userId("awa")))!;
-    expect(awa.viewer).toEqual({ login: "awa", member: true, role: "flatmate", room: "awa" });
+    expect(awa.viewer).toEqual({ login: "awa", member: true, role: "flatmate", room: "awa", application: null });
     expect(awa.notes).toHaveLength(1);
   });
 

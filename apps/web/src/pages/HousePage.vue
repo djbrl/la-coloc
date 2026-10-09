@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import Avatar from "../components/Avatar.vue";
+import ChatPanel from "../components/ChatPanel.vue";
 import FridgeDoor from "../components/FridgeDoor.vue";
 import RoomCard from "../components/RoomCard.vue";
 import type { HouseView } from "../types";
@@ -78,11 +79,27 @@ const fcfa = (n: number) => n.toLocaleString("fr-FR") + " FCFA";
         :key="room.name"
         :house-id="house.id"
         :house-status="house.status"
+        :house-demo="house.demo"
         :room="room"
         :agent-online="house.agentOnline"
         :viewer="house.viewer"
         :chef-login="house.chef?.login ?? null"
       />
+    </section>
+
+    <section v-if="house.viewer?.member && house.doorbell?.length" class="doorbell">
+      <h2>At the door</h2>
+      <RouterLink v-for="d in house.doorbell" :key="d.id" :to="`/applications/${d.id}`" class="knocker">
+        <Avatar :person="d.applicant" :size="28" />
+        <span><strong>{{ d.applicant.name ?? d.applicant.login }}</strong> knocked on {{ d.room }}</span>
+        <span class="pill">{{ d.tally.yes }}/{{ d.tally.needed }} yes</span>
+        <span class="go">Answer →</span>
+      </RouterLink>
+    </section>
+
+    <section v-if="house.viewer?.member" class="living">
+      <h2>Living room</h2>
+      <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="house.viewer.login" />
     </section>
 
     <section v-if="house.viewer?.member" class="lower">
@@ -124,4 +141,8 @@ const fcfa = (n: number) => n.toLocaleString("fr-FR") + " FCFA";
 .deploys li { padding: 6px 0; border-bottom: 1px solid var(--border); }
 .why { margin: 2px 0 0; color: var(--danger); }
 .private { font-size: 13px; }
+.doorbell { display: grid; gap: 8px; margin-bottom: 24px; }
+.knocker { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); color: var(--text); text-decoration: none; flex-wrap: wrap; }
+.knocker .go { margin-left: auto; color: var(--accent); font-weight: 600; }
+.living { margin-bottom: 24px; }
 </style>

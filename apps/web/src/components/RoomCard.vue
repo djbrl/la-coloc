@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 import { postJSON } from "../session";
 import type { HouseStatus, Room, Viewer } from "../types";
 import Avatar from "./Avatar.vue";
@@ -7,6 +8,7 @@ import Avatar from "./Avatar.vue";
 const props = defineProps<{
   houseId: string;
   houseStatus: HouseStatus;
+  houseDemo: boolean;
   room: Room;
   agentOnline: boolean;
   viewer: Viewer | null;
@@ -17,7 +19,11 @@ const repo = ref("");
 const path = ref(".");
 const sending = ref(false);
 const message = ref("");
-const knockNote = ref("");
+const router = useRouter();
+const knocking = ref(false);
+const knockMessage = ref("");
+const knockRepo = ref("");
+const knockError = ref("");
 
 const mine = computed(() => props.viewer?.room === props.room.name);
 // The chef can deploy into any room; everyone else only into their own.
@@ -45,9 +51,24 @@ async function deploy() {
   if (!res.ok) message.value = res.message;
 }
 
-function knock() {
-  // The doorbell (knock → chat with the house → vote) is next on the roadmap.
-  knockNote.value = "Knocking opens with the doorbell, coming next.";
+async function knock() {
+  knockError.value = "";
+  if (!knockMessage.value.trim()) {
+    knockError.value = "Say what you'd build in this room.";
+    return;
+  }
+  const repo = knockRepo.value.trim();
+  if (repo && !repo.startsWith("https://")) {
+    knockError.value = "The repo link should start with https://";
+    return;
+  }
+  const res = await postJSON<{ id: string }>(`/api/houses/${props.houseId}/knock`, {
+    room: props.room.name,
+    message: knockMessage.value.trim(),
+    repo: repo || null,
+  });
+  if (res.ok) router.push(`/applications/${res.data.id}`);
+  else knockError.value = res.message;
 }
 </script>
 
@@ -94,9 +115,19 @@ function knock() {
       </header>
       <p class="ad">{{ room.ad ?? "Open to anyone who ships." }}</p>
       <template v-if="!viewer?.member">
-        <RouterLink v-if="!viewer" class="knock" to="/login">Log in to knock</RouterLink>
-        <button v-else class="knock" @click="knock">Knock</button>
-        <p v-if="knockNote" class="muted small">{{ knockNote }}</p>
+        <p v-if="houseDemo" class="muted small">Demo house: nobody lives here to answer the door.</p>
+        <RouterLink v-else-if="!viewer" class="knock" to="/login">Log in to knock</RouterLink>
+        <RouterLink v-else-if="viewer.application" class="knock" :to="`/applications/${viewer.application}`">You knocked: open the thread</RouterLink>
+        <button v-else-if="!knocking" class="knock primary" @click="knocking = true">Knock</button>
+        <form v-else class="knock-form" @submit.prevent="knock">
+          <textarea v-model="knockMessage" rows="3" maxlength="2000" placeholder="Who you are, and what you'd build in this room" aria-label="Your note to the house" @input="knockError = ''" />
+          <input v-model="knockRepo" placeholder="https://github.com/you/your-app (optional)" aria-label="Your repo" />
+          <div class="row">
+            <button type="button" @click="knocking = false">Cancel</button>
+            <button class="primary">Send knock</button>
+          </div>
+          <p v-if="knockError" class="message" role="alert">{{ knockError }}</p>
+        </form>
       </template>
     </template>
   </article>
@@ -125,4 +156,7 @@ a { font-size: 13px; word-break: break-all; }
 .knock { justify-self: start; }
 a.knock { font-size: 14px; }
 .small { margin: 0; font-size: 12px; }
+.knock-form { display: grid; gap: 6px; }
+.knock-form textarea { font: inherit; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); resize: vertical; }
+.row { display: flex; gap: 6px; justify-content: flex-end; }
 </style>

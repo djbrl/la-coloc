@@ -1,6 +1,7 @@
 import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
+import ApplicationPage from "./pages/ApplicationPage.vue";
 import CityPage from "./pages/CityPage.vue";
 import HousePage from "./pages/HousePage.vue";
 import LoginPage from "./pages/LoginPage.vue";
@@ -12,6 +13,7 @@ const router = createRouter({
   routes: [
     { path: "/", component: CityPage },
     { path: "/houses/:id", component: HousePage, props: true },
+    { path: "/applications/:id", component: ApplicationPage, props: true },
     { path: "/login", component: LoginPage },
   ],
   scrollBehavior: () => ({ top: 0 }),
