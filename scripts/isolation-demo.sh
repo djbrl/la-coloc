@@ -1,20 +1,26 @@
 #!/usr/bin/env bash
 # Proves the walls hold: Moussa's app eats memory until it's killed, Jib's app never notices.
-# Needs the proxy, API and agent running (see docs/dev.md).
+# Needs the proxy, database, API (with COLOC_DEV_LOGIN=1) and agent running (see docs/dev.md).
 set -euo pipefail
 
 API=${API:-http://127.0.0.1:4100/api/houses/sacre-coeur}
 REPO=${REPO:-file://$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)}
 JIB=http://jib.coloc.localhost:8000
+COOKIES=$(mktemp)
+trap 'rm -f "$COOKIES"' EXIT
+
+# Log in as Jib, the chef: the chef may deploy into any room of the house.
+curl -sf -c "$COOKIES" -X POST "${API%/houses/*}/auth/dev-login" -H 'Content-Type: application/json' -d '{"login":"jib"}' > /dev/null \
+  || { echo "dev login failed: start the API with COLOC_DEV_LOGIN=1"; exit 1; }
 
 deploy() {
-  curl -sf -X POST "$API/rooms/$1/deploy" -H 'Content-Type: application/json' \
+  curl -sf -b "$COOKIES" -X POST "$API/rooms/$1/deploy" -H 'Content-Type: application/json' \
     -d "{\"repo\":\"$REPO\",\"path\":\"$2\"}" > /dev/null
 }
 
 wait_live() {
   for _ in $(seq 1 90); do
-    status=$(curl -s "$API" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const r=JSON.parse(s).rooms.find(r=>r.name==='$1');console.log(r.status)})")
+    status=$(curl -s -b "$COOKIES" "$API" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const r=JSON.parse(s).rooms.find(r=>r.name==='$1');console.log(r.status)})")
     [ "$status" = live ] && return 0
     [ "$status" = failed ] && { echo "$1 failed to deploy"; exit 1; }
     sleep 2
@@ -42,6 +48,6 @@ restarts=$(docker inspect -f '{{.RestartCount}}' $(docker ps -aq --filter label=
 echo "  Jib's failed requests: $fails / 45"
 echo "  Moussa's container restarts: $restarts"
 echo "→ Fridge door:"
-curl -s "$API" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>JSON.parse(s).notes.slice(0,5).forEach(n=>console.log('   ['+n.tone+'] '+n.text)))"
+curl -s -b "$COOKIES" "$API" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>JSON.parse(s).notes.slice(0,5).forEach(n=>console.log('   ['+n.tone+'] '+n.text)))"
 
 [ "$fails" -eq 0 ] && [ "$restarts" -gt 0 ] && echo "PASS: the walls held." || { echo "FAIL"; exit 1; }

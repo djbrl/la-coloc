@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Logger, Post, Query, Req, Res, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Logger, Post, Query, Req, Res } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { AuthService, SESSION_COOKIE, SESSION_DAYS, STATE_COOKIE } from "./auth.service";
@@ -70,16 +70,18 @@ export class AuthController {
     return { ok: true };
   }
 
-  // Who am I, and where do I live.
+  // Who am I, and where do I live. Logged out isn't an error here: `user` is just null.
   @Get("me")
   async me(@Req() req: HttpRequest) {
     const user = await this.auth.userFromRequest(req);
-    if (!user) throw new UnauthorizedException();
+    if (!user) return { user: null };
     return {
-      login: user.login,
-      name: user.name,
-      avatarUrl: user.avatarUrl,
-      houses: await this.memberships.housesOf(user.id),
+      user: {
+        login: user.login,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+        houses: await this.memberships.housesOf(user.id),
+      },
     };
   }
 
