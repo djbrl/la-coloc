@@ -36,6 +36,36 @@ function shadows(root: THREE.Object3D) {
   });
 }
 
+export const SHOPS = "abcdefghijklmn".split("").map((l) => `/lobby/city/building-${l}.glb`);
+export const TOWERS = "abcde".split("").map((l) => `/lobby/city/building-skyscraper-${l}.glb`);
+export const SKYLINE = [..."abcdefghijklmn".split("").map((l) => `/lobby/city/low-detail-building-${l}.glb`), "/lobby/city/low-detail-building-wide-a.glb", "/lobby/city/low-detail-building-wide-b.glb"];
+export const TREES = ["/lobby/houses/tree-large.glb", "/lobby/houses/tree-small.glb"];
+export const PARASOLS = ["/lobby/city/detail-parasol-a.glb", "/lobby/city/detail-parasol-b.glb"];
+export const STREET = {
+  trafficLight: "/lobby/street/traffic-light.glb",
+  cone: "/lobby/street/construction-cone.glb",
+  fence: "/lobby/street/construction-fence.glb",
+  barrier: "/lobby/street/construction-barrier.glb",
+};
+
+/**
+ * Any model, scaled so its bigger side is `size` units (or its height, with `by: "height"`), standing on y = 0,
+ * centred on its footprint, front facing +z. Copies share geometry and materials, so a hundred trees cost little.
+ */
+export async function loadModel(url: string, size: number, by: "footprint" | "height" = "footprint"): Promise<THREE.Group> {
+  const { scene } = await load(url);
+  const model = scene.clone(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const dims = box.getSize(new THREE.Vector3());
+  model.scale.setScalar(size / (by === "height" ? dims.y : Math.max(dims.x, dims.z)));
+  const fitted = new THREE.Box3().setFromObject(model);
+  model.position.set(-(fitted.min.x + fitted.max.x) / 2, -fitted.min.y, -(fitted.min.z + fitted.max.z) / 2);
+  shadows(model);
+  const wrap = new THREE.Group();
+  wrap.add(model);
+  return wrap;
+}
+
 /** A house model about `width` units wide, standing on y = 0, centred, front facing +z. */
 export async function loadHouse(houseId: string, width: number): Promise<THREE.Object3D> {
   const { scene } = await load(pick(HOUSES, houseId));

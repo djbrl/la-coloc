@@ -1,12 +1,14 @@
-// The city as a walkable lobby: an isometric neighbourhood at dusk, your character, the flatmates hanging around
-// their houses, and everyone else who's online, live. Walk up to a door and press E to go in; walk up to a street
-// lamp and press E to light it. Pure three.js; Vue only mounts it and draws what sits on top.
+// The city as a walkable lobby: one neighbourhood at a time, generated from its city's name (see neighbourhood.ts),
+// at dusk. Your character, the flatmates hanging around their houses, and everyone else who's online in this
+// neighbourhood, live. Walk up to a door and press E to go in; walk up to a lamp and press E to light it; click
+// someone to see who they are. Pure three.js; Vue only mounts it and draws what sits on top.
 import * as THREE from "three";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import type { CityHouse } from "../types";
-import { PLOT, plots, rowCount, STREET_OFFSET } from "./layout";
-import { loadHouse, loadPerson, type Person } from "./assets";
-import { colorFor, disposeTree, type HouseModel, makeAvatar, makeHouse, makeRoomBoard, PALETTE } from "./models";
+import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
+import { colorFor, disposeTree, makeAvatar, makeHouse, makeRoomBoard } from "./models";
+import { type Facing, FACING_DIR, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
+import { groundMaterial, textures } from "./textures";
 
 const SPEED = 6; // units per second
 const RADIUS = 0.4; // how wide a person is, for bumping into walls
@@ -14,11 +16,21 @@ const REACH = 1.6; // how close you stand to use a door or a lamp
 // Far back along the isometric angle: an orthographic view looks the same from any distance, and a full-height
 // screen reaches ground that a closer camera would clip.
 const CAMERA_OFFSET = new THREE.Vector3(42, 48, 42);
-const ZOOM = { min: 7, max: 22, start: 12 }; // half the view's width, in world units
+const ZOOM = { min: 7, max: 26, start: 13 }; // half the view's width, in world units
 const LAMP_LIGHT = 0xffc078;
+const TAG_RANGE = 10; // people's name tags show within this distance of you
+const NOBODY = 0xd8d8de; // the ring colour of someone without a house
 
 export type Emote = "yes" | "no";
 export type Nearby = { kind: "door"; house: CityHouse } | { kind: "lamp"; on: boolean } | null;
+
+// Who someone is, for their ring colour and the card you get by clicking them.
+export interface Resident {
+  houseId: string;
+  houseName: string;
+  room: string;
+  project: string | null;
+}
 
 export interface LobbyEvents {
   onNear(thing: Nearby): void;
@@ -27,6 +39,8 @@ export interface LobbyEvents {
   onMove(state: { x: number; z: number; ry: number; moving: boolean }): void;
   // Which lamps are lit, by id, after you switch one.
   onLamps(lit: string[]): void;
+  // Someone was clicked.
+  onPerson(login: string, name: string): void;
 }
 
 export interface LobbyOptions {
@@ -37,13 +51,18 @@ export interface LobbyOptions {
   litLamps: string[];
 }
 
+interface Box {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
 interface Placed {
   house: CityHouse;
-  model: HouseModel;
-  // Footprint in world space, for collisions.
-  min: THREE.Vector2;
-  max: THREE.Vector2;
+  group: THREE.Group;
   door: THREE.Vector3;
+  box: Box;
   npcs: Npc[];
 }
 
@@ -54,6 +73,7 @@ interface Npc {
   home: THREE.Vector3;
   target: THREE.Vector3;
   wait: number;
+  tag: HTMLElement;
 }
 
 interface Remote {
@@ -62,6 +82,7 @@ interface Remote {
   target: THREE.Vector3;
   ry: number;
   moving: boolean;
+  tag: HTMLElement;
 }
 
 interface Lamp {
@@ -71,6 +92,10 @@ interface Lamp {
   light: THREE.PointLight | null;
   on: boolean;
 }
+
+const yaw = (f: Facing) => (f * Math.PI) / 2;
+// (x, z) turned by angle `a` around y, the same way three.js turns an object by rotation.y = a.
+const rotate = (x: number, z: number, a: number) => new THREE.Vector3(x * Math.cos(a) + z * Math.sin(a), 0, -x * Math.sin(a) + z * Math.cos(a));
 
 export class Lobby {
   private renderer: THREE.WebGLRenderer;
@@ -82,8 +107,10 @@ export class Lobby {
   private playerPerson?: Person;
   private town = new THREE.Group();
   private placed: Placed[] = [];
+  private solids: Box[] = [];
   private npcs: Npc[] = [];
   private remotes = new Map<string, Remote>();
+  private residents = new Map<string, Resident>();
   private lamps: Lamp[] = [];
   private lit: Set<string>;
   private keys = new Set<string>();
@@ -95,17 +122,25 @@ export class Lobby {
   private resize: ResizeObserver;
   private zoom = ZOOM.start;
   private viewHalf = ZOOM.start;
-  // Set when the camera should jump to you rather than glide (first frame, first arrival in town).
-  private snap = true;
   private focus: number | null = null;
+  // The camera turns in quarter turns (Q / R); `angle` eases towards `turn × 90°`.
+  private turn = 0;
+  private angle = 0;
+  private lastOffset: THREE.Vector3 | null = null;
+  // Set when the camera should jump to you rather than glide (first frame, arriving in a neighbourhood).
+  private snap = true;
   private lastSent = { at: 0, key: "" };
   private sun: THREE.DirectionalLight;
-  // What the town was last built from, to skip rebuilds when nothing changed.
+  private builtCity = "";
   private builtFrom = "";
-  // Where you can walk: the town plus a margin.
   private bounds = { minX: -30, maxX: 30, minZ: -20, maxZ: 20 };
-  // Bumped on every rebuild, so models that finish loading late don't land in a town that's gone.
+  // Bumped on every rebuild, so models that finish loading late don't land in a neighbourhood that's gone.
   private generation = 0;
+  private tick = 0;
+  // The skyline's buildings: the ones between the camera and the town are hidden, so they never block the view.
+  private skyline: THREE.Object3D[] = [];
+  // Buildings that could stand between the camera and you: they fade while they do.
+  private occluders: { box: THREE.Box3; materials: THREE.Material[]; faded: boolean }[] = [];
 
   constructor(
     private host: HTMLElement,
@@ -120,18 +155,18 @@ export class Lobby {
     this.labels.domElement.className = "lobby-labels";
     host.appendChild(this.labels.domElement);
 
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 400);
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
     // Early evening: a lilac sky light, a low warm sun, and enough dark for the lamps to matter.
     this.scene.add(new THREE.HemisphereLight(0xe4dcff, 0x6a6488, 1.9));
     this.sun = new THREE.DirectionalLight(0xffc9a0, 2.1);
-    this.sun.position.set(18, 14, 6);
     this.sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(this.sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40 });
+    Object.assign(this.sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 200 });
     this.scene.add(this.sun, this.sun.target);
+    // The far skyline fades into the evening.
+    this.scene.fog = new THREE.Fog(0x9d8fc6, 95, 190);
     this.scene.add(this.town);
 
-    this.player = makeAvatar(opts.login ? colorFor(opts.login) : 0x2f5fb3);
-    this.player.add(this.label(opts.login ? `@${opts.login}` : "you", "lobby-label you", 1.75));
+    this.player = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : "you", "lobby-label you").avatar;
     this.scene.add(this.player);
     this.setCharacter(opts.character);
 
@@ -150,92 +185,100 @@ export class Lobby {
 
   // ---- What Vue tells the lobby ----
 
-  /** Builds (or rebuilds) the neighbourhood from the city. The player stays where they are. */
-  setCity(houses: CityHouse[]) {
+  /** Who lives where, across the whole city: rings and cards come from this. */
+  setResidents(residents: Map<string, Resident>) {
+    this.residents = residents;
+    this.paintRing(this.player, this.opts.login);
+    for (const n of this.npcs) this.paintRing(n.avatar, n.login);
+    for (const [login, r] of this.remotes) this.paintRing(r.avatar, login);
+  }
+
+  /** Builds a neighbourhood. Moving to another one puts you at its entrance. */
+  setNeighbourhood(n: Neighbourhood, houses: CityHouse[]) {
     // The city stream re-sends the city often. Only rebuild if what's drawn changed.
-    const key = JSON.stringify(houses.map((h) => [h.id, h.name, h.status, h.demo, h.rooms.map((r) => [r.status, r.occupant?.login ?? null])]));
+    const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.rooms.map((r) => [r.status, r.occupant?.login ?? null])])]);
     if (key === this.builtFrom) return;
+    const arriving = n.city !== this.builtCity;
+    this.builtCity = n.city;
     this.builtFrom = key;
     const gen = ++this.generation;
     removeLabels(this.town);
     disposeTree(this.town);
     this.town.clear();
     this.placed = [];
+    this.solids = [];
     this.npcs = [];
     this.lamps = [];
+    this.skyline = [];
+    this.occluders = [];
+    const rand = seeded(`decor:${n.city}`);
+    const tex = textures();
+    const { minX, maxX, minZ, maxZ } = n.bounds;
+    const width = maxX - minX;
+    const depth = maxZ - minZ;
+    this.bounds = { minX: minX - 2, maxX: maxX + 2, minZ: minZ - 2, maxZ: maxZ + 2 };
 
-    const rows = rowCount(houses.length);
-    const length = PLOT.perRow * PLOT.width + 10;
-    const depth = rows * PLOT.depth;
-    this.bounds = { minX: -length / 2 - 4, maxX: length / 2 + 4, minZ: -PLOT.depth / 2 - 2, maxZ: depth };
-    // Much bigger than the town, so the camera never sees the edge of the world.
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(length + 120, depth + 120), new THREE.MeshStandardMaterial({ color: 0x7fa06a, roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.z = ((rows - 1) * PLOT.depth) / 2;
-    ground.receiveShadow = true;
-    ground.name = "ground";
-    this.town.add(ground);
-    for (let r = 0; r < rows; r++) {
-      const z = r * PLOT.depth + STREET_OFFSET;
-      const street = new THREE.Mesh(new THREE.PlaneGeometry(length, 3.2), new THREE.MeshStandardMaterial({ color: PALETTE.street, roughness: 1 }));
-      street.rotation.x = -Math.PI / 2;
-      street.position.set(0, 0.01, z);
-      street.receiveShadow = true;
-      this.town.add(street);
-      // Lamps between the houses, on the near kerb: the far one hides behind the next row's roofs. Light them all.
-      for (let c = 0; c <= PLOT.perRow; c++) {
-        const x = (c - PLOT.perRow / 2) * PLOT.width;
-        this.addLamp(`${r}:${c}`, new THREE.Vector3(x, 0, z - 2.1));
+    // Grass to the horizon, asphalt under the whole town; blocks sit on top, a curb higher, ringed by sidewalk.
+    this.flat(tex.grass, 0, 0, width + 260, depth + 260, 4, -0.02).name = "ground";
+    this.flat(tex.asphalt, 0, 0, width, depth, 6, 0.0).name = "ground";
+    for (const b of n.blocks) {
+      const curb = new THREE.Mesh(new THREE.BoxGeometry(b.width + 1.6, 0.14, b.depth + 1.6), groundMaterial(tex.sidewalk, b.width + 1.6, b.depth + 1.6, 3));
+      curb.position.set(b.x, 0.07, b.z);
+      curb.receiveShadow = true;
+      curb.name = "ground";
+      this.town.add(curb);
+      const surface = b.kind === "market" ? tex.paving : b.kind === "park" ? tex.park : tex.grass;
+      this.flat(surface, b.x, b.z, b.width - 0.4, b.depth - 0.4, b.kind === "market" ? 4 : 5, 0.145).name = "ground";
+      if (b.kind === "market") this.market(b, rand, gen);
+      if (b.kind === "park") for (let i = 0; i < 9; i++) this.tree(b.x + (rand() - 0.5) * (b.width - 3), b.z + (rand() - 0.5) * (b.depth - 3), rand, gen);
+    }
+    this.streetMarkings(n);
+
+    // Houses, shops, towers and tree lots.
+    const byId = new Map(houses.map((h) => [h.id, h]));
+    for (const p of n.plots) {
+      const lot = p.lot;
+      if (lot.kind === "house") {
+        const house = byId.get(lot.houseId);
+        if (house) this.placeHouse(house, p.x, p.z, p.facing, gen);
+      } else if (lot.kind === "shop" || lot.kind === "tower") {
+        // Shop forecourts are paved; a tower stands on its own square.
+        this.flat(tex.paving, p.x, p.z, PLOT - 0.6, PLOT - 0.6, 4, 0.15).name = "ground";
+        const url = lot.kind === "shop" ? SHOPS[lot.variant] : TOWERS[lot.variant];
+        const size = lot.kind === "shop" ? 5.6 : 5.8;
+        this.solid(p.x, p.z, p.facing, size, size);
+        this.load(gen, loadModel(url, size), (m) => {
+          m.position.set(p.x, 0.14, p.z);
+          m.rotation.y = yaw(p.facing);
+          this.occluder(m);
+        });
+      } else {
+        for (let i = 0; i < lot.count; i++) this.tree(p.x + (rand() - 0.5) * (PLOT - 2.5), p.z + (rand() - 0.5) * (PLOT - 2.5), rand, gen);
       }
     }
 
-    plots(houses.length).forEach((plot, i) => {
-      const house = houses[i];
-      const model = makeHouse(house);
-      model.group.position.set(plot.x, 0, plot.z);
-      model.group.userData.houseId = house.id;
-      model.group.add(this.label(house.name, house.demo ? "lobby-label house demo" : "lobby-label house", 6.2));
-      this.town.add(model.group);
-      model.group.updateMatrixWorld(true);
-      const door = model.group.localToWorld(model.door.clone());
-      const placed: Placed = {
-        house,
-        model,
-        min: new THREE.Vector2(plot.x - model.halfWidth, plot.z - model.halfDepth),
-        max: new THREE.Vector2(plot.x + model.halfWidth, plot.z + model.halfDepth),
-        door,
-        npcs: [],
-      };
-      this.placed.push(placed);
-      if (house.status === "live") this.upgradeHouse(placed, gen);
+    // Lamps at the crossings (light them all), traffic lights at a few.
+    for (const l of n.lamps) this.addLamp(l.id, new THREE.Vector3(l.x, 0, l.z));
+    for (const t of n.trafficLights) {
+      this.load(gen, loadModel(STREET.trafficLight, 3.4, "height"), (m) => {
+        m.position.set(t.x, 0.14, t.z);
+        m.rotation.y = yaw(t.facing);
+      });
+    }
 
-      // The flatmates hang around in front of their house (unless they're online: then it's really them walking).
-      house.rooms
-        .filter((r) => r.occupant)
-        .forEach((r, k) => {
-          const login = r.occupant!.login;
-          const avatar = makeAvatar(colorFor(login));
-          const home = door.clone().add(new THREE.Vector3((k - 1) * 1.2, 0, 1.2));
-          avatar.position.copy(home);
-          avatar.add(this.label(r.occupant!.name ?? login, "lobby-label small", 1.6));
-          avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
-          this.town.add(avatar);
-          const npc: Npc = { login, avatar, home, target: home.clone(), wait: Math.random() * 3 };
-          this.npcs.push(npc);
-          placed.npcs.push(npc);
-          loadPerson(login)
-            .then((p) => {
-              if (gen !== this.generation) return;
-              npc.person = p;
-              this.dress(avatar, p);
-            })
-            .catch(() => undefined);
-        });
-    });
+    // The rest of the city, beyond the last street: seen, not walked.
+    for (const s of n.skyline) {
+      this.load(gen, loadModel(SKYLINE[s.variant], s.scale * 1.4, "height"), (m) => {
+        m.position.set(s.x, 0, s.z);
+        m.rotation.y = yaw(s.facing);
+        this.skyline.push(m);
+      });
+    }
 
-    // First time in town: start on the first street, in front of the first house.
-    if (this.player.position.lengthSq() === 0 && this.placed[0]) {
-      this.player.position.copy(this.placed[0].door).add(new THREE.Vector3(0, 0, 2.5));
+    if (arriving) {
+      this.player.position.set(n.spawn.x, 0, n.spawn.z);
+      this.walkTo = null;
+      this.enterOnArrival = null;
       this.snap = true;
     }
   }
@@ -257,9 +300,14 @@ export class Lobby {
     this.applyQuality();
   }
 
-  /** Zooms in on your character (for the onboarding), or back out with null. */
+  /** Zooms in on your character (for the onboarding), or back out. */
   focusOnPlayer(on: boolean) {
     this.focus = on ? 4.5 : null;
+  }
+
+  /** Turns the camera a quarter turn: +1 one way, -1 the other. */
+  rotate(by: 1 | -1) {
+    this.turn += by;
   }
 
   goTo(houseId: string) {
@@ -282,18 +330,21 @@ export class Lobby {
     this.bubble(this.player, name);
   }
 
-  // ---- Everyone else who's online ----
+  lampCount(): { lit: number; total: number } {
+    return { lit: this.lamps.filter((l) => l.on).length, total: this.lamps.length };
+  }
+
+  // ---- Everyone else who's online here ----
 
   addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean }) {
     if (p.login === this.opts.login || this.remotes.has(p.login)) return;
-    const avatar = makeAvatar(colorFor(p.login));
-    avatar.add(this.label(p.name ?? p.login, "lobby-label online", 1.75));
-    // Someone who just arrived and hasn't moved yet stands at the town's entrance.
-    const start = p.x || p.z ? new THREE.Vector3(p.x, 0, p.z) : this.placed[0]?.door.clone().add(new THREE.Vector3(1.5, 0, 2.5)) ?? new THREE.Vector3();
+    const { avatar, tag } = this.makePerson(p.login, p.name ?? p.login, "lobby-label online");
+    // Someone who just arrived stands at the neighbourhood's entrance, next to where you came in.
+    const start = p.x || p.z ? new THREE.Vector3(p.x, 0, p.z) : this.player.position.clone().add(new THREE.Vector3(1.5, 0, 1));
     avatar.position.copy(start);
     avatar.rotation.y = p.ry;
     this.scene.add(avatar);
-    const remote: Remote = { avatar, target: start.clone(), ry: p.ry, moving: p.moving };
+    const remote: Remote = { avatar, target: start.clone(), ry: p.ry, moving: p.moving, tag };
     this.remotes.set(p.login, remote);
     loadPerson(p.login, p.avatar)
       .then((person) => {
@@ -348,31 +399,196 @@ export class Lobby {
     this.labels.domElement.remove();
   }
 
-  // ---- Building blocks ----
+  // ---- Building the neighbourhood ----
 
-  /** Swaps a house's placeholder for its model, adds the room board, and walks the footprint out to fit. */
-  private async upgradeHouse(p: Placed, gen: number) {
-    let model: THREE.Object3D;
-    try {
-      model = await loadHouse(p.house.id, 5.2);
-    } catch {
-      return; // keep the placeholder
+  /** A flat ground surface. */
+  private flat(texture: THREE.Texture, x: number, z: number, w: number, d: number, tile: number, y: number): THREE.Mesh {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), groundMaterial(texture, w, d, tile));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z);
+    m.receiveShadow = true;
+    this.town.add(m);
+    return m;
+  }
+
+  /** Dashed centre lines along every street, and zebra crossings at every crossing. One draw call each. */
+  private streetMarkings(n: Neighbourhood) {
+    const white = new THREE.MeshBasicMaterial({ color: 0xece6da, transparent: true, opacity: 0.85 });
+    const dashes: THREE.Matrix4[] = [];
+    const stripes: THREE.Matrix4[] = [];
+    const flat = (spin: number) => new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, spin));
+    const nearCrossing = (x: number, z: number) => n.intersections.some((p) => Math.abs(p.x - x) < ROAD * 1.3 && Math.abs(p.z - z) < ROAD * 1.3);
+    for (const s of n.streets) {
+      const alongX = s.width > s.depth;
+      const length = alongX ? s.width : s.depth;
+      for (let t = -length / 2 + 1; t < length / 2; t += 2.2) {
+        const x = alongX ? s.x + t : s.x;
+        const z = alongX ? s.z : s.z + t;
+        if (nearCrossing(x, z)) continue;
+        dashes.push(new THREE.Matrix4().compose(new THREE.Vector3(x, 0.012, z), flat(alongX ? 0 : Math.PI / 2), new THREE.Vector3(1.1, 0.14, 1)));
+      }
     }
-    if (gen !== this.generation) return;
-    const group = p.model.group;
-    group.children.forEach((c) => {
-      if (!(c instanceof CSS2DObject)) c.visible = false;
+    for (const p of n.intersections) {
+      for (const [dx, dz, across] of [
+        [0, ROAD * 0.95, true],
+        [0, -ROAD * 0.95, true],
+        [ROAD * 0.95, 0, false],
+        [-ROAD * 0.95, 0, false],
+      ] as const) {
+        for (let k = -1.5; k <= 1.5; k += 0.75) {
+          const x = p.x + dx + (across ? k : 0);
+          const z = p.z + dz + (across ? 0 : k);
+          stripes.push(new THREE.Matrix4().compose(new THREE.Vector3(x, 0.012, z), flat(across ? Math.PI / 2 : 0), new THREE.Vector3(1.3, 0.38, 1)));
+        }
+      }
+    }
+    for (const list of [dashes, stripes]) {
+      const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), white, list.length);
+      list.forEach((m, i) => mesh.setMatrixAt(i, m));
+      this.town.add(mesh);
+    }
+  }
+
+  /** The market square: parasols over stalls, everyone's meeting point. */
+  private market(b: { x: number; z: number; width: number; depth: number }, rand: () => number, gen: number) {
+    for (let i = 0; i < 8; i++) {
+      const x = b.x + (rand() - 0.5) * (b.width - 4);
+      const z = b.z + (rand() - 0.5) * (b.depth - 4);
+      const turn = rand() * Math.PI * 2;
+      this.load(gen, loadModel(PARASOLS[i % 2], 1.9), (m) => {
+        m.position.set(x, 0.15, z);
+        m.rotation.y = turn;
+      });
+    }
+  }
+
+  private tree(x: number, z: number, rand: () => number, gen: number) {
+    const big = rand() < 0.6;
+    const height = big ? 3.6 + rand() * 1.4 : 2.4 + rand();
+    const turn = rand() * Math.PI * 2;
+    this.load(gen, loadModel(TREES[big ? 0 : 1], height, "height"), (m) => {
+      m.position.set(x, 0.14, z);
+      m.rotation.y = turn;
     });
-    group.add(model);
-    const box = new THREE.Box3().setFromObject(model);
-    const board = makeRoomBoard(p.house);
-    board.position.set(box.max.x - group.position.x + 0.6, 0, box.max.z - group.position.z + 0.3);
-    group.add(board);
-    p.min.set(box.min.x, box.min.z);
-    p.max.set(box.max.x, box.max.z);
-    const moved = new THREE.Vector3((box.min.x + box.max.x) / 2, 0, box.max.z + 1.1).sub(p.door);
-    p.door.add(moved);
-    // The flatmates follow their door.
+  }
+
+  /**
+   * Lets a building fade when it stands between the camera and you. It gets its own copy of its materials, since
+   * models share theirs and we only want this one to fade.
+   */
+  private occluder(model: THREE.Object3D) {
+    const materials: THREE.Material[] = [];
+    model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => m.clone()) : mesh.material.clone();
+      materials.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
+    });
+    model.updateMatrixWorld(true);
+    this.occluders.push({ box: new THREE.Box3().setFromObject(model), materials, faded: false });
+  }
+
+  /** A footprint you can't walk through, turned with its plot. */
+  private solid(x: number, z: number, facing: Facing, w: number, d: number): Box {
+    const box = footprint(x, z, facing, w, d);
+    this.solids.push(box);
+    return box;
+  }
+
+  /** Adds a model once it has loaded, unless the neighbourhood was rebuilt meanwhile. */
+  private load(gen: number, promise: Promise<THREE.Group>, place: (m: THREE.Group) => void) {
+    promise
+      .then((m) => {
+        if (gen !== this.generation) return;
+        place(m);
+        this.town.add(m);
+      })
+      .catch(() => undefined);
+  }
+
+  /** A real house: placeholder first, its model when loaded, the room board by the door, flatmates out front. */
+  private placeHouse(house: CityHouse, x: number, z: number, facing: Facing, gen: number) {
+    const placeholder = makeHouse(house);
+    const group = new THREE.Group();
+    group.add(placeholder.group);
+    group.position.set(x, 0.14, z);
+    group.rotation.y = yaw(facing);
+    group.userData.houseId = house.id;
+    group.add(this.label(house.name, house.demo ? "lobby-label house demo" : "lobby-label house", 6.4));
+    this.town.add(group);
+    const box = this.solid(x, z, facing, placeholder.halfWidth * 2, placeholder.halfDepth * 2);
+    const placed: Placed = { house, group, box, door: new THREE.Vector3(), npcs: [] };
+    this.placed.push(placed);
+    this.fitDoor(placed, facing, placeholder.halfDepth);
+
+    if (house.status === "making") {
+      // A building site: fences and cones around the slab.
+      for (const [dx, dz, r] of [
+        [-2.6, 2.2, 0],
+        [2.6, 2.2, 0],
+        [-3.2, 0, Math.PI / 2],
+        [3.2, 0, Math.PI / 2],
+      ] as const) {
+        const at = rotate(dx, dz, yaw(facing));
+        this.load(gen, loadModel(STREET.fence, 2.2), (m) => {
+          m.position.set(x + at.x, 0.14, z + at.z);
+          m.rotation.y = yaw(facing) + r;
+        });
+      }
+      for (const dx of [-1.2, 1.2]) {
+        const at = rotate(dx, 3.2, yaw(facing));
+        this.load(gen, loadModel(STREET.cone, 0.7, "height"), (m) => m.position.set(x + at.x, 0.14, z + at.z));
+      }
+    } else {
+      loadHouse(house.id, 5.2)
+        .then((model) => {
+          if (gen !== this.generation) return;
+          const local = new THREE.Box3().setFromObject(model);
+          placeholder.group.visible = false;
+          group.add(model);
+          this.occluder(model);
+          const board = makeRoomBoard(house);
+          board.position.set(local.max.x + 0.6, 0, local.max.z + 0.3);
+          group.add(board);
+          // The real footprint replaces the placeholder's.
+          Object.assign(box, footprint(x, z, facing, local.max.x - local.min.x, local.max.z - local.min.z));
+          this.fitDoor(placed, facing, local.max.z);
+        })
+        .catch(() => undefined);
+    }
+
+    // The flatmates hang around in front (unless they're online: then it's really them walking).
+    house.rooms
+      .filter((r) => r.occupant)
+      .forEach((r, k) => {
+        const login = r.occupant!.login;
+        const { avatar, tag } = this.makePerson(login, r.occupant!.name ?? login, "lobby-label small");
+        avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
+        this.town.add(avatar);
+        const npc: Npc = { login, avatar, home: new THREE.Vector3(), target: new THREE.Vector3(), wait: Math.random() * 3, tag };
+        npc.home.copy(placed.door).add(rotate((k - 1) * 1.3, 0.9, yaw(facing)));
+        npc.target.copy(npc.home);
+        avatar.position.copy(npc.home);
+        this.npcs.push(npc);
+        placed.npcs.push(npc);
+        loadPerson(login)
+          .then((p) => {
+            if (gen !== this.generation) return;
+            npc.person = p;
+            this.dress(avatar, p);
+          })
+          .catch(() => undefined);
+      });
+  }
+
+  /** Puts the door just in front of the house's face (`front` units from its centre), moving the flatmates along. */
+  private fitDoor(p: Placed, facing: Facing, front: number) {
+    const dir = FACING_DIR[facing];
+    const door = new THREE.Vector3(p.group.position.x + dir.x * (front + 1.1), 0, p.group.position.z + dir.z * (front + 1.1));
+    const first = p.door.lengthSq() === 0;
+    const moved = door.clone().sub(p.door);
+    p.door.copy(door);
+    if (first) return;
     for (const n of p.npcs) {
       n.home.add(moved);
       n.target.add(moved);
@@ -382,11 +598,11 @@ export class Lobby {
 
   private addLamp(id: string, position: THREE.Vector3) {
     const g = new THREE.Group();
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.4, 8), new THREE.MeshStandardMaterial({ color: 0x2c2a33, roughness: 0.6, metalness: 0.4 }));
-    post.position.y = 1.2;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.6, 8), new THREE.MeshStandardMaterial({ color: 0x2c2a33, roughness: 0.6, metalness: 0.4 }));
+    post.position.y = 1.3;
     post.castShadow = true;
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshStandardMaterial({ color: 0x77736c, emissive: LAMP_LIGHT, emissiveIntensity: 0 }));
-    bulb.position.y = 2.5;
+    bulb.position.y = 2.7;
     g.add(post, bulb);
     g.position.copy(position);
     this.town.add(g);
@@ -402,8 +618,8 @@ export class Lobby {
     m.color.set(on ? 0xfff1d6 : 0x77736c);
     // Real light only where it's lit and the machine can afford it.
     if (on && this.opts.quality === "high" && !lamp.light) {
-      lamp.light = new THREE.PointLight(LAMP_LIGHT, 18, 9, 1.6);
-      lamp.light.position.copy(lamp.position).setY(2.3);
+      lamp.light = new THREE.PointLight(LAMP_LIGHT, 20, 10, 1.6);
+      lamp.light.position.copy(lamp.position).setY(2.5);
       this.town.add(lamp.light);
     }
     if ((!on || this.opts.quality === "low") && lamp.light) {
@@ -421,15 +637,35 @@ export class Lobby {
     this.near = null; // so the prompt refreshes (switch on → switch off)
   }
 
-  /** The number of lamps in town, and how many are lit. */
-  lampCount(): { lit: number; total: number } {
-    return { lit: this.lamps.filter((l) => l.on).length, total: this.lamps.length };
+  // ---- People ----
+
+  /** A placeholder person with a name tag and a ring at their feet, in their house's colour. */
+  private makePerson(login: string, name: string, tagClass: string): { avatar: THREE.Group; tag: HTMLElement } {
+    const avatar = makeAvatar(colorFor(login));
+    avatar.userData.login = login;
+    avatar.userData.name = name;
+    const label = this.label(name, tagClass, 1.75);
+    avatar.add(label);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.58, 28), new THREE.MeshBasicMaterial({ color: NOBODY, transparent: true, opacity: 0.9 }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.17;
+    ring.name = "ring";
+    avatar.add(ring);
+    this.paintRing(avatar, login);
+    return { avatar, tag: label.element };
   }
 
-  /** Puts a loaded person in place of a placeholder avatar (keeping its name tag). */
+  private paintRing(avatar: THREE.Group, login: string | null) {
+    const ring = avatar.getObjectByName("ring") as THREE.Mesh | undefined;
+    if (!ring) return;
+    const home = login ? this.residents.get(login) : undefined;
+    (ring.material as THREE.MeshBasicMaterial).color.set(home ? colorFor(home.houseId) : NOBODY);
+  }
+
+  /** Puts a loaded person in place of a placeholder avatar (keeping its name tag and ring). */
   private dress(avatar: THREE.Group, person: Person) {
     avatar.children.forEach((c) => {
-      if (!(c instanceof CSS2DObject) && c !== person.object) c.visible = false;
+      if (!(c instanceof CSS2DObject) && c.name !== "ring" && c !== person.object) c.visible = false;
     });
     avatar.add(person.object);
     person.object.visible = true;
@@ -458,6 +694,8 @@ export class Lobby {
     obj.position.set(0, y, 0);
     return obj;
   }
+
+  // ---- Rendering, input, the frame loop ----
 
   private applyQuality() {
     const high = this.opts.quality === "high";
@@ -500,6 +738,8 @@ export class Lobby {
       e.preventDefault();
     }
     if (k === "e" || k === "enter") this.interact();
+    if (k === "q") this.rotate(-1);
+    if (k === "r") this.rotate(1);
     if (k === "1") this.emote("yes");
     if (k === "2") this.emote("no");
   };
@@ -511,11 +751,21 @@ export class Lobby {
     this.zoom = THREE.MathUtils.clamp(this.zoom + Math.sign(e.deltaY) * 1.2, ZOOM.min, ZOOM.max);
   };
 
-  // Click the ground to walk there; click a house to walk to its door and go in.
+  // Click someone to see who they are; a house to walk to its door and go in; the ground to walk there.
   private click = (e: PointerEvent) => {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const pointer = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.ray.setFromCamera(pointer, this.camera);
+    // People are small: aim at a generous sphere around each one, nearest first.
+    const people = [...this.npcs.filter((n) => n.avatar.visible).map((n) => n.avatar), ...[...this.remotes.values()].map((r) => r.avatar)];
+    const hitPerson = people
+      .map((a) => ({ a, d: this.ray.ray.distanceSqToPoint(a.position.clone().setY(0.8)) }))
+      .filter((x) => x.d < 1.6)
+      .sort((x, y) => x.d - y.d)[0];
+    if (hitPerson) {
+      this.events.onPerson(hitPerson.a.userData.login, hitPerson.a.userData.name);
+      return;
+    }
     for (const hit of this.ray.intersectObjects(this.town.children, true)) {
       let o: THREE.Object3D | null = hit.object;
       while (o && !o.userData.houseId) o = o.parent;
@@ -533,17 +783,24 @@ export class Lobby {
   };
 
   private blocked(x: number, z: number): boolean {
-    return this.placed.some((p) => x > p.min.x - RADIUS && x < p.max.x + RADIUS && z > p.min.y - RADIUS && z < p.max.y + RADIUS);
+    return this.solids.some((b) => x > b.minX - RADIUS && x < b.maxX + RADIUS && z > b.minZ - RADIUS && z < b.maxZ + RADIUS);
   }
 
   private step(dt: number) {
     const calm = this.opts.reduceMotion;
-    // Screen directions in an isometric view: "up" is away from the camera, along the diagonal.
-    const dir = new THREE.Vector3();
-    if (this.keys.has("w") || this.keys.has("arrowup")) dir.add(new THREE.Vector3(-1, 0, -1));
-    if (this.keys.has("s") || this.keys.has("arrowdown")) dir.add(new THREE.Vector3(1, 0, 1));
-    if (this.keys.has("a") || this.keys.has("arrowleft")) dir.add(new THREE.Vector3(-1, 0, 1));
-    if (this.keys.has("d") || this.keys.has("arrowright")) dir.add(new THREE.Vector3(1, 0, -1));
+    this.tick++;
+    // The camera's quarter turns, eased.
+    const wantAngle = (this.turn * Math.PI) / 2;
+    this.angle = calm ? wantAngle : this.angle + (wantAngle - this.angle) * (1 - Math.exp(-8 * dt));
+
+    // Screen directions in an isometric view, turned with the camera: "up" is away from it, along the diagonal.
+    let dx = 0;
+    let dz = 0;
+    if (this.keys.has("w") || this.keys.has("arrowup")) (dx -= 1), (dz -= 1);
+    if (this.keys.has("s") || this.keys.has("arrowdown")) (dx += 1), (dz += 1);
+    if (this.keys.has("a") || this.keys.has("arrowleft")) (dx -= 1), (dz += 1);
+    if (this.keys.has("d") || this.keys.has("arrowright")) (dx += 1), (dz -= 1);
+    const dir = dx || dz ? rotate(dx, dz, this.angle) : new THREE.Vector3();
     if (!dir.lengthSq() && this.walkTo) {
       dir.subVectors(this.walkTo, this.player.position).setY(0);
       if (dir.length() < 0.15) {
@@ -563,7 +820,6 @@ export class Lobby {
       // Slide along walls: try each axis on its own.
       if (!this.blocked(pos.x + dir.x, pos.z)) pos.x += dir.x;
       if (!this.blocked(pos.x, pos.z + dir.z)) pos.z += dir.z;
-      // Stay in town.
       pos.x = THREE.MathUtils.clamp(pos.x, this.bounds.minX, this.bounds.maxX);
       pos.z = THREE.MathUtils.clamp(pos.z, this.bounds.minZ, this.bounds.maxZ);
       this.player.rotation.y = Math.atan2(dir.x, dir.z);
@@ -597,20 +853,17 @@ export class Lobby {
       if (to.length() < 0.1) {
         n.wait -= dt;
         if (n.wait <= 0) {
-          n.target = n.home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 1.5));
+          n.target = n.home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2.4, 0, (Math.random() - 0.5) * 2.4));
           n.wait = 2 + Math.random() * 4;
         }
-        n.avatar.position.y = 0;
         n.person?.play("idle");
       } else {
         const move = to.normalize().multiplyScalar(1.2 * dt);
         n.avatar.position.add(move);
         n.avatar.rotation.y = Math.atan2(move.x, move.z);
-        if (n.person) n.person.play("walk");
-        else n.avatar.position.y = Math.abs(Math.sin(this.clock.elapsedTime * 9 + n.home.x)) * 0.05;
+        n.person?.play("walk");
       }
     }
-    for (const n of this.npcs) n.person?.mixer.update(dt);
 
     // Everyone else glides to where they last said they were.
     for (const r of this.remotes.values()) {
@@ -619,16 +872,54 @@ export class Lobby {
       r.avatar.rotation.y += shortestAngle(r.avatar.rotation.y, r.ry) * k;
       const still = r.avatar.position.distanceTo(r.target) < 0.05;
       r.person?.play(r.moving && !still ? "walk" : "idle");
-      r.person?.mixer.update(dt);
     }
 
-    // The camera follows from a fixed isometric angle, gliding (or snapping, for calm motion).
-    const goal = this.player.position.clone().setY(0).add(CAMERA_OFFSET);
-    if (calm || this.snap) this.camera.position.copy(goal);
-    else this.camera.position.lerp(goal, 1 - Math.exp(-6 * dt));
+    // Only the people near the camera animate, and only those near you show their name.
+    const centre = this.player.position;
+    const animateRange = this.viewHalf * 2.2;
+    for (const n of this.npcs) if (n.person && n.avatar.position.distanceTo(centre) < animateRange) n.person.mixer.update(dt);
+    for (const r of this.remotes.values()) r.person?.mixer.update(dt);
+    if (this.tick % 6 === 0) {
+      const tagRange = this.viewHalf < 9 ? this.viewHalf * 2 : TAG_RANGE;
+      for (const n of this.npcs) n.tag.style.visibility = n.avatar.position.distanceTo(centre) < tagRange ? "" : "hidden";
+      for (const r of this.remotes.values()) r.tag.style.visibility = r.avatar.position.distanceTo(centre) < tagRange * 1.6 ? "" : "hidden";
+    }
+
+    // The camera follows from the isometric angle, turned and gliding (or snapping, for calm motion).
+    const offset = rotate(CAMERA_OFFSET.x, CAMERA_OFFSET.z, this.angle).setY(CAMERA_OFFSET.y);
+    const goal = this.player.position.clone().setY(0);
+    const look = this.camera.position.clone().sub(this.lastOffset ?? offset).setY(0);
+    if (calm || this.snap) look.copy(goal);
+    else look.lerp(goal, 1 - Math.exp(-6 * dt));
     this.snap = false;
-    const look = this.camera.position.clone().sub(CAMERA_OFFSET);
-    this.camera.lookAt(look.x, 0, look.z);
+    this.camera.position.copy(look).add(offset);
+    this.camera.lookAt(look);
+    this.lastOffset = offset;
+    // The sun follows the view, so shadows stay sharp wherever you are.
+    this.sun.position.copy(look).add(new THREE.Vector3(18, 22, 6));
+    this.sun.target.position.copy(look);
+
+    // A building between the camera and you fades, so you're never lost behind a wall.
+    if (this.tick % 4 === 0) {
+      const sight = new THREE.Ray(this.player.position.clone().setY(0.9), offset.clone().normalize());
+      for (const o of this.occluders) {
+        const block = sight.intersectsBox(o.box);
+        if (block === o.faded) continue;
+        o.faded = block;
+        for (const m of o.materials) {
+          m.transparent = block;
+          m.opacity = block ? 0.22 : 1;
+          m.depthWrite = !block;
+        }
+      }
+    }
+
+    // Skyline buildings on the camera's side of town would stand in front of everything: hide them.
+    if (this.tick % 10 === 0) {
+      const toCamera = new THREE.Vector3(offset.x, 0, offset.z).normalize();
+      for (const m of this.skyline) m.visible = m.position.clone().sub(look).setY(0).dot(toCamera) < 6;
+    }
+
     // Zoom eases towards the wheel's choice (or the onboarding's close-up).
     const want = this.focus ?? this.zoom;
     if (Math.abs(this.viewHalf - want) > 0.01) {
@@ -653,6 +944,12 @@ export class Lobby {
     this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
   };
+}
+
+/** A building's footprint in the world: `w` wide and `d` deep, turned with its plot. */
+function footprint(x: number, z: number, facing: Facing, w: number, d: number): Box {
+  const [hw, hd] = facing % 2 === 0 ? [w / 2, d / 2] : [d / 2, w / 2];
+  return { minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd };
 }
 
 function shortestAngle(from: number, to: number): number {

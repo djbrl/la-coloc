@@ -19,8 +19,11 @@ project to be free of third-party rights (Art. 6).
 |---|---|---|---|
 | City Kit (Suburban) 2.0 by Kenney: 21 houses, 2 trees, a planter | `apps/web/public/lobby/houses/` | https://kenney.nl/assets/city-kit-suburban | CC0 1.0 (public domain) |
 | Mini Characters 1.0 by Kenney: 12 animated characters | `apps/web/public/lobby/people/` | https://kenney.nl/assets/mini-characters | CC0 1.0 (public domain) |
+| City Kit (Commercial) 2.1 by Kenney: shops, towers, skyline buildings, parasols | `apps/web/public/lobby/city/` | https://kenney.nl/assets/city-kit-commercial | CC0 1.0 (public domain) |
+| City Kit (Roads) by Kenney: traffic light, sign, construction cone, barrier, fence | `apps/web/public/lobby/street/` | https://kenney.nl/assets/city-kit-roads | CC0 1.0 (public domain) |
 
-Both are development placeholders until Jib's art. Downloaded 09 10 2026; licence files kept next to the models.
+All are development placeholders until Jib's art. Downloaded 09 and 10 10 2026; licence files kept next to the models.
+Ground textures (grass, asphalt, paving, sidewalk) are drawn in code (`apps/web/src/lobby/textures.ts`).
 If they fail to load, the lobby falls back to shapes built in code (`apps/web/src/lobby/models.ts`).
 
 ## Runtime environment (not distributed, not modified, not linked)

@@ -1,5 +1,6 @@
-// The lobby's live line to the server: our position and emotes out, everyone else's in.
-// Reconnects on its own when the line drops (a laptop waking up, the API restarting).
+// The lobby's live line to the server: which neighbourhood we're in, our position and emotes out; everyone else's
+// in, plus a head count per neighbourhood. Reconnects on its own when the line drops (a laptop waking up, the API
+// restarting), and says where we are again when it does.
 import type { Emote } from "./Lobby";
 
 export interface PlayerState {
@@ -13,11 +14,12 @@ export interface PlayerState {
 }
 
 type ServerMessage =
-  | { type: "snapshot"; you: string | null; players: PlayerState[] }
+  | { type: "snapshot"; you: string | null; place: string; players: PlayerState[] }
   | { type: "join"; player: PlayerState }
   | { type: "move"; login: string; x: number; z: number; ry: number; moving: boolean }
   | { type: "emote"; login: string; name: Emote }
-  | { type: "leave"; login: string };
+  | { type: "leave"; login: string }
+  | { type: "census"; counts: Record<string, number> };
 
 export interface LinkEvents {
   // A fresh list of everyone here (on every (re)connect).
@@ -27,6 +29,8 @@ export interface LinkEvents {
   onEmote(login: string, name: Emote): void;
   onLeave(login: string): void;
   onStatus(connected: boolean): void;
+  // How many people are in each neighbourhood.
+  onCensus(counts: Record<string, number>): void;
 }
 
 export class LobbyLink {
@@ -34,9 +38,16 @@ export class LobbyLink {
   private closed = false;
   private retry = 1000;
   private timer: number | undefined;
+  private place: string | null = null;
 
   constructor(private events: LinkEvents) {
     this.open();
+  }
+
+  /** Moves us to a neighbourhood: we get a fresh snapshot of who's there. */
+  enter(place: string) {
+    this.place = place;
+    this.send({ type: "place", place });
   }
 
   move(state: { x: number; z: number; ry: number; moving: boolean }) {
@@ -64,6 +75,7 @@ export class LobbyLink {
     ws.onopen = () => {
       this.retry = 1000;
       this.events.onStatus(true);
+      if (this.place) this.send({ type: "place", place: this.place });
     };
     ws.onmessage = (e) => {
       let m: ServerMessage;
@@ -77,6 +89,7 @@ export class LobbyLink {
       else if (m.type === "move") this.events.onMove(m.login, m.x, m.z, m.ry, m.moving);
       else if (m.type === "emote") this.events.onEmote(m.login, m.name);
       else if (m.type === "leave") this.events.onLeave(m.login);
+      else if (m.type === "census") this.events.onCensus(m.counts);
     };
     ws.onclose = () => {
       this.events.onStatus(false);

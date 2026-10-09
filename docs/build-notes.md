@@ -187,3 +187,21 @@ Apple's design philosophy for every page: system font, big headlines, whitespace
 primary action per view, no visible labels (accessible names stay, hidden), multi-step flows. Apple's own UI kits
 and fonts are licensed only for Apple-platform design, so we follow the principles, not the files. For the lobby:
 2XKO's hangout lobby (warm lights, emotes over heads, an interact prompt, a corner card with who's here).
+
+## 10 10 2026: procedural neighbourhoods
+
+One neighbourhood per city, generated from the city's name (`apps/web/src/lobby/neighbourhood.ts`, 7 tests): a grid of
+blocks between streets, sized to the city's houses with room to spare; a market square in the middle, a park when
+there's room; real houses on the plots nearest the market, then demo houses; shops, towers and tree lots on the rest;
+lamps at every crossing; a ring of low buildings beyond the last street. Same name, same map, for everyone.
+
+- **Travel**: the city's name (top left) opens "Where to?", listing every city with its houses and how many people are
+  walking around there (a live census from the server). The URL keeps the city (`/?city=Lomé`).
+- **Presence per neighbourhood**: you only hear about the people where you are (8 server tests).
+- **Who belongs where**: a ring at everyone's feet in their house's colour (grey: just visiting); click someone for a
+  card ("Edem lives in Bè Kpota, building Akpé. Visit Bè Kpota ›").
+- **Readability**: buildings between the camera and you fade; Q and R (or the buttons) turn the view a quarter turn;
+  skyline buildings on the camera's side hide; name tags only show near you; only people near the camera animate.
+- **Cost**, measured in Dakar: about 240 draw calls and 85 000 triangles. Street markings are two instanced meshes.
+- Verified in the browser: Dakar and Lomé look different, travel works and updates the URL, the census counted a
+  second real browser (Djbrl in Chrome) in Dakar, the person card, the building fade.

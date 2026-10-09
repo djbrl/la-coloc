@@ -3,7 +3,7 @@ import { OnGatewayConnection, WebSocketGateway } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
 import type WebSocket from "ws";
 import { AuthService } from "../auth/auth.service";
-import { Presence, type ServerMessage } from "./presence";
+import { type Out, Presence, type ServerMessage } from "./presence";
 
 // The lobby's live line: positions and emotes, relayed between everyone walking around. Logged-in people appear;
 // visitors only watch. Only pages from our own site may connect (a WebSocket ignores CORS, so we check Origin).
@@ -43,11 +43,17 @@ export class LobbyGateway implements OnGatewayConnection {
     socket.on("error", (e) => this.log.warn(e.message));
   }
 
-  private send(out: ReturnType<Presence["receive"]>) {
+  private send(out: Out[]) {
     for (const o of out) {
       const json = JSON.stringify(o.msg satisfies ServerMessage);
       if (o.to === "one") this.sockets.get(o.conn)?.send(json);
-      else for (const [id, s] of this.sockets) if (id !== o.except && s.readyState === 1) s.send(json);
+      else {
+        const targets = o.to === "all" ? [...this.sockets.keys()] : this.presence.watching(o.place).filter((id) => id !== o.except);
+        for (const id of targets) {
+          const s = this.sockets.get(id);
+          if (s?.readyState === 1) s.send(json);
+        }
+      }
     }
   }
 }

@@ -88,7 +88,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
         <template v-else-if="current === 'walk'">
           <h2 id="onboarding-title" ref="title" tabindex="-1">Walk around.</h2>
           <p v-if="touch">Tap where you want to go. Walk up to a door and tap the button that appears to go in. The thumbs wave yes or no.</p>
-          <p v-else>Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or click where you want to go. Step up to a door and press <kbd>E</kbd> to go in. <kbd>1</kbd> and <kbd>2</kbd> wave yes or no.</p>
+          <p v-else>Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or click where you want to go. Step up to a door and press <kbd>E</kbd> to go in. <kbd>Q</kbd> and <kbd>R</kbd> turn the view, <kbd>1</kbd> and <kbd>2</kbd> wave yes or no.</p>
         </template>
         <template v-else-if="current === 'look'">
           <h2 id="onboarding-title" ref="title" tabindex="-1">Pick your look.</h2>
