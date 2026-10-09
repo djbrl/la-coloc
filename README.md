@@ -1,7 +1,10 @@
 # La Coloc
 
-Devs rent a server together, like flatmates. Everyone gets a **room** (an isolated, capped slice of the server).
-Push your repo and it's live in your room. The house splits the bill by usage and pays rent in **code reviews**.
+A city of dev houses. Log in with GitHub, find a house with a free room, knock, and move in. A house is a server
+rented together; everyone gets a **room** (an isolated, capped slice of it), and your repo is live the moment you push.
+The house splits the bill by usage and pays part of the rent in **code reviews**.
+
+Built for CADEV 2026: *an African exchange platform built for devs by devs.*
 
 Product: [`docs/how-it-works.md`](docs/how-it-works.md) · Stack: [`docs/architecture.md`](docs/architecture.md) · Plan: [`docs/roadmap.md`](docs/roadmap.md) · Contest rules: [`docs/contest-rules.md`](docs/contest-rules.md)
 
@@ -23,8 +26,8 @@ Works: deploy a repo into a room → it's built, started with its walls (RAM/CPU
 health-checked, swapped in with no downtime, and served at `http://<room>.coloc.localhost:8000`. A room that runs
 out of memory restarts alone and leaves a fridge note. The house page updates live.
 
-Not yet: GitHub App/login, reviews, previews from PRs, database (state is in memory), kitchen, bills UI, tontine UI.
-See the roadmap.
+Not yet: the city map, GitHub login + App, knocking and the doorbell thread, house channel, reviews, previews from
+PRs, database (state is in memory), kitchen, bills, tontine, exchange ledger. See the roadmap.
 
 ## Run it locally
 
@@ -35,7 +38,7 @@ npm install
 npm run build
 npm run dev:proxy                     # Traefik on :8000
 npm run start -w @coloc/api           # API on :4100
-COLOC_HOUSE_ID=sacre-coeur COLOC_AGENT_SECRET=dev-secret-change-me npm run start -w @coloc/agent
+COLOC_HOUSE_ID=sacre-coeur COLOC_AGENT_SECRET=dev-secret-change-me COLOC_ALLOW_LOCAL_REPOS=1 npm run start -w @coloc/agent
 npm run dev:web                       # house page on :5173
 ```
 
