@@ -111,6 +111,13 @@ fails the signature check (`401` in the relay's log), that's why.
   you reach a building from any side and never grind on a wall. Shift dashes (an instant hop, then a burst).
 - **Looks**: the settings pane has a day / night / system switch (`settings.theme`, applied as `data-theme` on
   `<html>`; the tokens in `style.css` follow it). Every lobby panel is flat, built from the site's tokens.
+- **The tutorial's workshop** (L'Atelier, `atelier`, never drawn on the city) has its own agent, with the same dev
+  secret: `COLOC_HOUSE_ID=atelier COLOC_AGENT_SECRET=dev-secret-change-me COLOC_HOUSE_DOMAIN=atelier.coloc.localhost
+  COLOC_WORKDIR=/tmp/coloc-agent-atelier COLOC_ALLOW_LOCAL_REPOS=1 npm run start -w @coloc/agent`. The sample it deploys
+  is `COLOC_TUTORIAL_REPO` (default `https://github.com/Djbrl/la-coloc.git`) at `COLOC_TUTORIAL_PATH` (default
+  `examples/hello`).
+- **`COLOC_DEMO_RESET=1`** turns on `POST /api/demo/reset`: any logged-in person can put the city back to the seed
+  (people and sessions stay). Demo servers only.
 - **Sounds** are synthesised in the browser (`apps/web/src/lobby/sound.ts`): nothing is downloaded, so nothing to
   declare. The switch is in settings.
 

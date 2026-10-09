@@ -1,9 +1,21 @@
 // Who's logged in, shared by every page. The session itself is an HttpOnly cookie the page never sees.
 import { ref } from "vue";
-import type { Me } from "./types";
+import type { Me, ServerConfig } from "./types";
 
 export const me = ref<Me | null>(null);
 export const meLoaded = ref(false);
+// What this server allows (the demo reset, for now). Null until the settings pane asks for it.
+export const config = ref<ServerConfig | null>(null);
+
+export async function loadConfig(): Promise<void> {
+  try {
+    const res = await fetch("/api/auth/config");
+    const data = res.ok ? await res.json() : {};
+    config.value = { demoReset: data.demoReset === true };
+  } catch {
+    config.value = { demoReset: false };
+  }
+}
 
 export async function loadMe(): Promise<void> {
   try {

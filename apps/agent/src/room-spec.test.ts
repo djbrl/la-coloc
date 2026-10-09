@@ -46,13 +46,15 @@ describe("room walls", () => {
 describe("routes", () => {
   it("sends a room's host name to exactly one container, by name", () => {
     const route = roomRoute("jib", "prod", "sacre-coeur.coloc.dev", "coloc-jib-prod-abc123", 3000);
-    expect(route.http.routers["jib-prod"].rule).toBe("Host(`jib.sacre-coeur.coloc.dev`)");
-    expect(route.http.services["jib-prod"].loadBalancer.servers).toEqual([{ url: "http://coloc-jib-prod-abc123:3000" }]);
+    expect(route.http.routers["jib-sacre-coeur-coloc-dev"].rule).toBe("Host(`jib.sacre-coeur.coloc.dev`)");
+    expect(route.http.services["jib-sacre-coeur-coloc-dev"].loadBalancer.servers).toEqual([{ url: "http://coloc-jib-prod-abc123:3000" }]);
   });
 
-  it("keeps prod and preview apart", () => {
+  it("keeps prod and preview apart, and two houses with the same room name apart", () => {
     const route = roomRoute("jib", "preview", "h.coloc.dev", "c", 3000);
-    expect(route.http.routers["jib-preview"].rule).toBe("Host(`preview-jib.h.coloc.dev`)");
+    expect(route.http.routers["preview-jib-h-coloc-dev"].rule).toBe("Host(`preview-jib.h.coloc.dev`)");
+    const other = roomRoute("jib", "prod", "atelier.coloc.dev", "c", 3000);
+    expect(Object.keys(other.http.routers)).not.toEqual(Object.keys(roomRoute("jib", "prod", "h.coloc.dev", "c", 3000).http.routers));
   });
 });
 

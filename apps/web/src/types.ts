@@ -159,6 +159,26 @@ export interface Me {
   // Their lobby character ("female-a" … "male-f"), or null if they haven't picked one.
   avatar: string | null;
   houses: { id: string; name: string; role: MemberRole; room: string | null }[];
+  // Finished (or skipped) the tutorial? Missing on an API that doesn't have the tutorial yet.
+  tutorialDone?: boolean;
+}
+
+// The tutorial as the API sees it: GET /api/tutorial. The workshop is the house "atelier"; your room in it appears
+// once you take one, and the GitHub part says whether the App can be installed from here.
+export interface TutorialState {
+  house: { id: string; name: string; city: string; agentOnline: boolean };
+  // The room's status is a RoomStatus, plus whatever finer steps the API reports while a deploy runs
+  // ("building", "starting").
+  room: { name: string; status: RoomStatus | string; url: string | null } | null;
+  sample: { repo: string; path: string };
+  github: { installUrl: string | null; linked: boolean };
+  done: boolean;
+}
+
+// What the server offers: GET /api/auth/config. Only the part the settings pane needs.
+export interface ServerConfig {
+  // Whether "Reset the demo city" is allowed on this server.
+  demoReset: boolean;
 }
 
 // The room page: GET /api/houses/:id/rooms/:room/manage (the room's flatmate, or the chef).

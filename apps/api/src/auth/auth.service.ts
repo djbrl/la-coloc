@@ -122,6 +122,12 @@ export class AuthService {
     await this.db.update(users).set({ avatar }).where(eq(users.id, userId));
   }
 
+  // Done keeps the first time they finished; not done clears it, so the tutorial starts again.
+  async setTutorialDone(userId: string, done: boolean) {
+    if (done) await this.db.update(users).set({ tutorialDoneAt: new Date() }).where(and(eq(users.id, userId), isNull(users.tutorialDoneAt)));
+    else await this.db.update(users).set({ tutorialDoneAt: null }).where(eq(users.id, userId));
+  }
+
   /** Development only (COLOC_DEV_LOGIN=1): be anyone, creating them if needed. */
   async devLogin(login: string): Promise<User> {
     if (!this.config.devLogin) throw new Error("dev login is off");

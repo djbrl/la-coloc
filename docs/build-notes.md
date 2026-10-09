@@ -310,3 +310,35 @@ night theme and phone width checked. Tests: 159. Build and `licences:check` pass
 - The dev install command points the agent at `ws://localhost:5175/agent`; Vite doesn't proxy `/agent`, so a local
   caretaker should use port 4100 (the real site serves both on one host).
 - The bill is an even split for now; the usage-based split in `packages/domain` isn't wired to the page yet.
+
+## 11 10 2026: the tutorial, and one button to reset the demo
+
+Jib's ask: a guided tutorial before the real lobby, on a small map, that ends with your first project live; take it
+again from settings; and a button that resets the whole demo. Two subagents (API, web), reviewed and run end to end.
+
+| What | Where |
+|---|---|
+| **The workshop**: a tutorial house, `atelier` ("L'Atelier"), seeded live with the same dev key as Sacré-Cœur, hidden from the city, run by its own caretaker. Each learner gets a room there (`tuto-<login>`) | seed, `GET/POST /api/tutorial*` |
+| **The tutorial** in the lobby: a one-block neighbourhood (`generateNeighbourhood(…, { small: true })`), a private presence place, travel and find off, and a coach card with six steps: walk to the workshop · press E · take a room · run the sample (watch it build, open it) · link GitHub (install the App, or skip) · into the city. Starts after the welcome for anyone logged in who hasn't done it; "Skip the tutorial" and "Into the city" both mark it done on the profile | `components/lobby/tutorial/*`, `LobbyView.vue`, `users.tutorial_done_at` |
+| **Take the tutorial again** in settings: the server forgets your workshop room and the done mark, and the lobby starts over | `SettingsPane.vue`, `POST /api/tutorial/reset` |
+| **Reset the demo city** in settings (when `COLOC_DEMO_RESET=1`): asks once more, then online caretakers drop the rooms that won't exist, every house is deleted and the seed replanted, everyone's tutorial mark cleared; people and logins stay; this browser forgets its settings, lamps and tours and reloads | `apps/api/src/demo/*`, `POST /api/demo/reset`, `GET /api/auth/config` (`demoReset`) |
+| **Two caretakers on one machine**: route files and router names now carry the house (`sacre-coeur--jib-prod.yml`), each caretaker only syncs its own house's containers, and files from before the naming are cleaned up once | `apps/agent/src/proxy.ts`, `room-spec.ts` |
+| **Routes end at the walls**: a route whose last cell sat on a corner of the goal rectangle, just out of reach, takes one more straight step to the building | `Lobby.ts` |
+
+### Verified (as Jib, in the browser)
+"Reset the demo city" from settings put the nine seeded houses back (le QG and Test Villa gone), kept Jib logged in,
+cleared this browser's settings and reloaded onto the welcome. With the workshop's caretaker running beside
+Sacré-Cœur's, the tutorial started by itself: walking to the workshop and E opened its inside; "Take a room" made
+`tuto-jib`; "Run it" cloned, built and started the sample (the caretaker's log shows the four steps) and the coach
+said "It's live. Open it ›"; `http://tuto-jib.coloc.localhost:8000` answered through Traefik, and so did Jib's and
+Awa's rooms in Sacré-Cœur (house-scoped route files side by side); the GitHub step offered the real install link for
+`la-coloc-dev` and was skipped; "Into the city" marked the profile done and rebuilt Dakar. "Take the tutorial again"
+from settings removed the workshop room, cleared the mark and restarted the coach.
+Tests: 175 (domain 14, protocol 4, agent 13, db 2, API 115, web 27). Build and `licences:check` pass.
+
+### Rough edges
+- The GitHub step only reports "linked" for someone who lives in exactly one room; a chef with a room elsewhere
+  (Jib) would never see it, so the step is skippable.
+- The workshop's caretaker is a second local process (`docs/dev.md` has the command); on the real server it's one
+  more systemd unit with the same key.
+- The demo reset deletes every chat message, since messages aren't tied to a house in the schema.

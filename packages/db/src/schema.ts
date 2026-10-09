@@ -17,6 +17,9 @@ export const users = pgTable("users", {
   location: text("location"),
   // Their character in the lobby: one of the models in apps/web/public/lobby/people ("female-a" … "male-f").
   avatar: text("avatar"),
+  // When they finished the tutorial (walk into the workshop, take a room, put a sample online, link GitHub).
+  // Null: not done yet, or they chose to take it again.
+  tutorialDoneAt: timestamp("tutorial_done_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
 
@@ -60,6 +63,8 @@ export const houses = pgTable("houses", {
   // Where it stands in its city's lobby: the plot key the neighbourhood generator gives every empty building
   // ("2.1.0.1"). Null: no plot rented, so the lobby places it near the market.
   plot: text("plot"),
+  // The workshop where newcomers take the tutorial. Real (an agent runs it), but never drawn on the city.
+  tutorial: boolean("tutorial").notNull().default(false),
   createdAt: createdAt(),
 });
 

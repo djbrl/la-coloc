@@ -84,7 +84,9 @@ export function roomContainerSpec(i: RoomContainerInput): Docker.ContainerCreate
  * Returned as plain data; the proxy reads it as YAML (JSON is valid YAML).
  */
 export function roomRoute(room: string, kind: DeployKind, houseDomain: string, container: string, port: number) {
-  const name = `${room}-${kind}`;
+  // Named after the host, so two houses behind one proxy (the workshop next to a real house, in development)
+  // never collide on a router name.
+  const name = roomHost(room, kind, houseDomain).replace(/[^a-z0-9]+/gi, "-");
   return {
     http: {
       routers: { [name]: { rule: `Host(\`${roomHost(room, kind, houseDomain)}\`)`, entryPoints: ["web"], service: name } },

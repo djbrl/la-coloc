@@ -57,6 +57,13 @@
       "when": 1791567104291,
       "tag": "0007_house_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791570074505,
+      "tag": "0008_tutorial",
+      "breakpoints": true
     }
   ]
 }

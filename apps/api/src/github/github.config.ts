@@ -6,6 +6,8 @@ export interface GithubAppConfig {
   // PEM. Environments often store it with literal "\n": those are turned back into newlines.
   privateKey: string;
   webhookSecret: string;
+  // The App's name in its GitHub address (github.com/apps/<slug>), for the "install it on your repo" link.
+  slug?: string;
 }
 
 export function loadGithubAppConfig(env = process.env): GithubAppConfig | null {
@@ -15,5 +17,6 @@ export function loadGithubAppConfig(env = process.env): GithubAppConfig | null {
     env.COLOC_GITHUB_PRIVATE_KEY?.replace(/\\n/g, "\n") ??
     (env.COLOC_GITHUB_PRIVATE_KEY_FILE ? readFileSync(env.COLOC_GITHUB_PRIVATE_KEY_FILE, "utf8") : undefined);
   const webhookSecret = env.COLOC_GITHUB_WEBHOOK_SECRET;
-  return appId && privateKey && webhookSecret ? { appId, privateKey, webhookSecret } : null;
+  const slug = env.COLOC_GITHUB_APP_SLUG || undefined;
+  return appId && privateKey && webhookSecret ? { appId, privateKey, webhookSecret, slug } : null;
 }

@@ -387,9 +387,10 @@ export class HousesService {
     return { id };
   }
 
-  // Every house, as the city draws it. Real houses first, then the busiest.
+  // Every house, as the city draws it. Real houses first, then the busiest. The tutorial's workshop isn't on it.
   async city(): Promise<CityView> {
     const all = await this.db.query.houses.findMany({
+      where: eq(houses.tutorial, false),
       with: { rooms: { with: { occupant: true }, orderBy: asc(rooms.name) } },
       orderBy: [asc(houses.demo), asc(houses.createdAt)],
     });

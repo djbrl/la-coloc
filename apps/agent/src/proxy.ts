@@ -8,8 +8,14 @@ import type { AgentConfig } from "./config";
 import { docker, ensureRoomNetwork } from "./docker";
 import { LABEL, roomRoute } from "./room-spec";
 
+// One file per room, named after the house too: several caretakers may share one proxy folder (in development
+// the workshop's runs next to Sacré-Cœur's), and each only ever touches its own files.
 function routeFile(cfg: AgentConfig, room: string, kind: DeployKind): string {
-  return path.join(cfg.proxyConfigDir, `${room}-${kind}.yml`);
+  return path.join(cfg.proxyConfigDir, routeName(cfg.houseId, room, kind));
+}
+
+function routeName(houseId: string, room: string, kind: DeployKind): string {
+  return `${houseId}--${room}-${kind}.yml`;
 }
 
 /** Points a room's host name at one container, then waits for the proxy to pick it up. */
@@ -39,7 +45,8 @@ export async function unrouteRoom(cfg: AgentConfig, room: string): Promise<void>
  */
 export async function syncRoutes(cfg: AgentConfig): Promise<void> {
   await mkdir(cfg.proxyConfigDir, { recursive: true });
-  const running = await docker.listContainers({ filters: { label: [LABEL.room], status: ["running"] } });
+  // Only this house's rooms: another caretaker on the same machine looks after its own.
+  const running = await docker.listContainers({ filters: { label: [`${LABEL.house}=${cfg.houseId}`, LABEL.room], status: ["running"] } });
   const newest = new Map<string, Docker.ContainerInfo>();
   for (const c of running) {
     const key = `${c.Labels[LABEL.room]}-${c.Labels[LABEL.kind]}`;
@@ -54,12 +61,15 @@ export async function syncRoutes(cfg: AgentConfig): Promise<void> {
     // Containers from before routing moved to files have no port label; their next deploy fixes them.
     if (!port) continue;
     await ensureRoomNetwork(room, cfg.houseId, cfg.proxyContainer);
-    wanted.add(`${key}.yml`);
+    wanted.add(routeName(cfg.houseId, room, kind));
     const route = roomRoute(room, kind, cfg.houseDomain, c.Names[0].replace(/^\//, ""), port);
     await writeFile(routeFile(cfg, room, kind), JSON.stringify(route, null, 2));
   }
+  // Drop this house's stale files, and any file from before routes were named after their house.
   for (const f of await readdir(cfg.proxyConfigDir)) {
-    if (!wanted.has(f)) await rm(path.join(cfg.proxyConfigDir, f), { force: true });
+    const ours = f.startsWith(`${cfg.houseId}--`);
+    const legacy = !f.includes("--");
+    if ((ours && !wanted.has(f)) || legacy) await rm(path.join(cfg.proxyConfigDir, f), { force: true });
   }
 }
 

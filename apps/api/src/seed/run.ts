@@ -1,6 +1,6 @@
 // `npm run dev:seed`: resets the local database to the development city.
 import { connect } from "@coloc/db";
-import { seedCity } from "./city";
+import { devSeedOptions, seedCity } from "./city";
 
 const DEFAULT_URL = "postgres://coloc:coloc-dev-only@127.0.0.1:5433/coloc";
 
@@ -11,12 +11,7 @@ async function main() {
   if (!["127.0.0.1", "localhost", "::1"].includes(host)) throw new Error(`refusing to seed a non-local database (${host})`);
 
   const { db, close } = await connect(url);
-  const houseDomain = process.env.COLOC_DEV_HOUSE_DOMAIN ?? "coloc.localhost";
-  await seedCity(db, {
-    agentSecret: process.env.COLOC_DEV_AGENT_SECRET ?? "dev-secret-change-me",
-    // Locally the one real house serves its rooms at <room>.coloc.localhost; demo houses never serve anything.
-    domain: (id) => (id === "sacre-coeur" ? houseDomain : `${id}.coloc.dev`),
-  });
+  await seedCity(db, devSeedOptions());
   await close();
   console.log("seeded the development city");
 }

@@ -36,8 +36,9 @@ function read(): Settings {
 
 export const settings = reactive<Settings>(read());
 
-// Whether the settings pane is open. The top bar's gear opens it.
-export const settingsPane = reactive({ open: false });
+// Whether the settings pane is open (the top bar's gear opens it), and the pane's one request to the lobby:
+// "take the tutorial again", stamped with the time it was asked so the lobby notices each time. Neither is saved.
+export const settingsPane = reactive({ open: false, tutorialRequested: 0 });
 
 watch(settings, (s) => {
   try {

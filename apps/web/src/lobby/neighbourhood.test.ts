@@ -64,6 +64,15 @@ describe("neighbourhoods", () => {
     expect(big.bounds.maxX - big.bounds.minX).toBeGreaterThan(generateNeighbourhood("Abidjan", dakar).bounds.maxX * 2);
   });
 
+  it("can be small: a market square and one block of four plots, for the tutorial", () => {
+    const n = generateNeighbourhood("Atelier", [{ id: "atelier", demo: false }], { small: true });
+    expect(n.blocks).toHaveLength(2);
+    expect(n.blocks.filter((b) => b.kind === "market")).toHaveLength(1);
+    expect(n.plots).toHaveLength(4);
+    expect(n.plots.filter((p) => p.lot.kind === "house")).toHaveLength(1);
+    expect(n.bounds.maxX - n.bounds.minX).toBeLessThan(generateNeighbourhood("Atelier", [{ id: "atelier", demo: false }]).bounds.maxX * 2);
+  });
+
   it("never overlap plots, and keep them off the streets", () => {
     const n = generateNeighbourhood("Kigali", dakar);
     const keys = new Set(n.plots.map((p) => `${p.x},${p.z}`));

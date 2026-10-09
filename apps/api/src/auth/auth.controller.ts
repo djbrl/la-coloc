@@ -7,7 +7,13 @@ import { MembershipsService } from "./memberships.service";
 import { AVATARS } from "../lobby/presence";
 
 const DevLoginBody = z.object({ login: z.string().min(1).max(39) });
-const MeBody = z.object({ avatar: z.enum(AVATARS as [string, ...string[]]) });
+// What you may change about yourself: your character, and whether you've done the tutorial. Either or both.
+const MeBody = z
+  .object({
+    avatar: z.enum(AVATARS as [string, ...string[]], { errorMap: () => ({ message: "Pick one of the characters." }) }).optional(),
+    tutorialDone: z.boolean({ invalid_type_error: "tutorialDone is true or false." }).optional(),
+  })
+  .refine((b) => b.avatar !== undefined || b.tutorialDone !== undefined, "Nothing to change.");
 
 @Controller()
 export class AuthController {
@@ -21,7 +27,7 @@ export class AuthController {
   // Tells the login page which buttons to show.
   @Get("auth/config")
   config() {
-    return { github: !!this.auth.config.github, dev: this.auth.config.devLogin };
+    return { github: !!this.auth.config.github, dev: this.auth.config.devLogin, demoReset: this.auth.config.demoReset };
   }
 
   @Get("auth/github")
@@ -83,19 +89,21 @@ export class AuthController {
         name: user.name,
         avatarUrl: user.avatarUrl,
         avatar: user.avatar,
+        tutorialDone: !!user.tutorialDoneAt,
         houses: await this.memberships.housesOf(user.id),
       },
     };
   }
 
-  // Your character in the lobby.
+  // Your character in the lobby, and whether you've done the tutorial (false: take it again).
   @Patch("me")
   async updateMe(@Req() req: HttpRequest, @Body() body: unknown) {
     const user = await this.auth.userFromRequest(req);
     if (!user) throw new UnauthorizedException();
-    const parsed = MeBody.safeParse(body);
-    if (!parsed.success) throw new BadRequestException("Pick one of the characters.");
-    await this.auth.setAvatar(user.id, parsed.data.avatar);
+    const parsed = MeBody.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? "Nothing to change.");
+    if (parsed.data.avatar !== undefined) await this.auth.setAvatar(user.id, parsed.data.avatar);
+    if (parsed.data.tutorialDone !== undefined) await this.auth.setTutorialDone(user.id, parsed.data.tutorialDone);
     return { ok: true };
   }
 

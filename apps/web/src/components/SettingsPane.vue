@@ -1,14 +1,18 @@
 <script setup lang="ts">
-// Settings, as a sheet that slides in: how the city shows, how it looks, how it moves. Each control reads as a
-// sentence, so nothing needs a label.
+// Settings, as a sheet that slides in: how the city shows, how it looks, how it moves, and two ways to start
+// over (the tutorial, and, when this server allows it, the whole demo). Each control reads as a sentence, so
+// nothing needs a label.
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { config, loadConfig, loadMe, me, postJSON } from "../session";
 import { settings, settingsPane } from "../settings";
 
 const route = useRoute();
 const router = useRouter();
 const panel = ref<HTMLElement | null>(null);
 let opener: Element | null = null;
+// "Reset the demo city" asks once more inline; this is whether it's asking.
+const confirming = ref(false);
 
 // "Looks like: the system / day / night": the site's light or dark look, or the system's choice.
 const themes: { value: typeof settings.theme; word: string }[] = [
@@ -22,11 +26,14 @@ watch(
   async (open) => {
     if (open) {
       opener = document.activeElement;
+      // What this server allows is asked once, the first time the pane opens.
+      if (!config.value) void loadConfig();
       await nextTick();
       panel.value?.focus();
       window.addEventListener("keydown", onKey);
     } else {
       window.removeEventListener("keydown", onKey);
+      confirming.value = false;
       (opener as HTMLElement | null)?.focus?.();
     }
   },
@@ -41,10 +48,58 @@ function close() {
   settingsPane.open = false;
 }
 
+function goHome() {
+  if (route.path !== "/") router.push("/");
+}
+
 function replayWelcome() {
   settings.welcomed = false;
   close();
-  if (route.path !== "/") router.push("/");
+  goHome();
+}
+
+// ---- The tutorial again ----
+
+// The server forgets your tutorial room and your "done" mark, your profile is read again, and the lobby is told
+// to start the tutorial (it watches `tutorialRequested`).
+const tutorialBusy = ref(false);
+const tutorialError = ref("");
+async function takeTutorialAgain() {
+  tutorialBusy.value = true;
+  tutorialError.value = "";
+  const res = await postJSON("/api/tutorial/reset", {});
+  tutorialBusy.value = false;
+  if (!res.ok) {
+    tutorialError.value = res.message;
+    return;
+  }
+  await loadMe();
+  settingsPane.tutorialRequested = Date.now();
+  close();
+  goHome();
+}
+
+// ---- Reset the demo ----
+
+// After the inline question: the server resets the demo city, this browser forgets its settings, lamps and tours,
+// and the page reloads from the start.
+const resetBusy = ref(false);
+const resetError = ref("");
+async function resetDemo() {
+  resetBusy.value = true;
+  resetError.value = "";
+  const res = await postJSON("/api/demo/reset", {});
+  if (!res.ok) {
+    resetBusy.value = false;
+    resetError.value = res.message;
+    return;
+  }
+  try {
+    for (const key of ["coloc.settings", "coloc.lamps", "coloc.tours"]) localStorage.removeItem(key);
+  } catch {
+    // No storage to clear: the reload is a fresh start all the same.
+  }
+  location.reload();
 }
 </script>
 
@@ -100,8 +155,25 @@ function replayWelcome() {
         </button>
       </section>
 
-      <section>
+      <section class="links">
         <button class="link" @click="replayWelcome">Watch the welcome again, and change your look ›</button>
+        <template v-if="me">
+          <button class="link" :disabled="tutorialBusy" @click="takeTutorialAgain">Take the tutorial again ›</button>
+          <p v-if="tutorialError" class="sub error" role="alert">{{ tutorialError }}</p>
+        </template>
+      </section>
+
+      <!-- Only when the server says the demo may be reset: the whole city goes back to its seed. -->
+      <section v-if="config?.demoReset" class="reset">
+        <button v-if="!confirming" class="link danger" @click="confirming = true">Reset the demo city ›</button>
+        <template v-else>
+          <p class="lead">Everything goes back to the start. Reset?</p>
+          <div class="choice">
+            <button class="danger-fill" :disabled="resetBusy" @click="resetDemo">Reset</button>
+            <button :disabled="resetBusy" @click="confirming = false">Keep</button>
+          </div>
+          <p v-if="resetError" class="sub error" role="alert">{{ resetError }}</p>
+        </template>
       </section>
     </aside>
   </Transition>
@@ -116,6 +188,7 @@ h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
 section { display: grid; gap: 4px; }
 .lead { display: block; font-size: 17px; font-weight: 500; margin: 0 0 8px; }
 .sub { display: block; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.error { color: var(--danger); margin: 0; }
 /* A segmented control: one column per choice, the chosen one raised on the surface. */
 .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: 12px; background: var(--fill); }
 .segmented button { border: 0; border-radius: 9px; min-height: 40px; background: none; color: inherit; font-size: 15px; cursor: pointer; }
@@ -126,7 +199,15 @@ section { display: grid; gap: 4px; }
 .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); transition: transform 0.2s; }
 .switch.on { background: var(--live); }
 .switch.on::after { transform: translateX(20px); }
+.links { gap: 0; }
 .link { justify-self: start; border: 0; background: none; padding: 8px 0; color: var(--accent); font-size: 17px; cursor: pointer; text-align: left; }
+.link.danger { color: var(--danger); }
+/* The reset question: a short line, then Reset in red beside Keep. */
+.reset { padding-top: 20px; border-top: 1px solid var(--hairline); }
+.choice { display: flex; gap: 10px; }
+.choice button { min-height: 40px; padding: 0 20px; font-size: 15px; }
+.danger-fill { background: var(--danger); color: #fff; }
+.danger-fill:hover:not(:disabled) { background: var(--danger); opacity: 0.9; }
 /* Our own hovers and sizes, so the site's general button style doesn't reshape these controls. */
 .close { min-height: 36px; }
 .close:hover:not(:disabled) { background: var(--fill-hover); }

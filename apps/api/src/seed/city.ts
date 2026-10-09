@@ -1,7 +1,9 @@
-// The development city. Sacré-Cœur is the house our local agent actually runs (see docs/dev.md).
+// The development city. Sacré-Cœur is the house our local agent actually runs (see docs/dev.md), and L'Atelier
+// is the workshop where newcomers take the tutorial (a second agent runs it, with the same secret).
 // Every other house is a demo house: flagged `demo`, labelled as such in the UI, with made-up flatmates
 // who have no GitHub account. They exist so the city isn't empty on screen.
 import { applications, chores, type Db, deployments, fridgeNotes, houses, memberships, messages, repos, rooms, sessions, usageSamples, users, votes } from "@coloc/db";
+import { eq } from "drizzle-orm";
 import { hashSecret } from "../houses/houses.service";
 
 interface SeedRoom {
@@ -23,7 +25,10 @@ interface SeedHouse {
   tagline: string;
   status: "making" | "live";
   demo: boolean;
-  monthlyCostFcfa: number;
+  // The tutorial's workshop: never drawn on the city.
+  tutorial?: boolean;
+  // Null: nobody pays for it.
+  monthlyCostFcfa: number | null;
   chef: string;
   rooms: SeedRoom[];
 }
@@ -45,6 +50,20 @@ export const CITY: SeedHouse[] = [
       { name: "moussa", who: "moussa", memoryMb: 128, project: "Prix Marché", description: "Scrapes market prices every morning." },
       { name: "room-4", ad: "Looking for a mobile dev (Flutter or React Native)" },
     ],
+  },
+  {
+    // Newcomers take their first room here during the tutorial; each room is removed when its tutorial restarts.
+    id: "atelier",
+    name: "L'Atelier",
+    city: "Dakar",
+    country: "SN",
+    tagline: "Where newcomers take their first room.",
+    status: "live",
+    demo: false,
+    tutorial: true,
+    monthlyCostFcfa: null,
+    chef: "jib",
+    rooms: [],
   },
   {
     id: "almadies",
@@ -192,54 +211,98 @@ const NAMES: Record<string, string> = {
 
 const displayName = (login: string) => NAMES[login] ?? login.charAt(0).toUpperCase() + login.slice(1);
 
+export interface SeedOptions {
+  // The secret of the real houses' agents (Sacré-Cœur and L'Atelier share it).
+  agentSecret: string;
+  domain: (houseId: string) => string;
+}
+
+/**
+ * The options `npm run dev:seed` uses, from the environment. The demo reset reads the same ones, so a reset
+ * city is the seeded city.
+ */
+export function devSeedOptions(env = process.env): SeedOptions {
+  const houseDomain = env.COLOC_DEV_HOUSE_DOMAIN ?? "coloc.localhost";
+  return {
+    agentSecret: env.COLOC_DEV_AGENT_SECRET ?? "dev-secret-change-me",
+    // Locally Sacré-Cœur serves its rooms at <room>.coloc.localhost and the workshop at <room>.atelier.coloc.localhost.
+    // Demo houses never serve anything.
+    domain: (id) => (id === "sacre-coeur" ? houseDomain : id === "atelier" ? `atelier.${houseDomain}` : `${id}.coloc.dev`),
+  };
+}
+
 /**
  * Wipes coloc.dev's tables and plants the development city. Only for a local database:
  * the caller checks that before calling.
  */
-export async function seedCity(db: Db, opts: { agentSecret: string; domain: (houseId: string) => string }) {
+export async function seedCity(db: Db, opts: SeedOptions) {
   await db.transaction(async (tx) => {
     for (const t of [messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, sessions, memberships, rooms, houses, users]) await tx.delete(t);
-
-    const logins = [...new Set(CITY.flatMap((h) => h.rooms.map((r) => r.who).filter((w): w is string => !!w)))];
-    const inserted = await tx
-      .insert(users)
-      .values(logins.map((login) => ({ login, name: displayName(login) })))
-      .returning();
-    const id = Object.fromEntries(inserted.map((u) => [u.login, u.id]));
-
-    for (const h of CITY) {
-      await tx.insert(houses).values({
-        id: h.id,
-        name: h.name,
-        city: h.city,
-        country: h.country,
-        tagline: h.tagline,
-        status: h.status,
-        demo: h.demo,
-        domain: opts.domain(h.id),
-        monthlyCostFcfa: h.monthlyCostFcfa,
-        chefId: id[h.chef],
-        // Only the real house has an agent.
-        agentSecretHash: h.demo ? null : hashSecret(opts.agentSecret),
-      });
-      await tx.insert(rooms).values(
-        h.rooms.map((r) => ({
-          houseId: h.id,
-          name: r.name,
-          occupantId: r.who ? id[r.who] : null,
-          memoryMb: r.memoryMb ?? 256,
-          cpus: r.cpus ?? 0.5,
-          project: r.project ?? null,
-          projectDescription: r.description ?? null,
-          ad: r.ad ?? null,
-          // Demo houses that are live show their rooms as lived in; nothing actually runs there.
-          status: (h.demo && h.status === "live" && r.who ? "live" : "empty") as "live" | "empty",
-        })),
-      );
-      const members = h.rooms.filter((r) => r.who);
-      await tx.insert(memberships).values(
-        members.map((r, i) => ({ houseId: h.id, userId: id[r.who!], role: r.who === h.chef ? ("chef" as const) : ("flatmate" as const), tontinePosition: i })),
-      );
-    }
+    await plantCity(tx, opts);
   });
+}
+
+/**
+ * Plants the seeded houses, their rooms and their flatmates, on a database that has no houses. The seeded
+ * flatmates who are already there (a demo reset keeps everyone) are reused rather than made again.
+ */
+export async function plantCity(db: Db, opts: SeedOptions) {
+  const logins = [...new Set(CITY.flatMap((h) => [h.chef, ...h.rooms.map((r) => r.who).filter((w): w is string => !!w)]))];
+  const id: Record<string, string> = {};
+  for (const login of logins) id[login] = await seededPerson(db, login);
+
+  for (const h of CITY) {
+    await db.insert(houses).values({
+      id: h.id,
+      name: h.name,
+      city: h.city,
+      country: h.country,
+      tagline: h.tagline,
+      status: h.status,
+      demo: h.demo,
+      tutorial: h.tutorial ?? false,
+      domain: opts.domain(h.id),
+      monthlyCostFcfa: h.monthlyCostFcfa,
+      chefId: id[h.chef],
+      // Only the real houses have an agent.
+      agentSecretHash: h.demo ? null : hashSecret(opts.agentSecret),
+    });
+    // The workshop starts with no rooms: each newcomer takes one during the tutorial.
+    if (!h.rooms.length) continue;
+    await db.insert(rooms).values(
+      h.rooms.map((r) => ({
+        houseId: h.id,
+        name: r.name,
+        occupantId: r.who ? id[r.who] : null,
+        memoryMb: r.memoryMb ?? 256,
+        cpus: r.cpus ?? 0.5,
+        project: r.project ?? null,
+        projectDescription: r.description ?? null,
+        ad: r.ad ?? null,
+        // Demo houses that are live show their rooms as lived in; nothing actually runs there.
+        status: (h.demo && h.status === "live" && r.who ? "live" : "empty") as "live" | "empty",
+      })),
+    );
+    const members = h.rooms.filter((r) => r.who);
+    await db.insert(memberships).values(
+      members.map((r, i) => ({ houseId: h.id, userId: id[r.who!], role: r.who === h.chef ? ("chef" as const) : ("flatmate" as const), tontinePosition: i })),
+    );
+  }
+}
+
+/**
+ * The user id of a seeded flatmate, made if missing. Seeded people never have a GitHub account. If a real GitHub
+ * user has since taken the login, the seeded one was renamed "<login>-demo" (see AuthService.upsertGithubUser),
+ * so that name is tried next.
+ */
+async function seededPerson(db: Db, login: string): Promise<string> {
+  for (const candidate of [login, `${login}-demo`]) {
+    const [existing] = await db.select({ id: users.id, githubId: users.githubId }).from(users).where(eq(users.login, candidate));
+    if (existing && existing.githubId === null) return existing.id;
+    if (!existing) {
+      const [made] = await db.insert(users).values({ login: candidate, name: displayName(login) }).returning({ id: users.id });
+      return made.id;
+    }
+  }
+  throw new Error(`can't seed ${login}: both ${login} and ${login}-demo are GitHub accounts`);
 }

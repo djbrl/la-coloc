@@ -3,7 +3,8 @@
 // welcome, the prompt for whatever is in reach, emotes, who's here, the lamps, a card for the house, person or
 // empty plot you picked, the inside of a house (its page, an application, a room) opened over the city so you
 // never leave it, a minimap you can travel from, the keys in the corner, and sheets to find a house or travel
-// to another city.
+// to another city. The first time someone logged in arrives, the tutorial takes the city's place: one small
+// block with a workshop in it, and a coach at the bottom; the city comes back when it ends.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { loading } from "../lobby/assets";
@@ -12,7 +13,7 @@ import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
 import { loadMe, me } from "../session";
-import { settings } from "../settings";
+import { settings, settingsPane } from "../settings";
 import type { CityHouse } from "../types";
 import KnockSteps from "./KnockSteps.vue";
 import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam, plural, statusLine } from "./lobby/cards";
@@ -25,6 +26,8 @@ import Minimap from "./lobby/Minimap.vue";
 import PersonCard from "./lobby/PersonCard.vue";
 import { type Place, placeKey } from "./lobby/place";
 import RentSteps from "./lobby/RentSteps.vue";
+import Coach from "./lobby/tutorial/Coach.vue";
+import { createTutorial, TUTORIAL_CITY, TUTORIAL_HOUSE } from "./lobby/tutorial/tutorial";
 import LoadingScreen from "./LoadingScreen.vue";
 import Onboarding from "./Onboarding.vue";
 
@@ -83,6 +86,19 @@ const myCity = computed(() => {
 const city = ref<string>(String(route.query.city ?? "") || myCity.value || cities.value[0]?.name || "Dakar");
 const here = computed(() => props.houses.filter((h) => h.city === city.value));
 
+// ---- The tutorial ----
+
+// Its state machine; the coach shows it. While it's on, the only house on the map is the workshop.
+const tutorial = createTutorial(leaveTutorial);
+const inTutorial = tutorial.active;
+// The houses on screen: the workshop during the tutorial, else this city's.
+const shown = computed(() => (inTutorial.value ? [tutorial.house.value] : here.value));
+// What the place button says: the workshop's name, or the city's.
+const placeName = computed(() => (inTutorial.value ? tutorial.house.value.name : city.value));
+// Travel and find are off during the tutorial; pressing them shows this line for a moment.
+const notice = ref("");
+let noticeTimer = 0;
+
 // Who lives where, across every city: rings and cards.
 const residents = computed(() => {
   const map = new Map<string, Home>();
@@ -93,9 +109,10 @@ const residents = computed(() => {
 
 function build() {
   if (!lobby) return;
-  const n = generateNeighbourhood(city.value, here.value);
+  // The tutorial's neighbourhood is a market square and one block of four plots: nowhere to get lost.
+  const n = inTutorial.value ? generateNeighbourhood(TUTORIAL_CITY, [tutorial.house.value], { small: true }) : generateNeighbourhood(city.value, here.value);
   neighbourhood.value = n;
-  lobby.setNeighbourhood(n, here.value);
+  lobby.setNeighbourhood(n, shown.value);
   lobby.setResidents(residents.value);
   lamps.value = lobby.lampCount();
   if (walkAfterArrival) {
@@ -129,6 +146,66 @@ function fastTravel(x: number, z: number) {
   lobby?.teleport(x, z);
   bigMap.value = false;
 }
+
+// The find and travel sheets, unless the tutorial is on: then just a word, and you stay in the workshop.
+function openSheet(which: "find" | "travel") {
+  if (!inTutorial.value) {
+    sheet.value = which;
+    return;
+  }
+  notice.value = "After the tutorial.";
+  clearTimeout(noticeTimer);
+  noticeTimer = window.setTimeout(() => (notice.value = ""), 1800);
+}
+
+// The tutorial takes the city's place: everything open closes, the workshop is built, and presence moves to a
+// place of your own so nobody else walks in. Safe to call twice: the second call does nothing.
+function enterTutorial() {
+  if (!lobby || !me.value || inTutorial.value) return;
+  card.value = null;
+  knock.value = null;
+  rent.value = null;
+  sheet.value = "";
+  bigMap.value = false;
+  keysOpen.value = false;
+  if (place.value) closeInside();
+  tutorial.start();
+  others.value = new Set();
+  lobby.clearRemotes();
+  build();
+  link?.enter(`tutorial:${me.value.login}`);
+}
+
+// The tutorial ended (finished or skipped): the real city comes back, and so does everyone in it.
+function leaveTutorial() {
+  if (place.value) closeInside();
+  card.value = null;
+  others.value = new Set();
+  lobby?.clearRemotes();
+  build();
+  link?.enter(city.value);
+  host.value?.focus({ preventScroll: true });
+}
+
+// It starts on its own, once the lobby is up and the welcome is over, for someone logged in who hasn't done it
+// (an API without the tutorial leaves `tutorialDone` out, and then nothing starts). Settings can ask for it again.
+watch(
+  [ready, () => settings.welcomed, () => me.value?.tutorialDone],
+  ([up, welcomed, done]) => {
+    if (up && welcomed && done === false && !failed.value) enterTutorial();
+  },
+  { immediate: true },
+);
+watch(() => settingsPane.tutorialRequested, enterTutorial);
+// The workshop changes as you take a room and it goes live: its windows on the map follow.
+watch(tutorial.house, build);
+// The first two steps are done by walking: reaching the workshop, then opening its inside.
+watch(near, (t) => {
+  if (inTutorial.value && t?.kind === "house" && t.house.id === TUTORIAL_HOUSE) tutorial.nearHouse();
+});
+watch(place, (p) => {
+  if (inTutorial.value && p?.kind === "house" && p.id === TUTORIAL_HOUSE) tutorial.insideOpened();
+});
 
 // ---- Lamps, remembered per browser ----
 
@@ -229,6 +306,8 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", unlock);
   link?.close();
   lobby?.dispose();
+  tutorial.stop();
+  clearTimeout(noticeTimer);
   loading.onProgress = () => undefined;
   loading.onLoad = () => undefined;
 });
@@ -258,7 +337,7 @@ function closeCard() {
 const cardHouse = computed(() => {
   const c = card.value;
   if (c?.kind !== "house") return null;
-  return props.houses.find((h) => h.id === c.house.id) ?? c.house;
+  return shown.value.find((h) => h.id === c.house.id) ?? c.house;
 });
 // The card's person: where they live, and that house as the city lists it.
 const cardHome = computed(() => {
@@ -387,8 +466,8 @@ function onKey(e: KeyboardEvent) {
   if (e.key === "m" || e.key === "M") bigMap.value = !bigMap.value;
   else if (e.key === "?") keysOpen.value = !keysOpen.value;
   else if (bigMap.value || keysOpen.value) return;
-  else if (e.key === "f" || e.key === "F") sheet.value = "find";
-  else if (e.key === "t" || e.key === "T") sheet.value = "travel";
+  else if (e.key === "f" || e.key === "F") openSheet("find");
+  else if (e.key === "t" || e.key === "T") openSheet("travel");
 }
 
 function emote(name: Emote) {
@@ -426,24 +505,25 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
       class="stage"
       role="img"
       tabindex="-1"
-      :aria-label="`${city}, a neighbourhood you can walk around in 3D. The list view in settings shows the same houses as text.`"
+      :aria-label="`${placeName}, a neighbourhood you can walk around in 3D. The list view in settings shows the same houses as text.`"
     />
 
     <p v-if="failed" class="failed">This browser can't show the city in 3D. Open settings to see it as a list.</p>
 
     <template v-if="ready && !failed">
-      <button class="hud place" :aria-label="`You're in ${city}. Travel to another city`" @click="sheet = 'travel'">
-        <span class="city">{{ city }}</span>
+      <button class="hud place" :aria-label="inTutorial ? `You're in ${placeName}, the tutorial's workshop` : `You're in ${city}. Travel to another city`" @click="openSheet('travel')">
+        <span class="city">{{ placeName }}</span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
 
       <div class="hud top" aria-live="polite">
+        <p v-if="notice">{{ notice }}</p>
         <p v-if="hereLine">{{ hereLine }}</p>
         <p v-if="lampLine" class="lamps">{{ lampLine }}</p>
       </div>
 
       <div class="hud tools">
-        <button aria-label="Find a house (F)" @click="sheet = 'find'">
+        <button aria-label="Find a house (F)" @click="openSheet('find')">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
         </button>
         <button aria-label="Turn the view left (Q)" @click="lobby?.rotate(-1)">
@@ -486,10 +566,26 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
         <KeyLegend v-if="settings.welcomed" :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" />
       </div>
 
-      <!-- Bottom centre: what's in reach (or highlighted with Tab), unless its card is already open, and the emotes. -->
-      <div class="hud centre">
+      <!-- Bottom centre: the coach during the tutorial, what's in reach (or highlighted with Tab) unless its card is
+           already open, and the emotes. The coach must stay usable over a house's inside, so the column lifts above it. -->
+      <div class="hud centre" :class="{ lifted: inTutorial }">
+        <Coach
+          v-if="inTutorial"
+          :step="tutorial.step.value"
+          :state="tutorial.state.value"
+          :missing="tutorial.missing.value"
+          :busy="tutorial.busy.value"
+          :error="tutorial.error.value"
+          :ran="tutorial.ran.value"
+          @room="tutorial.takeRoom"
+          @run="tutorial.deploy"
+          @next="tutorial.next"
+          @skip-github="tutorial.skipGithub"
+          @finish="tutorial.finish"
+          @skip="tutorial.finish"
+        />
         <Transition name="rise">
-          <div v-if="near && settings.welcomed && nearKey !== cardKey" class="prompt" role="status">
+          <div v-if="near && settings.welcomed && nearKey !== cardKey && !place" class="prompt" role="status">
             <template v-if="near.kind === 'house'">
               <span>
                 <strong>{{ near.house.name }}</strong>
@@ -514,7 +610,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
             </template>
           </div>
         </Transition>
-        <div v-if="me && !card" class="emotes">
+        <div v-if="me && !card && !place" class="emotes">
           <button aria-label="Thumbs up (1)" @click="emote('yes')">👍</button>
           <button aria-label="Thumbs down (2)" @click="emote('no')">👎</button>
         </div>
@@ -522,7 +618,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 
       <!-- Bottom right: the neighbourhood from above. Click it to travel; M opens it big. -->
       <div v-if="neighbourhood && settings.welcomed" class="hud map" :class="{ covered: !!card }">
-        <Minimap :neighbourhood="neighbourhood" :houses="here" :residents="residents" :state="mapState" @travel="fastTravel" />
+        <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" @travel="fastTravel" />
       </div>
 
       <Onboarding v-if="!settings.welcomed" @focus="(on) => lobby?.focusOnPlayer(on)" @character="(c) => lobby?.setCharacter(c)" @done="settings.welcomed = true" />
@@ -531,7 +627,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
       <RentSteps v-if="rent" :city="rent.city" :plot="rent.plot" @built="built" @close="rent = null" />
 
       <Transition name="fade">
-        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="here" :residents="residents" :state="mapState" large @travel="fastTravel" @close="bigMap = false" />
+        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" large @travel="fastTravel" @close="bigMap = false" />
       </Transition>
       <Transition name="fade">
         <KeysSheet v-if="keysOpen" @close="keysOpen = false" />
@@ -605,6 +701,8 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 /* The middle column: the prompt above, the emotes under it; the gaps let clicks through. */
 .centre { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .centre > * { pointer-events: auto; }
+/* During the tutorial the column sits above a house's inside (60), so the coach's buttons stay in reach. */
+.centre.lifted { z-index: 70; }
 .prompt { display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 22px; border-radius: 980px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); white-space: nowrap; font-size: 17px; max-width: calc(100vw - 32px); }
 .prompt strong { font-weight: 600; }
 .soft { color: var(--muted); }

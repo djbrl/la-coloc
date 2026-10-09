@@ -6,6 +6,8 @@ export interface AuthConfig {
   // Development only: log in as anyone, no GitHub needed.
   devLogin: boolean;
   secureCookies: boolean;
+  // Demo servers only: a button puts the whole city back to the seed (COLOC_DEMO_RESET=1).
+  demoReset: boolean;
 }
 
 export function loadAuthConfig(env = process.env): AuthConfig {
@@ -17,5 +19,6 @@ export function loadAuthConfig(env = process.env): AuthConfig {
     github: id && secret ? { clientId: id, clientSecret: secret } : null,
     devLogin: env.COLOC_DEV_LOGIN === "1",
     secureCookies: publicUrl.startsWith("https://"),
+    demoReset: env.COLOC_DEMO_RESET === "1",
   };
 }

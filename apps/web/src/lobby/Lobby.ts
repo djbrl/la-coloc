@@ -166,6 +166,8 @@ export class Lobby {
   private route: THREE.Vector3[] | null = null;
   // What to use when you get there: after a click, a goTo, or E on something far away.
   private useOnArrival: Thing | null = null;
+  // Whether the route already took its one extra step towards a building's walls (see the arrival code).
+  private nudged = false;
   // Where you were when the route last made progress: see STUCK.
   private stuck = { at: 0, x: 0, z: 0 };
   // The walk grid, built from the buildings' footprints. A footprint that changes (a house model loading in)
@@ -673,6 +675,7 @@ export class Lobby {
     const points = found ? smooth(grid, found).slice(1) : ["minX" in goal ? nearestOnBox(here, goal) : goal];
     this.route = points.map((p) => new THREE.Vector3(p.x, 0, p.z));
     this.useOnArrival = use;
+    this.nudged = false;
     this.stuck = { at: this.clock.elapsedTime, x: here.x, z: here.z };
   }
 
@@ -1272,7 +1275,14 @@ export class Lobby {
       }
       // There: at the last waypoint, or already close enough to use what you came for.
       const there = dir.length() < 0.15 || (u !== null && this.arrived(u));
-      if (there) {
+      // The route's last cell can sit on a corner of the goal rectangle, a little too far from the building's
+      // real walls: one last straight step towards them, once, and the next frame arrives.
+      if (there && u?.box && !this.arrived(u) && !this.nudged) {
+        this.nudged = true;
+        const q = nearestOnBox({ x: this.player.position.x, z: this.player.position.z }, grow(u.box, REACH * 0.5));
+        this.route = [new THREE.Vector3(q.x, 0, q.z)];
+        dir.subVectors(this.route[0], this.player.position).setY(0);
+      } else if (there) {
         this.stop();
         dir.set(0, 0, 0);
         if (u) this.use(u);

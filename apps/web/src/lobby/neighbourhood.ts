@@ -79,16 +79,17 @@ export interface HouseOnMap {
  * the others take the plots nearest the market (real houses first). Bigger cities get more blocks; every
  * neighbourhood has room to spare, filled with shops, towers and trees, all of them empty and up for rent.
  */
-export function generateNeighbourhood(city: string, houses: HouseOnMap[]): Neighbourhood {
+export function generateNeighbourhood(city: string, houses: HouseOnMap[], opts: { small?: boolean } = {}): Neighbourhood {
   const rand = seeded(city.toLowerCase());
   const pick = (n: number) => Math.floor(rand() * n);
 
-  // Enough plots for everyone, plenty of filler, and at least a 3 × 2 grid of blocks.
+  // Enough plots for everyone, plenty of filler, and at least a 3 × 2 grid of blocks. `small` (the tutorial) is
+  // just a market square and one block of four plots: nowhere to get lost.
   const wanted = Math.max(14, houses.length * 3);
-  const columns = Array.from({ length: 6 }, () => 2 + pick(2)); // plots per block, along x
-  let bx = 3;
-  let bz = 2;
-  while (bx * bz * 5 < wanted) bx * bz < 2 * bx ? bz++ : bx <= bz ? bx++ : bz++;
+  const columns = Array.from({ length: 6 }, () => (opts.small ? 2 : 2 + pick(2))); // plots per block, along x
+  let bx = opts.small ? 2 : 3;
+  let bz = opts.small ? 1 : 2;
+  while (!opts.small && bx * bz * 5 < wanted) bx * bz < 2 * bx ? bz++ : bx <= bz ? bx++ : bz++;
   bx = Math.min(bx, 6);
 
   // Street lines and block extents, along each axis.

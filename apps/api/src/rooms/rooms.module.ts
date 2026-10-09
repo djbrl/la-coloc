@@ -24,6 +24,6 @@ import { SecretBox } from "./secrets";
     RoomDeployer,
     RoomsService,
   ],
-  exports: [RoomDeployer],
+  exports: [RoomDeployer, RoomsService],
 })
 export class RoomsModule {}
