@@ -1,4 +1,4 @@
-# Local stand-in for a house server's front door. Rooms are served at http://<room>.coloc.localhost:8000
+# Local stand-ins: a house server's front door (rooms at http://<room>.coloc.localhost:8000) and coloc.dev's database.
 services:
   traefik:
     image: traefik:v3.2
@@ -17,3 +17,21 @@ services:
       # Must match the agent's COLOC_PROXY_CONFIG_DIR. Read-only: only the agent writes routes.
       - /tmp/coloc-agent/proxy:/etc/traefik/rooms:ro
     restart: unless-stopped
+
+  # coloc.dev's own database (users, houses, rooms, deployments). Not a house's kitchen.
+  db:
+    image: postgres:17-alpine
+    container_name: coloc-db
+    environment:
+      POSTGRES_USER: coloc
+      POSTGRES_PASSWORD: coloc-dev-only
+      POSTGRES_DB: coloc
+    ports:
+      # 5433, so it never collides with a Postgres you already run on 5432. Local only.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - coloc-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  coloc-db:

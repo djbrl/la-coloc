@@ -1,8 +1,8 @@
 // Turns what happens in the house into fridge notes, in the house's own voice.
 import type { DeployStatus, RoomEvent } from "@coloc/protocol";
-import type { FridgeNote } from "./house.types";
+import type { FridgeNoteView } from "./house.types";
 
-type Draft = Omit<FridgeNote, "id" | "at" | "count">;
+export type Draft = { tone: FridgeNoteView["tone"]; text: string; room: string };
 
 export function noteForRoomEvent(e: RoomEvent, flatmate: string): Draft {
   switch (e.event) {

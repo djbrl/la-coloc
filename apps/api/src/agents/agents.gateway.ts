@@ -21,44 +21,16 @@ export class AgentsGateway implements OnGatewayConnection {
   handleConnection(socket: WebSocket) {
     let houseId: string | null = null;
     const helloTimer = setTimeout(() => socket.close(4000, "no hello"), HELLO_TIMEOUT_MS);
+    // Messages are handled one at a time, in arrival order: "starting" must never land after "live".
+    let queue = Promise.resolve();
 
     socket.on("message", (raw) => {
-      let msg;
-      try {
-        msg = parseAgentToApi(raw.toString());
-      } catch {
-        this.log.warn(`malformed message from ${houseId ?? "unauthenticated agent"}`);
-        if (!houseId) socket.close(4000, "bad hello");
-        return;
-      }
-
-      if (!houseId) {
-        if (msg.type !== "hello" || !this.houses.verifyAgentSecret(msg.houseId, msg.secret)) {
-          socket.close(4003, "unauthorized");
-          return;
-        }
-        clearTimeout(helloTimer);
-        houseId = msg.houseId;
-        this.registry.register(houseId, socket);
-        this.houses.setAgentOnline(houseId, true);
-        this.log.log(`agent online: ${houseId} (v${msg.agentVersion})`);
-        return;
-      }
-
-      switch (msg.type) {
-        case "deploy_status":
-          this.houses.recordDeployStatus(houseId, msg);
-          break;
-        case "usage":
-          this.houses.recordUsage(houseId, msg);
-          break;
-        case "room_event":
-          this.houses.recordRoomEvent(houseId, msg);
-          break;
-        case "rooms_snapshot":
-          this.houses.applySnapshot(houseId, msg);
-          break;
-      }
+      queue = queue
+        .then(() => this.handle(socket, raw.toString(), houseId, (id) => {
+          clearTimeout(helloTimer);
+          houseId = id;
+        }))
+        .catch((e) => this.log.error(`message from ${houseId ?? "unauthenticated agent"} failed: ${(e as Error).message}`));
     });
 
     socket.on("close", () => {
@@ -68,5 +40,43 @@ export class AgentsGateway implements OnGatewayConnection {
       if (!this.registry.isOnline(houseId)) this.houses.setAgentOnline(houseId, false);
       this.log.log(`agent offline: ${houseId}`);
     });
+  }
+
+  private async handle(socket: WebSocket, raw: string, houseId: string | null, authenticated: (houseId: string) => void) {
+    let msg;
+    try {
+      msg = parseAgentToApi(raw);
+    } catch {
+      this.log.warn(`malformed message from ${houseId ?? "unauthenticated agent"}`);
+      if (!houseId) socket.close(4000, "bad hello");
+      return;
+    }
+
+    if (!houseId) {
+      if (msg.type !== "hello" || !(await this.houses.verifyAgentSecret(msg.houseId, msg.secret))) {
+        socket.close(4003, "unauthorized");
+        return;
+      }
+      authenticated(msg.houseId);
+      this.registry.register(msg.houseId, socket);
+      this.houses.setAgentOnline(msg.houseId, true);
+      this.log.log(`agent online: ${msg.houseId} (v${msg.agentVersion})`);
+      return;
+    }
+
+    switch (msg.type) {
+      case "deploy_status":
+        await this.houses.recordDeployStatus(houseId, msg);
+        break;
+      case "usage":
+        await this.houses.recordUsage(houseId, msg);
+        break;
+      case "room_event":
+        await this.houses.recordRoomEvent(houseId, msg);
+        break;
+      case "rooms_snapshot":
+        await this.houses.applySnapshot(houseId, msg);
+        break;
+    }
   }
 }

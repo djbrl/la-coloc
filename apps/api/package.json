@@ -7,10 +7,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
+    "seed": "node dist/seed/run.js",
     "dev": "tsc -p tsconfig.json && (tsc -w -p tsconfig.json --preserveWatchOutput & node --watch dist/main.js)",
     "test": "vitest run"
   },
   "dependencies": {
+    "@coloc/db": "*",
     "@coloc/domain": "*",
     "@coloc/protocol": "*",
     "@nestjs/common": "^10.4.7",
@@ -24,6 +26,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.9.0",
     "@types/ws": "^8.5.13",
     "typescript": "^5.6.3",
