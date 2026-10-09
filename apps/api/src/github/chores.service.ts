@@ -130,9 +130,13 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
     });
 
     if (this.github) {
-      const text = `**Corvée:** @${reviewer.login}, your turn to review this one, within ${CHORE_HOURS} hours. Thanks for keeping the house going.\n\n<sub>Picked by [La Coloc](https://coloc.dev) on the house's review rotation.</sub>`;
+      // Only @-mention people whose GitHub account we know. A coloc login without one (a demo flatmate, a dev
+      // login) may share its name with a stranger on GitHub, who must never be pinged.
+      const onGithub = reviewer.githubId !== null;
+      const who = onGithub ? `@${reviewer.login}` : `${reviewer.login} (no GitHub account linked)`;
+      const text = `**Corvée:** ${who}, your turn to review this one, within ${CHORE_HOURS} hours. Thanks for keeping the house going.\n\n<sub>Picked by [La Coloc](https://coloc.dev) on the house's review rotation.</sub>`;
       await this.github.comment(repo.installationId, repo.fullName, pr.number, text).catch((e) => this.log.warn(e.message));
-      await this.github.requestReview(repo.installationId, repo.fullName, pr.number, reviewer.login);
+      if (onGithub) await this.github.requestReview(repo.installationId, repo.fullName, pr.number, reviewer.login);
     }
     this.houses.changes.next(repo.houseId);
     return `assigned ${reviewer.login}`;

@@ -89,6 +89,14 @@ describe("chores", () => {
     expect(calls[1]).toBe("review awa/ndaje#1 jib");
   });
 
+  it("never @-mentions someone whose GitHub account isn't linked: the name may belong to a stranger", async () => {
+    await db.update(users).set({ githubId: null }).where(eq(users.login, "jib"));
+    expect(await svc.handle("pull_request", opened(1))).toBe("assigned jib");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("jib (no GitHub account linked)");
+    expect(calls[0]).not.toContain("@jib");
+  });
+
   it("spreads the work: the next PR goes to whoever has the fewest open reviews", async () => {
     await svc.handle("pull_request", opened(1));
     expect(await svc.handle("pull_request", opened(2))).toBe("assigned moussa");
