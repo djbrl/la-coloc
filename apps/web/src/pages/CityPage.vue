@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import Avatar from "../components/Avatar.vue";
 import HouseDrawing from "../components/HouseDrawing.vue";
 import type { CityHouse } from "../types";
+
+// three.js is big: only load it when someone opens the lobby.
+const LobbyView = defineAsyncComponent(() => import("../components/LobbyView.vue"));
 
 const houses = ref<CityHouse[] | null>(null);
 const error = ref("");
@@ -10,6 +13,23 @@ const show = ref<"all" | "free" | "making">("all");
 const city = ref("");
 const search = ref("");
 let source: EventSource | null = null;
+
+// Lobby or list, remembered per browser. The list is the text version of the same city.
+function savedView(): "lobby" | "list" {
+  try {
+    return localStorage.getItem("coloc.cityView") === "list" ? "list" : "lobby";
+  } catch {
+    return "lobby";
+  }
+}
+const view = ref<"lobby" | "list">(savedView());
+watch(view, (v) => {
+  try {
+    localStorage.setItem("coloc.cityView", v);
+  } catch {
+    // Private mode: fine, it just won't be remembered.
+  }
+});
 
 onMounted(async () => {
   const res = await fetch("/api/city").catch(() => null);
@@ -68,10 +88,16 @@ const shown = computed(() => {
         <option v-for="c in cities" :key="c" :value="c">{{ c }}</option>
       </select>
       <input v-model="search" type="search" placeholder="mobile, Flutter, fintech…" aria-label="Search houses" />
+      <div class="chips views" role="radiogroup" aria-label="View">
+        <button :class="{ on: view === 'lobby' }" role="radio" :aria-checked="view === 'lobby'" @click="view = 'lobby'">Lobby</button>
+        <button :class="{ on: view === 'list' }" role="radio" :aria-checked="view === 'list'" @click="view = 'list'">List</button>
+      </div>
     </section>
 
+    <LobbyView v-if="view === 'lobby'" :houses="shown" />
+
     <p v-if="!shown.length" class="muted">No house matches. Try another filter.</p>
-    <section class="street">
+    <section v-if="view === 'list'" class="street">
       <RouterLink v-for="h in shown" :key="h.id" :to="`/houses/${h.id}`" class="tile">
         <HouseDrawing :house="h" />
         <div class="name">
@@ -92,7 +118,7 @@ const shown = computed(() => {
       </RouterLink>
     </section>
 
-    <p class="legend muted">
+    <p v-if="view === 'list'" class="legend muted">
       <span><i class="sw lit" /> lived in</span>
       <span><i class="sw free" /> free room</span>
       <span><i class="sw signed" /> signed up, server not rented yet</span>
@@ -108,6 +134,7 @@ const shown = computed(() => {
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 20px; }
 .filters input { flex: 1 1 200px; width: auto; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.views { margin-left: auto; }
 .chips button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .street { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
 .tile { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: inherit; text-decoration: none; transition: border-color 0.15s, transform 0.15s; }

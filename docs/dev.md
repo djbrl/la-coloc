@@ -57,15 +57,26 @@ never misses a request. Afterwards, redeploy Moussa's room with `examples/hello`
 
 ## GitHub (login and chores)
 
-Register a GitHub App (see `docs/build-notes.md`, night 2, for the permissions and events), then:
+One-time setup, with GitHub's App-manifest flow (no secret copied by hand):
 
 ```bash
-COLOC_GITHUB_CLIENT_ID=…  COLOC_GITHUB_CLIENT_SECRET=…        # "Log in with GitHub"
-COLOC_GITHUB_APP_ID=…  COLOC_GITHUB_PRIVATE_KEY="$(cat app.pem)"  COLOC_GITHUB_WEBHOOK_SECRET=…   # chores
+npm run dev:github-app      # open http://localhost:4101, sign in to GitHub, confirm
 ```
 
-GitHub must reach `POST /api/github/webhook`, so in development point the App's webhook URL at a tunnel to
-`localhost:4100`. Without these variables the API runs fine: GitHub login and chores just stay off.
+It creates a private development App (read code, comment on PRs, request reviews; events: pull requests and
+reviews), then writes its keys to `dev/.env.github` and `dev/github-app.pem`. Both are git-ignored; the API's
+`start` script reads them automatically.
+
+Webhooks go to a smee.io channel, and a relay pulls them to the local API, so the API is never exposed to the
+internet:
+
+```bash
+npm run dev:webhooks
+```
+
+Then install the App on a repo you live with (the link is on the setup page's last screen). Without these keys the API
+runs fine: GitHub login and chores just stay off. Known catch: smee re-encodes the JSON it relays; if a webhook ever
+fails the signature check (`401` in the relay's log), that's why.
 
 ## Database
 

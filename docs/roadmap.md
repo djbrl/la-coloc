@@ -12,6 +12,9 @@ UX 20 · innovation 15 · public vote 10. **What gates:** top 3 of the peer vote
   endpoint, city + house pages with placeholder art); and ahead of plan from week 2: the doorbell (knock, thread, vote,
   move in), the house channel, GitHub webhooks with reviewer rotation and chores, and the exchange ledger.
   Details: [build-notes.md](build-notes.md), night 2.
+- **09 10, Jib's call:** the walkable lobby starts now instead of Q3 2027. First version in three.js with placeholder
+  shapes: houses, your avatar (keys or click), flatmates around their houses, walk up to a door to go in. The list
+  view stays as the text version.
 - **Waiting on the team:** commits, the GitHub App registration, teammates, `coloc.dev`, the art.
 - **Still to build for week 2:** previews, Deployments API, deploy on merge (strict mode), room page (logs, restart,
   secrets), presence avatars, onboarding (rent a flat → install command), `install.sh` on a real VPS.

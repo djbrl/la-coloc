@@ -8,6 +8,13 @@ npm run licences:check
 
 **State on 08 10 2026:** 307 packages, all permissive: MIT 250 · Apache-2.0 22 · ISC 16 · BSD-3-Clause 15 · BSD-2-Clause 2 · 0BSD 1 · Unlicense 1.
 Added since 02 10: Drizzle ORM (Apache-2.0) and drizzle-kit (MIT), node-postgres `pg` (MIT), PGlite (Apache-2.0, tests only).
+Added 09 10: three.js (MIT) for the 3D lobby; smee-client (ISC, development only) to relay GitHub webhooks.
+
+## Art and assets
+Only assets we made ourselves, or under CC0 / a permissive licence, with the source written down here.
+**Never** artwork found on ArtStation, Pinterest or similar: it belongs to its artists, and the rules require the
+project to be free of third-party rights (Art. 6). On 09 10 the lobby uses no external assets: every shape is built
+in code (`apps/web/src/lobby/models.ts`).
 
 ## Runtime environment (not distributed, not modified, not linked)
 Linux kernel (GPL-2.0), Docker Engine (Apache-2.0), Traefik (MIT), Postgres (PostgreSQL licence), container base images
