@@ -7,7 +7,12 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 const HOUSES = "abcdefghijklmnopqrstu".split("").map((l) => `/lobby/houses/building-type-${l}.glb`);
 const PEOPLE = ["female", "male"].flatMap((s) => "abcdef".split("").map((l) => `/lobby/people/character-${s}-${l}.glb`));
 
-const loader = new GLTFLoader();
+// Counts every model loading, for the loading screen.
+export const loading = new THREE.LoadingManager();
+const loader = new GLTFLoader(loading);
+
+// Everyone's lobby character, by name ("female-a" … "male-f"). Matches AVATARS on the API.
+export const CHARACTERS = ["female", "male"].flatMap((s) => "abcdef".split("").map((l) => `${s}-${l}`));
 const cache = new Map<string, Promise<{ scene: THREE.Group; animations: THREE.AnimationClip[] }>>();
 
 function load(url: string) {
@@ -53,9 +58,13 @@ export interface Person {
   play(name: string, once?: boolean): void;
 }
 
-/** A person about `height` units tall, feet on y = 0, facing +z, with their animations ready. */
-export async function loadPerson(key: string, height = 1.35): Promise<Person> {
-  const { scene, animations } = await load(pick(PEOPLE, key));
+/**
+ * A person about `height` units tall, feet on y = 0, facing +z, with their animations ready.
+ * `character` picks the model ("male-c"); without one, the same key always gets the same model.
+ */
+export async function loadPerson(key: string, character?: string | null, height = 1.35): Promise<Person> {
+  const url = character && CHARACTERS.includes(character) ? `/lobby/people/character-${character}.glb` : pick(PEOPLE, key);
+  const { scene, animations } = await load(url);
   const model = cloneSkinned(scene) as THREE.Group;
   const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
   model.scale.setScalar(height / size.y);

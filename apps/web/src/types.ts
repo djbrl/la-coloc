@@ -152,6 +152,8 @@ export interface Me {
   login: string;
   name: string | null;
   avatarUrl: string | null;
+  // Their lobby character ("female-a" … "male-f"), or null if they haven't picked one.
+  avatar: string | null;
   houses: { id: string; name: string; role: MemberRole; room: string | null }[];
 }
 
