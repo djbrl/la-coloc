@@ -29,6 +29,33 @@ describe("neighbourhoods", () => {
     expect(dist("sacre-coeur")).toBeLessThanOrEqual(dist("almadies"));
   });
 
+  it("keep a house on the plot it rented, and leave the others where they were", () => {
+    const before = generateNeighbourhood("Dakar", dakar);
+    const was = (n: ReturnType<typeof generateNeighbourhood>, id: string) => n.plots.find((p) => p.lot.kind === "house" && p.lot.houseId === id)!;
+    // Rent the plot farthest from the market: nobody would be put there by distance.
+    const market = before.blocks.find((b) => b.kind === "market")!;
+    const far = [...before.plots].sort((a, b) => Math.hypot(b.x - market.x, b.z - market.z) - Math.hypot(a.x - market.x, a.z - market.z))[0];
+    expect(far.lot.kind).not.toBe("house");
+    const after = generateNeighbourhood("Dakar", [...dakar, { id: "new", demo: false, plot: far.key }]);
+    expect(was(after, "new").key).toBe(far.key);
+    expect(was(after, "sacre-coeur").key).toBe(was(before, "sacre-coeur").key);
+    expect(was(after, "almadies").key).toBe(was(before, "almadies").key);
+    // Keys are stable across runs, and every plot has one.
+    expect(after.plots.map((p) => p.key)).toEqual(before.plots.map((p) => p.key));
+    expect(new Set(after.plots.map((p) => p.key)).size).toBe(after.plots.length);
+  });
+
+  it("fall back to a free plot when a stored plot doesn't exist or is taken", () => {
+    const n = generateNeighbourhood("Dakar", [
+      { id: "a", demo: false, plot: "0.0.0.0" },
+      { id: "b", demo: false, plot: "0.0.0.0" },
+      { id: "c", demo: false, plot: "99.99.99.99" },
+    ]);
+    const houses = n.plots.filter((p) => p.lot.kind === "house");
+    expect(houses.map((p) => (p.lot as { houseId: string }).houseId).sort()).toEqual(["a", "b", "c"]);
+    expect(houses.find((p) => p.key === "0.0.0.0")!.lot).toEqual({ kind: "house", houseId: "a" });
+  });
+
   it("grow with the number of houses, and always have room to spare", () => {
     const many = Array.from({ length: 30 }, (_, i) => ({ id: `h${i}`, demo: false }));
     const big = generateNeighbourhood("Abidjan", many);

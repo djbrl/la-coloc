@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
   applications,
   chores,
@@ -12,7 +12,7 @@ import {
   usageSamples,
   users,
 } from "@coloc/db";
-import type { DeployKind, DeployStatus, RoomEvent, RoomsSnapshot, Usage } from "@coloc/protocol";
+import { type DeployKind, type DeployStatus, type RoomEvent, RoomName, type RoomsSnapshot, type Usage } from "@coloc/protocol";
 import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { Subject } from "rxjs";
@@ -29,6 +29,28 @@ type UserRow = typeof users.$inferSelect;
 
 export function hashSecret(secret: string): string {
   return createHash("sha256").update(secret).digest("hex");
+}
+
+// A new house starts with four rooms: the chef's, and three to fill.
+const FIRST_ROOMS = 4;
+
+// Where a house's rooms are served: <room>.<house>.coloc.dev. The same pattern the seed uses for demo houses.
+export function houseDomain(houseId: string): string {
+  return `${houseId}.coloc.dev`;
+}
+
+// "Sacré-Cœur" → "sacre-coeur". Lowercase, accents dropped, anything else becomes a dash, at most 40 characters.
+export function slugify(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // the accents NFD split off the letters
+    .replace(/œ/gi, "oe")
+    .replace(/æ/gi, "ae")
+    .replace(/ß/g, "ss")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 40)
+    .replace(/^-+|-+$/g, "");
 }
 
 function person(u: Pick<UserRow, "login" | "name" | "avatarUrl"> | null | undefined): PersonView | null {
@@ -273,6 +295,59 @@ export class HousesService {
     };
   }
 
+  /**
+   * Someone starts a coloc on an empty lobby plot. The house is "making" until a server is rented, and the
+   * chef gets the first of four rooms. Returns the new house's id (a slug of its name).
+   */
+  async rent(chefId: string, input: { city: string; plot: string; name: string; tagline: string | null }): Promise<{ id: string }> {
+    const chef = await this.db.query.users.findFirst({ where: eq(users.id, chefId) });
+    if (!chef) throw new NotFoundException("No such person.");
+    // Only cities that are already on the map: the lobby has no neighbourhood for any other.
+    const [neighbour] = await this.db.select({ country: houses.country }).from(houses).where(eq(houses.city, input.city)).limit(1);
+    if (!neighbour) throw new NotFoundException("No such city.");
+    const id = slugify(input.name);
+    // "!!" is two characters but no slug: the id becomes the house's subdomain, so it needs real letters or digits.
+    if (id.length < 2) throw new BadRequestException("Give the house a name with letters or digits in it.");
+
+    await this.db.transaction(async (tx) => {
+      // One house in the making per person, so nobody carpets the city with empty houses.
+      const [making] = await tx
+        .select({ name: houses.name })
+        .from(houses)
+        .where(and(eq(houses.chefId, chefId), eq(houses.status, "making")));
+      if (making) throw new ConflictException(`You're already setting up ${making.name}. Finish that one first.`);
+      const [taken] = await tx.select({ id: houses.id }).from(houses).where(and(eq(houses.city, input.city), eq(houses.plot, input.plot)));
+      if (taken) throw new ConflictException("That plot is taken.");
+      const [sameName] = await tx.select({ id: houses.id }).from(houses).where(eq(houses.id, id));
+      if (sameName) throw new ConflictException("A house already has that name.");
+
+      await tx.insert(houses).values({
+        id,
+        name: input.name,
+        city: input.city,
+        country: neighbour.country,
+        tagline: input.tagline,
+        domain: houseDomain(id),
+        status: "making",
+        demo: false,
+        chefId,
+        monthlyCostFcfa: null,
+        plot: input.plot,
+      });
+      await tx.insert(memberships).values({ houseId: id, userId: chefId, role: "chef", tontinePosition: 0 });
+      // The chef's room is named after them when their login makes a valid room name ("Djbrl" → "djbrl").
+      const own = slugify(chef.login);
+      const chefRoom = RoomName.safeParse(own).success && !/^room-\d+$/.test(own) ? own : "room-1";
+      const names = [chefRoom, ...Array.from({ length: FIRST_ROOMS - 1 }, (_, i) => `room-${i + 2}`)];
+      await tx.insert(rooms).values(
+        names.map((name, i) => ({ houseId: id, name, occupantId: i === 0 ? chefId : null, memoryMb: 256, cpus: 0.5, status: "empty" as const })),
+      );
+    });
+    // The city stream re-sends on any change, so the new house appears in every open lobby.
+    this.changes.next(id);
+    return { id };
+  }
+
   // Every house, as the city draws it. Real houses first, then the busiest.
   async city(): Promise<CityView> {
     const all = await this.db.query.houses.findMany({
@@ -290,6 +365,7 @@ export class HousesService {
         demo: h.demo,
         agentOnline: this.online.has(h.id),
         monthlyCostFcfa: h.monthlyCostFcfa,
+        plot: h.plot,
         rooms: h.rooms.map((r) => ({ name: r.name, status: r.status, project: r.project, ad: r.occupantId ? null : r.ad, occupant: person(r.occupant) })),
       })),
     };

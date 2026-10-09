@@ -77,6 +77,13 @@ function replayWelcome() {
           </span>
           <span class="switch" :class="{ on: settings.reduceMotion }" aria-hidden="true" />
         </button>
+        <button class="row" role="switch" :aria-checked="settings.sound" @click="settings.sound = !settings.sound">
+          <span>
+            <span class="lead">Sounds</span>
+            <span class="sub">Little sounds for doors, lamps and friends. Off is fine too.</span>
+          </span>
+          <span class="switch" :class="{ on: settings.sound }" aria-hidden="true" />
+        </button>
       </section>
 
       <section>

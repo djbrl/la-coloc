@@ -1,8 +1,11 @@
 import {
+  BadRequestException,
+  Body,
   ConflictException,
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
   MessageEvent,
   NotFoundException,
   Param,
@@ -12,10 +15,32 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { auditTime, concatMap, filter, from, interval, map, merge, Observable, startWith } from "rxjs";
+import { z } from "zod";
 import { AgentRegistry } from "../agents/agent.registry";
 import { AuthService } from "../auth/auth.service";
 import type { HttpRequest } from "../auth/http";
 import { HousesService } from "./houses.service";
+
+// Starting a coloc on an empty lobby plot. The plot key comes from the lobby's neighbourhood generator:
+// block column, block row, plot column, plot row ("2.1.0.1").
+const RentBody = z.object({
+  city: z.string().min(1).max(60),
+  plot: z.string().regex(/^\d{1,2}\.\d{1,2}\.\d{1,2}\.[01]$/, "That isn't a plot in the lobby."),
+  name: z.string().trim().min(2, "Give the house a name of at least 2 characters.").max(40, "Keep the name under 40 characters."),
+  // Optional. An empty tagline is the same as none.
+  tagline: z
+    .string()
+    .trim()
+    .max(120, "Keep the tagline under 120 characters.")
+    .nullish()
+    .transform((t) => t || null),
+});
+
+function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, body: unknown): T {
+  const r = schema.safeParse(body ?? {});
+  if (!r.success) throw new BadRequestException(r.error.issues[0]?.message ?? "invalid request");
+  return r.data;
+}
 
 @Controller("houses")
 export class HousesController {
@@ -67,7 +92,19 @@ export class HousesController {
 
 @Controller("city")
 export class CityController {
-  constructor(private readonly houses: HousesService) {}
+  constructor(
+    private readonly houses: HousesService,
+    private readonly auth: AuthService,
+  ) {}
+
+  // Starts a coloc on an empty plot: the house appears in the lobby, "in the making", with the chef in room one.
+  @Post("houses")
+  @HttpCode(201)
+  async rent(@Body() body: unknown, @Req() req: HttpRequest) {
+    const user = await this.auth.userFromRequest(req);
+    if (!user) throw new UnauthorizedException("Log in first.");
+    return this.houses.rent(user.id, parse(RentBody, body));
+  }
 
   // Every house in the city. Public.
   @Get()

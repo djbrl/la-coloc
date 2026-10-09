@@ -52,6 +52,9 @@ export const houses = pgTable("houses", {
   rules: jsonb("rules").$type<{ strictReviews: boolean }>().notNull().default({ strictReviews: true }),
   // Seeded so the city isn't empty for the demo. The UI labels them, so nobody mistakes them for real houses.
   demo: boolean("demo").notNull().default(false),
+  // Where it stands in its city's lobby: the plot key the neighbourhood generator gives every empty building
+  // ("2.1.0.1"). Null: no plot rented, so the lobby places it near the market.
+  plot: text("plot"),
   createdAt: createdAt(),
 });
 

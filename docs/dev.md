@@ -88,6 +88,13 @@ fails the signature check (`401` in the relay's log), that's why.
 - **The lobby's live line** is a WebSocket at `/lobby-ws` (proxied by Vite in development). Only pages from
   `COLOC_PUBLIC_URL`'s origin may connect. In the browser console (development builds), `window.lobby` is the
   running lobby.
+- **Everything in the lobby is a target**: houses, empty buildings, people and lamps. Walk up and press E, click,
+  or press Tab to pick one from afar; the keys are listed bottom left. A house or a person opens a floating card
+  (you never leave the lobby to look); an empty building offers "Start a coloc here", which is
+  `POST /api/city/houses` with `{ city, plot, name, tagline }`. The house is created "in the making" on that plot
+  (`houses.plot`, a key from the neighbourhood generator) with you as chef; one house in the making per person.
+- **Sounds** are synthesised in the browser (`apps/web/src/lobby/sound.ts`): nothing is downloaded, so nothing to
+  declare. The switch is in settings.
 
 ## Database
 

@@ -1,24 +1,38 @@
 <script setup lang="ts">
 // The full-screen lobby, one neighbourhood (city) at a time, and everything that sits on top of it: loading, the
-// welcome, the door prompt, emotes, who's here, the lamps, a card for whoever you click, and sheets to find a house
+// welcome, the prompt for whatever is in reach, emotes, who's here, the lamps, a card for the house, person or
+// empty plot you picked (you never leave the lobby to look), the keys in the corner, and sheets to find a house
 // or travel to another city.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { loading } from "../lobby/assets";
-import { type Emote, Lobby, type Nearby, type Resident } from "../lobby/Lobby";
+import { type Emote, Lobby, type Target } from "../lobby/Lobby";
 import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood } from "../lobby/neighbourhood";
-import { me } from "../session";
+import { play, unlock } from "../lobby/sound";
+import { loadMe, me } from "../session";
 import { settings } from "../settings";
 import type { CityHouse } from "../types";
+import KnockSteps from "./KnockSteps.vue";
+import { type CityRoom, freeRooms, type Home, plural, statusLine } from "./lobby/cards";
+import EmptyCard from "./lobby/EmptyCard.vue";
+import HouseCard from "./lobby/HouseCard.vue";
+import KeyLegend from "./lobby/KeyLegend.vue";
+import PersonCard from "./lobby/PersonCard.vue";
+import RentSteps from "./lobby/RentSteps.vue";
 import LoadingScreen from "./LoadingScreen.vue";
 import Onboarding from "./Onboarding.vue";
+
+// What a card can show: anything you can select. Lamps just switch; they never get a card.
+type Card = Exclude<Target, { kind: "lamp" }>;
 
 const props = defineProps<{ houses: CityHouse[] }>();
 const route = useRoute();
 const router = useRouter();
 const host = ref<HTMLElement | null>(null);
-const near = ref<Nearby>(null);
+const sheetEl = ref<HTMLElement | null>(null);
+const near = ref<Target | null>(null);
+const card = ref<Card | null>(null);
 const failed = ref(false);
 const progress = ref<number | null>(null);
 const ready = ref(false);
@@ -29,10 +43,15 @@ const census = ref<Record<string, number>>({});
 const lamps = ref({ lit: 0, total: 0 });
 const sheet = ref<"" | "find" | "travel">("");
 const query = ref("");
-const person = ref<{ login: string; name: string; home: Resident | null } | null>(null);
+const legend = ref(true);
+// The knock or rent dialog on top of a card, when one is open.
+const knock = ref<{ houseId: string; room: CityRoom } | null>(null);
+const rent = ref<{ city: string; plot: string } | null>(null);
 let lobby: Lobby | null = null;
 let link: LobbyLink | null = null;
 let walkAfterArrival: string | null = null;
+// A house you just started: walk to it once the city stream has pushed it.
+let awaiting: string | null = null;
 
 // ---- Which neighbourhood ----
 
@@ -51,9 +70,9 @@ const here = computed(() => props.houses.filter((h) => h.city === city.value));
 
 // Who lives where, across every city: rings and cards.
 const residents = computed(() => {
-  const map = new Map<string, Resident>();
+  const map = new Map<string, Home>();
   for (const h of props.houses)
-    for (const r of h.rooms) if (r.occupant) map.set(r.occupant.login, { houseId: h.id, houseName: h.name, room: r.name, project: r.project });
+    for (const r of h.rooms) if (r.occupant) map.set(r.occupant.login, { houseId: h.id, houseName: h.name, city: h.city, room: r.name, project: r.project });
   return map;
 });
 
@@ -66,11 +85,15 @@ function build() {
     lobby.goTo(walkAfterArrival);
     walkAfterArrival = null;
   }
+  if (awaiting && here.value.some((h) => h.id === awaiting)) {
+    lobby.goTo(awaiting);
+    awaiting = null;
+  }
 }
 
 function travel(to: string, thenWalkTo?: string) {
   sheet.value = "";
-  person.value = null;
+  card.value = null;
   walkAfterArrival = thenWalkTo ?? null;
   if (to === city.value) {
     if (thenWalkTo) lobby?.goTo(thenWalkTo);
@@ -112,13 +135,17 @@ onMounted(() => {
   loading.onLoad = finish;
   // Never stuck: a slow model doesn't hold the whole city back.
   setTimeout(finish, 9000);
+  window.addEventListener("keydown", onKey);
+  // Browsers keep audio asleep until the first click or key press: that's when the sounds wake up.
+  window.addEventListener("pointerdown", unlock, { once: true });
+  window.addEventListener("keydown", unlock, { once: true });
 
   try {
     lobby = new Lobby(
       host.value!,
       {
-        onNear: (n) => (near.value = n),
-        onEnter: (h) => router.push(`/houses/${h.id}`),
+        onNear: (t) => (near.value = t),
+        onSelect: open,
         onMove: (s) => link?.move(s),
         onLamps: (lit) => {
           try {
@@ -128,7 +155,6 @@ onMounted(() => {
           }
           lamps.value = lobby!.lampCount();
         },
-        onPerson: (login, name) => (person.value = { login, name, home: residents.value.get(login) ?? null }),
       },
       { login: me.value?.login ?? null, character: me.value?.avatar ?? null, quality: settings.quality, reduceMotion: settings.reduceMotion, litLamps: savedLamps() },
     );
@@ -172,11 +198,99 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onKey);
+  window.removeEventListener("pointerdown", unlock);
+  window.removeEventListener("keydown", unlock);
   link?.close();
   lobby?.dispose();
   loading.onProgress = () => undefined;
   loading.onLoad = () => undefined;
 });
+
+// ---- Cards: a house, a person or an empty plot, floating over the city ----
+
+// One line per thing, so we can tell "the card is already about this" from "something new".
+const keyOf = (t: Target | null) => (!t ? "" : t.kind === "house" ? `house:${t.house.id}` : t.kind === "empty" ? `empty:${t.plot.key}` : t.kind === "person" ? `person:${t.login}` : `lamp:${t.id}`);
+const cardKey = computed(() => keyOf(card.value));
+
+function open(t: Target) {
+  if (t.kind === "lamp") return;
+  card.value = t;
+}
+
+function closeCard() {
+  card.value = null;
+}
+
+// The card's house, read from the live list so it updates when a room fills up.
+const cardHouse = computed(() => {
+  const c = card.value;
+  if (c?.kind !== "house") return null;
+  return props.houses.find((h) => h.id === c.house.id) ?? c.house;
+});
+// The card's person: where they live, and that house as the city lists it.
+const cardHome = computed(() => {
+  const c = card.value;
+  return c?.kind === "person" ? (residents.value.get(c.login) ?? null) : null;
+});
+const cardHomeHouse = computed(() => {
+  const home = cardHome.value;
+  return home ? (props.houses.find((h) => h.id === home.houseId) ?? null) : null;
+});
+const nearKey = computed(() => keyOf(near.value));
+
+// A card opens with a sound and takes focus itself; when it closes, focus goes back to the stage so Tab cycles
+// through the things on screen again.
+watch(cardKey, (now, before) => {
+  if (now) play("open");
+  else if (before) {
+    play("close");
+    host.value?.focus({ preventScroll: true });
+  }
+});
+
+function seeHouse(id: string) {
+  const h = props.houses.find((x) => x.id === id);
+  if (!h) return;
+  card.value = { kind: "house", house: h };
+  lobby?.goTo(id);
+}
+
+function rentHere() {
+  if (card.value?.kind !== "empty") return;
+  rent.value = { city: city.value, plot: card.value.plot.key };
+}
+
+function built(id: string) {
+  awaiting = id;
+  card.value = null;
+  // You're its chef now: the top bar and the cards should know.
+  void loadMe();
+}
+
+// ---- Sheets, keys, emotes ----
+
+// A sheet takes focus on its first control; closing it puts focus back on the stage.
+watch(sheet, async (now) => {
+  await nextTick();
+  if (now) sheetEl.value?.querySelector<HTMLElement>("input, button")?.focus();
+  else host.value?.focus({ preventScroll: true });
+});
+
+// The lobby's own keys (walking, E, Q, R, 1, 2, Tab) live in the engine. These are the ones around it.
+function onKey(e: KeyboardEvent) {
+  const t = e.target as HTMLElement | null;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  // A knock or rent dialog on top handles its own keys (Escape closes it), and the welcome has its own too.
+  if (knock.value || rent.value || !ready.value || failed.value || !settings.welcomed) return;
+  if (e.key === "Escape") {
+    if (sheet.value) sheet.value = "";
+    else if (card.value) closeCard();
+  } else if (e.key === "?") legend.value = !legend.value;
+  else if (e.key === "f" || e.key === "F") sheet.value = "find";
+  else if (e.key === "t" || e.key === "T") sheet.value = "travel";
+}
 
 function emote(name: Emote) {
   lobby?.emote(name);
@@ -187,7 +301,6 @@ function findHouse(h: CityHouse) {
   travel(h.city, h.id);
 }
 
-const free = (h: CityHouse) => h.rooms.filter((r) => !r.occupant).length;
 const found = computed(() => {
   const q = query.value.trim().toLowerCase();
   if (!q) return props.houses;
@@ -204,18 +317,18 @@ const lampLine = computed(() => {
   if (!total) return "";
   return lit === total ? `Every lamp in ${city.value} is lit.` : `${lit} of ${total} lamps lit.`;
 });
-const personLine = computed(() => {
-  const p = person.value;
-  if (!p) return "";
-  if (!p.home) return `${p.name} is just visiting. No house yet.`;
-  return `${p.name} lives in ${p.home.houseName}${p.home.project ? `, building ${p.home.project}` : ""}.`;
-});
-const isMe = computed(() => person.value?.login === me.value?.login);
+const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 </script>
 
 <template>
   <div class="lobby">
-    <div ref="host" class="stage" role="img" :aria-label="`${city}, a neighbourhood you can walk around in 3D. The list view in settings shows the same houses as text.`" />
+    <div
+      ref="host"
+      class="stage"
+      role="img"
+      tabindex="-1"
+      :aria-label="`${city}, a neighbourhood you can walk around in 3D. The list view in settings shows the same houses as text.`"
+    />
 
     <p v-if="failed" class="failed">This browser can't show the city in 3D. Open settings to see it as a list.</p>
 
@@ -231,7 +344,7 @@ const isMe = computed(() => person.value?.login === me.value?.login);
       </div>
 
       <div class="hud tools">
-        <button aria-label="Find a house" @click="sheet = 'find'">
+        <button aria-label="Find a house (F)" @click="sheet = 'find'">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
         </button>
         <button aria-label="Turn the view left (Q)" @click="lobby?.rotate(-1)">
@@ -242,24 +355,57 @@ const isMe = computed(() => person.value?.login === me.value?.login);
         </button>
       </div>
 
-      <Transition name="rise">
-        <div v-if="person" class="hud card" role="dialog" aria-label="Who this is">
-          <p>{{ isMe ? "That's you." : personLine }}</p>
-          <div class="links">
-            <RouterLink v-if="person.home" :to="`/houses/${person.home.houseId}`">Visit {{ person.home.houseName }} ›</RouterLink>
-            <button class="link" @click="person = null">Close</button>
-          </div>
-        </div>
-      </Transition>
+      <!-- Bottom left: the open card, if any, with the keys underneath it. -->
+      <div class="hud dock">
+        <Transition name="rise">
+          <HouseCard
+            v-if="card?.kind === 'house' && cardHouse"
+            :key="cardKey"
+            :house="cardHouse"
+            :others="others"
+            :near="nearKey === cardKey"
+            @knock="(room) => (knock = { houseId: cardHouse!.id, room })"
+            @walk="lobby?.goTo(cardHouse!.id)"
+            @close="closeCard"
+          />
+          <PersonCard
+            v-else-if="card?.kind === 'person'"
+            :key="cardKey"
+            :login="card.login"
+            :name="card.name"
+            :home="cardHome"
+            :house="cardHomeHouse"
+            :is-me="card.login === me?.login"
+            @knock="(houseId, room) => (knock = { houseId, room })"
+            @see="seeHouse"
+            @wave="emote('yes')"
+            @close="closeCard"
+          />
+          <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />
+        </Transition>
+        <KeyLegend v-if="settings.welcomed" :open="legend" @toggle="legend = !legend" />
+      </div>
 
+      <!-- What's in reach (or highlighted with Tab), unless its card is already open. -->
       <Transition name="rise">
-        <div v-if="near && settings.welcomed && !person" class="hud prompt" role="status">
-          <template v-if="near.kind === 'door'">
+        <div v-if="near && settings.welcomed && nearKey !== cardKey" class="hud prompt" role="status">
+          <template v-if="near.kind === 'house'">
             <span>
               <strong>{{ near.house.name }}</strong>
-              <span class="soft">{{ free(near.house) ? `, ${free(near.house)} ${free(near.house) === 1 ? "room" : "rooms"} free` : "" }}</span>
+              <span class="soft">{{ freeRooms(near.house).length ? `, ${plural(freeRooms(near.house).length, "room", "rooms")} free` : "" }}</span>
             </span>
             <button class="pill" @click="lobby?.interact()">Go in <kbd>E</kbd></button>
+          </template>
+          <template v-else-if="near.kind === 'empty'">
+            <span>An empty {{ lotWord[near.plot.lot] }}.</span>
+            <button class="pill" @click="lobby?.interact()">Have a look <kbd>E</kbd></button>
+          </template>
+          <template v-else-if="near.kind === 'person'">
+            <span>
+              <strong>{{ near.name }}</strong>
+              <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : ", visiting" }}</span>
+            </span>
+            <button class="pill" @click="lobby?.interact()">Say hi <kbd>E</kbd></button>
           </template>
           <template v-else>
             <span>{{ near.on ? "This lamp is lit." : "This lamp is off." }}</span>
@@ -268,27 +414,29 @@ const isMe = computed(() => person.value?.login === me.value?.login);
         </div>
       </Transition>
 
-      <div v-if="me && !person" class="hud emotes">
+      <div v-if="me && !card" class="hud emotes">
         <button aria-label="Thumbs up (1)" @click="emote('yes')">👍</button>
         <button aria-label="Thumbs down (2)" @click="emote('no')">👎</button>
       </div>
 
       <Onboarding v-if="!settings.welcomed" @focus="(on) => lobby?.focusOnPlayer(on)" @character="(c) => lobby?.setCharacter(c)" @done="settings.welcomed = true" />
+
+      <KnockSteps v-if="knock" :house-id="knock.houseId" :room="knock.room" @close="knock = null" />
+      <RentSteps v-if="rent" :city="rent.city" :plot="rent.plot" @built="built" @close="rent = null" />
     </template>
 
     <Transition name="fade">
       <div v-if="sheet" class="scrim" @click="sheet = ''" />
     </Transition>
     <Transition name="sheet">
-      <section v-if="sheet === 'find'" class="sheet" role="dialog" aria-modal="true" aria-label="Find a house" @keydown.esc="sheet = ''">
+      <section v-if="sheet === 'find'" ref="sheetEl" class="sheet" role="dialog" aria-modal="true" aria-label="Find a house" @keydown.esc="sheet = ''">
         <input v-model="query" type="search" placeholder="A house, a city, a stack…" aria-label="Search the city" autofocus />
         <ul>
           <li v-for="h in found" :key="h.id">
             <button @click="findHouse(h)">
               <strong>{{ h.name }}</strong>
               <span>
-                {{ h.city }}.
-                {{ h.status === "making" ? "Still finding its flatmates." : free(h) ? `${free(h)} ${free(h) === 1 ? "room" : "rooms"} free.` : "Full." }}
+                {{ h.city }}. {{ statusLine(h) }}
                 <template v-if="h.demo"> A sample house.</template>
               </span>
             </button>
@@ -296,7 +444,7 @@ const isMe = computed(() => person.value?.login === me.value?.login);
         </ul>
         <p v-if="!found.length" class="none">No house matches that.</p>
       </section>
-      <section v-else-if="sheet === 'travel'" class="sheet" role="dialog" aria-modal="true" aria-label="Travel to another city" @keydown.esc="sheet = ''">
+      <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet" role="dialog" aria-modal="true" aria-label="Travel to another city" @keydown.esc="sheet = ''">
         <h2>Where to?</h2>
         <ul>
           <li v-for="c in cities" :key="c.name">
@@ -318,7 +466,7 @@ const isMe = computed(() => person.value?.login === me.value?.login);
 <style scoped>
 .lobby { position: relative; height: 100dvh; min-height: 420px; overflow: hidden; background: linear-gradient(180deg, #2a2148 0%, #4b3a74 45%, #8a6aa0 100%); }
 /* Its own stacking context: three.js gives every name tag a z-index, which would otherwise float over the sheets. */
-.stage { position: absolute; inset: 0; z-index: 0; isolation: isolate; }
+.stage { position: absolute; inset: 0; z-index: 0; isolation: isolate; outline: none; }
 .stage :deep(canvas) { display: block; }
 .failed { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 24px; text-align: center; color: #f5f5f7; font-size: 17px; }
 .hud { position: absolute; z-index: 10; color: #f5f5f7; }
@@ -331,11 +479,9 @@ const isMe = computed(() => person.value?.login === me.value?.login);
 .top .lamps { margin-top: 2px; font-size: 13px; color: rgba(245, 245, 247, 0.75); }
 .tools { top: 60px; right: 16px; display: grid; gap: 8px; }
 .tools button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; }
-.card { left: 16px; bottom: max(28px, env(safe-area-inset-bottom)); max-width: min(380px, calc(100vw - 32px)); padding: 16px 20px; border-radius: 20px; background: rgba(28, 24, 44, 0.78); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
-.card p { margin: 0 0 10px; font-size: 17px; line-height: 1.4; }
-.card .links { display: flex; gap: 18px; align-items: center; }
-.card a { color: #6eb4ff; text-decoration: none; font-size: 15px; }
-.link { border: 0; background: none; padding: 0; min-height: 0; color: rgba(245, 245, 247, 0.7); font-size: 15px; cursor: pointer; }
+/* The dock stacks the card over the keys; its empty space lets clicks through to the city. */
+.dock { left: 16px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-start; gap: 12px; pointer-events: none; }
+.dock > * { pointer-events: auto; }
 .prompt { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 16px; padding: 10px 10px 10px 22px; border-radius: 980px; background: rgba(28, 24, 44, 0.72); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); white-space: nowrap; font-size: 17px; max-width: calc(100vw - 32px); }
 .prompt strong { font-weight: 600; }
 .soft { color: rgba(245, 245, 247, 0.72); }
@@ -347,7 +493,6 @@ kbd { font: 600 11px/1 -apple-system, BlinkMacSystemFont, sans-serif; padding: 3
 /* Our own hovers: the site's button styles are for light pages, not this dark glass. */
 .pill:hover:not(:disabled) { background: #e8e8ed; }
 .place:hover:not(:disabled), .tools button:hover:not(:disabled), .emotes button:hover:not(:disabled) { background: rgba(28, 24, 44, 0.75); }
-.link:hover:not(:disabled) { background: none; color: #fff; }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid #6eb4ff; outline-offset: 2px; }
 .scrim { position: absolute; inset: 0; z-index: 40; background: rgba(0, 0, 0, 0.35); }
 .sheet { position: absolute; z-index: 50; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); padding: 72px 20px 24px; display: grid; grid-template-rows: auto 1fr auto; gap: 16px; background: var(--bg, #fff); color: var(--text, #1d1d1f); }
@@ -379,5 +524,8 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .prompt .soft { display: none; }
   .emotes { bottom: 96px; }
   .top { top: 112px; }
+  /* Cards become a sheet along the bottom edge; the keys, if a narrow window still shows them, sit above it. */
+  .dock { left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
+  .dock .legend, .dock .peek { order: -1; align-self: flex-start; margin: 0 16px 12px; }
 }
 </style>

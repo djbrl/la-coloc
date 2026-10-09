@@ -1,18 +1,20 @@
 // The city as a walkable lobby: one neighbourhood at a time, generated from its city's name (see neighbourhood.ts),
 // at dusk. Your character, the flatmates hanging around their houses, and everyone else who's online in this
-// neighbourhood, live. Walk up to a door and press E to go in; walk up to a lamp and press E to light it; click
-// someone to see who they are. Pure three.js; Vue only mounts it and draws what sits on top.
+// neighbourhood, live. Every house, empty plot, person and lamp is a target: walk up to one and press E, click it,
+// or press Tab to pick one from afar. A lamp flips; anything else is reported to Vue, which draws the card and does
+// the navigating. Pure three.js; Vue only mounts it and draws what sits on top.
 import * as THREE from "three";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import type { CityHouse } from "../types";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
-import { colorFor, disposeTree, makeAvatar, makeHouse, makeRoomBoard } from "./models";
-import { type Facing, FACING_DIR, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
+import { colorFor, disposeTree, makeAvatar, makeHighlight, makeHouse, makeRoomBoard } from "./models";
+import { type Facing, FACING_DIR, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
+import { play } from "./sound";
 import { groundMaterial, textures } from "./textures";
 
 const SPEED = 6; // units per second
 const RADIUS = 0.4; // how wide a person is, for bumping into walls
-const REACH = 1.6; // how close you stand to use a door or a lamp
+const REACH = 1.6; // how close you stand to use a door, a person or a lamp
 // Far back along the isometric angle: an orthographic view looks the same from any distance, and a full-height
 // screen reaches ground that a closer camera would clip.
 const CAMERA_OFFSET = new THREE.Vector3(42, 48, 42);
@@ -22,7 +24,12 @@ const TAG_RANGE = 10; // people's name tags show within this distance of you
 const NOBODY = 0xd8d8de; // the ring colour of someone without a house
 
 export type Emote = "yes" | "no";
-export type Nearby = { kind: "door"; house: CityHouse } | { kind: "lamp"; on: boolean } | null;
+export type Target =
+  | { kind: "house"; house: CityHouse }
+  // An empty building or lot: a shop, a tower or a tree lot. Rentable: "start a coloc here". `key` is Plot.key.
+  | { kind: "empty"; plot: { key: string; lot: "shop" | "tower" | "trees"; x: number; z: number } }
+  | { kind: "person"; login: string; name: string }
+  | { kind: "lamp"; id: string; on: boolean };
 
 // Who someone is, for their ring colour and the card you get by clicking them.
 export interface Resident {
@@ -33,14 +40,15 @@ export interface Resident {
 }
 
 export interface LobbyEvents {
-  onNear(thing: Nearby): void;
-  onEnter(house: CityHouse): void;
+  // The thing in reach of you, or the one you highlighted with Tab: Vue shows a prompt for it ("Go in  E").
+  onNear(target: Target | null): void;
+  // You used a target (E, Enter, a click, or walking up to something you clicked): Vue opens a card for it.
+  // Lamps never reach here: they just toggle.
+  onSelect(target: Target): void;
   // Your position, when it changed (at most ten times a second): for the others to see you.
   onMove(state: { x: number; z: number; ry: number; moving: boolean }): void;
   // Which lamps are lit, by id, after you switch one.
   onLamps(lit: string[]): void;
-  // Someone was clicked.
-  onPerson(login: string, name: string): void;
 }
 
 export interface LobbyOptions {
@@ -58,36 +66,47 @@ interface Box {
   maxZ: number;
 }
 
-interface Placed {
+// Anything you can aim at, whatever it is: what Vue hears about it, and where it stands.
+interface Thing {
+  target: Target;
+  // Where you go to use it: in front of a door or a plot, at a lamp's foot, or a person's feet (it moves with them).
+  spot: THREE.Vector3;
+}
+
+interface Placed extends Thing {
   house: CityHouse;
   group: THREE.Group;
-  door: THREE.Vector3;
   box: Box;
   npcs: Npc[];
 }
 
-interface Npc {
+interface EmptyPlot extends Thing {
+  key: string;
+}
+
+interface Npc extends Thing {
   login: string;
   avatar: THREE.Group;
   person?: Person;
   home: THREE.Vector3;
-  target: THREE.Vector3;
+  // Where they're strolling to right now.
+  goal: THREE.Vector3;
   wait: number;
   tag: HTMLElement;
 }
 
-interface Remote {
+interface Remote extends Thing {
   avatar: THREE.Group;
   person?: Person;
-  target: THREE.Vector3;
+  // Where they last said they were.
+  goal: THREE.Vector3;
   ry: number;
   moving: boolean;
   tag: HTMLElement;
 }
 
-interface Lamp {
+interface Lamp extends Thing {
   id: string;
-  position: THREE.Vector3;
   bulb: THREE.Mesh;
   light: THREE.PointLight | null;
   on: boolean;
@@ -96,6 +115,8 @@ interface Lamp {
 const yaw = (f: Facing) => (f * Math.PI) / 2;
 // (x, z) turned by angle `a` around y, the same way three.js turns an object by rotation.y = a.
 const rotate = (x: number, z: number, a: number) => new THREE.Vector3(x * Math.cos(a) + z * Math.sin(a), 0, -x * Math.sin(a) + z * Math.cos(a));
+// How far apart two points are on the ground, ignoring height.
+const apart = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
 
 export class Lobby {
   private renderer: THREE.WebGLRenderer;
@@ -107,6 +128,7 @@ export class Lobby {
   private playerPerson?: Person;
   private town = new THREE.Group();
   private placed: Placed[] = [];
+  private plots: EmptyPlot[] = [];
   private solids: Box[] = [];
   private npcs: Npc[] = [];
   private remotes = new Map<string, Remote>();
@@ -115,8 +137,13 @@ export class Lobby {
   private lit: Set<string>;
   private keys = new Set<string>();
   private walkTo: THREE.Vector3 | null = null;
-  private enterOnArrival: Placed | null = null;
-  private near: Placed | Lamp | null = null;
+  // What to use when you get there: after a click, a goTo, or E on something far away.
+  private useOnArrival: Thing | null = null;
+  // The thing in reach of you, and the one you picked with Tab (which can be far away).
+  private near: Thing | null = null;
+  private highlighted: Thing | null = null;
+  private ring = makeHighlight();
+  private scratch = new THREE.Vector3();
   private frame = 0;
   private ray = new THREE.Raycaster();
   private resize: ResizeObserver;
@@ -164,7 +191,7 @@ export class Lobby {
     this.scene.add(this.sun, this.sun.target);
     // The far skyline fades into the evening.
     this.scene.fog = new THREE.Fog(0x9d8fc6, 95, 190);
-    this.scene.add(this.town);
+    this.scene.add(this.town, this.ring);
 
     this.player = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : "you", "lobby-label you").avatar;
     this.scene.add(this.player);
@@ -196,7 +223,7 @@ export class Lobby {
   /** Builds a neighbourhood. Moving to another one puts you at its entrance. */
   setNeighbourhood(n: Neighbourhood, houses: CityHouse[]) {
     // The city stream re-sends the city often. Only rebuild if what's drawn changed.
-    const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.rooms.map((r) => [r.status, r.occupant?.login ?? null])])]);
+    const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.plot, h.rooms.map((r) => [r.status, r.occupant?.login ?? null])])]);
     if (key === this.builtFrom) return;
     const arriving = n.city !== this.builtCity;
     this.builtCity = n.city;
@@ -206,6 +233,7 @@ export class Lobby {
     disposeTree(this.town);
     this.town.clear();
     this.placed = [];
+    this.plots = [];
     this.solids = [];
     this.npcs = [];
     this.lamps = [];
@@ -241,20 +269,28 @@ export class Lobby {
       if (lot.kind === "house") {
         const house = byId.get(lot.houseId);
         if (house) this.placeHouse(house, p.x, p.z, p.facing, gen);
-      } else if (lot.kind === "shop" || lot.kind === "tower") {
-        // Shop forecourts are paved; a tower stands on its own square.
-        this.flat(tex.paving, p.x, p.z, PLOT - 0.6, PLOT - 0.6, 4, 0.15).name = "ground";
-        const url = lot.kind === "shop" ? SHOPS[lot.variant] : TOWERS[lot.variant];
-        const size = lot.kind === "shop" ? 5.6 : 5.8;
-        this.solid(p.x, p.z, p.facing, size, size);
-        this.load(gen, loadModel(url, size), (m) => {
-          m.position.set(p.x, 0.14, p.z);
-          m.rotation.y = yaw(p.facing);
-          this.occluder(m);
-        });
-      } else {
-        for (let i = 0; i < lot.count; i++) this.tree(p.x + (rand() - 0.5) * (PLOT - 2.5), p.z + (rand() - 0.5) * (PLOT - 2.5), rand, gen);
+        continue;
       }
+      // Everything else is empty and up for rent: a target you reach from the sidewalk in front of it.
+      const front = frontOf(p, PLOT / 2 + 0.4);
+      this.plots.push({ key: p.key, target: { kind: "empty", plot: { key: p.key, lot: lot.kind, x: p.x, z: p.z } }, spot: new THREE.Vector3(front.x, 0, front.z) });
+      if (lot.kind === "trees") {
+        for (let i = 0; i < lot.count; i++) this.tree(p.x + (rand() - 0.5) * (PLOT - 2.5), p.z + (rand() - 0.5) * (PLOT - 2.5), rand, gen, p.key);
+        continue;
+      }
+      // Shop forecourts are paved; a tower stands on its own square. Clicking either one means "that plot".
+      const court = this.flat(tex.paving, p.x, p.z, PLOT - 0.6, PLOT - 0.6, 4, 0.15);
+      court.name = "ground";
+      court.userData.plotKey = p.key;
+      const url = lot.kind === "shop" ? SHOPS[lot.variant] : TOWERS[lot.variant];
+      const size = lot.kind === "shop" ? 5.6 : 5.8;
+      this.solid(p.x, p.z, p.facing, size, size);
+      this.load(gen, loadModel(url, size), (m) => {
+        m.position.set(p.x, 0.14, p.z);
+        m.rotation.y = yaw(p.facing);
+        m.userData.plotKey = p.key;
+        this.occluder(m);
+      });
     }
 
     // Lamps at the crossings (light them all), traffic lights at a few.
@@ -278,9 +314,14 @@ export class Lobby {
     if (arriving) {
       this.player.position.set(n.spawn.x, 0, n.spawn.z);
       this.walkTo = null;
-      this.enterOnArrival = null;
+      this.useOnArrival = null;
       this.snap = true;
+      play("arrive");
     }
+    // The old town is gone, and so is anything in it you were heading for or had highlighted. People who are
+    // really online live outside the town, so they stay.
+    if (this.useOnArrival && !this.isRemote(this.useOnArrival)) this.useOnArrival = null;
+    if (this.highlighted && !this.isRemote(this.highlighted)) this.clearHighlight();
   }
 
   /** Your character. Swaps live, for the onboarding's "pick your look". */
@@ -310,24 +351,58 @@ export class Lobby {
     this.turn += by;
   }
 
+  /** Walks to a house's door, then selects it. */
   goTo(houseId: string) {
     const p = this.placed.find((x) => x.house.id === houseId);
-    if (!p) return;
-    this.walkTo = p.door.clone();
-    this.enterOnArrival = p;
+    if (p) this.walkToward(p);
   }
 
-  /** Uses whatever you're standing next to: goes in a door, or flips a lamp. */
+  /** Walks to the sidewalk in front of an empty plot, then selects it. */
+  goToPlot(key: string) {
+    const p = this.plots.find((x) => x.key === key);
+    if (p) this.walkToward(p);
+  }
+
+  /** Walks to just beside someone (really online, or a flatmate out front), then selects them. */
+  goToPerson(login: string) {
+    const who = this.remotes.get(login) ?? this.npcs.find((n) => n.login === login && n.avatar.visible);
+    if (who) this.walkToward(who);
+  }
+
+  /** Uses what you highlighted, else what you're standing next to. Something far away: walk there first. */
   interact() {
-    const n = this.near;
-    if (!n) return;
-    if ("house" in n) this.events.onEnter(n.house);
-    else this.toggleLamp(n);
+    const thing = this.highlighted ?? this.near;
+    if (!thing) return;
+    if (apart(thing.spot, this.player.position) < REACH) this.use(thing);
+    else this.walkToward(thing);
+  }
+
+  /** Highlights the next (or previous) target on screen, nearest to you first, round and round. */
+  cycle(by: 1 | -1) {
+    const here = this.player.position;
+    const onScreen = this.things()
+      .filter((t) => this.onScreen(t.spot))
+      .sort((a, b) => apart(a.spot, here) - apart(b.spot, here));
+    if (!onScreen.length) return;
+    const at = this.highlighted ? onScreen.indexOf(this.highlighted) : -1;
+    // Nothing highlighted yet (or it left the screen): start from the nearest, or the farthest going backwards.
+    const next = at < 0 ? (by > 0 ? 0 : onScreen.length - 1) : (at + by + onScreen.length) % onScreen.length;
+    this.highlighted = onScreen[next];
+    play("select");
+    this.events.onNear(this.highlighted.target);
+  }
+
+  /** Drops the highlight (Escape, or a card closing): the prompt goes back to whatever is in reach. */
+  clearHighlight() {
+    this.highlighted = null;
+    this.near = this.reach();
+    this.events.onNear(this.near?.target ?? null);
   }
 
   emote(name: Emote) {
     this.playerPerson?.play(`emote-${name}`, true);
     this.bubble(this.player, name);
+    play("emote");
   }
 
   lampCount(): { lit: number; total: number } {
@@ -338,13 +413,14 @@ export class Lobby {
 
   addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean }) {
     if (p.login === this.opts.login || this.remotes.has(p.login)) return;
-    const { avatar, tag } = this.makePerson(p.login, p.name ?? p.login, "lobby-label online");
+    const name = p.name ?? p.login;
+    const { avatar, tag } = this.makePerson(p.login, name, "lobby-label online");
     // Someone who just arrived stands at the neighbourhood's entrance, next to where you came in.
     const start = p.x || p.z ? new THREE.Vector3(p.x, 0, p.z) : this.player.position.clone().add(new THREE.Vector3(1.5, 0, 1));
     avatar.position.copy(start);
     avatar.rotation.y = p.ry;
     this.scene.add(avatar);
-    const remote: Remote = { avatar, target: start.clone(), ry: p.ry, moving: p.moving, tag };
+    const remote: Remote = { avatar, goal: start.clone(), ry: p.ry, moving: p.moving, tag, target: { kind: "person", login: p.login, name }, spot: avatar.position };
     this.remotes.set(p.login, remote);
     loadPerson(p.login, p.avatar)
       .then((person) => {
@@ -359,7 +435,7 @@ export class Lobby {
   moveRemote(login: string, x: number, z: number, ry: number, moving: boolean) {
     const r = this.remotes.get(login);
     if (!r) return;
-    r.target.set(x, 0, z);
+    r.goal.set(x, 0, z);
     r.ry = ry;
     r.moving = moving;
   }
@@ -378,6 +454,8 @@ export class Lobby {
     this.scene.remove(r.avatar);
     disposeTree(r.avatar);
     this.remotes.delete(login);
+    if (this.useOnArrival === r) this.useOnArrival = null;
+    if (this.highlighted === r) this.clearHighlight();
     for (const n of this.npcs) if (n.login === login) n.avatar.visible = true;
   }
 
@@ -397,6 +475,67 @@ export class Lobby {
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.domElement.remove();
+  }
+
+  // ---- Targets: what you can aim at, and using it ----
+
+  /** Every target in the neighbourhood right now. */
+  private things(): Thing[] {
+    return [...this.placed, ...this.plots, ...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values(), ...this.lamps];
+  }
+
+  /** Whether a spot is inside the view: projected through the camera, it lands within the screen's edges. */
+  private onScreen(spot: THREE.Vector3): boolean {
+    const v = this.scratch.copy(spot).project(this.camera);
+    return Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1;
+  }
+
+  /** The thing you're standing next to: a lamp first (they're small), then a person, then a door or a plot's front. */
+  private reach(): Thing | null {
+    const here = this.player.position;
+    let best: Thing | null = null;
+    let range = REACH * 0.9;
+    // Whether `t` beats the best so far; if so, it sets the bar.
+    const closer = (t: Thing): boolean => {
+      const d = apart(t.spot, here);
+      if (d >= range) return false;
+      range = d;
+      return true;
+    };
+    for (const l of this.lamps) if (closer(l)) best = l;
+    if (best) return best;
+    range = REACH;
+    for (const n of this.npcs) if (n.avatar.visible && closer(n)) best = n;
+    for (const r of this.remotes.values()) if (closer(r)) best = r;
+    if (best) return best;
+    for (const p of this.placed) if (closer(p)) best = p;
+    for (const p of this.plots) if (closer(p)) best = p;
+    return best;
+  }
+
+  private isRemote(t: Thing): boolean {
+    for (const r of this.remotes.values()) if (r === t) return true;
+    return false;
+  }
+
+  /** Uses a thing you're next to: a lamp flips, anything else is for Vue to open. */
+  private use(thing: Thing) {
+    const lamp = this.lamps.find((l) => l === thing);
+    if (lamp) this.toggleLamp(lamp);
+    else this.events.onSelect(thing.target);
+  }
+
+  /** Sets off for a thing, to use it on arrival. For a person, you stop a step away on your side of them. */
+  private walkToward(thing: Thing) {
+    this.walkTo = thing.target.kind === "person" ? this.beside(thing, new THREE.Vector3()) : thing.spot.clone();
+    this.useOnArrival = thing;
+  }
+
+  /** The point one step away from someone, towards you. Writes into `out`. */
+  private beside(who: Thing, out: THREE.Vector3): THREE.Vector3 {
+    out.subVectors(this.player.position, who.spot).setY(0);
+    if (out.lengthSq() < 0.01) out.set(1, 0, 0);
+    return out.normalize().add(who.spot).setY(0);
   }
 
   // ---- Building the neighbourhood ----
@@ -462,13 +601,15 @@ export class Lobby {
     }
   }
 
-  private tree(x: number, z: number, rand: () => number, gen: number) {
+  /** A tree. On a tree lot it carries the plot's key, so clicking it means "that plot". */
+  private tree(x: number, z: number, rand: () => number, gen: number, plotKey?: string) {
     const big = rand() < 0.6;
     const height = big ? 3.6 + rand() * 1.4 : 2.4 + rand();
     const turn = rand() * Math.PI * 2;
     this.load(gen, loadModel(TREES[big ? 0 : 1], height, "height"), (m) => {
       m.position.set(x, 0.14, z);
       m.rotation.y = turn;
+      if (plotKey) m.userData.plotKey = plotKey;
     });
   }
 
@@ -517,7 +658,7 @@ export class Lobby {
     group.add(this.label(house.name, house.demo ? "lobby-label house demo" : "lobby-label house", 6.4));
     this.town.add(group);
     const box = this.solid(x, z, facing, placeholder.halfWidth * 2, placeholder.halfDepth * 2);
-    const placed: Placed = { house, group, box, door: new THREE.Vector3(), npcs: [] };
+    const placed: Placed = { house, group, box, npcs: [], target: { kind: "house", house }, spot: new THREE.Vector3() };
     this.placed.push(placed);
     this.fitDoor(placed, facing, placeholder.halfDepth);
 
@@ -562,12 +703,13 @@ export class Lobby {
       .filter((r) => r.occupant)
       .forEach((r, k) => {
         const login = r.occupant!.login;
-        const { avatar, tag } = this.makePerson(login, r.occupant!.name ?? login, "lobby-label small");
+        const name = r.occupant!.name ?? login;
+        const { avatar, tag } = this.makePerson(login, name, "lobby-label small");
         avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
         this.town.add(avatar);
-        const npc: Npc = { login, avatar, home: new THREE.Vector3(), target: new THREE.Vector3(), wait: Math.random() * 3, tag };
-        npc.home.copy(placed.door).add(rotate((k - 1) * 1.3, 0.9, yaw(facing)));
-        npc.target.copy(npc.home);
+        const npc: Npc = { login, avatar, home: new THREE.Vector3(), goal: new THREE.Vector3(), wait: Math.random() * 3, tag, target: { kind: "person", login, name }, spot: avatar.position };
+        npc.home.copy(placed.spot).add(rotate((k - 1) * 1.3, 0.9, yaw(facing)));
+        npc.goal.copy(npc.home);
         avatar.position.copy(npc.home);
         this.npcs.push(npc);
         placed.npcs.push(npc);
@@ -581,17 +723,17 @@ export class Lobby {
       });
   }
 
-  /** Puts the door just in front of the house's face (`front` units from its centre), moving the flatmates along. */
+  /** Puts the door spot just in front of the house's face (`front` units from its centre), moving the flatmates along. */
   private fitDoor(p: Placed, facing: Facing, front: number) {
     const dir = FACING_DIR[facing];
     const door = new THREE.Vector3(p.group.position.x + dir.x * (front + 1.1), 0, p.group.position.z + dir.z * (front + 1.1));
-    const first = p.door.lengthSq() === 0;
-    const moved = door.clone().sub(p.door);
-    p.door.copy(door);
+    const first = p.spot.lengthSq() === 0;
+    const moved = door.clone().sub(p.spot);
+    p.spot.copy(door);
     if (first) return;
     for (const n of p.npcs) {
       n.home.add(moved);
-      n.target.add(moved);
+      n.goal.add(moved);
       n.avatar.position.add(moved);
     }
   }
@@ -606,20 +748,21 @@ export class Lobby {
     g.add(post, bulb);
     g.position.copy(position);
     this.town.add(g);
-    const lamp: Lamp = { id, position: position.clone(), bulb, light: null, on: false };
+    const lamp: Lamp = { id, spot: position.clone(), bulb, light: null, on: false, target: { kind: "lamp", id, on: false } };
     this.lamps.push(lamp);
     this.setLamp(lamp, this.lit.has(id));
   }
 
   private setLamp(lamp: Lamp, on: boolean) {
     lamp.on = on;
+    lamp.target = { kind: "lamp", id: lamp.id, on };
     const m = lamp.bulb.material as THREE.MeshStandardMaterial;
     m.emissiveIntensity = on ? 2.2 : 0;
     m.color.set(on ? 0xfff1d6 : 0x77736c);
     // Real light only where it's lit and the machine can afford it.
     if (on && this.opts.quality === "high" && !lamp.light) {
       lamp.light = new THREE.PointLight(LAMP_LIGHT, 20, 10, 1.6);
-      lamp.light.position.copy(lamp.position).setY(2.5);
+      lamp.light.position.copy(lamp.spot).setY(2.5);
       this.town.add(lamp.light);
     }
     if ((!on || this.opts.quality === "low") && lamp.light) {
@@ -633,8 +776,11 @@ export class Lobby {
     this.setLamp(lamp, !lamp.on);
     if (lamp.on) this.lit.add(lamp.id);
     else this.lit.delete(lamp.id);
+    play(lamp.on ? "lamp-on" : "lamp-off");
     this.events.onLamps([...this.lit]);
-    this.near = null; // so the prompt refreshes (switch on → switch off)
+    // The prompt changes with the switch ("Light it" → "Switch it off"): say so.
+    if (this.highlighted === lamp) this.events.onNear(lamp.target);
+    else this.near = null;
   }
 
   // ---- People ----
@@ -734,9 +880,18 @@ export class Lobby {
     if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) {
       this.keys.add(k);
       this.walkTo = null;
-      this.enterOnArrival = null;
+      this.useOnArrival = null;
       e.preventDefault();
     }
+    if (k === "tab") {
+      // Tab picks targets only while the page itself has focus. Inside a card or a sheet it moves focus as usual.
+      const focused = document.activeElement;
+      if (!focused || focused === document.body || this.host.contains(focused)) {
+        this.cycle(e.shiftKey ? -1 : 1);
+        e.preventDefault();
+      }
+    }
+    if (k === "escape") this.clearHighlight();
     if (k === "e" || k === "enter") this.interact();
     if (k === "q") this.rotate(-1);
     if (k === "r") this.rotate(1);
@@ -751,32 +906,37 @@ export class Lobby {
     this.zoom = THREE.MathUtils.clamp(this.zoom + Math.sign(e.deltaY) * 1.2, ZOOM.min, ZOOM.max);
   };
 
-  // Click someone to see who they are; a house to walk to its door and go in; the ground to walk there.
+  // Click someone to see who they are; a house or an empty plot to walk up to it; the ground to walk there.
   private click = (e: PointerEvent) => {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const pointer = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.ray.setFromCamera(pointer, this.camera);
     // People are small: aim at a generous sphere around each one, nearest first.
-    const people = [...this.npcs.filter((n) => n.avatar.visible).map((n) => n.avatar), ...[...this.remotes.values()].map((r) => r.avatar)];
+    const people: (Npc | Remote)[] = [...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values()];
     const hitPerson = people
-      .map((a) => ({ a, d: this.ray.ray.distanceSqToPoint(a.position.clone().setY(0.8)) }))
+      .map((who) => ({ who, d: this.ray.ray.distanceSqToPoint(who.avatar.position.clone().setY(0.8)) }))
       .filter((x) => x.d < 1.6)
       .sort((x, y) => x.d - y.d)[0];
     if (hitPerson) {
-      this.events.onPerson(hitPerson.a.userData.login, hitPerson.a.userData.name);
+      this.events.onSelect(hitPerson.who.target);
       return;
     }
     for (const hit of this.ray.intersectObjects(this.town.children, true)) {
+      // A house or an empty plot: its model (or forecourt) carries the id, somewhere up the tree.
       let o: THREE.Object3D | null = hit.object;
-      while (o && !o.userData.houseId) o = o.parent;
-      if (o) {
+      while (o && !o.userData.houseId && !o.userData.plotKey) o = o.parent;
+      if (o?.userData.houseId) {
         this.goTo(o.userData.houseId);
+        return;
+      }
+      if (o?.userData.plotKey) {
+        this.goToPlot(o.userData.plotKey);
         return;
       }
       if (hit.object.name === "ground") {
         const b = this.bounds;
         this.walkTo = new THREE.Vector3(THREE.MathUtils.clamp(hit.point.x, b.minX, b.maxX), 0, THREE.MathUtils.clamp(hit.point.z, b.minZ, b.maxZ));
-        this.enterOnArrival = null;
+        this.useOnArrival = null;
         return;
       }
     }
@@ -802,15 +962,17 @@ export class Lobby {
     if (this.keys.has("d") || this.keys.has("arrowright")) (dx += 1), (dz -= 1);
     const dir = dx || dz ? rotate(dx, dz, this.angle) : new THREE.Vector3();
     if (!dir.lengthSq() && this.walkTo) {
+      const u = this.useOnArrival;
+      // Someone you're walking to may be strolling: keep aiming for the spot beside them.
+      if (u && u.target.kind === "person") this.beside(u, this.walkTo);
       dir.subVectors(this.walkTo, this.player.position).setY(0);
-      if (dir.length() < 0.15) {
+      // There: on the spot, or close enough to a person to talk (they may stand against a wall).
+      const there = dir.length() < 0.15 || (u?.target.kind === "person" && apart(u.spot, this.player.position) < 1.2);
+      if (there) {
         this.walkTo = null;
+        this.useOnArrival = null;
         dir.set(0, 0, 0);
-        if (this.enterOnArrival) {
-          const p = this.enterOnArrival;
-          this.enterOnArrival = null;
-          this.events.onEnter(p.house);
-        }
+        if (u) this.use(u);
       }
     }
     const moving = dir.lengthSq() > 0;
@@ -833,14 +995,21 @@ export class Lobby {
     this.playerPerson?.mixer.update(dt);
     this.report(moving);
 
-    // What are we standing next to? Lamps win over doors when both are in reach: they're smaller.
-    const here = this.player.position.clone().setY(0);
-    const lamp = this.lamps.find((l) => l.position.distanceTo(here) < REACH * 0.9) ?? null;
-    const door = lamp ? null : (this.placed.find((p) => p.door.distanceTo(here) < REACH) ?? null);
-    const near = lamp ?? door;
+    // What are we standing next to? Told to Vue when it changes, unless a highlight is showing instead.
+    const near = this.reach();
     if (near !== this.near) {
       this.near = near;
-      this.events.onNear(lamp ? { kind: "lamp", on: lamp.on } : door ? { kind: "door", house: door.house } : null);
+      if (!this.highlighted) this.events.onNear(near?.target ?? null);
+    }
+
+    // The ring under the highlighted target, breathing gently. Under a person it follows them.
+    const h = this.highlighted;
+    this.ring.visible = h !== null;
+    if (h) {
+      const breath = calm ? 0 : Math.sin(this.clock.elapsedTime * 4);
+      this.ring.position.set(h.spot.x, 0.2, h.spot.z);
+      this.ring.scale.setScalar(1 + breath * 0.08);
+      this.ring.material.opacity = 0.75 + breath * 0.15;
     }
 
     // Flatmates stroll around their front yard.
@@ -849,11 +1018,11 @@ export class Lobby {
         n.person?.play("idle");
         continue;
       }
-      const to = new THREE.Vector3().subVectors(n.target, n.avatar.position).setY(0);
+      const to = new THREE.Vector3().subVectors(n.goal, n.avatar.position).setY(0);
       if (to.length() < 0.1) {
         n.wait -= dt;
         if (n.wait <= 0) {
-          n.target = n.home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2.4, 0, (Math.random() - 0.5) * 2.4));
+          n.goal = n.home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2.4, 0, (Math.random() - 0.5) * 2.4));
           n.wait = 2 + Math.random() * 4;
         }
         n.person?.play("idle");
@@ -868,21 +1037,21 @@ export class Lobby {
     // Everyone else glides to where they last said they were.
     for (const r of this.remotes.values()) {
       const k = 1 - Math.exp(-10 * dt);
-      r.avatar.position.lerp(r.target, k);
+      r.avatar.position.lerp(r.goal, k);
       r.avatar.rotation.y += shortestAngle(r.avatar.rotation.y, r.ry) * k;
-      const still = r.avatar.position.distanceTo(r.target) < 0.05;
+      const still = r.avatar.position.distanceTo(r.goal) < 0.05;
       r.person?.play(r.moving && !still ? "walk" : "idle");
     }
 
-    // Only the people near the camera animate, and only those near you show their name.
+    // Only the people near the camera animate, and only those near you show their name (plus whoever's highlighted).
     const centre = this.player.position;
     const animateRange = this.viewHalf * 2.2;
     for (const n of this.npcs) if (n.person && n.avatar.position.distanceTo(centre) < animateRange) n.person.mixer.update(dt);
     for (const r of this.remotes.values()) r.person?.mixer.update(dt);
     if (this.tick % 6 === 0) {
       const tagRange = this.viewHalf < 9 ? this.viewHalf * 2 : TAG_RANGE;
-      for (const n of this.npcs) n.tag.style.visibility = n.avatar.position.distanceTo(centre) < tagRange ? "" : "hidden";
-      for (const r of this.remotes.values()) r.tag.style.visibility = r.avatar.position.distanceTo(centre) < tagRange * 1.6 ? "" : "hidden";
+      for (const n of this.npcs) n.tag.style.visibility = n === h || n.avatar.position.distanceTo(centre) < tagRange ? "" : "hidden";
+      for (const r of this.remotes.values()) r.tag.style.visibility = r === h || r.avatar.position.distanceTo(centre) < tagRange * 1.6 ? "" : "hidden";
     }
 
     // The camera follows from the isometric angle, turned and gliding (or snapping, for calm motion).

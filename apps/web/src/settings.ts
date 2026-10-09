@@ -8,6 +8,8 @@ export interface Settings {
   quality: "high" | "low";
   // Calmer motion: no bobbing, no camera glide (also on when the system asks for reduced motion).
   reduceMotion: boolean;
+  // Little sounds for doors, lamps and friends.
+  sound: boolean;
   // Seen the welcome? Set once the onboarding is done.
   welcomed: boolean;
 }
@@ -17,6 +19,7 @@ const defaults: Settings = {
   view: "lobby",
   quality: "high",
   reduceMotion: typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  sound: true,
   welcomed: false,
 };
 

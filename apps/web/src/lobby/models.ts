@@ -127,6 +127,14 @@ export function makeAvatar(color: number): THREE.Group {
   return g;
 }
 
+/** The ring on the ground under whatever you highlighted with Tab: light and flat. Hidden until there is one. */
+export function makeHighlight(): THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.75, 0.95, 40), new THREE.MeshBasicMaterial({ color: 0xfff3d6, transparent: true, opacity: 0.85, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.visible = false;
+  return ring;
+}
+
 // Stable colour per login, so a flatmate always looks the same.
 export function colorFor(login: string): number {
   let h = 0;

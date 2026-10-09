@@ -205,3 +205,38 @@ lamps at every crossing; a ring of low buildings beyond the last street. Same na
 - **Cost**, measured in Dakar: about 240 draw calls and 85 000 triangles. Street markings are two instanced meshes.
 - Verified in the browser: Dakar and Lomé look different, travel works and updates the URL, the census counted a
   second real browser (Djbrl in Chrome) in Dakar, the person card, the building fade.
+
+## 10 10 2026, later: everything in the lobby is something you can use
+
+Jib's ask, after the neighbourhoods: no dead building, no dead person, no leaving the lobby to look at a house, and
+all of it from the keyboard. Built by four subagents on disjoint files (engine, cards, API, sounds), reviewed and
+verified in the browser afterwards.
+
+| What | Where |
+|---|---|
+| **One target model** in the engine: every house, empty plot (shop, tower, tree lot), person and lamp. Walk up and press E, click, or **Tab / Shift+Tab** to pick one on screen (nearest first, a ring at its feet). Using something far away walks you there first. Clicking never navigates: the engine only reports | `apps/web/src/lobby/Lobby.ts` (`Target`, `onNear`, `onSelect`, `cycle`, `goToPlot`, `goToPerson`) |
+| **Floating cards**, bottom left, non-modal: a house (its rooms, who's home, who's walking around, Knock on a free room, the page link), a person (name, then "Lives in Sacré-Cœur, Dakar." on its own line, room and project; Ask to join, See the house, Wave), an empty plot (Start a coloc here). Focus lands on the card's first action and goes back to the stage when it closes, so Tab keeps cycling | `apps/web/src/components/lobby/*.vue`, `LobbyView.vue` |
+| **Start a coloc here**: three steps (name, tagline, a last look), then `POST /api/city/houses`. The house appears on that very plot, in the making, with fences and cones, and you're its chef | `RentSteps.vue`; `houses.service.ts` `rent()`; migration `0006_house_plot` |
+| **Stable plots**: every plot has a key ("block column.block row.plot column.plot row"); a house keeps the key it rented so the neighbours never shuffle. Houses without one still take the plots nearest the market | `neighbourhood.ts` (`Plot.key`, `HouseOnMap.plot`), 2 new tests |
+| **Keys**, listed bottom left: W A S D walk, Tab next thing, E use, Q R turn, 1 2 react, F find, T travel, Esc close, ? the list. Hidden on touch screens | `KeyLegend.vue` |
+| **Sounds**, synthesised with Web Audio (nothing downloaded): select, open, close, lamp on/off, emote, knock, arrive, build. Off in settings | `sound.ts`, 5 tests |
+
+### Verified in the browser (as Jib, in Dakar)
+Tab cycled house → Awa → Moussa → an empty shop → lamps; E opened each card with focus on its first action;
+Enter on "See Sacré-Cœur" opened the house card and walked there; Escape closed cards and sheets and put focus back
+on the stage; F and T opened their sheets with focus on the first control; the rent steps ran entirely by keyboard
+and the shop became "Médina Lab" (then deleted from the dev database); a mouse click on Khady opened her card with
+"Lives in Almadies, Dakar."; at phone width the card is a bottom sheet and the key list is hidden.
+Tests: 138 (domain 14, protocol 4, agent 13, db 2, API 91, web 14). Build and `licences:check` pass.
+
+### Fixed on the way
+- The first sound was always dropped: browsers keep audio asleep until a click or key, so the lobby now wakes it on
+  the first one.
+- After starting a house, its card offered the chef "Knock" on their own rooms: the page's "who am I" is refreshed.
+- A mouse click's own focus (on the stage) landed after the card's, so the card waits a tick before taking focus.
+
+### Rough edges
+- Knocking from a card still goes to the application page (shared with the house page): the one remaining way a
+  card leads out of the lobby. Jib to say whether the thread should open in the lobby too.
+- The highlight ring is hidden when the target is behind a tower (it keeps depth testing).
+- Clicking the ground doesn't close an open card; Escape or Close does.

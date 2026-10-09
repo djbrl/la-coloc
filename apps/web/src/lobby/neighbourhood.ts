@@ -15,6 +15,9 @@ export type Lot =
   | { kind: "trees"; count: number };
 
 export interface Plot {
+  // Stable name for this plot: "block column.block row.plot column.plot row". A house that rents a plot keeps its
+  // key in the database, so it stays put even when the houses around it change.
+  key: string;
   x: number;
   z: number;
   facing: Facing;
@@ -64,11 +67,19 @@ export function seeded(text: string): () => number {
   };
 }
 
+export interface HouseOnMap {
+  id: string;
+  demo: boolean;
+  // The plot it rented (a plot key), or null for a house that takes the next free plot near the market.
+  plot?: string | null;
+}
+
 /**
- * Lays out a neighbourhood for `city`, with a plot for each of its houses (real ones nearest the market).
- * Bigger cities get more blocks; every neighbourhood has room to spare, filled with shops, towers and trees.
+ * Lays out a neighbourhood for `city`, with a plot for each of its houses. A house that rented a plot stands on it;
+ * the others take the plots nearest the market (real houses first). Bigger cities get more blocks; every
+ * neighbourhood has room to spare, filled with shops, towers and trees, all of them empty and up for rent.
  */
-export function generateNeighbourhood(city: string, houses: { id: string; demo: boolean }[]): Neighbourhood {
+export function generateNeighbourhood(city: string, houses: HouseOnMap[]): Neighbourhood {
   const rand = seeded(city.toLowerCase());
   const pick = (n: number) => Math.floor(rand() * n);
 
@@ -114,16 +125,26 @@ export function generateNeighbourhood(city: string, houses: { id: string; demo: 
       // Two rows back to back: the north row faces the street to its north, the south row the one to its south.
       for (let c = 0; c < columns[i]; c++) {
         const x = ox + xs[i].start + c * PLOT + PLOT / 2;
-        plots.push({ x, z: b.z - PLOT / 2, facing: 2, lot: { kind: "trees", count: 0 } });
-        plots.push({ x, z: b.z + PLOT / 2, facing: 0, lot: { kind: "trees", count: 0 } });
+        plots.push({ key: `${i}.${j}.${c}.0`, x, z: b.z - PLOT / 2, facing: 2, lot: { kind: "trees", count: 0 } });
+        plots.push({ key: `${i}.${j}.${c}.1`, x, z: b.z + PLOT / 2, facing: 0, lot: { kind: "trees", count: 0 } });
       }
     }
   }
 
-  // Real houses take the plots nearest the market, then demo houses; the rest of the street fills in.
+  // Houses that rented a plot stand on it. The others take the plots nearest the market (real houses before demo
+  // ones), and the rest of the street fills in with shops, towers and trees.
   const market = blocks.find((b) => b.kind === "market")!;
-  const byDistance = [...plots].sort((a, b) => Math.hypot(a.x - market.x, a.z - market.z) - Math.hypot(b.x - market.x, b.z - market.z));
-  const ordered = [...houses].sort((a, b) => Number(a.demo) - Number(b.demo));
+  const byKey = new Map(plots.map((p) => [p.key, p]));
+  const unplaced: HouseOnMap[] = [];
+  for (const h of houses) {
+    const p = h.plot ? byKey.get(h.plot) : undefined;
+    if (p && p.lot.kind !== "house") p.lot = { kind: "house", houseId: h.id };
+    else unplaced.push(h);
+  }
+  const byDistance = plots
+    .filter((p) => p.lot.kind !== "house")
+    .sort((a, b) => Math.hypot(a.x - market.x, a.z - market.z) - Math.hypot(b.x - market.x, b.z - market.z));
+  const ordered = [...unplaced].sort((a, b) => Number(a.demo) - Number(b.demo));
   ordered.forEach((h, k) => {
     if (byDistance[k]) byDistance[k].lot = { kind: "house", houseId: h.id };
   });

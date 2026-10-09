@@ -43,6 +43,13 @@
       "when": 1791519789860,
       "tag": "0005_avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791553536403,
+      "tag": "0006_house_plot",
+      "breakpoints": true
     }
   ]
 }

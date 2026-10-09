@@ -4,10 +4,11 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { postJSON } from "../session";
-import type { Room } from "../types";
+import type { CityHouse } from "../types";
 import UiSteps from "./UiSteps.vue";
 
-const props = defineProps<{ houseId: string; room: Room }>();
+// The room only matters by name, so the city's slimmer room shape is enough (the house page's Room fits too).
+const props = defineProps<{ houseId: string; room: CityHouse["rooms"][number] }>();
 const emit = defineEmits<{ close: [] }>();
 const router = useRouter();
 
