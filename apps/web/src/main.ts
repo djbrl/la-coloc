@@ -12,7 +12,7 @@ import "./style.css";
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/", component: CityPage },
+    { path: "/", component: CityPage, meta: { fullscreen: true } },
     { path: "/houses/:id", component: HousePage, props: true },
     { path: "/houses/:id/rooms/:room", component: RoomPage, props: true },
     { path: "/applications/:id", component: ApplicationPage, props: true },

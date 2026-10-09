@@ -42,136 +42,179 @@ const due = (iso: string) => {
   return hours <= 0 ? "late" : hours < 1 ? "due within the hour" : `due in ${hours}h`;
 };
 const reviews = computed(() => house.value?.ledger.reduce((n, l) => n + l.given, 0) ?? 0);
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const nameOf = (p: { name: string | null; login: string }) => p.name ?? p.login;
+const deployDot = (status: string) => (status === "live" ? "live" : status === "failed" ? "failed" : "deploying");
 </script>
 
 <template>
-  <p v-if="error" class="error">{{ error }} <RouterLink to="/">Back to the city</RouterLink></p>
-  <template v-else-if="house">
-    <RouterLink to="/" class="back">← The city</RouterLink>
-    <section class="head">
-      <div class="title">
-        <h1>{{ house.name }}</h1>
-        <p class="muted">{{ house.city }} · {{ occupied }}/{{ house.rooms.length }} rooms</p>
-        <p v-if="house.tagline" class="tagline">{{ house.tagline }}</p>
-        <div class="tags">
-          <span v-if="house.status === 'making'" class="pill making">In the making: server not rented yet</span>
-          <span v-else class="pill" :class="{ live: house.agentOnline }"><span class="dot" :class="{ on: house.agentOnline }" /> {{ house.agentOnline ? "Server online" : "Server offline" }}</span>
-          <span v-if="house.rules.strictReviews" class="pill">Strict reviews</span>
-          <span v-if="house.demo" class="pill" title="A sample house, so the city isn't empty">demo house</span>
-          <span v-if="house.viewer?.member" class="pill free">You live here</span>
-        </div>
-      </div>
-      <dl class="facts">
-        <div v-if="house.chef">
-          <dt>Chef</dt>
-          <dd><Avatar :person="house.chef" :size="20" /> {{ house.chef.name ?? house.chef.login }}</dd>
-        </div>
-        <div v-if="perPerson">
-          <dt>Rent</dt>
-          <dd>~{{ fcfa(perPerson) }} / month each</dd>
-        </div>
-        <div>
-          <dt>Reviews exchanged</dt>
-          <dd>{{ reviews }}</dd>
-        </div>
-        <div>
-          <dt>Rooms at</dt>
-          <dd class="mono">*.{{ house.domain }}</dd>
-        </div>
-      </dl>
-    </section>
+  <div class="house-page">
+    <div v-if="error" class="wrap band">
+      <h1>{{ error }}</h1>
+      <p class="lede muted">Maybe it moved, or the link is off by a letter.</p>
+      <RouterLink to="/" class="more">Back to the city <span aria-hidden="true">›</span></RouterLink>
+    </div>
 
-    <!-- Floor plan placeholder: Jib's illustrated floor plan goes here, rooms driven by the same data. -->
-    <section class="floor" aria-label="Rooms">
-      <RoomCard
-        v-for="room in house.rooms"
-        :key="room.name"
-        :house-id="house.id"
-        :house-status="house.status"
-        :house-demo="house.demo"
-        :room="room"
-        :agent-online="house.agentOnline"
-        :viewer="house.viewer"
-        :chef-login="house.chef?.login ?? null"
-        :ledger="house.ledger.find((l) => l.login === room.occupant?.login)"
-      />
-    </section>
+    <template v-else-if="house">
+      <!-- Who the house is, in a few plain sentences. -->
+      <section class="band hero">
+        <div class="wrap">
+          <RouterLink to="/" class="back"><span aria-hidden="true">‹</span> The city</RouterLink>
+          <h1>{{ house.name }}</h1>
+          <p class="lede muted">{{ house.city }}<template v-if="house.tagline">. {{ house.tagline }}</template></p>
 
-    <section v-if="house.viewer?.member && house.doorbell?.length" class="doorbell">
-      <h2>At the door</h2>
-      <RouterLink v-for="d in house.doorbell" :key="d.id" :to="`/applications/${d.id}`" class="knocker">
-        <Avatar :person="d.applicant" :size="28" />
-        <span><strong>{{ d.applicant.name ?? d.applicant.login }}</strong> knocked on {{ d.room }}</span>
-        <span class="pill">{{ d.tally.yes }}/{{ d.tally.needed }} yes</span>
-        <span class="go">Answer →</span>
-      </RouterLink>
-    </section>
+          <div v-if="house.members.length" class="faces">
+            <Avatar v-for="m in house.members" :key="m.login" :person="m" :size="40" />
+          </div>
 
-    <section v-if="house.viewer?.member" class="chores">
-      <h2>Chores</h2>
-      <p v-if="!house.chores?.length" class="muted small">No reviews waiting. When a flatmate opens a pull request, someone gets picked to review it.</p>
-      <ul v-else>
-        <li v-for="c in house.chores" :key="c.id" :class="{ late: c.late, mine: c.assignee.login === house.viewer.login }">
-          <Avatar :person="c.assignee" :size="22" />
-          <span><strong>{{ c.assignee.name ?? c.assignee.login }}</strong> reviews <a :href="c.prUrl" target="_blank" rel="noopener">{{ c.repo }}#{{ c.prNumber }}</a> · {{ c.prTitle }}</span>
-          <span class="pill" :class="c.late ? 'down' : 'deploying'">{{ due(c.dueAt) }}</span>
-        </li>
-      </ul>
-    </section>
+          <p class="state" aria-live="polite">
+            <template v-if="house.status === 'making'"><span class="dot making" aria-hidden="true" />In the making. The server isn't rented yet.</template>
+            <template v-else-if="house.agentOnline"><span class="dot live" aria-hidden="true" />The server is online.</template>
+            <template v-else><span class="dot danger" aria-hidden="true" />The server is offline right now.</template>
+            <template v-if="house.viewer?.member"> You live here.</template>
+          </p>
 
-    <section v-if="house.viewer?.member" class="living">
-      <h2>Living room</h2>
-      <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="house.viewer.login" />
-    </section>
+          <p class="facts muted">
+            <template v-if="house.chef">{{ nameOf(house.chef) }} is the chef. </template>
+            {{ occupied }} of {{ house.rooms.length }} rooms are taken<template v-if="perPerson">, and rent comes to about {{ fcfa(perPerson) }} a month each</template>.
+            Flatmates have exchanged {{ plural(reviews, "review", "reviews") }}.
+            <template v-if="house.rules.strictReviews">Reviews are strict here: nothing deploys until a flatmate approves. </template>
+            Rooms live at <span class="mono">*.{{ house.domain }}</span>.
+            <template v-if="house.demo"> This is a sample house, so the city isn't empty.</template>
+          </p>
+        </div>
+      </section>
 
-    <section v-if="house.viewer?.member" class="lower">
-      <FridgeDoor :notes="house.notes ?? []" />
-      <div class="deploys">
-        <h2>Recent deploys</h2>
-        <p v-if="!house.deployments?.length" class="muted">Nothing deployed yet.</p>
-        <ul>
-          <li v-for="d in house.deployments" :key="d.id" :title="d.detail ?? ''">
-            <strong>{{ d.room }}</strong> · {{ d.kind }} · {{ d.ref }} —
-            <span class="pill" :class="d.status === 'live' ? 'live' : d.status === 'failed' ? 'failed' : 'deploying'">{{ d.status }}</span>
-            <p v-if="d.status === 'failed' && d.detail" class="why">{{ d.detail.split("\n")[0] }}</p>
-          </li>
-        </ul>
-      </div>
-    </section>
-    <p v-else class="private muted">The fridge door and deploy history are for flatmates.</p>
-  </template>
-  <p v-else class="muted">Opening the door…</p>
+      <!-- Someone knocked: the one thing flatmates should act on first. -->
+      <section v-if="house.viewer?.member && house.doorbell?.length" class="band alt tight" aria-labelledby="doorbell-title">
+        <div class="wrap">
+          <div class="band-head">
+            <h2 id="doorbell-title">Someone's at the door.</h2>
+            <p class="muted">Read their note, ask them something, then vote.</p>
+          </div>
+          <ul class="rows">
+            <li v-for="d in house.doorbell" :key="d.id">
+              <Avatar :person="d.applicant" :size="36" decorative />
+              <span class="grow">
+                <strong>{{ nameOf(d.applicant) }}</strong> knocked on room {{ d.room }}.
+                <span class="muted">{{ d.tally.yes }} of {{ d.tally.needed }} yes votes so far.</span>
+              </span>
+              <RouterLink :to="`/applications/${d.id}`" class="more end" :aria-label="`Answer ${nameOf(d.applicant)}`">
+                Answer <span aria-hidden="true">›</span>
+              </RouterLink>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Floor plan placeholder: Jib's illustrated floor plan goes here, rooms driven by the same data. -->
+      <section class="band" aria-labelledby="rooms-title">
+        <div class="wrap">
+          <div class="band-head">
+            <h2 id="rooms-title">The rooms.</h2>
+            <p class="muted">Each flatmate's app runs in its own room, with its own memory and CPU.</p>
+          </div>
+          <div class="floor">
+            <RoomCard
+              v-for="room in house.rooms"
+              :key="room.name"
+              :house-id="house.id"
+              :house-status="house.status"
+              :house-demo="house.demo"
+              :room="room"
+              :agent-online="house.agentOnline"
+              :viewer="house.viewer"
+              :chef-login="house.chef?.login ?? null"
+              :ledger="house.ledger.find((l) => l.login === room.occupant?.login)"
+            />
+          </div>
+        </div>
+      </section>
+
+      <template v-if="house.viewer?.member">
+        <section class="band alt" aria-labelledby="chores-title">
+          <div class="wrap">
+            <div class="band-head">
+              <h2 id="chores-title">Chores.</h2>
+              <p class="muted">Reviews waiting on the house. Every pull request gets a flatmate, in turn.</p>
+            </div>
+            <p v-if="!house.chores?.length" class="muted">No reviews waiting right now.</p>
+            <ul v-else class="rows">
+              <li v-for="c in house.chores" :key="c.id">
+                <Avatar :person="c.assignee" :size="32" decorative />
+                <span class="grow">
+                  <strong>{{ c.assignee.login === house.viewer.login ? "You" : nameOf(c.assignee) }}</strong>
+                  {{ c.assignee.login === house.viewer.login ? "review" : "reviews" }}
+                  <a :href="c.prUrl" target="_blank" rel="noopener">{{ c.repo }}#{{ c.prNumber }}</a>,
+                  <span class="muted">{{ c.prTitle }}</span>
+                </span>
+                <span class="end small" :class="c.late ? 'word-danger' : 'word-warn'">{{ due(c.dueAt) }}</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="band" aria-labelledby="living-title">
+          <div class="wrap living">
+            <div class="band-head">
+              <h2 id="living-title">The living room.</h2>
+              <p class="muted">One chat for the whole house.</p>
+            </div>
+            <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="house.viewer.login" />
+          </div>
+        </section>
+
+        <section class="band alt" aria-label="House activity">
+          <div class="wrap lower">
+            <FridgeDoor :notes="house.notes ?? []" />
+            <div class="deploys">
+              <h2>Recent deploys.</h2>
+              <p class="muted intro">What went out, and whether it stuck.</p>
+              <p v-if="!house.deployments?.length" class="muted">Nothing deployed yet.</p>
+              <ul v-else class="rows">
+                <li v-for="d in house.deployments" :key="d.id">
+                  <span class="grow">
+                    <span class="dot" :class="deployDot(d.status)" aria-hidden="true" /><strong>{{ d.room }}</strong>
+                    {{ d.kind === "preview" ? "previewed" : "deployed" }} <code>{{ d.ref }}</code>
+                    <span class="muted">, {{ d.status }}</span>
+                    <span v-if="d.status === 'failed' && d.detail" class="why">{{ d.detail.split("\n")[0] }}</span>
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </template>
+      <section v-else class="band alt tight">
+        <p class="wrap muted">The living room, the fridge door and the deploy history are for flatmates.</p>
+      </section>
+    </template>
+
+    <p v-else class="wrap band muted" aria-live="polite">Opening the door…</p>
+  </div>
 </template>
 
 <style scoped>
-.error { color: var(--danger); }
-.back { display: inline-block; margin-bottom: 12px; font-size: 14px; text-decoration: none; }
-.head { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
-.title { flex: 1 1 360px; }
-.title p { margin: 4px 0 0; }
-.tagline { font-size: 16px; }
-.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-.tags .dot { vertical-align: 0; margin-right: 2px; }
-.facts { margin: 0; display: grid; gap: 8px; align-content: start; min-width: 220px; }
-.facts div { display: grid; }
-.facts dt { font-size: 12px; color: var(--muted); }
-.facts dd { margin: 0; display: flex; align-items: center; gap: 6px; }
-.mono { font-family: ui-monospace, monospace; font-size: 13px; }
-.floor { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 24px; }
-.lower { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-.deploys ul { list-style: none; padding: 0; margin: 0; font-size: 13px; }
-.deploys li { padding: 6px 0; border-bottom: 1px solid var(--border); }
-.why { margin: 2px 0 0; color: var(--danger); }
-.private { font-size: 13px; }
-.doorbell { display: grid; gap: 8px; margin-bottom: 24px; }
-.knocker { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft); color: var(--text); text-decoration: none; flex-wrap: wrap; }
-.knocker .go { margin-left: auto; color: var(--accent); font-weight: 600; }
-.living { margin-bottom: 24px; }
-.chores { margin-bottom: 24px; }
-.chores ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
-.chores li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 14px; }
-.chores li.mine { border-color: var(--accent); }
-.chores li.late { border-color: var(--danger); }
-.chores li .pill { margin-left: auto; }
-.small { font-size: 13px; margin: 0; }
+.hero { padding-top: 48px; text-align: center; }
+.hero .wrap { display: grid; gap: 16px; justify-items: center; }
+.hero .wrap > :not(.back) { max-width: 680px; }
+.back { justify-self: start; }
+.faces { display: flex; justify-content: center; flex-wrap: wrap; margin: 8px 0; }
+.faces > * { margin-left: -6px; box-shadow: 0 0 0 3px var(--bg); }
+.faces > *:first-child { margin-left: 0; }
+.state { font-size: 17px; }
+.facts { max-width: 600px; }
+.mono { font-family: var(--mono); font-size: 0.9em; overflow-wrap: anywhere; }
+.floor { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+.living > * { max-width: 680px; }
+.grow { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
+.lower { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 48px 64px; }
+.deploys { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.deploys .intro { margin-bottom: 16px; }
+.deploys li { font-size: 15px; }
+.why { display: block; margin-top: 2px; font-size: 14px; color: var(--danger); }
+@media (max-width: 400px) {
+  .floor { grid-template-columns: minmax(0, 1fr); }
+  .lower { grid-template-columns: minmax(0, 1fr); }
+}
 </style>

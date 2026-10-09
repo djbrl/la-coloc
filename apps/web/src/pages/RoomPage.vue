@@ -1,21 +1,25 @@
 <script setup lang="ts">
 // Your room: what runs there, how it builds, its secrets, its logs, its history.
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+// One calm section at a time, picked with a segmented control.
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
+import UiNote, { loud, quiet, type Note } from "../components/UiNote.vue";
+import UiSteps from "../components/UiSteps.vue";
 import { sendJSON } from "../session";
 import type { RoomManage } from "../types";
 
 const props = defineProps<{ id: string; room: string }>();
 const data = ref<RoomManage | null>(null);
 const error = ref("");
+const status = ref(0);
 const base = computed(() => `/api/houses/${encodeURIComponent(props.id)}/rooms/${encodeURIComponent(props.room)}`);
 
 const form = reactive({ project: "", projectDescription: "", source: "", branch: "", buildPath: ".", port: "" });
-const formMessage = ref("");
+const formNote = ref<Note | null>(null);
 const savingSettings = ref(false);
 const action = ref<"" | "redeploy" | "restart">("");
-const actionMessage = ref("");
+const actionNote = ref<Note | null>(null);
 const secret = reactive({ name: "", value: "" });
-const secretMessage = ref("");
+const secretNote = ref<Note | null>(null);
 const logs = ref("");
 const logsMessage = ref("");
 const logsLoading = ref(false);
@@ -27,6 +31,7 @@ let reloadTimer: number | undefined;
 async function load() {
   const res = await fetch(`${base.value}/manage`).catch(() => null);
   if (!res?.ok) {
+    status.value = res?.status ?? 0;
     error.value = res?.status === 401 ? "Log in to manage your room." : res?.status === 403 ? "This isn't your room." : "This room doesn't exist.";
     return;
   }
@@ -70,10 +75,10 @@ onBeforeUnmount(() => {
 });
 
 async function saveSettings() {
-  formMessage.value = "";
+  formNote.value = null;
   const port = form.port.trim() ? Number(form.port) : null;
   if (port !== null && (!Number.isInteger(port) || port < 1 || port > 65535)) {
-    formMessage.value = "The port is a number between 1 and 65535.";
+    formNote.value = loud("The port is a number between 1 and 65535.");
     return;
   }
   savingSettings.value = true;
@@ -86,43 +91,81 @@ async function saveSettings() {
     port,
   });
   savingSettings.value = false;
-  formMessage.value = res.ok ? "Saved. It applies from the next deploy." : res.message;
+  formNote.value = res.ok ? quiet("Saved. It applies from the next deploy.") : loud(res.message);
   if (res.ok) await load();
 }
 
 async function run(what: "redeploy" | "restart") {
-  actionMessage.value = "";
+  actionNote.value = null;
   action.value = what;
   const res = await sendJSON("POST", `${base.value}/${what}`, {});
   action.value = "";
-  actionMessage.value = res.ok ? (what === "redeploy" ? "Building… the history below follows along." : "Restarting.") : res.message;
+  actionNote.value = res.ok ? quiet(what === "redeploy" ? "Building. History follows along." : "Restarting.") : loud(res.message);
+}
+
+// Adding a secret, one question at a time: its name, its value, then a last look.
+const secretStep = ref(0);
+const secretError = ref("");
+const savingSecret = ref(false);
+const addButton = ref<HTMLButtonElement | null>(null);
+const secretName = computed(() => secret.name.trim().toUpperCase());
+const replacing = computed(() => !!data.value?.secrets.some((s) => s.name === secretName.value));
+
+function startSecret() {
+  secret.name = "";
+  secret.value = "";
+  secretError.value = "";
+  secretNote.value = null;
+  secretStep.value = 1;
+}
+
+async function endSecret() {
+  secretStep.value = 0;
+  await nextTick();
+  addButton.value?.focus();
+}
+
+function secretNext() {
+  secretError.value = "";
+  if (secretStep.value === 1 && !/^[A-Z_][A-Z0-9_]{0,63}$/.test(secretName.value)) {
+    secretError.value = "Names are capitals, digits and underscores, like STRIPE_KEY.";
+    return;
+  }
+  if (secretStep.value === 2 && !secret.value) {
+    secretError.value = "Enter a value.";
+    return;
+  }
+  secretStep.value++;
+}
+
+function secretBack() {
+  secretError.value = "";
+  secretStep.value--;
 }
 
 async function saveSecret() {
-  secretMessage.value = "";
-  const name = secret.name.trim().toUpperCase();
-  if (!/^[A-Z_][A-Z0-9_]{0,63}$/.test(name)) {
-    secretMessage.value = "Names are capitals, digits and underscores, like STRIPE_KEY.";
-    return;
-  }
-  if (!secret.value) {
-    secretMessage.value = "Enter a value.";
-    return;
-  }
+  secretError.value = "";
+  const name = secretName.value;
+  savingSecret.value = true;
   const res = await sendJSON("PUT", `${base.value}/secrets/${name}`, { value: secret.value });
+  savingSecret.value = false;
   if (!res.ok) {
-    secretMessage.value = res.message;
+    secretError.value = res.message;
     return;
   }
   secret.name = "";
   secret.value = "";
-  secretMessage.value = `${name} saved. It reaches your app on the next deploy.`;
+  secretNote.value = quiet(`${name} saved. It reaches your app on the next deploy.`);
   await load();
+  await endSecret();
 }
 
+// Removing asks once more, in the row itself.
+const confirming = ref<string | null>(null);
 async function deleteSecret(name: string) {
+  confirming.value = null;
   const res = await sendJSON("DELETE", `${base.value}/secrets/${name}`);
-  secretMessage.value = res.ok ? `${name} removed. Redeploy for your app to stop seeing it.` : res.message;
+  secretNote.value = res.ok ? quiet(`${name} removed. Redeploy for your app to stop seeing it.`) : loud(res.message);
   await load();
 }
 
@@ -143,153 +186,333 @@ watch(follow, (on) => {
   if (on) followTimer = window.setInterval(fetchLogs, 4000);
 });
 
+// The segmented control: a tab list, moved through with the arrow keys.
+const tabs = [
+  { id: "overview", name: "Overview" },
+  { id: "build", name: "Build" },
+  { id: "secrets", name: "Secrets" },
+  { id: "logs", name: "Logs" },
+  { id: "history", name: "History" },
+] as const;
+type Tab = (typeof tabs)[number]["id"];
+const tab = ref<Tab>("overview");
+// Plain array: filled by the template, only read on key presses.
+const tabEls: HTMLButtonElement[] = [];
+
+function onTabKey(e: KeyboardEvent, i: number) {
+  const last = tabs.length - 1;
+  const to = { ArrowRight: i === last ? 0 : i + 1, ArrowLeft: i === 0 ? last : i - 1, Home: 0, End: last }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  tab.value = tabs[to].id;
+  tabEls[to]?.focus();
+}
+
 const memory = computed(() => {
   const u = data.value?.room.usage;
   if (!u?.memoryLimitBytes) return null;
   return { mb: Math.round(u.memoryBytes / 1048576), pct: Math.min(100, Math.round((u.memoryBytes / u.memoryLimitBytes) * 100)) };
 });
+const roomState = computed(() => {
+  const s = data.value?.room.status ?? "empty";
+  return { live: "Live", deploying: "Deploying", down: "Down right now", failed: "The last deploy failed", empty: "Nothing deployed yet" }[s];
+});
 const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-const pill = (status: string) => (status === "live" ? "live" : status === "failed" ? "failed" : "deploying");
+const dot = (status: string) => (status === "live" ? "live" : status === "failed" ? "failed" : status === "empty" ? "" : "deploying");
+const bare = (url: string) => url.replace(/^https?:\/\//, "");
 </script>
 
 <template>
-  <p v-if="error" class="error">{{ error }} <RouterLink :to="`/houses/${id}`">Back to the house</RouterLink></p>
-  <template v-else-if="data">
-    <RouterLink :to="`/houses/${id}`" class="back">← {{ data.house.name }}</RouterLink>
+  <div class="room-page">
+    <div v-if="error" class="wrap band">
+      <h1>{{ error }}</h1>
+      <div class="actions top-gap">
+        <RouterLink v-if="status === 401" to="/login" class="more">Log in <span aria-hidden="true">›</span></RouterLink>
+        <RouterLink :to="`/houses/${id}`" class="more">Back to the house <span aria-hidden="true">›</span></RouterLink>
+      </div>
+    </div>
 
-    <section class="head">
-      <div>
-        <h1>{{ data.settings.project || data.room.name }}</h1>
-        <p class="muted">
-          Room <strong>{{ data.room.name }}</strong> · {{ data.room.limits.memoryMb }} MB · {{ data.room.limits.cpus }} CPU
-          <template v-if="data.as === 'chef'"> · you're the chef</template>
-        </p>
-        <div class="tags">
-          <span class="pill" :class="data.room.status === 'empty' ? '' : pill(data.room.status)">{{ data.room.status }}</span>
-          <a v-if="data.room.url && data.room.status !== 'empty'" :href="data.room.url" target="_blank" rel="noopener">{{ data.room.url.replace(/^https?:\/\//, "") }} ↗</a>
-          <a v-if="data.room.previewUrl" :href="data.room.previewUrl" target="_blank" rel="noopener" class="preview">preview ↗</a>
+    <template v-else-if="data">
+      <section class="band hero">
+        <div class="wrap">
+          <RouterLink :to="`/houses/${id}`" class="back"><span aria-hidden="true">‹</span> {{ data.house.name }}</RouterLink>
+          <h1>{{ data.settings.project || data.room.name }}</h1>
+          <p class="lede muted">
+            Room {{ data.room.name }} in {{ data.house.name }}, with {{ data.room.limits.memoryMb }} MB and {{ data.room.limits.cpus }} CPU.
+            <template v-if="data.as === 'chef'">You're here as the chef.</template>
+          </p>
+          <p class="state" aria-live="polite">
+            <span class="dot" :class="dot(data.room.status)" aria-hidden="true" />{{ roomState }}<template v-if="data.room.url && data.room.status !== 'empty'"> at
+              <a :href="data.room.url" target="_blank" rel="noopener">{{ bare(data.room.url) }}<span class="sr-only"> (opens in a new tab)</span></a></template>.
+            <template v-if="data.room.previewUrl">
+              A preview is up at <a :href="data.room.previewUrl" target="_blank" rel="noopener">{{ bare(data.room.previewUrl) }}<span class="sr-only"> (opens in a new tab)</span></a>.
+            </template>
+          </p>
+          <div class="actions top-gap">
+            <button class="primary" :disabled="action !== '' || !data.house.agentOnline" @click="run('redeploy')">
+              {{ action === "redeploy" ? "Starting…" : "Redeploy" }}
+            </button>
+            <button class="link" :disabled="action !== '' || !data.house.agentOnline || data.room.status === 'empty'" @click="run('restart')">
+              {{ action === "restart" ? "Restarting…" : "Restart" }}
+            </button>
+          </div>
+          <p v-if="!data.house.agentOnline" class="muted small">The house's server is offline, so nothing can deploy for now.</p>
+          <UiNote :note="actionNote" />
+        </div>
+      </section>
+
+      <div class="wrap">
+        <div class="segmented" role="tablist" aria-label="Room sections">
+          <button
+            v-for="(t, i) in tabs"
+            :id="`tab-${t.id}`"
+            :key="t.id"
+            :ref="(el) => (tabEls[i] = el as HTMLButtonElement)"
+            role="tab"
+            :aria-selected="tab === t.id"
+            :aria-controls="`panel-${t.id}`"
+            :tabindex="tab === t.id ? 0 : -1"
+            :class="{ on: tab === t.id }"
+            @click="tab = t.id"
+            @keydown="onTabKey($event, i)"
+          >
+            {{ t.name }}
+          </button>
         </div>
       </div>
-      <div class="actions">
-        <button class="primary" :disabled="action !== '' || !data.house.agentOnline" @click="run('redeploy')">{{ action === "redeploy" ? "Starting…" : "Redeploy" }}</button>
-        <button :disabled="action !== '' || !data.house.agentOnline || data.room.status === 'empty'" @click="run('restart')">Restart</button>
-        <p v-if="!data.house.agentOnline" class="muted small">The house's server is offline.</p>
-        <p v-if="actionMessage" class="small" role="status">{{ actionMessage }}</p>
-      </div>
-    </section>
 
-    <div v-if="memory" class="meter" :title="`${memory.mb} MB of ${data.room.limits.memoryMb} MB`">
-      <div class="fill" :class="{ high: memory.pct >= 80 }" :style="{ width: memory.pct + '%' }" />
-    </div>
+      <section class="band panel-band">
+        <Transition name="fade" mode="out-in">
+          <div :id="`panel-${tab}`" :key="tab" class="wrap panel" role="tabpanel" :aria-labelledby="`tab-${tab}`" tabindex="0">
+            <!-- Overview: what it is and how it's doing. -->
+            <template v-if="tab === 'overview'">
+              <div class="intro">
+                <h2>Your project.</h2>
+                <p class="muted">Its name and a line about it show on the house page and in the city.</p>
+              </div>
+              <div v-if="data.room.usage" class="usage">
+                <p>
+                  Right now it uses {{ data.room.usage.cpuPercent.toFixed(1) }}% CPU<template v-if="memory"> and {{ memory.mb }} MB of its {{ data.room.limits.memoryMb }} MB</template>.
+                </p>
+                <div v-if="memory" class="meter" role="img" :aria-label="`${memory.pct}% of memory used`">
+                  <div class="fill" :class="{ high: memory.pct >= 80 }" :style="{ width: memory.pct + '%' }" />
+                </div>
+              </div>
+              <form class="fields" novalidate @submit.prevent="saveSettings">
+                <input v-model="form.project" maxlength="60" placeholder="Project name" aria-label="Project name" />
+                <input v-model="form.projectDescription" maxlength="200" placeholder="What it does, in one sentence" aria-label="What it does" />
+                <div class="actions">
+                  <button :disabled="savingSettings">{{ savingSettings ? "Saving…" : "Save" }}</button>
+                </div>
+                <UiNote :note="formNote" />
+              </form>
+            </template>
 
-    <div class="grid">
-      <div class="col">
-        <section class="card">
-          <h2>Project</h2>
-          <label>Name<input v-model="form.project" maxlength="60" placeholder="Ndaje" /></label>
-          <label>What it does<input v-model="form.projectDescription" maxlength="200" placeholder="A small shop that takes Wave payments." /></label>
-          <p class="muted small">Shown on the house page and in the city.</p>
+            <!-- Build: where the code comes from and how it starts. -->
+            <template v-else-if="tab === 'build'">
+              <div class="intro">
+                <h2>How it builds.</h2>
+                <p v-if="data.github" class="muted">
+                  Code comes from <a :href="data.github.url" target="_blank" rel="noopener">{{ data.github.fullName }}</a> through the GitHub App.
+                  Merges deploy on their own<template v-if="data.house.strictReviews"> once a flatmate approves</template>.
+                </p>
+                <p v-else class="muted">Point the room at a Git repo. Each deploy builds it from scratch.</p>
+              </div>
+              <form class="fields" novalidate @submit.prevent="saveSettings">
+                <input
+                  v-if="!data.github"
+                  v-model="form.source"
+                  type="url"
+                  inputmode="url"
+                  placeholder="https://github.com/you/your-app.git"
+                  aria-label="Repo link"
+                />
+                <p class="madlib">
+                  Deploy
+                  <input v-model="form.branch" class="inline" :placeholder="data.github ? 'default branch' : 'main'" aria-label="Branch" autocapitalize="off" spellcheck="false" />
+                  from the folder
+                  <input v-model="form.buildPath" class="inline short" placeholder="." aria-label="Folder with the Dockerfile" autocapitalize="off" spellcheck="false" />
+                  and send visitors to
+                  <span class="nowrap">port <input v-model="form.port" class="inline short" inputmode="numeric" placeholder="3000" aria-label="Port" />.</span>
+                </p>
+                <p class="muted small">The folder holds your Dockerfile. Your app also gets the port as <code>PORT</code>.</p>
+                <div class="actions">
+                  <button :disabled="savingSettings">{{ savingSettings ? "Saving…" : "Save" }}</button>
+                </div>
+                <UiNote :note="formNote" />
+              </form>
+            </template>
 
-          <h2>Build</h2>
-          <p v-if="data.github" class="linked">
-            Code from <a :href="data.github.url" target="_blank" rel="noopener">{{ data.github.fullName }}</a> through the GitHub App. Merges deploy on their own
-            <template v-if="data.house.strictReviews"> once a flatmate approves</template>.
-          </p>
-          <label v-else>Repo<input v-model="form.source" placeholder="https://github.com/you/your-app.git" /></label>
-          <div class="row">
-            <label>Branch<input v-model="form.branch" :placeholder="data.github ? 'the repo default' : 'main'" /></label>
-            <label>Folder<input v-model="form.buildPath" placeholder="." /></label>
-            <label class="port">Port<input v-model="form.port" inputmode="numeric" placeholder="3000" /></label>
+            <!-- Secrets: listed by name, added one question at a time. -->
+            <template v-else-if="tab === 'secrets'">
+              <div class="intro">
+                <h2>Secrets.</h2>
+                <p class="muted">API keys and passwords your app needs, as environment variables. Encrypted on our side and never shown again: you can replace or remove them.</p>
+              </div>
+              <p v-if="!data.secretsEnabled" class="error">Secrets are off on this server.</p>
+
+              <ul v-if="data.secrets.length" class="rows">
+                <li v-for="s in data.secrets" :key="s.name">
+                  <code class="secret-name">{{ s.name }}</code>
+                  <template v-if="confirming === s.name">
+                    <span class="end small">Remove it?</span>
+                    <button class="link danger" @click="deleteSecret(s.name)">Remove</button>
+                    <button class="link" @click="confirming = null">Keep</button>
+                  </template>
+                  <template v-else>
+                    <span class="muted small">set {{ when(s.updatedAt) }}</span>
+                    <button class="link end" :aria-label="`Remove ${s.name}`" @click="confirming = s.name">Remove</button>
+                  </template>
+                </li>
+              </ul>
+              <p v-else class="muted">No secrets yet.</p>
+
+              <div v-if="secretStep" class="adding">
+                <UiSteps :step="secretStep" :total="3" focus-on-mount>
+                  <form v-if="secretStep === 1" class="fields" novalidate @submit.prevent="secretNext">
+                    <h3>What's it called?</h3>
+                    <p class="muted">The name your app reads it by: capitals, digits and underscores.</p>
+                    <input
+                      v-model="secret.name"
+                      data-autofocus
+                      placeholder="WAVE_API_KEY"
+                      aria-label="Secret name"
+                      autocomplete="off"
+                      autocapitalize="characters"
+                      spellcheck="false"
+                      :aria-invalid="!!secretError"
+                      class="caps"
+                      @input="secretError = ''"
+                    />
+                    <p v-if="secretError" class="error small" role="alert">{{ secretError }}</p>
+                    <div class="nav">
+                      <button type="button" class="link" @click="endSecret">Cancel</button>
+                      <button class="primary">Next</button>
+                    </div>
+                  </form>
+
+                  <form v-else-if="secretStep === 2" class="fields" novalidate @submit.prevent="secretNext">
+                    <h3>Paste its value.</h3>
+                    <p class="muted">It's encrypted as soon as you save it, and nobody sees it again, you included.</p>
+                    <input
+                      v-model="secret.value"
+                      data-autofocus
+                      type="password"
+                      placeholder="Value"
+                      :aria-label="`Value of ${secretName}`"
+                      autocomplete="new-password"
+                      :aria-invalid="!!secretError"
+                      @input="secretError = ''"
+                    />
+                    <p v-if="secretError" class="error small" role="alert">{{ secretError }}</p>
+                    <div class="nav">
+                      <button type="button" class="link" @click="secretBack"><span aria-hidden="true">‹</span> Back</button>
+                      <button class="primary">Next</button>
+                    </div>
+                  </form>
+
+                  <form v-else class="fields" @submit.prevent="saveSecret">
+                    <h3>Save {{ secretName }}?</h3>
+                    <p class="muted">
+                      <template v-if="replacing">This replaces the value it has now. </template>Your app sees it from the next deploy.
+                    </p>
+                    <p v-if="secretError" class="error small" role="alert">{{ secretError }}</p>
+                    <div class="nav">
+                      <button type="button" class="link" @click="secretBack"><span aria-hidden="true">‹</span> Back</button>
+                      <button class="primary" :disabled="savingSecret || !data.secretsEnabled">{{ savingSecret ? "Saving…" : "Save secret" }}</button>
+                    </div>
+                  </form>
+                </UiSteps>
+              </div>
+              <div v-else class="actions">
+                <button ref="addButton" :disabled="!data.secretsEnabled" @click="startSecret">Add a secret</button>
+              </div>
+              <UiNote :note="secretNote" />
+            </template>
+
+            <!-- Logs: what the app printed lately. -->
+            <template v-else-if="tab === 'logs'">
+              <div class="intro">
+                <h2>Logs.</h2>
+                <p class="muted">The last 300 lines your app printed.</p>
+              </div>
+              <div class="actions">
+                <button :aria-pressed="follow" @click="follow = !follow">{{ follow ? "Stop following" : "Follow live" }}</button>
+                <button class="link" :disabled="logsLoading" @click="fetchLogs">{{ logsLoading ? "Reading…" : "Refresh" }}</button>
+              </div>
+              <p v-if="logsMessage" class="error small" role="alert">{{ logsMessage }}</p>
+              <pre class="logs" tabindex="0" aria-label="Logs">{{ logs || "Nothing printed yet." }}</pre>
+            </template>
+
+            <!-- History: every deploy and preview. -->
+            <template v-else>
+              <div class="intro">
+                <h2>Deploys.</h2>
+                <p class="muted">Every build of this room, newest first.</p>
+              </div>
+              <p v-if="!data.deployments.length" class="muted">Nothing deployed yet.</p>
+              <ul v-else class="rows history">
+                <li v-for="d in data.deployments" :key="d.id">
+                  <span class="grow">
+                    <span class="dot" :class="dot(d.status)" aria-hidden="true" />{{ d.kind === "preview" ? "Preview" : "Deploy" }} of <code>{{ d.ref }}</code><template
+                      v-if="d.prNumber && data.github"
+                    >
+                      from <a :href="`${data.github.url}/pull/${d.prNumber}`" target="_blank" rel="noopener">#{{ d.prNumber }}</a></template
+                    ><span class="muted">, {{ d.status }}</span>
+                    <span v-if="d.status === 'failed' && d.detail" class="why">{{ d.detail.split("\n")[0] }}</span>
+                  </span>
+                  <time class="end muted small" :datetime="d.createdAt">{{ when(d.createdAt) }}</time>
+                </li>
+              </ul>
+            </template>
           </div>
-          <p class="muted small">The folder holds your Dockerfile. The port is where your app listens; it also gets it as <code>PORT</code>.</p>
-          <button :disabled="savingSettings" @click="saveSettings">{{ savingSettings ? "Saving…" : "Save" }}</button>
-          <p v-if="formMessage" class="small" role="status">{{ formMessage }}</p>
-        </section>
+        </Transition>
+      </section>
+    </template>
 
-        <section class="card">
-          <h2>Secrets</h2>
-          <p class="muted small">API keys and passwords your app needs, as environment variables. Encrypted on our side and never shown again: you can replace or remove them.</p>
-          <p v-if="!data.secretsEnabled" class="error small">Secrets are off on this server.</p>
-          <ul v-if="data.secrets.length" class="secrets">
-            <li v-for="s in data.secrets" :key="s.name">
-              <code>{{ s.name }}</code><span class="muted small">set {{ when(s.updatedAt) }}</span>
-              <button class="link" :aria-label="`Remove ${s.name}`" @click="deleteSecret(s.name)">Remove</button>
-            </li>
-          </ul>
-          <form class="row" @submit.prevent="saveSecret">
-            <label>Name<input v-model="secret.name" placeholder="WAVE_API_KEY" autocomplete="off" @input="secretMessage = ''" /></label>
-            <label>Value<input v-model="secret.value" type="password" autocomplete="new-password" @input="secretMessage = ''" /></label>
-            <button :disabled="!data.secretsEnabled">Save secret</button>
-          </form>
-          <p v-if="secretMessage" class="small" role="status">{{ secretMessage }}</p>
-        </section>
-      </div>
-
-      <div class="col">
-        <section class="card">
-          <div class="title-row">
-            <h2>Logs</h2>
-            <label class="follow"><input v-model="follow" type="checkbox" /> follow</label>
-            <button class="link" :disabled="logsLoading" @click="fetchLogs">{{ logsLoading ? "Reading…" : "Refresh" }}</button>
-          </div>
-          <p v-if="logsMessage" class="error small">{{ logsMessage }}</p>
-          <pre class="logs" tabindex="0">{{ logs || "Nothing printed yet." }}</pre>
-        </section>
-
-        <section class="card">
-          <h2>Deploys</h2>
-          <p v-if="!data.deployments.length" class="muted small">Nothing deployed yet.</p>
-          <ul class="history">
-            <li v-for="d in data.deployments" :key="d.id">
-              <span class="pill" :class="pill(d.status)">{{ d.status }}</span>
-              <span>{{ d.kind === "preview" ? "preview" : "deploy" }} of <code>{{ d.ref }}</code></span>
-              <a v-if="d.prNumber && data.github" :href="`${data.github.url}/pull/${d.prNumber}`" target="_blank" rel="noopener">#{{ d.prNumber }}</a>
-              <span class="muted small when">{{ when(d.createdAt) }}</span>
-              <p v-if="d.status === 'failed' && d.detail" class="why">{{ d.detail.split("\n")[0] }}</p>
-            </li>
-          </ul>
-        </section>
-      </div>
-    </div>
-  </template>
-  <p v-else class="muted">Unlocking the door…</p>
+    <p v-else class="wrap band muted" aria-live="polite">Unlocking the door…</p>
+  </div>
 </template>
 
 <style scoped>
-.error { color: var(--danger); }
-.back { display: inline-block; margin-bottom: 12px; font-size: 14px; text-decoration: none; }
-.head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
-.head p { margin: 4px 0 0; }
-.tags { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; font-size: 14px; }
-.actions { display: grid; gap: 6px; align-content: start; justify-items: end; }
-.actions > button { min-width: 120px; }
-.meter { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-bottom: 20px; }
-.fill { height: 100%; background: var(--live); transition: width 0.4s; }
-.fill.high { background: var(--warn); }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
-.col { display: grid; gap: 16px; align-content: start; min-width: 0; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
-.card h2 { margin: 6px 0 0; }
-.card h2:first-child { margin-top: 0; }
-label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
-.row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
-.row label { flex: 1 1 120px; }
-.row .port { flex: 0 1 90px; }
-.small { font-size: 13px; margin: 0; }
-.linked { margin: 0; font-size: 14px; }
-code { font-family: ui-monospace, monospace; font-size: 13px; }
-.secrets { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
-.secrets li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border); }
-.secrets li button { margin-left: auto; }
-.link { border: none; background: none; padding: 0; color: var(--accent); }
-.title-row { display: flex; align-items: center; gap: 12px; }
-.title-row h2 { margin: 0; margin-right: auto; }
-.follow { display: flex; flex-direction: row; align-items: center; gap: 4px; }
-.follow input { width: auto; }
-.logs { margin: 0; max-height: 340px; overflow: auto; padding: 10px 12px; border-radius: 8px; background: #141311; color: #e7e2d9; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; word-break: break-word; }
-.history { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; font-size: 14px; }
-.history li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--border); }
-.history .when { margin-left: auto; }
-.why { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--danger); }
-.preview { color: var(--warn); }
+.hero { padding-bottom: 40px; }
+.hero .wrap { display: grid; gap: 14px; justify-items: start; }
+
+.hero h1 { overflow-wrap: anywhere; }
+.lede { max-width: 720px; }
+.state a { overflow-wrap: anywhere; }
+.top-gap { margin-top: 8px; }
+
+/* The segmented control: a soft track, the chosen segment lifted. */
+.segmented { display: flex; gap: 2px; width: max-content; max-width: 100%; padding: 3px; border-radius: 12px; background: var(--fill); overflow-x: auto; scrollbar-width: none; }
+.segmented button { min-height: 38px; padding: 0 16px; border-radius: 9px; background: transparent; font-size: 14px; color: var(--text); white-space: nowrap; flex: none; }
+.segmented button:hover:not(.on) { background: transparent; color: var(--muted); }
+.segmented button.on { background: var(--bg); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); font-weight: 600; }
+.segmented button:focus-visible { outline-offset: -2px; }
+
+.panel-band { padding-top: 40px; }
+.panel { display: grid; gap: 24px; outline: none; }
+/* Forms stay a readable width; the logs can use the whole column. */
+.panel > :not(.logs) { max-width: 680px; }
+.panel:focus-visible { outline: 2px solid var(--accent-fill); outline-offset: 8px; border-radius: 8px; }
+.intro { display: grid; gap: 8px; }
+.usage { display: grid; gap: 10px; }
+.fields { display: grid; gap: 14px; }
+.madlib { line-height: 2.8; }
+.madlib .inline { display: inline-block; width: 10em; min-height: 44px; padding: 8px 14px; margin: 0 4px; vertical-align: middle; }
+.madlib .inline.short { width: 5.5em; }
+.nowrap { white-space: nowrap; }
+.adding { padding-top: 8px; }
+.nav { display: flex; justify-content: space-between; align-items: center; }
+.nav .primary { min-width: 120px; }
+.caps { text-transform: uppercase; }
+.secret-name { font-size: 15px; overflow-wrap: anywhere; }
+.logs { margin: 0; max-height: 460px; overflow: auto; padding: 20px 22px; border-radius: 18px; background: var(--code-bg); color: var(--code-text); font: 13px/1.6 var(--mono); white-space: pre-wrap; word-break: break-word; }
+.grow { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
+.why { display: block; margin-top: 2px; font-size: 14px; color: var(--danger); }
+.history li { font-size: 15px; }
+@media (max-width: 734px) {
+  .segmented { width: 100%; }
+  .segmented button { flex: 1 0 auto; padding: 0 12px; }
+}
 </style>

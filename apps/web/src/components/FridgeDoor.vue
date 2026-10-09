@@ -4,26 +4,28 @@ import type { FridgeNote } from "../types";
 defineProps<{ notes: FridgeNote[] }>();
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+// A note's tone shows as a coloured dot; the words stay readable.
+const dot = { info: "", warning: "warn", danger: "danger", thanks: "live" } as const;
 </script>
 
 <template>
   <div class="fridge">
-    <h2>The fridge door</h2>
-    <p v-if="!notes.length" class="empty">No notes yet. Quiet house.</p>
-    <p v-for="n in notes" :key="n.id" class="note" :class="n.tone">
-      <span class="time">{{ time(n.at) }}</span> {{ n.text }}
-      <span v-if="n.count > 1" class="count">×{{ n.count }}</span>
-    </p>
+    <h2>The fridge door.</h2>
+    <p class="muted intro">Notes the house leaves on its own: hogging, skipped reviews, thanks.</p>
+    <p v-if="!notes.length" class="muted">No notes yet. Quiet house.</p>
+    <ul v-else class="rows">
+      <li v-for="n in notes" :key="n.id">
+        <span class="dot" :class="dot[n.tone]" aria-hidden="true" />
+        <span class="text">{{ n.text }}<template v-if="n.count > 1"> <span class="muted">(×{{ n.count }})</span></template></span>
+        <time class="end muted small" :datetime="n.at">{{ time(n.at) }}</time>
+      </li>
+    </ul>
   </div>
 </template>
 
 <style scoped>
-h2 { font-size: 16px; margin: 0 0 8px; }
-.empty { color: var(--muted); margin: 0; }
-.note { margin: 0 0 6px; padding: 8px 10px; border-radius: 8px; font-size: 13px; border: 1px solid var(--border); background: var(--surface); }
-.note.warning { color: var(--warn); }
-.note.danger { color: var(--danger); }
-.note.thanks { color: var(--live); }
-.time { opacity: 0.7; margin-right: 4px; }
-.count { font-weight: 600; margin-left: 4px; }
+.fridge { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.intro { margin-bottom: 16px; }
+.rows > li { flex-wrap: nowrap; align-items: baseline; font-size: 15px; }
+.text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 </style>

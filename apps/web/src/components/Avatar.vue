@@ -2,8 +2,10 @@
 import { computed } from "vue";
 import type { Person } from "../types";
 
-const props = withDefaults(defineProps<{ person: Person; size?: number }>(), { size: 28 });
+// decorative: the name is already written next to the face, so screen readers skip the picture.
+const props = withDefaults(defineProps<{ person: Person; size?: number; decorative?: boolean }>(), { size: 28, decorative: false });
 const initials = computed(() => (props.person.name ?? props.person.login).slice(0, 2).toUpperCase());
+const name = computed(() => props.person.name ?? props.person.login);
 </script>
 
 <template>
@@ -11,15 +13,23 @@ const initials = computed(() => (props.person.name ?? props.person.login).slice(
     v-if="person.avatarUrl"
     class="avatar"
     :src="person.avatarUrl"
-    :alt="person.name ?? person.login"
+    :alt="decorative ? '' : name"
+    :aria-hidden="decorative || undefined"
     :style="{ width: size + 'px', height: size + 'px' }"
   />
-  <span v-else class="avatar initials" :title="person.name ?? person.login" :style="{ width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.4) + 'px' }">
+  <span
+    v-else
+    class="avatar initials"
+    :role="decorative ? undefined : 'img'"
+    :aria-label="decorative ? undefined : name"
+    :aria-hidden="decorative || undefined"
+    :style="{ width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.4) + 'px' }"
+  >
     {{ initials }}
   </span>
 </template>
 
 <style scoped>
 .avatar { border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; object-fit: cover; }
-.initials { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.initials { background: var(--fill); color: var(--text); font-weight: 600; letter-spacing: 0; }
 </style>

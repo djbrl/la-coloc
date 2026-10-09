@@ -1,38 +1,106 @@
 <script setup lang="ts">
-import { useRouter } from "vue-router";
+import { computed, watchEffect } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import Avatar from "./components/Avatar.vue";
+import SettingsPane from "./components/SettingsPane.vue";
 import { logout, me, meLoaded } from "./session";
+import { settings, settingsPane } from "./settings";
 
+const route = useRoute();
 const router = useRouter();
+// Full-screen routes (the lobby) draw edge to edge; the bar floats over them.
+const fullscreen = computed(() => route.meta.fullscreen === true);
+
+// "Calmer motion" in the settings pane quiets the whole site, not only the lobby.
+watchEffect(() => document.documentElement.classList.toggle("reduce-motion", settings.reduceMotion));
 
 async function leave() {
   await logout();
   router.push("/");
 }
+
+// A gear: eight teeth around a hole, drawn once.
+const gear = (() => {
+  const teeth = 8;
+  const points: string[] = [];
+  for (let i = 0; i < teeth * 4; i++) {
+    const angle = (i / (teeth * 4)) * Math.PI * 2 - Math.PI / (teeth * 4);
+    const r = i % 4 < 2 ? 10 : 7.6;
+    points.push(`${(12 + r * Math.cos(angle)).toFixed(2)},${(12 + r * Math.sin(angle)).toFixed(2)}`);
+  }
+  return `M${points.join("L")}Z M15.2,12 A3.2,3.2 0 1 0 8.8,12 A3.2,3.2 0 1 0 15.2,12 Z`;
+})();
 </script>
 
 <template>
-  <header class="topbar">
-    <RouterLink to="/" class="logo">La Coloc</RouterLink>
-    <nav v-if="meLoaded" class="nav">
-      <template v-if="me">
-        <RouterLink v-for="h in me.houses" :key="h.id" :to="`/houses/${h.id}`">{{ h.name }}</RouterLink>
-        <span class="me"><Avatar :person="me" :size="24" /> {{ me.login }}</span>
-        <button class="link" @click="leave">Log out</button>
-      </template>
-      <RouterLink v-else to="/login">Log in</RouterLink>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="bar" :class="{ float: fullscreen }">
+    <nav class="inner" aria-label="Main">
+      <RouterLink to="/" class="logo">La Coloc</RouterLink>
+      <div class="side">
+        <template v-if="meLoaded">
+          <template v-if="me">
+            <RouterLink v-for="h in me.houses" :key="h.id" :to="`/houses/${h.id}`" class="item house">{{ h.name }}</RouterLink>
+            <span class="item me">
+              <Avatar :person="me" :size="26" decorative />
+              <span class="sr-only">Logged in as {{ me.login }}</span>
+            </span>
+            <button class="item text" @click="leave">Log out</button>
+          </template>
+          <RouterLink v-else to="/login" class="item">Log in</RouterLink>
+        </template>
+        <button class="item icon" aria-label="Settings" :aria-expanded="settingsPane.open" @click="settingsPane.open = true">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="gear" fill="currentColor" fill-rule="evenodd" /></svg>
+        </button>
+      </div>
     </nav>
   </header>
-  <main class="page">
-    <RouterView />
+
+  <main id="main" :class="fullscreen ? 'full' : 'flow'" tabindex="-1">
+    <RouterView v-slot="{ Component, route: r }">
+      <Transition name="route" mode="out-in">
+        <div :key="r.path" class="view">
+          <component :is="Component" />
+        </div>
+      </Transition>
+    </RouterView>
   </main>
+
+  <SettingsPane />
 </template>
 
 <style scoped>
-.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.logo { font-weight: 700; color: var(--text); text-decoration: none; }
-.nav { display: flex; align-items: center; gap: 14px; font-size: 14px; flex-wrap: wrap; }
-.nav a { text-decoration: none; }
-.me { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
-.link { border: none; background: none; padding: 0; color: var(--accent); }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: 980px; background: var(--accent-fill); color: var(--on-accent); }
+.skip:focus { top: 8px; }
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 48px;
+  background: var(--nav-bg);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--hairline);
+}
+.bar.float { position: fixed; left: 0; right: 0; background: var(--nav-bg-float); border-bottom-color: transparent; }
+.inner { height: 100%; max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.logo { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); white-space: nowrap; }
+.logo:hover { text-decoration: none; }
+.side { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.item { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; font-size: 14px; color: var(--text); opacity: 0.88; white-space: nowrap; }
+.item:hover { opacity: 1; text-decoration: none; }
+.house { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 44px; max-width: 160px; }
+.house.router-link-active { opacity: 1; font-weight: 600; }
+.me { padding: 0 6px; }
+button.item { background: none; border-radius: 980px; }
+button.item:hover:not(:disabled) { background: var(--fill); }
+.icon { width: 44px; justify-content: center; padding: 0; }
+
+.flow { min-height: calc(100vh - 48px); outline: none; }
+.full { outline: none; }
+@media (max-width: 420px) {
+  .item { padding: 0 8px; }
+  .house { max-width: 110px; }
+}
 </style>
