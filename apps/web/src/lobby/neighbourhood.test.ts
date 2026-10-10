@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { frontOf, generateNeighbourhood, PLOT, ROAD } from "./neighbourhood";
+import { FACING_DIR, frontOf, generateNeighbourhood, PLOT, ROAD, turnFacing } from "./neighbourhood";
 
 const dakar = [
   { id: "sacre-coeur", demo: false },
@@ -106,5 +106,40 @@ describe("neighbourhoods", () => {
     expect(spawn.x).toBeLessThan(bounds.maxX);
     expect(spawn.z).toBeGreaterThan(bounds.minZ);
     expect(spawn.z).toBeLessThan(bounds.maxZ);
+  });
+
+  it("spawn you in front of the nearest real house, facing its door, with its front in the camera's view", () => {
+    const n = generateNeighbourhood("Dakar", [...dakar].reverse());
+    const home = n.plots.find((p) => p.lot.kind === "house" && p.lot.houseId === "sacre-coeur")!;
+    const at = frontOf(home, PLOT / 2 + 1.4);
+    expect(n.spawn.x).toBeCloseTo(at.x);
+    expect(n.spawn.z).toBeCloseTo(at.z);
+    // An avatar faces +z turned by ry: that way is the house.
+    const look = { x: Math.sin(n.spawn.ry), z: Math.cos(n.spawn.ry) };
+    const toHouse = { x: home.x - n.spawn.x, z: home.z - n.spawn.z };
+    expect(look.x * toHouse.x + look.z * toHouse.z).toBeGreaterThan(0);
+    // The camera sits on the +x +z diagonal turned by turn × 90°: it must be on the house's front side.
+    const a = (n.spawn.turn * Math.PI) / 2;
+    const camera = { x: Math.cos(a) + Math.sin(a), z: -Math.sin(a) + Math.cos(a) };
+    const front = FACING_DIR[home.facing];
+    expect(camera.x * front.x + camera.z * front.z).toBeGreaterThan(0);
+  });
+
+  it("turn the camera the least to see a front", () => {
+    // From turn 0, fronts facing +z (0) and +x (1) are already in view.
+    expect(turnFacing(0, 0)).toBe(0);
+    expect(turnFacing(1, 0)).toBe(0);
+    // A front facing -z (2) needs a quarter turn; -x (3) a quarter turn the other way.
+    expect(turnFacing(2, 0)).toBe(1);
+    expect(turnFacing(3, 0)).toBe(-1);
+    // Turns aren't wrapped: from turn 5 (a full turn plus one), facing +z is one turn back.
+    expect(turnFacing(0, 5)).toBe(4);
+  });
+
+  it("put the chores board on the market square", () => {
+    const n = generateNeighbourhood("Dakar", dakar);
+    const market = n.blocks.find((b) => b.kind === "market")!;
+    expect(Math.abs(n.board!.x - market.x)).toBeLessThan(market.width / 2);
+    expect(Math.abs(n.board!.z - market.z)).toBeLessThan(market.depth / 2);
   });
 });

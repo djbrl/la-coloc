@@ -1,8 +1,9 @@
 // The city as a walkable lobby: one neighbourhood at a time, generated from its city's name (see neighbourhood.ts),
-// at dusk. Your character, the flatmates hanging around their houses, and everyone else who's online in this
-// neighbourhood, live. Every house, empty plot, person and lamp is a target: walk up to one and press E, click it,
-// or press Tab to pick one from afar; whatever the mouse is over gets an outline. A lamp flips; anything else is
-// reported to Vue, which draws the card and does the navigating. Anything far away is walked to along a route
+// lit by the city's real local time (daylight.ts) and dressed in its own style (cityStyle.ts). Your character, the
+// flatmates hanging around their houses, and everyone else who's online in this neighbourhood, live. Each house's
+// front shows its rooms as windows (windows.ts). Every house, empty plot, person and the market's chores board is a
+// target: walk up to one and press E, click it, or press [ and ] to pick one from afar; whatever the mouse is over
+// gets an outline. Using one is reported to Vue, which draws the card and does the navigating. Anything far away is walked to along a route
 // found on a grid (path.ts), so you can get to a building from whichever side you're on. Shift dashes, and
 // `teleport` is fast travel. For the tutorial, Vue can switch controls off one by one (`setControls`), hears each
 // one you use (`onAction`), and can send the camera to show you a spot (`showSpot`); `frame` makes room for a
@@ -16,11 +17,18 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import type { CityHouse } from "../types";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
-import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff, makeRoomBoard } from "./models";
-import { type Facing, FACING_DIR, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
+import { type CityStyle, styleFor } from "./cityStyle";
+import { daylightAt, lightingFor } from "./daylight";
+import { Fireworks } from "./fireworks";
+import { liveKey, liveState } from "./live";
+import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff } from "./models";
+import { CityProps, makeBoard, makePins, waxParasols } from "./props";
+import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
 import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
 import { play } from "./sound";
-import { groundMaterial, textures } from "./textures";
+import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
+import { dye } from "./tint";
+import { HouseFace } from "./windows";
 
 const SPEED = 6; // units per second
 // A dash (Shift): an instant hop forward, a burst at 4.5 times the speed, then a breather before the next one.
@@ -29,7 +37,7 @@ const DASH = { hop: 0.9, speed: 4.5, length: 0.14, cooldown: 0.35 };
 const PUFF_TIME = 0.3; // how long the dust at your feet lasts
 const HOVER_EVERY = 60; // milliseconds between two looks at what's under the mouse
 const MAP_EVERY = 200; // milliseconds between two reports to the minimap
-const REACH = 1.6; // how close you stand to use a building, a person or a lamp
+const REACH = 1.6; // how close you stand to use a building, a person or the board
 const GRID_CELL = 0.5; // the walk grid's cell size, in units
 // Following a route but moved less than this in this long (a wall, a lost cause): the route is dropped.
 const STUCK = { moved: 0.05, after: 0.5 };
@@ -40,11 +48,17 @@ const ZOOM = { min: 7, max: 26, start: 13 }; // half the view's width, in world 
 // Showing a spot (`showSpot`): how long the camera takes to glide there (and back), and how long it stays, in seconds.
 const TOUR = { glide: 1.2, hold: 2 };
 // A window open on the right (`frame("left")`): zoomed in to this half-width, with you this far across the screen
-// from the left. A screen narrower than `narrow` pixels shows windows as a bottom sheet: it only zooms.
+// from the left. A screen narrower than `narrow` pixels shows windows as a bottom sheet: it zooms, and you stand in
+// the top third, above the sheet.
 const FRAMED = { half: 6.5, at: 0.28, narrow: 720 };
 const LAMP_LIGHT = 0xffc078;
 const TAG_RANGE = 10; // people's name tags show within this distance of you
 const NOBODY = 0xd8d8de; // the ring colour of someone without a house
+const DAYLIGHT_EVERY = 60_000; // milliseconds between two looks at the city's clock
+const SPACING = 0.9;
+// How much nearer than a building a person must be to win "in reach" (see `reach`).
+const PEOPLE_MARGIN = 0.8; // the closest two people standing at a door may get (R39)
+const TAG_CHECKS = 8; // name tags checked for a building in the way, per check (a few each time, round and round)
 
 export type Emote = "yes" | "no";
 // The controls you use, as Vue hears about them (see `onAction`).
@@ -61,7 +75,8 @@ export type Target =
   // An empty building or lot: a shop, a tower or a tree lot. Rentable: "start a coloc here". `key` is Plot.key.
   | { kind: "empty"; plot: { key: string; lot: "shop" | "tower" | "trees"; x: number; z: number } }
   | { kind: "person"; login: string; name: string }
-  | { kind: "lamp"; id: string; on: boolean };
+  // The chores board on the market square: Vue lists the houses with reviews waiting.
+  | { kind: "board"; city: string };
 
 // Who someone is, for their ring colour and the card you get by clicking them.
 export interface Resident {
@@ -72,15 +87,12 @@ export interface Resident {
 }
 
 export interface LobbyEvents {
-  // The thing in reach of you, or the one you highlighted with Tab: Vue shows a prompt for it ("Go in  E").
+  // The thing in reach of you, or the one you highlighted with [ or ]: Vue shows a prompt for it ("Go in  E").
   onNear(target: Target | null): void;
   // You used a target (E, Enter, a click, or walking up to something you clicked): Vue opens a card for it.
-  // Lamps never reach here: they just toggle.
   onSelect(target: Target): void;
   // Your position, when it changed (at most ten times a second): for the others to see you.
   onMove(state: { x: number; z: number; ry: number; moving: boolean }): void;
-  // Which lamps are lit, by id, after you switch one.
-  onLamps(lit: string[]): void;
   // What the mouse is over (it gets an outline and a pointer cursor), when that changes. Nothing: null.
   onHover(target: Target | null): void;
   // For the minimap, five times a second: you, everyone else on the map, and which way the camera is turned.
@@ -95,14 +107,13 @@ export interface LobbyOptions {
   character: string | null;
   quality: "high" | "low";
   reduceMotion: boolean;
-  litLamps: string[];
 }
 
 // Anything you can aim at, whatever it is: what Vue hears about it, and where it stands.
 interface Thing {
   target: Target;
-  // Where it is, for the ring, the minimap and Tab's nearest-first order: a lamp's foot, a person's feet (it moves
-  // with them), or, for a building, its door when you're not on your way there and the nearest point of its reach
+  // Where it is, for the ring, the minimap and the nearest-first order of [ and ]: a person's feet (it moves with
+  // them), or, for a building (or the board), its door when you're not on your way there and the nearest point of its reach
   // band to you when you are.
   spot: THREE.Vector3;
   // A building's footprint. You can use it from any side: "in reach" means within REACH of this box.
@@ -117,6 +128,13 @@ interface Placed extends Thing {
   box: Box;
   door: THREE.Vector3;
   npcs: Npc[];
+  // Its front: the windows, the crane (windows.ts). `live` is the state last drawn, to skip a redraw.
+  face: HouseFace;
+  live: string;
+  // The model's materials (its own copies), to darken in a power cut, with their daylight colours.
+  materials: { material: THREE.MeshStandardMaterial; color: THREE.Color }[];
+  // A visitor waiting at the door while someone's knock is open (R32), and their "☝️" bubble.
+  knocker: THREE.Group | null;
 }
 
 interface EmptyPlot extends Thing {
@@ -136,6 +154,8 @@ interface Npc extends Thing {
   goal: THREE.Vector3;
   wait: number;
   tag: HTMLElement;
+  // Behind a building, seen from the camera: their name tag hides (R39).
+  hidden?: boolean;
 }
 
 interface Remote extends Thing {
@@ -146,14 +166,22 @@ interface Remote extends Thing {
   ry: number;
   moving: boolean;
   tag: HTMLElement;
+  hidden?: boolean;
 }
 
-interface Lamp extends Thing {
-  id: string;
-  group: THREE.Group;
-  bulb: THREE.Mesh;
-  light: THREE.PointLight | null;
+// The street lamps (all of them at once): not targets, they light themselves at dusk.
+interface Lamps {
+  bulb: THREE.InstancedMesh;
+  pool: THREE.InstancedMesh;
   on: boolean;
+}
+
+// The chores board on the market square (R19): a target, with a pin per house that has reviews waiting.
+interface Board extends Thing {
+  group: THREE.Group;
+  box: Box;
+  door: THREE.Vector3;
+  pins: THREE.Group;
 }
 
 // The walk keys, and the action each one reports.
@@ -190,8 +218,28 @@ export class Lobby {
   private npcs: Npc[] = [];
   private remotes = new Map<string, Remote>();
   private residents = new Map<string, Resident>();
-  private lamps: Lamp[] = [];
-  private lit: Set<string>;
+  private lamps: Lamps | null = null;
+  private board: Board | null = null;
+  private props: CityProps | null = null;
+  // The city's look (colours, grounds, props), and the light of its local time.
+  private style: CityStyle = styleFor("");
+  private hemi: THREE.HemisphereLight;
+  private sky: { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture; key: string };
+  private lampsOn = false;
+  private lastDaylight = 0;
+  // Pins the city's local hour (a dev tool: `lobby.setHour(22)`), or null for the real time.
+  private hourOverride: number | null = null;
+  private fireworks = new Fireworks();
+  // Whether you've clicked or tapped the stage: from then on, keys pressed with nothing focused are for walking (R6).
+  private stageTouched = false;
+  // Single-character keyboard shortcuts on (see `setShortcuts`).
+  private shortcuts = true;
+  // Where `arriveAt` put you, until you move: a house model loading late moves its door, and you with it.
+  private arrival: { placed: Placed; x: number; z: number } | null = null;
+  private pendingArrival: string | null = null;
+  // The latest city, by house id, for `updateHouses` and a house that's placed later.
+  private houses = new Map<string, CityHouse>();
+  private tagCursor = 0;
   private keys = new Set<string>();
   // The waypoints you're walking through, first one first; null when you're not going anywhere.
   private route: THREE.Vector3[] | null = null;
@@ -205,14 +253,14 @@ export class Lobby {
   // marks it dirty, and the next route rebuilds it.
   private walkGrid: Grid | null = null;
   private gridDirty = true;
-  // The thing in reach of you, and the one you picked with Tab (which can be far away).
+  // The thing in reach of you, and the one you picked with [ or ] (which can be far away).
   private near: Thing | null = null;
   private highlighted: Thing | null = null;
   // The thing under the mouse, and when we last looked.
   private hover: Thing | null = null;
   private lastHover = 0;
   // The outline effect: the scene drawn into a buffer, an outline for the hovered thing (soft white) and one for
-  // the Tab highlight (the ring's warm white), then the buffer put on screen in sRGB. Only used while something
+  // the [ ] highlight (the ring's warm white), then the buffer put on screen in sRGB. Only used while something
   // is outlined, and never on low quality (then `composer` stays null).
   private composer: EffectComposer | null = null;
   private hoverPass: OutlinePass | null = null;
@@ -269,7 +317,6 @@ export class Lobby {
     private events: LobbyEvents,
     private opts: LobbyOptions,
   ) {
-    this.lit = new Set(opts.litLamps);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -278,15 +325,24 @@ export class Lobby {
     host.appendChild(this.labels.domElement);
 
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
-    // Early evening: a lilac sky light, a low warm sun, and enough dark for the lamps to matter.
-    this.scene.add(new THREE.HemisphereLight(0xe4dcff, 0x6a6488, 1.9));
+    // The light follows the city's clock (see `daylight`): these are dusk's, until the first look at it.
+    this.hemi = new THREE.HemisphereLight(0xe4dcff, 0x6a6488, 1.9);
+    this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffc9a0, 2.1);
     this.sun.shadow.mapSize.set(2048, 2048);
     Object.assign(this.sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 200 });
     this.scene.add(this.sun, this.sun.target);
     // The far skyline fades into the evening.
     this.scene.fog = new THREE.Fog(0x9d8fc6, 95, 190);
-    this.scene.add(this.town, this.ring);
+    // The sky behind the city: a vertical gradient, redrawn when the light changes.
+    const canvas = document.createElement("canvas");
+    canvas.width = 2;
+    canvas.height = 256;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.sky = { canvas, texture, key: "" };
+    this.scene.background = texture;
+    this.scene.add(this.town, this.ring, this.fireworks.object);
 
     const you = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : "you", "lobby-label you");
     this.player = you.avatar;
@@ -300,6 +356,7 @@ export class Lobby {
     this.fit();
     window.addEventListener("keydown", this.keydown);
     window.addEventListener("keyup", this.keyup);
+    this.renderer.domElement.addEventListener("pointerdown", this.touchStage);
     this.renderer.domElement.addEventListener("pointerdown", this.click);
     this.renderer.domElement.addEventListener("pointermove", this.pointerMove);
     this.renderer.domElement.addEventListener("pointerleave", this.pointerLeave);
@@ -328,9 +385,10 @@ export class Lobby {
 
   /** Builds a neighbourhood. Moving to another one puts you at its entrance. */
   setNeighbourhood(n: Neighbourhood, houses: CityHouse[]) {
-    // The city stream re-sends the city often. Only rebuild if what's drawn changed.
-    const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.plot, h.rooms.map((r) => [r.status, r.occupant?.login ?? null])])]);
-    if (key === this.builtFrom) return;
+    // The city stream re-sends the city often. Only rebuild if what's drawn changed; the live state (windows, the
+    // crane, the power, knocks, the board's pins) is redrawn in place by `updateHouses`.
+    const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.plot, h.rooms.map((r) => r.occupant?.login ?? null)])]);
+    if (key === this.builtFrom) return this.updateHouses(houses);
     const arriving = n.city !== this.builtCity;
     this.builtCity = n.city;
     this.builtFrom = key;
@@ -342,31 +400,60 @@ export class Lobby {
     this.plots = [];
     this.solids = [];
     this.npcs = [];
-    this.lamps = [];
+    this.lamps = null;
+    this.board = null;
+    this.props = null;
     this.skyline = [];
     this.occluders = [];
+    this.arrival = null;
+    this.style = styleFor(n.city);
+    this.lastDaylight = 0;
     const rand = seeded(`decor:${n.city}`);
+    // The city's own props have their own dice, so adding one never moves the trees and parasols.
+    const dice = seeded(`props:${n.city}`);
+    const style = this.style;
+    const props = new CityProps();
+    this.props = props;
+    this.town.add(props.group);
     const tex = textures();
+    const ground = groundsFor(style.ground, style.grassy);
     const { minX, maxX, minZ, maxZ } = n.bounds;
     const width = maxX - minX;
     const depth = maxZ - minZ;
     this.bounds = { minX: minX - 2, maxX: maxX + 2, minZ: minZ - 2, maxZ: maxZ + 2 };
 
-    // Grass to the horizon, asphalt under the whole town; blocks sit on top, a curb higher, ringed by sidewalk.
-    this.flat(tex.grass, 0, 0, width + 260, depth + 260, 4, -0.02).name = "ground";
-    this.flat(tex.asphalt, 0, 0, width, depth, 6, 0.0).name = "ground";
+    // The city's ground to the horizon (grass, sand, red earth…), asphalt under the whole town; blocks sit on top, a
+    // curb higher, ringed by sidewalk.
+    this.flat(ground.horizon, 0, 0, width + 260, depth + 260, 4, -0.02).name = "ground";
+    this.flat(ground.road, 0, 0, width, depth, 6, 0.0).name = "ground";
     for (const b of n.blocks) {
-      const curb = new THREE.Mesh(new THREE.BoxGeometry(b.width + 1.6, 0.14, b.depth + 1.6), groundMaterial(tex.sidewalk, b.width + 1.6, b.depth + 1.6, 3));
+      const curb = new THREE.Mesh(new THREE.BoxGeometry(b.width + 1.6, 0.14, b.depth + 1.6), groundMaterial(ground.sidewalk, b.width + 1.6, b.depth + 1.6, 3));
       curb.position.set(b.x, 0.07, b.z);
       curb.receiveShadow = true;
       curb.name = "ground";
       this.town.add(curb);
-      const surface = b.kind === "market" ? tex.paving : b.kind === "park" ? tex.park : tex.grass;
+      const surface = b.kind === "market" ? ground.market : b.kind === "park" ? ground.park : ground.lawn;
       this.flat(surface, b.x, b.z, b.width - 0.4, b.depth - 0.4, b.kind === "market" ? 4 : 5, 0.145).name = "ground";
       if (b.kind === "market") this.market(b, rand, gen);
       if (b.kind === "park") for (let i = 0; i < 9; i++) this.tree(b.x + (rand() - 0.5) * (b.width - 3), b.z + (rand() - 0.5) * (b.depth - 3), rand, gen);
+      // Palms on two corners of each block's sidewalk (the other two have a lamp and a traffic light).
+      if (style.props.includes("palms") && b.kind !== "park") {
+        if (dice() < 0.7) props.palm(b.x + b.width / 2 + 0.35, b.z - b.depth / 2 - 0.35, dice);
+        if (dice() < 0.7) props.palm(b.x - b.width / 2 - 0.35, b.z + b.depth / 2 + 0.35, dice);
+      }
     }
-    this.streetMarkings(n);
+    this.streetMarkings(n, style.zebra);
+    // Dakar's baobab: in the park if there is one, else on a corner of the market square.
+    if (style.props.includes("baobab")) {
+      const park = n.blocks.find((b) => b.kind === "park");
+      const market = n.blocks.find((b) => b.kind === "market")!;
+      const at = park ? { x: park.x, z: park.z } : { x: market.x - market.width / 2 + 2.2, z: market.z - market.depth / 2 + 2.2 };
+      props.baobab(at.x, at.z);
+      this.solid(at.x, at.z, 0, 2.2, 2.2);
+    }
+    // The coast, on the town's south side: a beach, the sea, and pirogues.
+    if (style.coast && style.props.includes("pirogues")) props.coast(minX, maxX, maxZ, dice);
+    props.finish();
 
     // Houses, shops, towers and tree lots.
     const byId = new Map(houses.map((h) => [h.id, h]));
@@ -395,29 +482,35 @@ export class Lobby {
       court.userData.plotKey = p.key;
       plot.objects.push(court);
       const url = lot.kind === "shop" ? SHOPS[lot.variant] : TOWERS[lot.variant];
+      const roof = dice();
       this.load(gen, loadModel(url, size), (m) => {
         m.position.set(p.x, 0.14, p.z);
         m.rotation.y = yaw(p.facing);
         m.userData.plotKey = p.key;
+        dye(m, style);
         plot.objects.push(m);
         this.occluder(m);
+        this.onRoof(m, lot.kind === "shop", roof);
       });
     }
 
-    // Lamps at the crossings (light them all), traffic lights at a few.
-    for (const l of n.lamps) this.addLamp(l.id, new THREE.Vector3(l.x, 0, l.z));
-    for (const t of n.trafficLights) {
+    // Lamps at the crossings (they light themselves at dusk), traffic lights at a few, where the city has them.
+    this.addLamps(n.lamps);
+    if (n.board) this.addBoard(n.board, n.city);
+    for (const t of this.style.trafficLights ? n.trafficLights : []) {
       this.load(gen, loadModel(STREET.trafficLight, 3.4, "height"), (m) => {
         m.position.set(t.x, 0.14, t.z);
         m.rotation.y = yaw(t.facing);
       });
     }
 
-    // The rest of the city, beyond the last street: seen, not walked.
+    // The rest of the city, beyond the last street: seen, not walked. On a coast, the sea takes the south side.
     for (const s of n.skyline) {
+      if (style.coast && style.props.includes("pirogues") && s.z > maxZ) continue;
       this.load(gen, loadModel(SKYLINE[s.variant], s.scale * 1.4, "height"), (m) => {
         m.position.set(s.x, 0, s.z);
         m.rotation.y = yaw(s.facing);
+        dye(m, style);
         this.skyline.push(m);
       });
     }
@@ -427,11 +520,19 @@ export class Lobby {
     this.grid();
 
     if (arriving) {
+      // In front of the nearest real house, facing it, the camera turned to show its front (R3).
       this.player.position.set(n.spawn.x, 0, n.spawn.z);
+      this.player.rotation.y = n.spawn.ry;
+      this.turn = n.spawn.turn;
+      this.angle = (this.turn * Math.PI) / 2;
       this.stop();
       this.snap = true;
       play("arrive");
     }
+    this.updateHouses(houses);
+    this.daylight(true);
+    // A house opened from the address bar before its neighbourhood was built: go there now.
+    if (this.pendingArrival) this.arriveAt(this.pendingArrival);
     // The old town is gone, and so is anything in it you were heading for, had highlighted or pointed at. People
     // who are really online live outside the town, so they stay.
     if (this.useOnArrival && !this.isRemote(this.useOnArrival)) this.useOnArrival = null;
@@ -469,7 +570,7 @@ export class Lobby {
   /**
    * Switches controls on or off; whatever isn't mentioned stays as it was. Walking off: keys and clicks don't move
    * you, and a route you're on stops. Dash off: Shift does nothing. Turn off: Q and R do nothing. Targets
-   * "houses": houses are the only things to aim at (Tab, reach, hover and clicks pass over everything else).
+   * "houses": houses are the only things to aim at ([ and ], reach, hover and clicks pass over everything else).
    */
   setControls(c: Partial<Controls>) {
     const { walk = this.controls.walk, dash = this.controls.dash, turn = this.controls.turn, targets = this.controls.targets } = c;
@@ -513,8 +614,8 @@ export class Lobby {
   /**
    * How the camera frames you. "left": a window is open on the right of the screen, so the camera zooms in and
    * slides over until you stand in the part of the screen that's left, about a quarter of the way across (on a
-   * narrow screen, where windows are bottom sheets, it only zooms). "follow": back to normal, at the zoom the wheel
-   * chose. Eased either way, unless motion is calm.
+   * narrow screen, where windows are bottom sheets, it zooms and lifts you into the top third, above the sheet).
+   * "follow": back to normal, at the zoom the wheel chose. Eased either way, unless motion is calm.
    */
   frame(mode: "follow" | "left") {
     this.framing = mode;
@@ -524,6 +625,89 @@ export class Lobby {
   goTo(houseId: string) {
     const p = this.placed.find((x) => x.house.id === houseId);
     if (p) this.walkToward(p);
+  }
+
+  /**
+   * Puts you on the sidewalk in front of a house's door, facing it, with the camera turned so its front is in frame:
+   * at once, no glide (R3). For a house opened from the address bar, the top bar or Find. A house that isn't in this
+   * neighbourhood yet is remembered, and you arrive once it's built.
+   */
+  arriveAt(houseId: string) {
+    const p = this.placed.find((x) => x.house.id === houseId);
+    if (!p) {
+      this.pendingArrival = houseId;
+      return;
+    }
+    this.pendingArrival = null;
+    const facing = p.group.userData.facing as Facing;
+    // Just out from the door, within reach of the house: the flatmates hang around either side of it, a step away.
+    const at = facingFront({ x: p.door.x, z: p.door.z, facing }, 0.4, this.turn);
+    this.player.position.set(at.x, 0, at.z);
+    this.player.rotation.y = at.ry;
+    this.turn = at.turn;
+    this.angle = (at.turn * Math.PI) / 2;
+    this.stop();
+    this.dashUntil = 0;
+    this.setHover(null);
+    this.snap = true;
+    this.arrival = { placed: p, x: at.x, z: at.z };
+  }
+
+  /** Fireworks over a house and a cheer (R8); with calm motion, a soft glow. Vue decides when (a project went online). */
+  celebrate(houseId: string) {
+    const p = this.placed.find((x) => x.house.id === houseId);
+    if (!p) return;
+    // In front of its face, at the height of its roof: from the isometric camera that reads as "over the house",
+    // and it stays in frame when you stand in the street in front of it.
+    const top = new THREE.Box3().setFromObject(p.group).max.y;
+    const front = p.group.position.clone().lerp(p.door, 0.9).setY(Math.min(top, 5) - 1.2);
+    this.fireworks.celebrate(front, this.opts.reduceMotion);
+    play("celebrate");
+  }
+
+  /**
+   * The city's live state, without rebuilding anything: each house's windows (one per room), the crane while a build
+   * runs, the power (a real house whose caretaker is offline goes dark, with a sputter, and comes back with a clunk),
+   * the visitor at the door while a knock is open, and the board's pins. `setNeighbourhood` calls it too.
+   */
+  updateHouses(houses: CityHouse[]) {
+    for (const h of houses) this.houses.set(h.id, h);
+    for (const p of this.placed) {
+      const house = this.houses.get(p.house.id);
+      if (!house) continue;
+      // The card Vue opens shows the latest state.
+      p.house = house;
+      p.target = { kind: "house", house };
+      const live = liveState(house);
+      const key = liveKey(live);
+      if (key === p.live) continue;
+      const first = p.live === "";
+      p.live = key;
+      const changed = p.face.update(live);
+      this.darken(p, live.powerCut);
+      this.knocker(p, live.knocking > 0);
+      // Sounds only for a change you witness, not for what was already so when you arrived.
+      if (first) continue;
+      if (changed.cut) play("sputter");
+      if (changed.restored) play("clunk");
+      if (changed.buildStarted) play("build");
+    }
+    this.pinBoard();
+  }
+
+  /**
+   * Single-character keyboard shortcuts on or off (the "Keyboard shortcuts" setting, R6 / WCAG 2.1.4). Off: W A S D,
+   * E, Q, R, 1, 2, [ and ] do nothing; the arrow keys, Enter, Shift (dash) and Escape still work.
+   */
+  setShortcuts(on: boolean) {
+    this.shortcuts = on;
+    if (!on) for (const k of [...this.keys]) if (k.length === 1) this.keys.delete(k);
+  }
+
+  /** Development only: pins the city's local hour (0–24) to see it by day or night; null goes back to the real time. */
+  setHour(hour: number | null) {
+    this.hourOverride = hour;
+    this.daylight(true);
   }
 
   /**
@@ -615,10 +799,6 @@ export class Lobby {
     play("emote");
   }
 
-  lampCount(): { lit: number; total: number } {
-    return { lit: this.lamps.filter((l) => l.on).length, total: this.lamps.length };
-  }
-
   // ---- Everyone else who's online here ----
 
   addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean }) {
@@ -680,6 +860,9 @@ export class Lobby {
     this.resize.disconnect();
     window.removeEventListener("keydown", this.keydown);
     window.removeEventListener("keyup", this.keyup);
+    this.fireworks.dispose();
+    for (const p of this.placed) p.face.dispose();
+    this.renderer.domElement.removeEventListener("pointerdown", this.touchStage);
     this.renderer.domElement.removeEventListener("pointerdown", this.click);
     this.renderer.domElement.removeEventListener("pointermove", this.pointerMove);
     this.renderer.domElement.removeEventListener("pointerleave", this.pointerLeave);
@@ -697,7 +880,7 @@ export class Lobby {
   /** Every target in the neighbourhood right now. */
   private things(): Thing[] {
     if (this.controls.targets === "houses") return [...this.placed];
-    return [...this.placed, ...this.plots, ...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values(), ...this.lamps];
+    return [...this.placed, ...this.plots, ...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values(), ...(this.board ? [this.board] : [])];
   }
 
   /** Whether a thing is a target at all right now: everything is, unless only houses are (see `setControls`). */
@@ -735,28 +918,30 @@ export class Lobby {
     return thing.box ? distanceToBox(this.player.position, thing.box) : apart(thing.spot, this.player.position);
   }
 
-  /** The thing you're standing next to: a lamp first (they're small), then a person, then a building's walls. */
+  /**
+   * The thing you're standing next to. Houses outrank people: at a door, the flatmates hanging around it would
+   * otherwise always win, and E would say hi instead of going in. So a person wins only when clearly nearer than
+   * any building, and right after `arriveAt` the house you arrived at wins outright.
+   */
   private reach(): Thing | null {
-    let best: Thing | null = null;
-    let range = REACH * 0.9;
-    // Whether `t` beats the best so far; if so, it sets the bar.
-    const closer = (t: Thing): boolean => {
-      const d = this.distanceTo(t);
-      if (d >= range) return false;
-      range = d;
-      return true;
+    if (this.arrival) return this.arrival.placed;
+    // The nearest of a list within REACH, and how far it is.
+    const nearest = (list: Iterable<Thing>): [Thing | null, number] => {
+      let best: Thing | null = null;
+      let range = REACH;
+      for (const t of list) {
+        const d = this.distanceTo(t);
+        if (d < range) [best, range] = [t, d];
+      }
+      return [best, range];
     };
     // Only houses are targets: skip straight to them.
     const all = this.controls.targets === "all";
-    if (all) for (const l of this.lamps) if (closer(l)) best = l;
-    if (best) return best;
-    range = REACH;
-    if (all) for (const n of this.npcs) if (n.avatar.visible && closer(n)) best = n;
-    if (all) for (const r of this.remotes.values()) if (closer(r)) best = r;
-    if (best) return best;
-    for (const p of this.placed) if (closer(p)) best = p;
-    if (all) for (const p of this.plots) if (closer(p)) best = p;
-    return best;
+    const [building, db] = nearest(all ? [...this.placed, ...this.plots, ...(this.board ? [this.board] : [])] : this.placed);
+    if (!all) return building;
+    const [person, dp] = nearest([...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values()]);
+    if (person && (!building || dp + PEOPLE_MARGIN < db)) return person;
+    return building;
   }
 
   private isRemote(t: Thing): boolean {
@@ -764,11 +949,9 @@ export class Lobby {
     return false;
   }
 
-  /** Uses a thing you're next to: a lamp flips, anything else is for Vue to open. */
+  /** Uses a thing you're next to: Vue opens it. */
   private use(thing: Thing) {
-    const lamp = this.lamps.find((l) => l === thing);
-    if (lamp) this.toggleLamp(lamp);
-    else this.events.onSelect(thing.target);
+    this.events.onSelect(thing.target);
   }
 
   /**
@@ -777,7 +960,7 @@ export class Lobby {
    * them.
    */
   private walkToward(thing: Thing) {
-    // Setting off for something else drops the Tab highlight, so what's in reach on arrival is what you use.
+    // Setting off for something else drops the highlight, so what's in reach on arrival is what you use.
     if (this.highlighted && this.highlighted !== thing) this.clearHighlight();
     if (thing.box) {
       // The ring moves to the nearest point of the reach band to you, which is the side you'll arrive on.
@@ -858,7 +1041,7 @@ export class Lobby {
   private outlineOf(thing: Thing): THREE.Object3D[] {
     if (thing.target.kind === "house") return [(thing as Placed).group];
     if (thing.target.kind === "empty") return (thing as EmptyPlot).objects;
-    if (thing.target.kind === "lamp") return [(thing as Lamp).group];
+    if (thing.target.kind === "board") return [(thing as Board).group];
     return (thing as Npc | Remote).avatar.children.filter((c) => c.name !== "ring");
   }
 
@@ -882,8 +1065,8 @@ export class Lobby {
     return m;
   }
 
-  /** Dashed centre lines along every street, and zebra crossings at every crossing. One draw call each. */
-  private streetMarkings(n: Neighbourhood) {
+  /** Dashed centre lines along every street, and zebra crossings at every crossing where the city paints them. One draw call each. */
+  private streetMarkings(n: Neighbourhood, zebra: boolean) {
     const white = new THREE.MeshBasicMaterial({ color: 0xece6da, transparent: true, opacity: 0.85 });
     const dashes: THREE.Matrix4[] = [];
     const stripes: THREE.Matrix4[] = [];
@@ -899,7 +1082,7 @@ export class Lobby {
         dashes.push(new THREE.Matrix4().compose(new THREE.Vector3(x, 0.012, z), flat(alongX ? 0 : Math.PI / 2), new THREE.Vector3(1.1, 0.14, 1)));
       }
     }
-    for (const p of n.intersections) {
+    for (const p of zebra ? n.intersections : []) {
       for (const [dx, dz, across] of [
         [0, ROAD * 0.95, true],
         [0, -ROAD * 0.95, true],
@@ -914,6 +1097,7 @@ export class Lobby {
       }
     }
     for (const list of [dashes, stripes]) {
+      if (!list.length) continue;
       const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), white, list.length);
       list.forEach((m, i) => mesh.setMatrixAt(i, m));
       // Markings are paint on the road, not something to aim at: the mouse looks straight through them.
@@ -922,17 +1106,40 @@ export class Lobby {
     }
   }
 
-  /** The market square: parasols over stalls, everyone's meeting point. */
+  /**
+   * The market square: parasols over stalls, everyone's meeting point. In a city with wax-print cloth, the stalls
+   * are drawn here with wax-print canopies; elsewhere they're Kenney's parasols. The south edge stays clear for the
+   * chores board.
+   */
   private market(b: { x: number; z: number; width: number; depth: number }, rand: () => number, gen: number) {
-    for (let i = 0; i < 8; i++) {
-      const x = b.x + (rand() - 0.5) * (b.width - 4);
-      const z = b.z + (rand() - 0.5) * (b.depth - 4);
-      const turn = rand() * Math.PI * 2;
-      this.load(gen, loadModel(PARASOLS[i % 2], 1.9), (m) => {
-        m.position.set(x, 0.15, z);
-        m.rotation.y = turn;
-      });
+    const spots = Array.from({ length: 8 }, () => ({
+      x: b.x + (rand() - 0.5) * (b.width - 4),
+      z: b.z - (b.depth - 4) / 2 + rand() * (b.depth - 7),
+      turn: rand() * Math.PI * 2,
+    }));
+    if (this.style.props.includes("wax-parasols")) {
+      this.town.add(waxParasols(spots, [waxPrint(`${this.style.city}:a`), waxPrint(`${this.style.city}:b`)]));
+      return;
     }
+    spots.forEach((s, i) =>
+      this.load(gen, loadModel(PARASOLS[i % 2], 1.9), (m) => {
+        m.position.set(s.x, 0.15, s.z);
+        m.rotation.y = s.turn;
+      }),
+    );
+  }
+
+  /**
+   * What stands on a flat roof, in a city that has it: a black water tank, and on some shops the rebar of an upper
+   * floor still to come. `roll` is the plot's own dice roll, so the same roof always gets the same.
+   */
+  private onRoof(model: THREE.Object3D, shop: boolean, roll: number) {
+    const props = this.props;
+    if (!props) return;
+    const has = this.style.props;
+    const b = new THREE.Box3().setFromObject(model);
+    if (has.includes("water-tanks") && roll < 0.55) props.tank(b.max.x - 0.8, b.max.y, b.min.z + 0.8);
+    if (has.includes("rebar") && shop && roll > 0.6) props.rods(b.min.x + 0.3, b.max.z - 0.3, b.min.x + 0.3 + (b.max.x - b.min.x) * 0.6, b.max.z - 0.3, b.max.y, seeded(`rebar:${roll}`));
   }
 
   /** A tree. On a tree lot it carries the plot's key, so clicking it means "that plot". */
@@ -984,7 +1191,7 @@ export class Lobby {
       .catch(() => undefined);
   }
 
-  /** A real house: placeholder first, its model when loaded, the room board by the door, flatmates out front. */
+  /** A real house: placeholder first, its model when loaded, a window per room on its front, flatmates out front. */
   private placeHouse(house: CityHouse, x: number, z: number, facing: Facing, gen: number) {
     const placeholder = makeHouse(house);
     const group = new THREE.Group();
@@ -992,10 +1199,27 @@ export class Lobby {
     group.position.set(x, 0.14, z);
     group.rotation.y = yaw(facing);
     group.userData.houseId = house.id;
+    group.userData.facing = facing;
     group.add(this.label(house.name, house.demo ? "lobby-label house demo" : "lobby-label house", 6.4));
     this.town.add(group);
     const box = this.solid(x, z, facing, placeholder.halfWidth * 2, placeholder.halfDepth * 2);
-    const placed: Placed = { house, group, box, door: new THREE.Vector3(), npcs: [], target: { kind: "house", house }, spot: new THREE.Vector3() };
+    // The placeholder is its own windows; the face takes over once the model is in.
+    const face = new HouseFace(house.rooms.length);
+    face.group.visible = false;
+    group.add(face.group);
+    const placed: Placed = {
+      house,
+      group,
+      box,
+      door: new THREE.Vector3(),
+      npcs: [],
+      target: { kind: "house", house },
+      spot: new THREE.Vector3(),
+      face,
+      live: "",
+      materials: [],
+      knocker: null,
+    };
     this.placed.push(placed);
     this.fitDoor(placed, facing, placeholder.halfDepth);
 
@@ -1023,11 +1247,18 @@ export class Lobby {
           if (gen !== this.generation) return;
           const local = new THREE.Box3().setFromObject(model);
           placeholder.group.visible = false;
+          dye(model, this.style);
           group.add(model);
           this.occluder(model);
-          const board = makeRoomBoard(house);
-          board.position.set(local.max.x + 0.6, 0, local.max.z + 0.3);
-          group.add(board);
+          // Its own copies of its materials (see `occluder`), remembered with their colours for a power cut.
+          model.traverse((o) => {
+            const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+            if ((o as THREE.Mesh).isMesh && m?.color) placed.materials.push({ material: m, color: m.color.clone() });
+          });
+          if (liveState(placed.house).powerCut) this.darken(placed, true);
+          // Windows on the front wall: its walls stop where the roof starts, a little over half the model's height.
+          face.fit(local.max.x - local.min.x - 0.6, (local.max.y - local.min.y) * 0.58, local.max.z);
+          face.group.visible = true;
           // The real footprint replaces the placeholder's; the walk grid follows on the next route.
           Object.assign(box, footprint(x, z, facing, local.max.x - local.min.x, local.max.z - local.min.z));
           this.gridDirty = true;
@@ -1036,17 +1267,18 @@ export class Lobby {
         .catch(() => undefined);
     }
 
-    // The flatmates hang around in front (unless they're online: then it's really them walking).
-    house.rooms
-      .filter((r) => r.occupant)
-      .forEach((r, k) => {
+    // The flatmates hang around in front (unless they're online: then it's really them walking), on either side of
+    // the door and a step apart, so the doorway stays clear and nobody stands inside anybody (R39).
+    const flatmates = house.rooms.filter((r) => r.occupant);
+    flatmates.forEach((r, k) => {
         const login = r.occupant!.login;
         const name = r.occupant!.name ?? login;
         const { avatar, tag } = this.makePerson(login, name, "lobby-label small");
         avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
         this.town.add(avatar);
         const npc: Npc = { login, avatar, home: new THREE.Vector3(), goal: new THREE.Vector3(), wait: Math.random() * 3, tag, target: { kind: "person", login, name }, spot: avatar.position };
-        npc.home.copy(placed.door).add(rotate((k - 1) * 1.3, 0.9, yaw(facing)));
+        const side = k % 2 ? 1 : -1;
+        npc.home.copy(placed.door).add(rotate(side * (1.1 + Math.floor(k / 2) * 1.1), 0.7, yaw(facing)));
         npc.goal.copy(npc.home);
         avatar.position.copy(npc.home);
         this.npcs.push(npc);
@@ -1076,52 +1308,155 @@ export class Lobby {
       n.goal.add(moved);
       n.avatar.position.add(moved);
     }
+    p.knocker?.position.add(moved);
+    // You arrived at this house and haven't moved since: you step out with its door.
+    const a = this.arrival;
+    const you = this.player.position;
+    if (a?.placed === p && Math.abs(you.x - a.x) < 0.01 && Math.abs(you.z - a.z) < 0.01) {
+      you.add(moved);
+      this.arrival = { placed: p, x: you.x, z: you.z };
+      this.snap = true;
+    }
   }
 
-  private addLamp(id: string, position: THREE.Vector3) {
-    const g = new THREE.Group();
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.6, 8), new THREE.MeshStandardMaterial({ color: 0x2c2a33, roughness: 0.6, metalness: 0.4 }));
-    post.position.y = 1.3;
+  /** A power cut: the house's walls go dim (its windows go dark in windows.ts). Back to its colours when it's over. */
+  private darken(p: Placed, dark: boolean) {
+    for (const { material, color } of p.materials) material.color.copy(color).multiplyScalar(dark ? 0.42 : 1);
+  }
+
+  /**
+   * Someone waits at the door while a knock is open (R32): a faceless visitor, grey, with a "☝️" bubble. Not a
+   * target: Vue's house card says who it is to the flatmates.
+   */
+  private knocker(p: Placed, on: boolean) {
+    if (!on && p.knocker) {
+      removeLabels(p.knocker);
+      p.knocker.parent?.remove(p.knocker);
+      disposeTree(p.knocker);
+      p.knocker = null;
+    }
+    if (!on || p.knocker) return;
+    const visitor = makeAvatar(0x9a96a0);
+    const facing = p.group.userData.facing as Facing;
+    const dir = FACING_DIR[facing];
+    // A step from the wall, between the door and the flatmates out front, facing the door.
+    visitor.position.set(p.door.x - dir.x * 0.45 + dir.z * 0.5, 0, p.door.z - dir.z * 0.45 - dir.x * 0.5);
+    visitor.rotation.y = Math.atan2(-dir.x, -dir.z);
+    const el = document.createElement("div");
+    el.className = "lobby-emote knock";
+    el.textContent = "☝️";
+    el.setAttribute("role", "img");
+    el.setAttribute("aria-label", `Someone is knocking at ${p.house.name}`);
+    const bubble = new CSS2DObject(el);
+    bubble.position.set(0, 2.1, 0);
+    visitor.add(bubble);
+    this.town.add(visitor);
+    p.knocker = visitor;
+    loadPerson(`knocker:${p.house.id}`)
+      .then((person) => {
+        if (p.knocker !== visitor) return;
+        this.dress(visitor, person);
+      })
+      .catch(() => undefined);
+  }
+
+  /**
+   * The street lamps, all of them three instanced meshes (posts, bulbs, and the pools of light they throw on the
+   * ground): three draw calls however many crossings there are, and no real lights to slow the frame.
+   */
+  private addLamps(spots: { x: number; z: number }[]) {
+    const n = spots.length;
+    if (!n) return;
+    const post = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.08, 2.6, 8), new THREE.MeshStandardMaterial({ color: 0x2c2a33, roughness: 0.6, metalness: 0.4 }), n);
+    const bulb = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshStandardMaterial({ color: 0x77736c, emissive: LAMP_LIGHT, emissiveIntensity: 0 }), n);
+    const pool = new THREE.InstancedMesh(new THREE.CircleGeometry(2, 28), new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending }), n);
+    const m = new THREE.Matrix4();
+    const flat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+    spots.forEach((p, i) => {
+      post.setMatrixAt(i, m.makeTranslation(p.x, 1.3, p.z));
+      bulb.setMatrixAt(i, m.makeTranslation(p.x, 2.7, p.z));
+      pool.setMatrixAt(i, m.compose(new THREE.Vector3(p.x, 0.16, p.z), flat, new THREE.Vector3(1, 1, 1)));
+    });
     post.castShadow = true;
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshStandardMaterial({ color: 0x77736c, emissive: LAMP_LIGHT, emissiveIntensity: 0 }));
-    bulb.position.y = 2.7;
-    g.add(post, bulb);
-    g.position.copy(position);
-    g.userData.lampId = id;
-    this.town.add(g);
-    const lamp: Lamp = { id, group: g, spot: position.clone(), bulb, light: null, on: false, target: { kind: "lamp", id, on: false } };
-    this.lamps.push(lamp);
-    this.setLamp(lamp, this.lit.has(id));
+    for (const mesh of [post, bulb, pool]) mesh.computeBoundingSphere();
+    // Lamps are street furniture, not targets: the mouse looks through their light.
+    pool.raycast = () => undefined;
+    this.town.add(post, bulb, pool);
+    this.lamps = { bulb, pool, on: false };
+    this.setLamps(this.lampsOn);
   }
 
-  private setLamp(lamp: Lamp, on: boolean) {
-    lamp.on = on;
-    lamp.target = { kind: "lamp", id: lamp.id, on };
-    const m = lamp.bulb.material as THREE.MeshStandardMaterial;
+  /** Lamps on (a warm bulb and a pool of light under it, stronger the darker it is) or off. */
+  private setLamps(on: boolean, dark = 1) {
+    const l = this.lamps;
+    if (!l) return;
+    l.on = on;
+    (l.pool.material as THREE.MeshBasicMaterial).opacity = 0.03 + 0.14 * dark;
+    const m = l.bulb.material as THREE.MeshStandardMaterial;
     m.emissiveIntensity = on ? 2.2 : 0;
     m.color.set(on ? 0xfff1d6 : 0x77736c);
-    // Real light only where it's lit and the machine can afford it.
-    if (on && this.opts.quality === "high" && !lamp.light) {
-      lamp.light = new THREE.PointLight(LAMP_LIGHT, 20, 10, 1.6);
-      lamp.light.position.copy(lamp.spot).setY(2.5);
-      this.town.add(lamp.light);
-    }
-    if ((!on || this.opts.quality === "low") && lamp.light) {
-      this.town.remove(lamp.light);
-      lamp.light.dispose();
-      lamp.light = null;
-    }
+    l.pool.visible = on;
   }
 
-  private toggleLamp(lamp: Lamp) {
-    this.setLamp(lamp, !lamp.on);
-    if (lamp.on) this.lit.add(lamp.id);
-    else this.lit.delete(lamp.id);
-    play(lamp.on ? "lamp-on" : "lamp-off");
-    this.events.onLamps([...this.lit]);
-    // The prompt changes with the switch ("Light it" → "Switch it off"): say so.
-    if (this.highlighted === lamp) this.events.onNear(lamp.target);
-    else this.near = null;
+  /** The chores board on the market square (R19): a cork board on two legs, facing the street. */
+  private addBoard(at: { x: number; z: number; facing: Facing }, city: string) {
+    const group = makeBoard();
+    group.position.set(at.x, 0.15, at.z);
+    group.rotation.y = yaw(at.facing);
+    group.userData.board = true;
+    const pins = new THREE.Group();
+    group.add(pins);
+    this.town.add(group);
+    const front = frontOf(at, 1.2);
+    const door = new THREE.Vector3(front.x, 0, front.z);
+    const box = this.solid(at.x, at.z, at.facing, 2.2, 0.4);
+    this.board = { group, pins, box, door, spot: door.clone(), target: { kind: "board", city } };
+  }
+
+  /** A pin on the board for each house with reviews waiting; red when one is late. */
+  private pinBoard() {
+    const b = this.board;
+    if (!b) return;
+    const wanted = this.placed.map((p) => liveState(p.house)).filter((l) => l.openChores > 0);
+    const key = wanted.map((l) => (l.lateChores > 0 ? "r" : "y")).join("");
+    if (b.pins.userData.key === key) return;
+    b.pins.userData.key = key;
+    disposeTree(b.pins);
+    b.pins.clear();
+    if (!key) return;
+    b.pins.add(makePins(key.split("").map((k) => k === "r")));
+  }
+
+  /**
+   * The light of the city's local time: the sky, the sun, the fog, and the lamps and lit windows from dusk on (R29).
+   * Looked at once a minute, or straight away when `now` is set.
+   */
+  private daylight(now = false) {
+    const t = performance.now();
+    if (!now && t - this.lastDaylight < DAYLIGHT_EVERY) return;
+    this.lastDaylight = t;
+    const d = daylightAt(new Date(), this.style, this.hourOverride);
+    const l = lightingFor(d.sun, new THREE.Color(this.style.palette.sky).getHex());
+    this.hemi.color.setHex(l.sky);
+    this.hemi.groundColor.setHex(l.ground);
+    this.hemi.intensity = l.hemi;
+    this.sun.color.setHex(l.sunColor);
+    this.sun.intensity = l.sunPower;
+    (this.scene.fog as THREE.Fog).color.setHex(l.fog);
+    const key = `${l.top}:${l.bottom}`;
+    if (key !== this.sky.key) {
+      this.sky.key = key;
+      const g = this.sky.canvas.getContext("2d")!;
+      const grad = g.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0, `#${l.top.toString(16).padStart(6, "0")}`);
+      grad.addColorStop(1, `#${l.bottom.toString(16).padStart(6, "0")}`);
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 2, 256);
+      this.sky.texture.needsUpdate = true;
+    }
+    this.lampsOn = d.lampsOn;
+    this.setLamps(d.lampsOn, 1 - d.sun);
+    for (const p of this.placed) p.face.setNight(d.sun < 0.5);
   }
 
   // ---- People ----
@@ -1213,7 +1548,6 @@ export class Lobby {
     this.renderer.setPixelRatio(high ? Math.min(window.devicePixelRatio, 2) : 1);
     this.renderer.shadowMap.enabled = high;
     this.sun.castShadow = high;
-    for (const l of this.lamps) this.setLamp(l, l.on);
     // Outlines are for the machines that can afford them. On low quality, the cursor and the ring do the job.
     if (high && !this.composer) this.makeComposer();
     if (!high) this.dropComposer();
@@ -1284,11 +1618,19 @@ export class Lobby {
 
   /**
    * Where the camera aims to look: at you, or, with a window open on the right, at a point to your right, so you
-   * stand about a quarter of the way across the screen. Writes into `out`.
+   * stand about a quarter of the way across the screen (on a phone, where the window is a bottom sheet, at a point
+   * below you, so you stand in the top third). Writes into `out`.
    */
   private followPoint(out: THREE.Vector3): THREE.Vector3 {
     out.copy(this.player.position).setY(0);
-    if (this.framing === "left" && !this.narrow) {
+    if (this.framing === "left" && this.narrow) {
+      // A phone: the window is a sheet over the bottom of the screen. Aim below you, so you (and the house in front
+      // of you) stand in the top third. The view looks down at about 39°, so a step on the ground towards the
+      // bottom of the screen moves the picture by sin(39°) of a step.
+      const down = rotate(1, 1, this.angle).normalize();
+      const halfHeight = this.halfWidth() / this.aspect;
+      out.addScaledVector(down, (halfHeight * 0.35) / Math.sin(Math.atan2(CAMERA_OFFSET.y, Math.hypot(CAMERA_OFFSET.x, CAMERA_OFFSET.z))));
+    } else if (this.framing === "left") {
       // The screen's right, on the ground (the way D walks), turned with the camera. You're at the centre of the
       // screen plus `shift` to the left; the screen is 2 × halfWidth wide, so that puts you at FRAMED.at across.
       const right = rotate(1, -1, this.angle).normalize();
@@ -1298,7 +1640,25 @@ export class Lobby {
     return out;
   }
 
+  /** You clicked or tapped the stage: it takes the keyboard focus, and keys pressed with nothing focused are ours. */
+  private touchStage = () => {
+    this.stageTouched = true;
+    if (!this.host.contains(document.activeElement)) this.host.focus({ preventScroll: true });
+  };
+
+  /**
+   * Whether a key press is for the city (R6): when the stage has focus, or when nothing has focus (the page itself)
+   * after you've clicked the stage at least once. Before that, the keys belong to the page: a letter is just a
+   * letter. Tab is never the city's (see `keydown`).
+   */
+  private ownsKeys(): boolean {
+    const focused = document.activeElement;
+    if (focused && focused !== document.body) return this.host.contains(focused);
+    return this.stageTouched;
+  }
+
   private keydown = (e: KeyboardEvent) => {
+    if (!this.ownsKeys()) return;
     // Typing in a field elsewhere on the page isn't walking.
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
@@ -1307,6 +1667,9 @@ export class Lobby {
     if (t?.closest?.('[aria-modal="true"], dialog')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
+    // Single-character shortcuts switched off in settings (WCAG 2.1.4): W A S D, E, Q, R, 1, 2, [ and ] do nothing.
+    // The arrows, Enter, Shift and Escape still work.
+    if (!this.shortcuts && k.length === 1) return;
     const walk = WALK_KEYS.get(k);
     if (walk) {
       e.preventDefault();
@@ -1317,16 +1680,11 @@ export class Lobby {
         if (!e.repeat) this.events.onAction(walk);
       }
     }
-    if (k === "tab") {
-      // Tab picks targets only while the page itself has focus. Inside a card or a sheet it moves focus as usual.
-      const focused = document.activeElement;
-      if (!focused || focused === document.body || this.host.contains(focused)) {
-        this.cycle(e.shiftKey ? -1 : 1);
-        e.preventDefault();
-      }
-    }
+    // [ and ] pick the previous and next target. Tab is never taken: it always moves the focus, in and out of the
+    // city, like anywhere else on the page.
+    if (k === "]" || k === "[") this.cycle(k === "]" ? 1 : -1);
     if (k === "escape") this.clearHighlight();
-    // A tap of Shift dashes when you let go, unless another key was pressed meanwhile (Shift+Tab is "previous").
+    // A tap of Shift dashes when you let go, unless another key was pressed meanwhile.
     if (k === "shift" && !e.repeat) this.shiftAlone = true;
     else if (e.shiftKey && !e.repeat) this.shiftAlone = false;
     if (k === "e" || k === "enter") this.interact();
@@ -1338,6 +1696,7 @@ export class Lobby {
 
   private keyup = (e: KeyboardEvent) => {
     const k = e.key.toLowerCase();
+    // Always let go of a key, wherever the focus went meanwhile.
     this.keys.delete(k);
     if (k === "shift" && this.shiftAlone) this.dash();
     this.shiftAlone = false;
@@ -1348,7 +1707,7 @@ export class Lobby {
     this.zoom = THREE.MathUtils.clamp(this.zoom + Math.sign(e.deltaY) * 1.2, ZOOM.min, ZOOM.max);
   };
 
-  /** What the mouse is on: a thing (a person, a house, an empty plot, a lamp), a point on the ground, or nothing. */
+  /** What the mouse is on: a thing (a person, a house, an empty plot, the board), a point on the ground, or nothing. */
   private aim(e: PointerEvent): { thing: Thing | null; ground: THREE.Vector3 | null } {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const pointer = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
@@ -1362,15 +1721,15 @@ export class Lobby {
       .sort((x, y) => x.d - y.d)[0];
     if (hitPerson) return { thing: hitPerson.who, ground: null };
     for (const hit of this.ray.intersectObjects(this.town.children, true)) {
-      // A house, an empty plot or a lamp: its model (or forecourt) carries the id, somewhere up the tree.
+      // A house, an empty plot or the board: its model (or forecourt) carries the id, somewhere up the tree.
       let o: THREE.Object3D | null = hit.object;
-      while (o && !o.userData.houseId && !o.userData.plotKey && !o.userData.lampId) o = o.parent;
-      const { houseId, plotKey, lampId } = o?.userData ?? {};
-      // Only houses are targets: look past a plot or a lamp, to whatever is behind it (the ground, usually).
-      if (!all && !houseId && (plotKey || lampId)) continue;
+      while (o && !o.userData.houseId && !o.userData.plotKey && !o.userData.board) o = o.parent;
+      const { houseId, plotKey, board } = o?.userData ?? {};
+      // Only houses are targets: look past a plot or the board, to whatever is behind it (the ground, usually).
+      if (!all && !houseId && (plotKey || board)) continue;
       if (houseId) return { thing: this.placed.find((p) => p.house.id === houseId) ?? null, ground: null };
       if (plotKey) return { thing: this.plots.find((p) => p.key === plotKey) ?? null, ground: null };
-      if (lampId) return { thing: this.lamps.find((l) => l.id === lampId) ?? null, ground: null };
+      if (board) return { thing: this.board, ground: null };
       if (hit.object.name === "ground") {
         const b = this.bounds;
         return { thing: null, ground: new THREE.Vector3(THREE.MathUtils.clamp(hit.point.x, b.minX, b.maxX), 0, THREE.MathUtils.clamp(hit.point.z, b.minZ, b.maxZ)) };
@@ -1379,7 +1738,7 @@ export class Lobby {
     return { thing: null, ground: null };
   }
 
-  // Click someone to see who they are; a house, a plot or a lamp to walk up to it and use it; the ground to walk there.
+  // Click someone to see who they are; a house, a plot or the board to walk up to it and use it; the ground to walk there.
   // With walking switched off, only what's already in reach can be used. Nothing while the camera is away.
   private click = (e: PointerEvent) => {
     if (this.tour) return;
@@ -1469,6 +1828,8 @@ export class Lobby {
       this.player.position.y = 0;
       this.playerPerson?.play("idle");
     }
+    // Moving at all after `arriveAt` means you're not waiting at that door any more.
+    if (moving) this.arrival = null;
     // On a route but going nowhere (against a wall, with no way round): give up rather than walk forever.
     if (this.route && this.clock.elapsedTime - this.stuck.at >= STUCK.after) {
       const pos = this.player.position;
@@ -1518,7 +1879,8 @@ export class Lobby {
       if (to.length() < 0.1) {
         n.wait -= dt;
         if (n.wait <= 0) {
-          n.goal = n.home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2.4, 0, (Math.random() - 0.5) * 2.4));
+          // A small stroll around their spot, never as far as the next flatmate's.
+          n.goal = n.home.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.1, 0, (Math.random() - 0.5) * 1.1));
           n.wait = 2 + Math.random() * 4;
         }
         n.person?.play("idle");
@@ -1529,6 +1891,9 @@ export class Lobby {
         n.person?.play("walk");
       }
     }
+
+    // Flatmates at the same door keep a little apart (R39): two people closer than SPACING step away from each other.
+    if (!calm) for (const p of this.placed) separate(p.npcs, dt);
 
     // Everyone else glides to where they last said they were.
     for (const r of this.remotes.values()) {
@@ -1546,8 +1911,8 @@ export class Lobby {
     for (const r of this.remotes.values()) r.person?.mixer.update(dt);
     if (this.tick % 6 === 0) {
       const tagRange = this.viewHalf < 9 ? this.viewHalf * 2 : TAG_RANGE;
-      for (const n of this.npcs) n.tag.style.visibility = n === h || n.avatar.position.distanceTo(centre) < tagRange ? "" : "hidden";
-      for (const r of this.remotes.values()) r.tag.style.visibility = r === h || r.avatar.position.distanceTo(centre) < tagRange * 1.6 ? "" : "hidden";
+      for (const n of this.npcs) n.tag.style.visibility = n === h || (n.avatar.position.distanceTo(centre) < tagRange && !n.hidden) ? "" : "hidden";
+      for (const r of this.remotes.values()) r.tag.style.visibility = r === h || (r.avatar.position.distanceTo(centre) < tagRange * 1.6 && !r.hidden) ? "" : "hidden";
     }
 
     // The camera follows from the isometric angle, turned and gliding (or snapping, for calm motion). It looks at
@@ -1562,6 +1927,8 @@ export class Lobby {
     this.camera.position.copy(look).add(offset);
     this.camera.lookAt(look);
     this.lastOffset = offset;
+    // A name tag whose owner stands behind a building would float over its roof: a few people a tick are checked.
+    if (this.tick % 3 === 0) this.checkTags(offset);
     // The sun follows the view, so shadows stay sharp wherever you are.
     this.sun.position.copy(look).add(new THREE.Vector3(18, 22, 6));
     this.sun.target.position.copy(look);
@@ -1587,6 +1954,13 @@ export class Lobby {
       for (const m of this.skyline) m.visible = m.position.clone().sub(look).setY(0).dot(toCamera) < 6;
     }
 
+    // Houses' windows flicker and cranes turn; fireworks fly; the light follows the city's clock.
+    const time = this.clock.elapsedTime;
+    for (const p of this.placed) p.face.tick(time, calm);
+    this.props?.tick(time, calm);
+    this.fireworks.tick(dt);
+    this.daylight();
+
     // Zoom eases towards the wheel's choice (or the onboarding's close-up, or the close-up beside a window).
     const want = this.focus ?? (this.framing === "left" ? FRAMED.half : this.zoom);
     if (Math.abs(this.viewHalf - want) > 0.01) {
@@ -1602,6 +1976,23 @@ export class Lobby {
       const people = this.npcs.filter((n) => n.avatar.visible).map((n) => ({ login: n.login, x: n.avatar.position.x, z: n.avatar.position.z }));
       for (const [login, r] of this.remotes) people.push({ login, x: r.avatar.position.x, z: r.avatar.position.z });
       this.events.onMap({ you: { x: you.x, z: you.z, ry: this.player.rotation.y }, people, angle: this.angle });
+    }
+  }
+
+  /**
+   * Whether people stand behind a building, seen from the camera: a ray from their head towards the camera that
+   * meets a building's box (one that isn't faded) means a wall is in the way, and their tag hides. A few people per
+   * call, round and round, so a crowd costs no more than a handful.
+   */
+  private checkTags(offset: THREE.Vector3) {
+    const people: (Npc | Remote)[] = [...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values()];
+    if (!people.length) return;
+    const toCamera = offset.clone().normalize();
+    const ray = new THREE.Ray();
+    for (let k = 0; k < Math.min(TAG_CHECKS, people.length); k++) {
+      const who = people[this.tagCursor++ % people.length];
+      ray.set(who.avatar.position.clone().setY(1.6), toCamera);
+      who.hidden = this.occluders.some((o) => !o.faded && ray.intersectsBox(o.box));
     }
   }
 
@@ -1625,7 +2016,7 @@ export class Lobby {
 
   /**
    * Draws the frame. Outlines cost a few extra passes, so the composer only runs while something is outlined:
-   * the thing under the mouse in soft white, the Tab highlight in the ring's warm white (or just the latter when
+   * the thing under the mouse in soft white, the [ ] highlight in the ring's warm white (or just the latter when
    * they're the same thing). A quiet frame renders straight to the screen, as before.
    */
   private draw() {
@@ -1662,6 +2053,34 @@ export class Lobby {
 function footprint(x: number, z: number, facing: Facing, w: number, d: number): Box {
   const [hw, hd] = facing % 2 === 0 ? [w / 2, d / 2] : [d / 2, w / 2];
   return { minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd };
+}
+
+/**
+ * Keeps people at a door at least SPACING apart: each pair that's too close steps away from each other, half the
+ * gap each, a little every frame, and whoever was strolling towards the other picks the spot they're pushed to.
+ */
+function separate(people: { avatar: THREE.Object3D; goal: THREE.Vector3 }[], dt: number) {
+  for (let i = 0; i < people.length; i++)
+    for (let j = i + 1; j < people.length; j++) {
+      const a = people[i].avatar;
+      const b = people[j].avatar;
+      if (!a.visible || !b.visible) continue;
+      const dx = b.position.x - a.position.x;
+      const dz = b.position.z - a.position.z;
+      const d = Math.hypot(dx, dz);
+      if (d >= SPACING) continue;
+      const push = Math.min(SPACING - d, 3 * dt) / 2;
+      const [ux, uz] = d > 0.001 ? [dx / d, dz / d] : [1, 0];
+      a.position.x -= ux * push;
+      a.position.z -= uz * push;
+      b.position.x += ux * push;
+      b.position.z += uz * push;
+      // Their goals step apart too, or they'd walk straight back into each other.
+      people[i].goal.x -= ux * push;
+      people[i].goal.z -= uz * push;
+      people[j].goal.x += ux * push;
+      people[j].goal.z += uz * push;
+    }
 }
 
 /** Slow, then fast, then slow again: 0 → 0, ½ → ½, 1 → 1 (a cubic). */

@@ -2,7 +2,19 @@
 // (a few sine waves, a little filtered noise, and a volume curve), so there is no sound file and no licence to declare.
 import { settings } from "../settings";
 
-export type Sound = "select" | "open" | "close" | "step" | "lamp-on" | "lamp-off" | "emote" | "knock" | "arrive" | "build" | "dash";
+export type Sound =
+  | "select"
+  | "open"
+  | "close"
+  | "step"
+  | "emote"
+  | "knock"
+  | "arrive"
+  | "build"
+  | "dash"
+  | "celebrate"
+  | "sputter"
+  | "clunk";
 
 // Everything a sound needs to be built: the audio context, the master volume, and a bit of noise to reuse.
 interface Audio {
@@ -118,18 +130,6 @@ const recipes: Record<Sound, (a: Audio, t: number) => void> = {
   // A footstep: a dull thud of noise, a little different each time. Very quiet, because it plays often.
   step: (a, t) => puff(a, t, 0.07, 140 + Math.random() * 80, 0.35, "lowpass"),
 
-  // A lamp lights: a warm "ding", a note with a softer octave above it.
-  "lamp-on": (a, t) => {
-    tone(a, t, 0.24, G5, 0.2);
-    tone(a, t, 0.16, G5 * 2, 0.05);
-  },
-
-  // A lamp goes out: the same ding, lower.
-  "lamp-off": (a, t) => {
-    tone(a, t, 0.2, C5, 0.2);
-    tone(a, t, 0.12, C5 * 2, 0.05);
-  },
-
   // An emote: two quick notes going up, playful.
   emote: (a, t) => {
     tone(a, t, 0.09, E5, 0.18, { type: "triangle", dull: 3000 });
@@ -160,6 +160,28 @@ const recipes: Record<Sound, (a: Audio, t: number) => void> = {
   build: (a, t) => {
     puff(a, t, 0.03, 900, 0.3);
     [C5, E5, G5].forEach((pitch, i) => tone(a, t + i * 0.04, 0.15, pitch, 0.16, { type: "triangle", dull: 3000 }));
+  },
+
+  // A project went online: a deep drum hit (like a sabar), then three pops and a bright chord rising over them.
+  celebrate: (a, t) => {
+    tone(a, t, 0.35, 110, 0.35, { to: 70, dull: 900 });
+    puff(a, t, 0.08, 300, 0.4, "lowpass");
+    [0.18, 0.32, 0.43].forEach((at, i) => puff(a, t + at, 0.09, 1800 + i * 500, 0.35));
+    [C5, E5, G5, C5 * 2].forEach((pitch, i) => tone(a, t + 0.2 + i * 0.07, 0.5, pitch, 0.12, { type: "triangle", dull: 3500 }));
+  },
+
+  // A power cut: a generator coughing and dying, three low stutters slowing down.
+  sputter: (a, t) => {
+    [0, 0.12, 0.28].forEach((at, i) => {
+      puff(a, t + at, 0.09 + i * 0.03, 120 - i * 20, 0.45, "lowpass");
+      tone(a, t + at, 0.08, 75 - i * 10, 0.2, { type: "sawtooth", dull: 400 });
+    });
+  },
+
+  // The power is back: one heavy switch thrown.
+  clunk: (a, t) => {
+    puff(a, t, 0.06, 500, 0.5);
+    tone(a, t, 0.12, 160, 0.3, { to: 90, dull: 1200 });
   },
 };
 

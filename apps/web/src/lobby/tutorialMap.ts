@@ -93,8 +93,8 @@ export function tutorialNeighbourhood(): Neighbourhood {
     lamps,
     trafficLights,
     skyline,
-    // In the middle of the square, on the street between its two halves.
-    spawn: { x: SQUARE_AT + SQUARE / 2, z: 0 },
+    // In the middle of the square, on the street between its two halves, facing east towards the workshop.
+    spawn: { x: SQUARE_AT + SQUARE / 2, z: 0, ry: Math.PI / 2, turn: 0 },
     bounds: { minX: -WIDTH / 2, maxX: WIDTH / 2, minZ: -DEPTH / 2, maxZ: DEPTH / 2 },
   };
 }

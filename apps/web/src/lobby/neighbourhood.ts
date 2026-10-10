@@ -43,7 +43,11 @@ export interface Neighbourhood {
   trafficLights: { x: number; z: number; facing: Facing }[];
   // Low buildings beyond the last street: the rest of the city, seen but not walked.
   skyline: { x: number; z: number; variant: number; facing: Facing; scale: number }[];
-  spawn: { x: number; z: number };
+  // Where you arrive: a point on the ground, which way you face (`ry`, an avatar's rotation.y) and the camera's
+  // quarter turn (0–3) that shows the front of what you face.
+  spawn: { x: number; z: number; ry: number; turn: number };
+  // The chores board on the market square (R19): where it stands and which way its face looks. None in the tutorial.
+  board?: { x: number; z: number; facing: Facing };
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
 }
 
@@ -191,10 +195,57 @@ export function generateNeighbourhood(city: string, houses: HouseOnMap[], opts: 
     lamps,
     trafficLights,
     skyline,
-    // Start on the street just south of the market, facing into the neighbourhood.
-    spawn: { x: market.x, z: market.z + market.depth / 2 + ROAD / 2 },
+    spawn: spawnFor(plots, houses, market),
+    // The board stands on the market's south edge, facing the street, where you see it on the way in.
+    board: { x: market.x, z: market.z + market.depth / 2 - 2.2, facing: 0 },
     bounds: { minX: -width / 2, maxX: width / 2, minZ: -depth / 2, maxZ: depth / 2 },
   };
+}
+
+/**
+ * Where you arrive (R3): in the street in front of the nearest real house to the market (a demo house when there is
+ * no real one), facing its door, with the camera turned so its front is in frame. With no house at all, on the
+ * street south of the market, facing into the neighbourhood.
+ */
+function spawnFor(plots: Plot[], houses: HouseOnMap[], market: Block): Neighbourhood["spawn"] {
+  const demo = new Map(houses.map((h) => [h.id, h.demo]));
+  const homes = plots
+    .filter((p) => p.lot.kind === "house")
+    .sort((a, b) => {
+      const da = demo.get((a.lot as { houseId: string }).houseId) ? 1 : 0;
+      const db = demo.get((b.lot as { houseId: string }).houseId) ? 1 : 0;
+      return da - db || Math.hypot(a.x - market.x, a.z - market.z) - Math.hypot(b.x - market.x, b.z - market.z);
+    });
+  const home = homes[0];
+  if (!home) return { x: market.x, z: market.z + market.depth / 2 + ROAD / 2, ry: Math.PI, turn: 0 };
+  return facingFront(home, PLOT / 2 + 1.4, 0);
+}
+
+/**
+ * Standing `distance` in front of a plot, facing it: the point, your rotation, and the camera's quarter turn (the
+ * one nearest `turn`) that sees the plot's front. Used for the spawn, and by the lobby to arrive at a house.
+ */
+export function facingFront(p: { x: number; z: number; facing: Facing }, distance: number, turn: number): { x: number; z: number; ry: number; turn: number } {
+  const at = frontOf(p, distance);
+  const dir = FACING_DIR[p.facing];
+  return { ...at, ry: Math.atan2(-dir.x, -dir.z), turn: turnFacing(p.facing, turn) };
+}
+
+/**
+ * The camera's quarter turn that sees a front facing `facing`, nearest the current `turn` (any integer: the camera
+ * counts its turns without wrapping). The camera sits on the +x +z diagonal at turn 0, so turn t sees the fronts
+ * facing t and t + 1 (mod 4): a front facing f is seen from turns f and f - 1.
+ */
+export function turnFacing(facing: Facing, turn: number): number {
+  let best = turn;
+  let bestCost = Infinity;
+  for (const want of [facing, (facing + 3) % 4]) {
+    // The same quarter turn as `want`, as close to `turn` as possible.
+    const delta = ((((want - turn) % 4) + 6) % 4) - 2;
+    const cost = Math.abs(delta) + (delta === -2 ? 0.1 : 0);
+    if (cost < bestCost) [best, bestCost] = [turn + delta, cost];
+  }
+  return best;
 }
 
 /** Where to stand to go into a plot's building: on the sidewalk in front of it. */
