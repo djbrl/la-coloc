@@ -19,3 +19,11 @@ export function markTourSeen(name: string) {
     // No storage: the tour will show again next time.
   }
 }
+
+// The house a link opened the page on (`?in=house:…`), read once, when the app starts (not when a panel opens: the
+// lobby writes `?in=` itself as you walk in and out). Someone following a shared link came to see that house, so
+// its first-visit tour doesn't cover it.
+export const linkedHouse: string | null = (() => {
+  const place = typeof location === "undefined" ? null : new URLSearchParams(location.search).get("in");
+  return place?.startsWith("house:") ? place.slice("house:".length) : null;
+})();

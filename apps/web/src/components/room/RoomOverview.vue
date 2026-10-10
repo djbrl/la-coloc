@@ -1,14 +1,16 @@
 <script setup lang="ts">
-// The room's Overview tab: what the project is (and a short flow to name and describe it), how it's doing in
-// three small tiles, and the two big things you can do with it: update it, or restart it.
+// The room's Overview tab: what the project is (and a short flow to name and describe it), how it's doing in one
+// sentence with its state's dot and a memory meter, and the two big things you can do with it: update it, or
+// restart it.
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import Icon from "../lobby/house/Icon.vue";
-import StatusPill from "../lobby/panel/StatusPill.vue";
+import StatusDot from "../lobby/panel/StatusDot.vue";
+import { TUTORIAL_HOUSE } from "../lobby/tutorial/tutorial";
 import { explain, roomState } from "../lobby/panel/words";
 import UiNote, { type Note } from "../UiNote.vue";
 import UiSteps from "../UiSteps.vue";
 import type { RoomManage } from "../../types";
-import { canRestart, memoryUse, type SettingsForm, stateSince, updateTile } from "./room";
+import { canRestart, memoryUse, projectTitle, roomSentence, type SettingsForm, updateTile } from "./room";
 
 const props = defineProps<{
   data: RoomManage;
@@ -23,15 +25,19 @@ const props = defineProps<{
   action: "" | "redeploy" | "restart";
   actionNote: Note | null;
   when: (iso: string) => string;
+  // The tutorial's coach is up and has its own "Put it online": this panel's tile steps back to a plain one.
+  coached?: boolean;
 }>();
 const emit = defineEmits<{ run: [what: "redeploy" | "restart"] }>();
 
 const state = computed(() => roomState(props.data.room));
-const since = computed(() => stateSince(props.data.room.status, props.data.deployments, props.when));
+const said = computed(() => roomSentence(props.data.room, props.data.deployments));
 const memory = computed(() => memoryUse(props.data.room.usage));
 const tile = computed(() => updateTile(props.data.room.status, props.data.deployments));
 const restartable = computed(() => canRestart(props.data.room.status, props.data.deployments));
 const serverUp = computed(() => props.data.house.agentOnline);
+// The tutorial's workshop: its sample project is the Hello page.
+const workshop = computed(() => props.data.house.id === TUTORIAL_HOUSE);
 
 // Naming the project: two questions in place of the block, then back to it.
 const step = ref(0);
@@ -67,7 +73,7 @@ async function finish() {
     <!-- The project: its name and a line about it, as they show on the house page and in the city. -->
     <div v-if="!step" class="project">
       <div class="what">
-        <p class="name" :class="{ unset: !data.settings.project }">{{ data.settings.project || "Untitled project" }}</p>
+        <p class="name" :class="{ unset: !data.settings.project && !workshop }">{{ projectTitle(data.settings, workshop) }}</p>
         <p class="about" :class="{ unset: !data.settings.projectDescription }">
           {{ data.settings.projectDescription || "No line about it yet. People see it on the house page and in the city." }}
         </p>
@@ -100,38 +106,18 @@ async function finish() {
       </UiSteps>
     </div>
 
-    <!-- How it's doing, at a glance. -->
-    <div class="stats">
-      <div class="stat">
-        <span class="cap"><Icon name="gauge" :size="14" /> State</span>
-        <span aria-live="polite"><StatusPill :state="state" /></span>
-        <span class="sub">{{ since }}</span>
-      </div>
-      <div class="stat">
-        <span class="cap"><Icon name="box" :size="14" /> Memory</span>
-        <span class="value">
-          <template v-if="memory">{{ memory.mb }}<span class="of"> / {{ data.room.limits.memoryMb }} MB</span></template>
-          <template v-else>{{ data.room.limits.memoryMb }}<span class="of"> MB</span></template>
-        </span>
-        <div v-if="memory" class="meter" role="img" :aria-label="`${memory.pct}% of memory used`">
-          <div class="fill" :class="{ high: memory.pct >= 80 }" :style="{ width: memory.pct + '%' }" />
-        </div>
-        <span v-else class="sub">its share</span>
-      </div>
-      <div class="stat">
-        <span class="cap"><Icon name="server" :size="14" /> CPU</span>
-        <span class="value">
-          <template v-if="data.room.usage">{{ data.room.usage.cpuPercent.toFixed(1) }}<span class="of">%</span></template>
-          <template v-else>{{ data.room.limits.cpus }}<span class="of"> CPU</span></template>
-        </span>
-        <span class="sub">{{ data.room.usage ? "right now" : "its share" }}</span>
+    <!-- How it's doing, in one sentence: the dot is its state's colour, the meter its memory. -->
+    <div class="doing">
+      <p aria-live="polite"><StatusDot :state="state" class="dot-here" />{{ said }}</p>
+      <div v-if="memory" class="meter" role="img" :aria-label="`${memory.pct}% of its memory in use`">
+        <div class="fill" :class="{ high: memory.pct >= 80 }" :style="{ width: memory.pct + '%' }" />
       </div>
     </div>
 
     <!-- The two things to do, each with the one line that says what it does. While the project is being named
          they step aside, so the flow and the stats fit without scrolling. -->
     <div v-if="!step" class="acts">
-      <button type="button" class="act go" :disabled="action !== '' || !serverUp" @click="emit('run', 'redeploy')">
+      <button type="button" class="act" :class="{ go: !coached }" :disabled="action !== '' || !serverUp" @click="emit('run', 'redeploy')">
         <span class="ic"><Icon :name="tile.icon" :size="22" /></span>
         <span class="verb">{{ action === "redeploy" ? "Starting…" : tile.verb }}</span>
         <span class="hint">{{ tile.hint }}</span>
@@ -158,13 +144,9 @@ async function finish() {
 .unset { color: var(--muted); }
 .name.unset { font-weight: 500; }
 
-.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.stat { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 12px 14px; border-radius: 16px; background: var(--tile); }
-.cap { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); }
-.value { font-size: 20px; font-weight: 600; line-height: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.of { font-size: 13px; font-weight: 500; color: var(--muted); }
-.sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.meter { margin: 6px 0 4px; }
+.doing { display: grid; gap: 10px; padding: 14px 16px; border-radius: 18px; background: var(--tile); }
+.doing p { font-size: 15px; line-height: 1.4; }
+.dot-here { margin-right: 8px; vertical-align: 0.08em; }
 
 /* The big action tiles: an icon, a verb, one line under it. Update is the accent one: it's the usual next step. */
 .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -195,8 +177,6 @@ async function finish() {
 .down { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--danger); }
 
 @media (max-width: 480px) {
-  .stat { padding: 10px; }
-  .value { font-size: 17px; }
   .act { min-height: 96px; padding: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {

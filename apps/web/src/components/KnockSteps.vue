@@ -6,14 +6,14 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { loadMe, me } from "../session";
-import type { CityHouse } from "../types";
+import type { Room } from "../types";
 import { knockOn } from "./lobby/cards";
 import UiSteps from "./UiSteps.vue";
 
-// The room only matters by name, so the city's slimmer room shape is enough (the house page's Room fits too).
+// The room only matters by name, so any room shape fits: the city's slimmer one, or the house page's Room.
 // With `stay`, a successful knock is reported (`knocked`) instead of navigating: the lobby opens the thread itself.
 // `houseName` is for the "already knocked" screen; without it the screen says "this house".
-const props = defineProps<{ houseId: string; room: CityHouse["rooms"][number]; stay?: boolean; houseName?: string | null }>();
+const props = defineProps<{ houseId: string; room: Pick<Room, "name">; stay?: boolean; houseName?: string | null }>();
 const emit = defineEmits<{ close: []; knocked: [id: string] }>();
 const router = useRouter();
 

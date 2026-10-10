@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // A knock's thread: the applicant and the house talk, the flatmates vote. One panel: who knocked and where at the
-// top, the vote in one strip under it, and the thread filling the rest, so it fits the lobby's sheet unscrolled.
+// top, the vote in one strip under it, what the applicant has built (when the API sends it), and the thread
+// filling the rest, so it fits the lobby's sheet unscrolled. The words change with who reads it: the applicant
+// reads about their own knock, a flatmate about someone asking to move in.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import Avatar from "../components/Avatar.vue";
 import ChatPanel from "../components/ChatPanel.vue";
@@ -16,7 +18,16 @@ import type { Application } from "../types";
 // to the house, and tells the sheet what to call it (`label`).
 const props = defineProps<{ id: string; embedded?: boolean }>();
 const emit = defineEmits<{ label: [text: string] }>();
-const app = ref<Application | null>(null);
+
+// What the applicant has built and done, for the flatmates to judge: their top public repos with each one's main
+// language, and the reviews they've given and got on La Coloc. Not sent by the API yet; until it is, the panel just
+// doesn't say it.
+interface Work {
+  repos: { fullName: string; url: string; language: string | null }[];
+  given: number;
+  received: number;
+}
+const app = ref<(Application & { work?: Work | null }) | null>(null);
 const error = ref("");
 const actionError = ref("");
 let source: EventSource | null = null;
@@ -57,6 +68,7 @@ const state = computed<State | null>(() => {
   const a = app.value;
   if (!a) return null;
   return {
+    // The dot's colour, and its hidden name; the line says the state in words.
     open: { tone: "warn", word: "Waiting for votes" },
     admitted: { tone: "live", word: "Moved in" },
     declined: { tone: "neutral", word: "Declined" },
@@ -64,9 +76,26 @@ const state = computed<State | null>(() => {
   }[a.status] as State;
 });
 
+// The head's line, after the state's dot: the state in words, then who asked for what, where. A room's slug says
+// nothing to people, so it's "a free room" while the knock is open and "a room" after.
+const stateSaid: Record<Application["status"], string> = { open: "Waiting for votes.", admitted: "Moved in.", declined: "Declined.", withdrawn: "Withdrawn." };
 const line = computed(() => {
   const a = app.value;
-  return a ? `Room ${a.room} · ${a.house.name}, ${a.house.city} · @${a.applicant.login}` : "";
+  if (!a) return "";
+  const room = a.status === "open" ? "a free room" : "a room";
+  const who = mine.value ? "You" : `@${a.applicant.login}`;
+  return `${stateSaid[a.status]} ${who} asked for ${room} in ${a.house.name}, ${a.house.city}.`;
+});
+const explainLine = computed(() => (mine.value ? explain.knockYours : explain.knockTheirs));
+
+// What they've built, in a sentence or two: "Awa reviewed 7 PRs and got 5 reviews." and their repos as links.
+const work = computed(() => app.value?.work ?? null);
+const reviewsSaid = computed(() => {
+  const w = work.value;
+  if (!w) return "";
+  const subject = mine.value ? "You" : (app.value!.applicant.name ?? app.value!.applicant.login).split(" ")[0];
+  if (!w.given && !w.received) return mine.value ? "You haven't traded reviews here yet." : `${subject} hasn't traded reviews here yet.`;
+  return `${subject} reviewed ${w.given} ${w.given === 1 ? "PR" : "PRs"} and got ${w.received} ${w.received === 1 ? "review" : "reviews"}.`;
 });
 
 // The vote in a few words, beside the seats. Screen readers hear the long version on the seats.
@@ -112,7 +141,7 @@ async function withdraw() {
 
     <template v-else-if="app">
       <RouterLink v-if="!embedded" :to="`/houses/${app.house.id}`" class="back"><span aria-hidden="true">‹</span> {{ app.house.name }}</RouterLink>
-      <Panel :explain="explain.knock" body-label="The thread">
+      <Panel :explain="explainLine" body-label="The thread">
         <template #head>
           <PanelHead :title="title" :state="state" :line="line">
             <template #lead><Avatar :person="app.applicant" :size="52" decorative /></template>
@@ -158,6 +187,17 @@ async function withdraw() {
               <RouterLink :to="`/houses/${app.house.id}/rooms/${encodeURIComponent(app.room)}`" class="button primary">Go to your room</RouterLink>
             </div>
           </section>
+          <!-- What they've built: their top public repos, and the reviews they've traded. -->
+          <p v-if="work" class="work">
+            <template v-if="work.repos.length">
+              {{ mine ? "The house sees your work, like" : "Their work includes" }}
+              <template v-for="(r, i) in work.repos.slice(0, 3)" :key="r.url">
+                <a :href="r.url" target="_blank" rel="noopener">{{ shortRepo(r.url) }}<span class="sr-only"> (opens in a new tab)</span></a
+                ><template v-if="r.language"> in {{ r.language }}</template>{{ i < Math.min(3, work.repos.length) - 1 ? ", " : ". " }}
+              </template>
+            </template>
+            {{ reviewsSaid }}
+          </p>
           <p v-if="actionError" class="error small" role="alert">{{ actionError }}</p>
         </template>
 
@@ -209,6 +249,7 @@ async function withdraw() {
 .act button.quiet { color: var(--muted); font-weight: 500; }
 .act button.quiet:hover:not(:disabled) { color: var(--danger); }
 .error { margin-top: 8px; }
+.work { margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 /* The vote you cast stays marked. */
 button[aria-pressed="true"]:not(.primary) { box-shadow: inset 0 0 0 2px var(--text); }
 button.primary[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--tile), 0 0 0 4px var(--accent-fill); }

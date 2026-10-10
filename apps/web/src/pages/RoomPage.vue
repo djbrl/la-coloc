@@ -9,21 +9,25 @@ import Icon from "../components/lobby/house/Icon.vue";
 import Panel from "../components/lobby/panel/Panel.vue";
 import PanelHead from "../components/lobby/panel/PanelHead.vue";
 import PanelTabs, { type Tab as PanelTab } from "../components/lobby/panel/PanelTabs.vue";
-import { bare, explain, roomState } from "../components/lobby/panel/words";
+import { bare, explain, roomLine, roomState } from "../components/lobby/panel/words";
+import { TUTORIAL_HOUSE } from "../components/lobby/tutorial/tutorial";
 import RoomCode from "../components/room/RoomCode.vue";
 import RoomHistory from "../components/room/RoomHistory.vue";
 import RoomLogs from "../components/room/RoomLogs.vue";
 import RoomOverview from "../components/room/RoomOverview.vue";
 import RoomSecrets from "../components/room/RoomSecrets.vue";
-import { parsePort, type SettingsForm, settingsBody } from "../components/room/room";
+import { parsePort, projectTitle, type SettingsForm, settingsBody } from "../components/room/room";
 import "../components/room/room.css";
 import { loud, quiet, type Note } from "../components/UiNote.vue";
-import { sendJSON } from "../session";
+import { me, sendJSON } from "../session";
 import type { RoomManage } from "../types";
 
 // `embedded`: shown inside the lobby's sheet, which has its own Back and Close. The page then drops its link
 // back to the house, and tells the sheet what to call it (`label`).
-const props = defineProps<{ id: string; room: string; embedded?: boolean }>();
+// `coached`: the tutorial's coach is up over this room, with its own "Put it online"; the Overview's tile then
+// steps back. Left out, it's worked out: your room in the workshop while your tutorial isn't done.
+// Vue turns a missing boolean prop into false; the explicit undefined default keeps "not said" apart from "no".
+const props = withDefaults(defineProps<{ id: string; room: string; embedded?: boolean; coached?: boolean }>(), { coached: undefined });
 const emit = defineEmits<{ label: [text: string] }>();
 const data = ref<RoomManage | null>(null);
 const error = ref("");
@@ -162,11 +166,18 @@ watch(tab, () => (formNote.value = null));
 
 const state = computed(() => (data.value ? roomState(data.value.room) : null));
 const online = computed(() => !!data.value?.room.url && data.value.room.status !== "empty");
+// The head's line, after the state's dot: the state in words, then whose room it is and where. "Online. Your room
+// in Sacré-Cœur."
 const headLine = computed(() => {
   const d = data.value;
   if (!d) return "";
-  return `Room ${d.room.name} · ${d.house.name}${d.as === "chef" ? " · you're the chef" : ""}`;
+  const who = d.room.occupant;
+  const whose = !who || who.login === me.value?.login ? "Your room" : `${(who.name ?? who.login).split(" ")[0]}'s room`;
+  return `${roomLine(d.room)} ${whose} in ${d.house.name}.`;
 });
+const workshop = computed(() => props.id === TUTORIAL_HOUSE);
+const coached = computed(() => props.coached ?? (!!props.embedded && workshop.value && !!me.value && me.value.tutorialDone === false));
+const title = computed(() => (data.value ? projectTitle(data.value.settings, workshop.value) : ""));
 const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 </script>
 
@@ -182,7 +193,7 @@ const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric",
       :body-labelledby="`tab-${tab}`"
     >
       <template #head>
-        <PanelHead :title="data.settings.project || 'Untitled project'" :state="state" :line="headLine" :class="{ untitled: !data.settings.project }">
+        <PanelHead :title="title" :state="state" :line="headLine" :class="{ untitled: !data.settings.project && !workshop }">
           <template v-if="online" #aside>
             <a :href="data.room.url!" target="_blank" rel="noopener" class="chunk small">
               <Icon name="external" :size="16" /> Open<span class="sr-only"> the project (opens in a new tab)</span>
@@ -221,6 +232,7 @@ const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric",
             :action="action"
             :action-note="actionNote"
             :when="when"
+            :coached="coached"
             @run="run"
           />
           <RoomCode

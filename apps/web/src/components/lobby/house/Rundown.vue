@@ -9,15 +9,24 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 const props = defineProps<{
   // The house's name, for the first sentence.
   name: string;
+  // An example house: nothing runs there, so the first sentence says that instead of what the dot means.
+  demo?: boolean;
   // Said after "Your next step is always here." when the foot has a button: what that step is, in a few words.
   next?: string | null;
 }>();
 const emit = defineEmits<{ done: [] }>();
 
 // The parts, in the order a newcomer reads the window. A part the panel isn't showing (the tabs, for a visitor)
-// is skipped.
-const steps = computed(() => [
-  { part: "header", text: `This is ${props.name}, a house: a server a few devs share. The pill says if its server is up.` },
+// is skipped. `below`: the part the bubble sits under, when that isn't the part itself (the head's bubble goes
+// under the faces and the house's exchange lines, so it never covers them).
+const steps = computed((): { part: string; text: string; below?: string }[] => [
+  {
+    part: "header",
+    below: "life",
+    text: props.demo
+      ? `This is ${props.name}, an example house, to show how one looks. A house is a server a few devs share.`
+      : `This is ${props.name}, a house: a server a few devs share. The green dot means its server is running.`,
+  },
   { part: "crew", text: "The people who live here. Each has a room." },
   { part: "tabs", text: "The rest of the house, one tab each: the group chat, your chores (reviews you owe), the fridge, the bill." },
   { part: "rooms", text: "Each row is a room: one person's project (a site, an API, a bot), online at its own address." },
@@ -45,7 +54,10 @@ const isLast = computed(() => !shown.value.some((i) => i > step.value));
 
 // The element a step is about, or null when the house view isn't showing it.
 function part(i: number): HTMLElement | null {
-  const el = layer.value?.parentElement?.querySelector<HTMLElement>(`[data-tour="${steps.value[i].part}"]`) ?? null;
+  return find(steps.value[i].part);
+}
+function find(name: string): HTMLElement | null {
+  const el = layer.value?.parentElement?.querySelector<HTMLElement>(`[data-tour="${name}"]`) ?? null;
   // A part that draws nothing (an empty tab bar) isn't there.
   return el && el.getClientRects().length ? el : null;
 }
@@ -90,7 +102,10 @@ function measure() {
   const tall = bubble.value?.offsetHeight ?? 120;
   const floor = view.bottom - h.top - EDGE;
   const ceiling = view.top - h.top + EDGE;
-  let y = top + height + GAP;
+  // Under the part, or under the one the step names in `below` when that's further down.
+  const under = steps.value[step.value].below ? find(steps.value[step.value].below!) : null;
+  const bottom = Math.max(top + height, under ? seen(under).bottom - h.top : 0);
+  let y = bottom + GAP;
   if (y + tall > floor) y = top - GAP - tall >= ceiling ? top - GAP - tall : floor - tall;
   spot.value = { left, top: Math.max(ceiling, y), width };
 }

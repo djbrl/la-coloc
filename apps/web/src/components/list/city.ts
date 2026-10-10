@@ -45,12 +45,17 @@ export function roomsLine(h: Pick<CityHouse, "rooms" | "status">): string {
   return free ? `${rooms}, ${free} free` : `${rooms}, all taken`;
 }
 
+/** The row's few words about its rooms. An example house says it's one here, once, in words. */
+export function roomsSaid(h: Pick<CityHouse, "rooms" | "status" | "demo">): string {
+  return h.demo ? `An example house: ${roomsLine(h)}` : roomsLine(h);
+}
+
 /** The row's line under the name: the tagline, else what a free room is looking for, else what the house is. */
 export function rowLine(h: Pick<CityHouse, "tagline" | "rooms" | "demo">): string {
   if (h.tagline) return h.tagline;
   const ad = freeRooms(h).find((r) => r.ad)?.ad;
   if (ad) return ad;
-  return h.demo ? "An example house." : "A server a few devs rent together.";
+  return h.demo ? "An example house, to show how one looks." : "A server a few devs rent together.";
 }
 
 /** Up to `max` faces of the people who live there, and how many more there are. */

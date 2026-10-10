@@ -4,8 +4,8 @@
 import type { HouseView, Room, Viewer } from "../../types";
 import type { IconName } from "../lobby/house/icons";
 import { evenSplit, fcfa } from "../lobby/house/server";
-import { explain } from "../lobby/panel/words";
-import { memoryUse } from "../room/room";
+import { explain, roomLine } from "../lobby/panel/words";
+import { cpuShare, memoryUse } from "../room/room";
 
 // Sentences only this page says. words.ts holds the shared ones; these stay here until the lead moves them.
 export const listWords = {
@@ -52,11 +52,15 @@ export function workRows(house: Pick<HouseView, "rooms" | "ledger" | "status" | 
   return rows.some((r) => r.memory || r.manage || r.given || r.received) ? rows : [];
 }
 
-/** A work row's line: what it uses of its share, or just the share when nothing is measured. */
-export function workLine(w: Pick<WorkRow, "memory" | "cpu" | "room">): string {
+/** A work row's line, a sentence: its state, then what it uses of its share, or just the share when nothing is
+ *  measured. "Online. Using 64 of its 256 MB and 1% of a CPU." */
+export function workLine(w: Pick<WorkRow, "memory" | "room">): string {
   const { memoryMb, cpus } = w.room.limits;
-  if (!w.memory) return `${memoryMb} MB and ${cpus} CPU. Nothing measured yet.`;
-  return `${w.memory.mb} of ${memoryMb} MB · ${w.cpu}% CPU`;
+  const state = roomLine(w.room);
+  if (!w.memory) return `${state} It has ${memoryMb} MB of memory and ${cpuShare(cpus)}. Nothing measured yet.`;
+  const pct = w.room.usage?.cpuPercent ?? 0;
+  const cpu = pct < 1 ? "almost no CPU" : `${Math.round(pct)}% of a CPU`;
+  return `${state} Using ${w.memory.mb} of its ${memoryMb} MB and ${cpu}.`;
 }
 
 /** "2 of 3 yes": a knock's vote so far. */

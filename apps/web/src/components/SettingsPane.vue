@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Settings, as a game's options menu: a floating card in the middle of the screen, one row per setting (what it
-// is on the left, its control on the right), then the ways to start over (the welcome, the tutorial, and, when
+// Settings, as a game's options menu: a floating card in the middle of the screen, one row per setting (a sentence
+// that says what it does now on the left, its control on the right), then the ways to start over (the welcome, the tutorial, and, when
 // this server allows it, the whole demo) as big buttons. The arrow keys move a choice inside a row, as in a game.
-import { type FunctionalComponent, h, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, type FunctionalComponent, h, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { config, loadConfig, loadMe, me, postJSON } from "../session";
 import { settings, settingsPane } from "../settings";
@@ -26,6 +26,8 @@ const glyphs = {
   sound: "M4 9v6h4l5 4V5L8 9z M16.5 8.5a5 5 0 0 1 0 7 M19 6a8.5 8.5 0 0 1 0 12",
   walk: "M13 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z M9 21l2.5-6 2.5 2v4 M7 12l3-4h4l2 3 3 1 M11 8l-1 5",
   list: "M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01",
+  // A keyboard: the one-key shortcuts.
+  keys: "M3 6h18v12H3z M7 10h.01 M11 10h.01 M15 10h.01 M8 14h8",
 };
 const Glyph: FunctionalComponent<{ d: string; size?: number }> = (p) =>
   h(
@@ -49,6 +51,11 @@ const qualities: { value: typeof settings.quality; word: string }[] = [
   { value: "high", word: "High" },
 ];
 
+// Each row's sentence, for what's chosen now: no "City" or "Look" label, just what the setting does.
+const viewSaid = computed(() => (settings.view === "list" ? "See the city as a list." : "Walk the city."));
+const themeSaid = computed(() => ({ system: "Day or night, as your device says.", light: "Always day.", dark: "Always night." })[settings.theme]);
+const qualitySaid = computed(() => (settings.quality === "low" ? "Plain light, to save battery." : "Soft shadows and warm light."));
+
 // Left and right (or up and down) move a row's choice, and the focus with it, as in any radio group.
 function arrows<T>(e: KeyboardEvent, values: T[], current: T, set: (v: T) => void) {
   const i = values.indexOf(current);
@@ -66,8 +73,8 @@ watch(
   async (open) => {
     if (open) {
       opener = document.activeElement;
-      // What this server allows is asked once, the first time the pane opens.
-      if (!config.value) void loadConfig();
+      // What this server allows you is asked each time the pane opens: the demo reset depends on who's logged in.
+      void loadConfig();
       await nextTick();
       panel.value?.focus();
       window.addEventListener("keydown", onKey);
@@ -130,7 +137,7 @@ async function takeTutorialAgain() {
 
 // ---- Reset the demo ----
 
-// After the inline question: the server resets the demo city, this browser forgets its settings, lamps and tours,
+// After the inline question: the server resets the demo city, this browser forgets its settings, tips and tours,
 // and the page reloads from the start.
 const resetBusy = ref(false);
 const resetError = ref("");
@@ -144,7 +151,7 @@ async function resetDemo() {
     return;
   }
   try {
-    for (const key of ["coloc.settings", "coloc.lamps", "coloc.tours"]) localStorage.removeItem(key);
+    for (const key of ["coloc.settings", "coloc.tips", "coloc.tours"]) localStorage.removeItem(key);
   } catch {
     // No storage to clear: the reload is a fresh start all the same.
   }
@@ -164,7 +171,7 @@ async function resetDemo() {
       </button>
 
       <ul class="options">
-        <ListRow title="City" sub="A place to walk, or a list">
+        <ListRow :title="viewSaid">
           <template #lead><span class="ic"><Icon name="house" :size="20" /></span></template>
           <template #end>
             <div class="segmented" role="radiogroup" aria-label="Show the city as" @keydown="arrows($event, views.map((v) => v.value), settings.view, (v) => (settings.view = v))">
@@ -183,10 +190,10 @@ async function resetDemo() {
           </template>
         </ListRow>
 
-        <ListRow title="Look" sub="Day or night">
+        <ListRow :title="themeSaid">
           <template #lead><span class="ic"><Glyph :d="glyphs.sun" /></span></template>
           <template #end>
-            <div class="segmented" role="radiogroup" aria-label="Looks like" @keydown="arrows($event, themes.map((t) => t.value), settings.theme, (v) => (settings.theme = v))">
+            <div class="segmented icons" role="radiogroup" aria-label="Looks like" @keydown="arrows($event, themes.map((t) => t.value), settings.theme, (v) => (settings.theme = v))">
               <button
                 v-for="t in themes"
                 :key="t.value"
@@ -202,7 +209,7 @@ async function resetDemo() {
           </template>
         </ListRow>
 
-        <ListRow title="Graphics" sub="Shadows and lamplight. Low saves battery.">
+        <ListRow :title="qualitySaid">
           <template #lead><span class="ic"><Icon name="gauge" :size="20" /></span></template>
           <template #end>
             <div class="segmented" role="radiogroup" aria-label="Graphics" @keydown="arrows($event, qualities.map((q) => q.value), settings.quality, (v) => (settings.quality = v))">
@@ -222,17 +229,24 @@ async function resetDemo() {
         </ListRow>
 
         <!-- A switch row toggles from anywhere on it; the switch itself is what the keyboard reaches. -->
-        <ListRow class="flip" title="Calmer motion" sub="No camera glide, no strolling flatmates" @click="settings.reduceMotion = !settings.reduceMotion">
+        <ListRow class="flip" title="Calmer motion: no camera glide, no strolling flatmates." @click="settings.reduceMotion = !settings.reduceMotion">
           <template #lead><span class="ic"><Glyph :d="glyphs.motion" /></span></template>
           <template #end>
             <button class="toggle" role="switch" aria-label="Calmer motion" :aria-checked="settings.reduceMotion"><span class="knob" aria-hidden="true" /></button>
           </template>
         </ListRow>
 
-        <ListRow class="flip" title="Sounds" sub="Doors, lamps and friends" @click="settings.sound = !settings.sound">
+        <ListRow class="flip" title="Sounds for doors, steps and friends." @click="settings.sound = !settings.sound">
           <template #lead><span class="ic"><Glyph :d="glyphs.sound" /></span></template>
           <template #end>
             <button class="toggle" role="switch" aria-label="Sounds" :aria-checked="settings.sound"><span class="knob" aria-hidden="true" /></button>
+          </template>
+        </ListRow>
+
+        <ListRow class="flip" title="One-key shortcuts in the city: W A S D to walk, E to use." @click="settings.shortcuts = !settings.shortcuts">
+          <template #lead><span class="ic"><Glyph :d="glyphs.keys" /></span></template>
+          <template #end>
+            <button class="toggle" role="switch" aria-label="Keyboard shortcuts" :aria-checked="settings.shortcuts"><span class="knob" aria-hidden="true" /></button>
           </template>
         </ListRow>
       </ul>
@@ -286,6 +300,8 @@ h2 { margin: 0; padding-right: 48px; font-size: 28px; font-weight: 700; line-hei
 .x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
 
 .options { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; line-height: 1.3; }
+/* A row's sentence may take two lines beside its control rather than lose its end. */
+.options :deep(.title) { white-space: normal; font-weight: 500; }
 .ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--surface); color: var(--muted); }
 .flip { cursor: pointer; }
 
@@ -349,6 +365,8 @@ button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2p
   .ic { width: 32px; height: 32px; }
   .options :deep(.lead) { width: 32px; }
   .segmented .word { font-size: 13px; }
+  /* The looks keep their pictures only, so the row's sentence has room; the words stay for a screen reader. */
+  .segmented.icons .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .options .segmented button { padding: 0 9px; }
 }
 @media (max-height: 640px) {

@@ -1,5 +1,5 @@
-// The room panel's small decisions, kept apart from the page so they're easy to test: which verb the big action
-// tile shows, whether a restart makes sense, what the Code tab lists, how a build reads in the history, and the
+// The room panel's small decisions, kept apart from the page so they're easy to test: the sentence that says how
+// the room is doing, which verb the big action tile shows, whether a restart makes sense, what the Code tab lists, how a build reads in the history, and the
 // exact body the settings PATCH sends. No DOM here.
 import { bare, explain } from "../lobby/panel/words";
 import type { IconName } from "../lobby/house/icons";
@@ -17,6 +17,12 @@ export interface SettingsForm {
   branch: string;
   buildPath: string;
   port: string;
+}
+
+/** The project's name as the room shows it: its name, else its one line, else "Hello" in the tutorial's workshop
+ *  (where the sample is a Hello page), else "Untitled project". */
+export function projectTitle(settings: Pick<Settings, "project" | "projectDescription">, tutorial = false): string {
+  return settings.project || settings.projectDescription || (tutorial ? "Hello" : "Untitled project");
 }
 
 /** True while the room has never been online: no update of it ever went live, and nothing is up or stopped now. */
@@ -49,15 +55,41 @@ export function memoryUse(usage: RoomUsage | null): { mb: number; pct: number } 
   return { mb: Math.round(usage.memoryBytes / 1048576), pct: Math.min(100, Math.round((usage.memoryBytes / usage.memoryLimitBytes) * 100)) };
 }
 
-/** The State tile's second line: since when it's been online, when it last built, or that it never has. */
-export function stateSince(status: RoomStatus, deployments: Deployment[], when: (iso: string) => string): string {
+/** A length of time in plain words: "a few minutes", "5 hours", "3 days". */
+export function span(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 10) return "a few minutes";
+  if (minutes < 60) return `${minutes} minutes`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  return `${Math.round(hours / 24)} days`;
+}
+
+/** "half a CPU", "1 CPU", "2 CPUs": a room's share of the processor. */
+export const cpuShare = (cpus: number) => (cpus === 0.5 ? "half a CPU" : `${cpus} ${cpus === 1 ? "CPU" : "CPUs"}`);
+
+/** The Overview's one sentence about how the room is doing: its state and since when, then what it uses of its
+ *  share, or what that share is when nothing is measured. "Online for 3 days, using 9 of its 256 MB and almost no
+ *  CPU." / "Never built yet. It has 256 MB of memory and half a CPU of its own." */
+export function roomSentence(room: Pick<RoomManage["room"], "status" | "limits" | "usage">, deployments: Deployment[], now = Date.now()): string {
   const prod = deployments.filter((d) => d.kind === "prod");
-  if (status === "live") {
-    const up = prod.find((d) => d.status === "live");
-    return up ? `since ${when(up.updatedAt)}` : "running now";
-  }
+  const ago = (iso: string) => span(now - new Date(iso).getTime());
   const last = prod[0] ?? deployments[0];
-  return last ? `last build ${when(last.updatedAt)}` : "never built";
+  let state: string;
+  if (room.status === "live") {
+    const up = prod.find((d) => d.status === "live");
+    state = up ? `Online for ${ago(up.updatedAt)}` : "Online";
+  } else if (room.status === "deploying") state = "Building now";
+  else if (room.status === "down") state = "Stopped";
+  else if (room.status === "failed") state = last ? `Its last build failed ${ago(last.updatedAt)} ago` : "Its last build failed";
+  else state = last ? "Not online yet" : "Never built yet";
+
+  const memory = memoryUse(room.usage);
+  if (room.usage && memory && (room.status === "live" || room.status === "deploying")) {
+    const cpu = room.usage.cpuPercent < 1 ? "almost no CPU" : `${Math.round(room.usage.cpuPercent)}% of a CPU`;
+    return `${state}, using ${memory.mb} of its ${room.limits.memoryMb} MB and ${cpu}.`;
+  }
+  return `${state}. It has ${room.limits.memoryMb} MB of memory and ${cpuShare(room.limits.cpus)} of its own.`;
 }
 
 export interface CodeRow {

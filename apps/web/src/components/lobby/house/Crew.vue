@@ -49,7 +49,8 @@ function said(s: Seat): string {
           <span v-if="s.kind === 'person' && s.chef" class="badge crown"><Icon name="crown" :size="12" /></span>
           <span v-if="s.kind === 'knock'" class="badge bell"><Icon name="knock" :size="12" /></span>
         </span>
-        <span class="name">{{ s.kind === "free" ? "Free" : s.kind === "knock" ? "Knocking" : first(s.person) }}</span>
+        <!-- No label under an empty seat or a knock: the dashed circle and the bell say it, the hidden name in words. -->
+        <span v-if="s.kind !== 'free'" class="name">{{ first(s.person) }}</span>
       </button>
     </li>
   </ul>
@@ -101,7 +102,6 @@ button.free:hover .hole { border-color: var(--accent-fill); }
 .bell { right: -4px; bottom: -4px; background: var(--accent-fill); color: var(--on-accent); }
 .name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .you .name { font-weight: 700; }
-.free .name { color: var(--muted); }
 .knock .name { color: var(--accent); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   .face { transition: none; }

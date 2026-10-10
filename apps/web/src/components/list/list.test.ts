@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { CityHouse, HouseView, Person, Room, Viewer } from "../../types";
-import { cityTotals, faces, flag, keeps, roomsLine, rowLine, yoursFirst } from "./city";
+import { cityTotals, faces, flag, keeps, roomsLine, roomsSaid, rowLine, yoursFirst } from "./city";
 import { fcfa } from "../lobby/house/server";
 import { chefCanManage, houseFacts, roomLabel, tallyLine, workLine, workRows } from "./house";
 
 const person = (login: string): Person => ({ login, name: login[0].toUpperCase() + login.slice(1), avatarUrl: null });
-const room = (name: string, occupant: Person | null, extra: Partial<Room> = {}): Room => ({
+const room = (name: string, occupant: Person | null, extra: Partial<Room> = {}): Room & { building: boolean } => ({
   name,
   limits: { memoryMb: 256, cpus: 0.5 },
   status: occupant ? "live" : "empty",
@@ -15,6 +15,7 @@ const room = (name: string, occupant: Person | null, extra: Partial<Room> = {}):
   ad: null,
   occupant,
   usage: null,
+  building: false,
   ...extra,
 });
 const cityHouse = (id: string, extra: Partial<CityHouse> = {}): CityHouse => ({
@@ -29,6 +30,11 @@ const cityHouse = (id: string, extra: Partial<CityHouse> = {}): CityHouse => ({
   monthlyCostFcfa: null,
   plot: null,
   rooms: [room("one", person("awa")), room("two", null)],
+  openChores: 0,
+  lateChores: 0,
+  knocking: 0,
+  reviewsThisMonth: 0,
+  tontine: null,
   ...extra,
 });
 const viewer = (v: Partial<Viewer> = {}): Viewer => ({ login: "jib", member: false, role: null, room: null, application: null, ...v });
@@ -61,12 +67,15 @@ describe("the city list", () => {
     expect(roomsLine(almadies)).toBe("2 rooms, 1 free");
     expect(roomsLine(full)).toBe("1 room, all taken");
     expect(roomsLine(kpota)).toBe("3 rooms, 1 signed up");
+    // An example house says so once, here, instead of a pill.
+    expect(roomsSaid(cityHouse("demo", { demo: true }))).toBe("An example house: 2 rooms, 1 free");
+    expect(roomsSaid(almadies)).toBe("2 rooms, 1 free");
   });
 
   it("falls back from the tagline to a free room's ad", () => {
     expect(rowLine(almadies)).toBe("Four apps by the sea.");
     expect(rowLine(cityHouse("ad", { rooms: [room("r", null, { ad: "Looking for a mobile dev" })] }))).toBe("Looking for a mobile dev");
-    expect(rowLine(cityHouse("demo", { demo: true }))).toBe("An example house.");
+    expect(rowLine(cityHouse("demo", { demo: true }))).toBe("An example house, to show how one looks.");
   });
 
   it("shows a few faces and counts the rest", () => {
@@ -117,6 +126,9 @@ describe("a house's page in the list view", () => {
     chores: null,
     server: null,
     ledger: [{ login: "awa", given: 3, received: 1 }],
+    reviewsThisMonth: 3,
+    tontine: null,
+    bill: null,
     ...extra,
   });
 
@@ -136,8 +148,8 @@ describe("a house's page in the list view", () => {
     expect(rows.map((r) => r.room.name)).toEqual(["awa", "moussa"]);
     expect(rows[0]).toMatchObject({ memory: { mb: 64, pct: 25 }, cpu: "1.2", given: 3, received: 1, manage: true });
     expect(rows[1]).toMatchObject({ memory: null, cpu: null, given: 0, manage: false });
-    expect(workLine(rows[0])).toBe("64 of 256 MB · 1.2% CPU");
-    expect(workLine(rows[1])).toBe("256 MB and 0.5 CPU. Nothing measured yet.");
+    expect(workLine(rows[0])).toBe("Online. Using 64 of its 256 MB and 1% of a CPU.");
+    expect(workLine(rows[1])).toBe("Online. It has 256 MB of memory and half a CPU. Nothing measured yet.");
     expect(workRows(house({ status: "making" }), null)).toEqual([]);
     expect(workRows(house({ demo: true }), null)).toEqual([]);
     // Nothing measured, no reviews, nothing to manage: nothing worth a card.

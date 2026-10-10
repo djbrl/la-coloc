@@ -13,17 +13,19 @@ import KnockSteps from "../KnockSteps.vue";
 import UiNote, { loud, type Note } from "../UiNote.vue";
 import { crewOf, footFor, rowAction, type Seat, type Situation } from "./house/crew";
 import Crew from "./house/Crew.vue";
+import { billHead, type BillLine, lineWords, linesYoursFirst, reviewsLine, ruleLine, tontineLine, toPay } from "./house/exchange";
 import Icon from "./house/Icon.vue";
+import PayBill from "./house/PayBill.vue";
 import RentServer from "./house/RentServer.vue";
 import Rundown from "./house/Rundown.vue";
 import { evenSplit, fcfa, type ServerInfo } from "./house/server";
-import { markTourSeen, toursSeen } from "./house/tours";
+import { linkedHouse, markTourSeen, toursSeen } from "./house/tours";
 import ListRow from "./panel/ListRow.vue";
 import Panel from "./panel/Panel.vue";
 import PanelHead from "./panel/PanelHead.vue";
 import PanelTabs, { type Tab } from "./panel/PanelTabs.vue";
-import StatusPill from "./panel/StatusPill.vue";
-import { explain, houseState, roomState } from "./panel/words";
+import StatusDot from "./panel/StatusDot.vue";
+import { explain, houseLine, houseState, roomLine, roomState } from "./panel/words";
 import type { Place } from "./place";
 
 const props = defineProps<{
@@ -35,7 +37,8 @@ const props = defineProps<{
 const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: []; view: [house: HouseView | null] }>();
 
 // The chef's server info is new on the API side; reading it through this type works whether or not the shared
-// HouseView type has caught up.
+// HouseView type has caught up. The exchange (the bill, the tontine, the month's reviews) may be missing from an
+// older API: the panel then just doesn't say it.
 type View = HouseView & { server?: ServerInfo | null };
 
 const house = ref<View | null>(null);
@@ -94,11 +97,28 @@ const nameOf = (p: { name: string | null; login: string }) => p.name ?? p.login;
 const myChores = computed(() => house.value?.chores?.filter((c) => c.assignee.login === viewer.value?.login) ?? []);
 const notes = computed(() => house.value?.notes ?? []);
 
-// The head's one line: the city, and the tagline when it's short enough to share the line with the pill.
+// The head's one line, after the state's dot: where the house is and its state in words ("Dakar. Its server is
+// running."), then the tagline when it's short enough to share the line.
 const line = computed(() => {
   const h = house.value;
   if (!h) return "";
-  return h.tagline && h.tagline.length <= 40 ? `${h.city} · ${h.tagline}` : h.city;
+  const said = houseLine(h);
+  return h.tagline && h.tagline.length <= 40 ? `${said} ${h.tagline}` : said;
+});
+
+// Under the faces, the house's exchange in public sentences: whose project the house rallies behind this
+// fortnight (the tontine), with its faces in turn order, and how many reviews were traded this month, with the
+// house's review rule.
+const me = computed(() => viewer.value?.login ?? null);
+const tontine = computed(() => house.value?.tontine ?? null);
+const tontineText = computed(() => tontineLine(tontine.value, me.value));
+// The faces in turn order: whose turn it is, then the next few.
+const turnFaces = computed(() => (tontine.value?.current ? [tontine.value.current, ...tontine.value.line.slice(0, 4)] : []));
+const reviewsText = computed(() => {
+  const h = house.value;
+  if (!h) return "";
+  const n = h.reviewsThisMonth;
+  return typeof n === "number" ? `${reviewsLine(n)} ${ruleLine(!!h.rules.strictReviews)}` : ruleLine(!!h.rules.strictReviews);
 });
 
 // The tabs: flatmates only. A visitor sees the rooms and nothing to switch between.
@@ -119,7 +139,7 @@ const shownTab = computed((): TabKey => (member.value ? tab.value : "rooms"));
 const explainLine = computed(() => explain[shownTab.value]);
 
 // The chef of a house being made can invite people from the head. In any state, the chef also sets the review rule
-// there; everyone else sees it as a pill in the head's line.
+// there; everyone reads it in the sentence under the faces.
 const copied = ref(false);
 async function copyLink() {
   const link = `${location.origin}/houses/${encodeURIComponent(props.id)}`;
@@ -132,8 +152,8 @@ async function copyLink() {
   }
 }
 
-// The review rule, in the words both the chef's switch and everyone's pill use. Strict: a merge only goes online
-// once a flatmate approves it (the API's GitHub deploys hold it back otherwise).
+// The review rule, in the words the chef's switch uses. Strict: a merge only goes online once a flatmate approves
+// it (the API's GitHub deploys hold it back otherwise).
 const strict = computed(() => !!house.value?.rules.strictReviews);
 const ruleWord = computed(() => (strict.value ? "Strict" : "Relaxed"));
 const ruleSentence = computed(() =>
@@ -240,15 +260,19 @@ async function takeRoom() {
   if (!res.ok) takeError.value = res.message;
 }
 
-// A room's row: who and what (the person and their project), what the project is, and its one button.
+// A room's row: who and what (the person and their project), then one line that starts with its state in words
+// ("Online.", "An example project.") and goes on with what the project is. A free room says its size there, in
+// the sentence. The state's colour is the dot on the face.
 const ledger = (login: string) => house.value?.ledger.find((l) => l.login === login) ?? { given: 0, received: 0 };
 function rowTitle(room: Room): string {
-  if (!room.occupant) return `Free room · ${room.name}`;
+  if (!room.occupant) return "A free room";
   return room.project ? `${nameOf(room.occupant)} · ${room.project}` : nameOf(room.occupant);
 }
 function rowSub(room: Room): string {
-  if (!room.occupant) return room.ad ?? "Free room. Knock to ask for it.";
-  return room.projectDescription ?? (room.project ? "No description yet." : "No project yet.");
+  const h = house.value!;
+  if (!room.occupant) return `Free, with ${room.limits.memoryMb} MB of memory. ${room.ad ?? "Knock to ask for it."}`;
+  const what = room.projectDescription ?? (room.project ? "No description yet." : "No project yet.");
+  return `${roomLine(room, h.status, h.demo)} ${what}`;
 }
 const actionOf = (room: Room) => rowAction(room, situation.value, foot.value);
 
@@ -258,9 +282,33 @@ const due = (iso: string) => {
   return hours < 1 ? "due now" : hours < 24 ? `in ${hours}h` : `in ${Math.round(hours / 24)}d`;
 };
 
-// The bill: the month's cost shared between the rooms that are lived in.
+// The bill (flatmates only): the month's total, then one line per flatmate, yours first, each said in two
+// sentences: what their reviews took off, and what they owe. An API without the bill yet gives the even split.
+const bill = computed(() => house.value?.bill ?? null);
+const billLines = computed(() => (bill.value ? linesYoursFirst(bill.value.lines, me.value) : []));
 const lived = computed(() => house.value?.rooms.filter((r) => r.occupant) ?? []);
 const share = computed(() => (house.value?.monthlyCostFcfa ? evenSplit(house.value.monthlyCostFcfa, lived.value.length) : null));
+// A bill line's face: the flatmate as the house knows them.
+function personOf(l: Pick<BillLine, "login" | "name">) {
+  return house.value?.members.find((m) => m.login === l.login) ?? { login: l.login, name: l.name, avatarUrl: null };
+}
+const lineState = (l: BillLine) =>
+  l.paid ? { tone: "live" as const, word: "Paid" } : l.due > 0 ? { tone: "warn" as const, word: "To pay" } : { tone: "neutral" as const, word: "Nothing to pay" };
+
+// Paying your share: the foot offers it on the Bill tab, and the tab's body becomes the pay sheet (PayBill).
+const myDue = computed(() => toPay(bill.value, me.value));
+const paying = ref(false);
+const paidSaid = ref("");
+watch(tab, () => (paying.value = false));
+function paid() {
+  const h = house.value;
+  const b = h?.bill;
+  // The stream brings the paid line too; marking it here saves a visible lag.
+  if (h && b) house.value = { ...h, bill: { ...b, lines: b.lines.map((l) => (l.login === me.value ? { ...l, paid: true } : l)) } };
+  paying.value = false;
+  paidSaid.value = "Marked as paid.";
+}
+const payButton = computed(() => member.value && shownTab.value === "bill" && !!myDue.value && !paying.value);
 
 // What the rundown says about the foot, after "Your next step is always here.": the step itself, per viewer.
 const tourLast = computed((): string | null => {
@@ -281,7 +329,8 @@ const tourLast = computed((): string | null => {
   }
 });
 
-// The rundown: asked for by the tutorial (once, when it reaches its step), or shown on a first visit to any house.
+// The rundown: asked for by the tutorial (once, when it reaches its step), or shown on a first visit to a house
+// walked into in the lobby (not on a house's own page, and not on the house a link opened).
 // It shows the rooms tab. When it ends it counts as the house's tour seen, and the tutorial hears of it if it asked.
 const rundownOn = ref(false);
 let tutorialAsked = false;
@@ -302,7 +351,9 @@ watch(
 watch(
   () => !!house.value,
   (loaded) => {
-    if (loaded && !rundownOn.value && !tutorialAsked && !toursSeen().includes("house")) startRundown();
+    if (!loaded || rundownOn.value || tutorialAsked || toursSeen().includes("house")) return;
+    if (props.id === linkedHouse || location.pathname.startsWith("/houses/")) return;
+    startRundown();
   },
 );
 function rundownEnded() {
@@ -333,13 +384,6 @@ function rundownEnded() {
         <div class="head">
           <div data-tour="header">
             <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
-              <!-- Everyone but the chef reads the rule here; the chef has the switch in the aside instead. An example
-                   house's rule can't change, so its chef reads it here too. -->
-              <template v-if="!chef || house.demo" #line>
-                <span class="rule" :title="ruleSentence">
-                  <Icon name="rules" :size="14" /><span class="chip-word" aria-hidden="true">{{ ruleWord }}</span><span class="sr-only">{{ ruleSentence }}</span>
-                </span>
-              </template>
               <template v-if="chef && (making || !house.demo)" #aside>
                 <button v-if="making" type="button" class="chip" :aria-label="copied ? 'Invite link copied' : 'Copy an invite link'" @click="copyLink">
                   <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? "Copied" : "Invite" }}</span>
@@ -362,6 +406,17 @@ function rundownEnded() {
           </div>
           <UiNote v-if="rulesNote" :note="rulesNote" />
           <Crew data-tour="crew" :seats="seats" @pick="pick" />
+          <!-- The exchange, in public sentences: the tontine's turn (its faces in order, the one whose turn it is lit)
+               and the month's reviews with the house's review rule. -->
+          <div class="life" data-tour="life">
+            <p v-if="tontineText" class="tontine">
+              <span class="turns" aria-hidden="true">
+                <Avatar v-for="(p, i) in turnFaces" :key="p.login" :person="p" :size="i === 0 ? 26 : 20" decorative :class="{ now: i === 0 }" />
+              </span>
+              <span class="turn-said">{{ tontineText }}</span>
+            </p>
+            <p class="reviews">{{ reviewsText }}</p>
+          </div>
         </div>
       </template>
 
@@ -392,15 +447,16 @@ function rundownEnded() {
           :lit="lit.includes(room.name)"
         >
           <template #lead>
-            <Avatar v-if="room.occupant" :person="room.occupant" :size="40" decorative />
+            <!-- The room's state as a dot on the face; the row's line says it in words. -->
+            <span v-if="room.occupant" class="face">
+              <Avatar :person="room.occupant" :size="40" decorative />
+              <StatusDot class="on-face" :state="roomState(room, house.status, house.demo)" />
+            </span>
             <span v-else class="door"><Icon name="door" :size="20" /></span>
           </template>
-          <template #meta>
-            <StatusPill :state="roomState(room, house.status)" />
-            <span :aria-label="`${room.limits.memoryMb} MB of memory`">{{ room.limits.memoryMb }} MB</span>
+          <template v-if="room.occupant && ledger(room.occupant.login).given > 0" #meta>
             <!-- Reviews given, only once there are some: a row of zeros says nothing. -->
             <span
-              v-if="room.occupant && ledger(room.occupant.login).given > 0"
               class="given"
               :title="`${ledger(room.occupant.login).given} reviews given, ${ledger(room.occupant.login).received} received`"
               :aria-label="`${ledger(room.occupant.login).given} reviews given`"
@@ -465,32 +521,59 @@ function rundownEnded() {
       <FridgeDoor v-else-if="shownTab === 'fridge'" compact :notes="notes" />
 
       <template v-else-if="shownTab === 'bill'">
-        <template v-if="house.monthlyCostFcfa && share">
-          <p class="cost">
-            <strong>{{ fcfa(house.monthlyCostFcfa) }}</strong>
-            <span class="muted"> a month, about {{ fcfa(share) }} a room</span>
-          </p>
+        <PayBill
+          v-if="paying && myDue && bill"
+          :house-id="house.id"
+          :line="myDue"
+          :operators="bill.operators"
+          :reference="bill.reference"
+          :chef="chef"
+          @paid="paid"
+          @back="paying = false"
+        />
+        <!-- The month's bill: the total, then a line per flatmate, yours first, in two sentences each. -->
+        <template v-else-if="bill">
+          <p class="cost">{{ billHead(bill) }}</p>
+          <ul class="plain lines">
+            <ListRow v-for="l in billLines" :key="l.login" :title="lineWords(l, me).reviews" :mine="l.login === me">
+              <span class="sub">{{ lineWords(l, me).owes }}</span>
+              <template #lead>
+                <span class="face">
+                  <Avatar :person="personOf(l)" :size="40" decorative />
+                  <StatusDot class="on-face" :state="lineState(l)" />
+                </span>
+              </template>
+            </ListRow>
+          </ul>
+        </template>
+        <!-- An API without the bill yet: the month's cost split evenly, as an estimate. -->
+        <template v-else-if="house.monthlyCostFcfa && share">
+          <p class="cost">{{ fcfa(house.monthlyCostFcfa) }} a month, about {{ fcfa(share) }} a room.</p>
           <ul class="plain lines">
             <ListRow
               v-for="r in lived"
               :key="r.name"
-              :title="nameOf(r.occupant!)"
-              :sub="r.project ? `${r.project} · room ${r.name}` : `Room ${r.name}`"
+              :title="viewer?.room === r.name ? `Your share is about ${fcfa(share)}.` : `${nameOf(r.occupant!).split(' ')[0]}'s share is about ${fcfa(share)}.`"
               :mine="viewer?.room === r.name"
             >
               <template #lead><Avatar :person="r.occupant!" :size="40" decorative /></template>
-              <template #meta><span class="amount">{{ fcfa(share) }}</span></template>
             </ListRow>
           </ul>
         </template>
         <p v-else class="muted none">{{ chef ? "No server yet. Rent it with the button below." : "No server yet. The chef rents it." }}</p>
+        <p class="sr-only" aria-live="polite">{{ paidSaid }}</p>
       </template>
 
       <template #foot>
         <div class="foot" data-tour="foot">
-          <RouterLink v-if="foot.kind === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />Log in to knock</RouterLink>
-          <button v-else-if="footButton" type="button" class="primary go" @click="go"><Icon :name="footButton.icon" :size="20" />{{ footButton.word }}</button>
-          <p v-else-if="foot.kind === 'say'" class="say">{{ foot.text }}</p>
+          <!-- On the Bill tab, with your share still to pay, paying it is the next step. While the pay sheet is up,
+               its own button is the one to press, so the foot stays empty. -->
+          <button v-if="payButton" type="button" class="primary go" @click="paying = true"><Icon name="bill" :size="20" />Pay your {{ fcfa(myDue!.due) }}</button>
+          <template v-else-if="!paying || shownTab !== 'bill'">
+            <RouterLink v-if="foot.kind === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />Log in to knock</RouterLink>
+            <button v-else-if="footButton" type="button" class="primary go" @click="go"><Icon :name="footButton.icon" :size="20" />{{ footButton.word }}</button>
+            <p v-else-if="foot.kind === 'say'" class="say">{{ foot.text }}</p>
+          </template>
         </div>
       </template>
     </Panel>
@@ -499,7 +582,7 @@ function rundownEnded() {
 
     <template v-if="house">
       <!-- The parts it points at carry data-tour="header | crew | tabs | rooms | foot". -->
-      <Rundown v-if="rundownOn" :name="house.name" :next="tourLast" @done="rundownEnded" />
+      <Rundown v-if="rundownOn" :name="house.name" :demo="house.demo" :next="tourLast" @done="rundownEnded" />
       <RentServer v-if="renting" :house-id="house.id" :live="live" :resume="keyMade" @close="renting = false" />
       <KnockSteps
         v-if="knocking"
@@ -525,8 +608,17 @@ function rundownEnded() {
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; font-size: 14px; font-weight: 600; }
 .chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .chip:active:not(:disabled) { transform: scale(0.96); }
-/* The rule, read-only, for everyone but the chef: a quiet pill beside the state, never truncated like the city. */
-.rule { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; background: var(--fill); color: var(--muted); font-size: 13px; font-weight: 600; }
+/* The exchange under the faces: two quiet sentences, each at most two lines. */
+.life { display: grid; gap: 4px; font-size: 13px; line-height: 1.35; color: var(--muted); }
+.life p { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tontine { color: var(--text); }
+/* The tontine's line shows its faces' glow whole, so it doesn't clip like the other line. */
+.life p.tontine { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; overflow: visible; padding-left: 3px; }
+/* The tontine's faces in turn order: whose turn it is, lit in warm light, then the next ones, smaller. */
+.turn-said { flex: 1 1 220px; min-width: 0; }
+.turns { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+.turns > :not(.now) { opacity: 0.75; }
+.turns > .now { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn), 0 0 12px 3px var(--warn-soft); margin: 0 4px 0 3px; }
 
 .plain { list-style: none; margin: 0; padding: 0; }
 /* A tighter line height than the page's, so a row stays at the row's 60px and six of them fit with the head. */
@@ -537,13 +629,14 @@ function rundownEnded() {
 .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub.warn { color: var(--danger); }
 .given { display: inline-flex; align-items: center; gap: 3px; }
+/* A face with its state's dot on the lower right, like a presence dot in a game's friend list. */
+.face { position: relative; display: inline-grid; }
+.on-face { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; box-shadow: 0 0 0 2px var(--tile); }
 /* Buttons and links in a row carry an icon beside their word. */
 .lines :deep(.end button), .lines :deep(.end a.button) { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 .when { color: var(--warn); font-weight: 600; }
 .when.late { color: var(--danger); }
-.cost { font-size: 15px; }
-.cost strong { font-size: 22px; }
-.amount { color: var(--text); font-weight: 600; }
+.cost { font-size: 15px; line-height: 1.4; }
 
 /* The channel fills the body, so the chat can keep its box and scroll its messages inside it. */
 .chat-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -555,6 +648,9 @@ function rundownEnded() {
 a.go:hover { text-decoration: none; }
 .say { min-height: 48px; display: flex; align-items: center; font-size: 14px; color: var(--muted); }
 @media (max-width: 480px) {
+  /* A phone keeps only whose turn it is beside the sentence, so the line stays two lines high. */
+  .life p.tontine { flex-wrap: nowrap; }
+  .turns > :not(.now) { display: none; }
   .chip { padding: 0 10px; }
   .chip-word { display: none; }
 }

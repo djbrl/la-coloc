@@ -10,10 +10,12 @@ import {
   memoryUse,
   neverOnline,
   parsePort,
+  projectTitle,
   secretName,
   secretNameOk,
   settingsBody,
-  stateSince,
+  roomSentence,
+  span,
   updateTile,
 } from "./room";
 
@@ -53,7 +55,14 @@ describe("the update tile", () => {
   });
 });
 
-describe("the stat tiles", () => {
+describe("how the room is doing", () => {
+  it("names the project, or says what it is, or Hello in the workshop", () => {
+    expect(projectTitle({ project: "Ndaje", projectDescription: "A shop." })).toBe("Ndaje");
+    expect(projectTitle({ project: null, projectDescription: "A shop." })).toBe("A shop.");
+    expect(projectTitle({ project: null, projectDescription: null }, true)).toBe("Hello");
+    expect(projectTitle({ project: "", projectDescription: null })).toBe("Untitled project");
+  });
+
   it("reads memory against the limit", () => {
     expect(memoryUse(null)).toBeNull();
     expect(memoryUse({ cpuPercent: 0, memoryBytes: 0, memoryLimitBytes: 0, at: "" })).toBeNull();
@@ -61,13 +70,20 @@ describe("the stat tiles", () => {
     expect(memoryUse({ cpuPercent: 1, memoryBytes: 300 * 1048576, memoryLimitBytes: 256 * 1048576, at: "" })?.pct).toBe(100);
   });
 
-  it("says since when it's online, or when it last built", () => {
-    const when = (iso: string) => iso.slice(11, 16);
-    const builds = [build("prod", "failed", "2026-10-10T12:00:00Z"), build("prod", "live", "2026-10-10T09:30:00Z")];
-    expect(stateSince("live", builds, when)).toBe("since 09:30");
-    expect(stateSince("failed", builds, when)).toBe("last build 12:00");
-    expect(stateSince("empty", [], when)).toBe("never built");
-    expect(stateSince("live", [], when)).toBe("running now");
+  it("says how the room is doing in one sentence", () => {
+    const now = Date.parse("2026-10-10T12:00:00Z");
+    const limits = { memoryMb: 256, cpus: 0.5 };
+    const usage = { cpuPercent: 0.2, memoryBytes: 9 * 1048576, memoryLimitBytes: 256 * 1048576, at: "" };
+    const builds = [build("prod", "failed", "2026-10-10T10:00:00Z"), build("prod", "live", "2026-10-07T12:00:00Z")];
+    expect(roomSentence({ status: "live", limits, usage }, builds, now)).toBe("Online for 3 days, using 9 of its 256 MB and almost no CPU.");
+    expect(roomSentence({ status: "live", limits, usage: { ...usage, cpuPercent: 12.4 } }, [], now)).toBe("Online, using 9 of its 256 MB and 12% of a CPU.");
+    expect(roomSentence({ status: "empty", limits, usage: null }, [], now)).toBe("Never built yet. It has 256 MB of memory and half a CPU of its own.");
+    expect(roomSentence({ status: "failed", limits: { memoryMb: 512, cpus: 1 }, usage: null }, builds, now)).toBe(
+      "Its last build failed 2 hours ago. It has 512 MB of memory and 1 CPU of its own.",
+    );
+    expect(span(3 * 60_000)).toBe("a few minutes");
+    expect(span(25 * 60_000)).toBe("25 minutes");
+    expect(span(3600_000)).toBe("1 hour");
   });
 });
 

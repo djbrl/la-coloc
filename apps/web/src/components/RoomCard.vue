@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // One lived-in room at work, as a row on a house's page in the list view: who lives there and what they build,
-// how much of the room's memory and CPU the project is using right now, the reviews its flatmate has given and
+// its state (a dot on the face, and in words) and how much of the room's memory and CPU it's using right now, the reviews its flatmate has given and
 // got, and, for the chef, the way into that room to manage it. The house panel above already lists the rooms with
 // their one action each (Visit, Open, Knock); this row is about the server's load.
 import { computed } from "vue";
 import Avatar from "./Avatar.vue";
 import Icon from "./lobby/house/Icon.vue";
 import ListRow from "./lobby/panel/ListRow.vue";
-import StatusPill from "./lobby/panel/StatusPill.vue";
+import StatusDot from "./lobby/panel/StatusDot.vue";
 import { roomState } from "./lobby/panel/words";
 import { type WorkRow, workLine } from "./list/house";
 
@@ -20,7 +20,12 @@ const title = computed(() => (props.row.room.project ? `${name.value} · ${props
 
 <template>
   <ListRow :title="title" :mine="mine">
-    <template #lead><Avatar :person="person" :size="40" decorative /></template>
+    <template #lead>
+      <span class="face">
+        <Avatar :person="person" :size="40" decorative />
+        <StatusDot class="on-face" :state="roomState(row.room)" />
+      </span>
+    </template>
     <span class="use">
       <span
         v-if="row.memory"
@@ -30,10 +35,8 @@ const title = computed(() => (props.row.room.project ? `${name.value} · ${props
       ><span class="fill" :class="{ high: row.memory.pct >= 80 }" :style="{ width: row.memory.pct + '%' }" /></span>
       <span class="sub">{{ workLine(row) }}</span>
     </span>
-    <template #meta>
-      <StatusPill :state="roomState(row.room)" />
+    <template v-if="row.given || row.received" #meta>
       <span
-        v-if="row.given || row.received"
         class="reviews"
         :title="`${row.given} reviews given, ${row.received} received`"
         :aria-label="`${row.given} reviews given, ${row.received} received`"
@@ -48,6 +51,9 @@ const title = computed(() => (props.row.room.project ? `${name.value} · ${props
 </template>
 
 <style scoped>
+/* A face with its state's dot on the lower right, as on the house panel's rows. */
+.face { position: relative; display: inline-grid; }
+.on-face { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; box-shadow: 0 0 0 2px var(--tile); }
 .use { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .gauge { flex: none; width: 56px; }
 .use .sub { min-width: 0; }
