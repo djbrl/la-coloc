@@ -108,6 +108,28 @@ export class HousesService {
     return { secret, plan, monthlyCostFcfa, domain: updated[0].domain };
   }
 
+  /**
+   * The chef sets the house's review rule. Strict: a merge only goes online once a flatmate approves it (see the
+   * GitHub deploys). Relaxed: it goes online anyway, with a note. Example houses keep the rule the seed gave them.
+   * Setting the rule it already has changes nothing and pins no note.
+   */
+  async setRules(houseId: string, strictReviews: boolean, by: string): Promise<{ strictReviews: boolean }> {
+    const [h] = await this.db.select({ demo: houses.demo, rules: houses.rules }).from(houses).where(eq(houses.id, houseId));
+    if (!h) throw new NotFoundException();
+    if (h.demo) throw new ConflictException("This is an example house: its rules are for show.");
+    if (h.rules.strictReviews === strictReviews) return h.rules;
+    const rules = { ...h.rules, strictReviews };
+    await this.db.update(houses).set({ rules }).where(eq(houses.id, houseId));
+    await this.addNote(houseId, {
+      tone: "info",
+      text: strictReviews
+        ? `${by} made reviews strict: merges go online once a flatmate approves.`
+        : `${by} made reviews relaxed: merges go online without waiting for a review.`,
+    });
+    this.changes.next(houseId);
+    return rules;
+  }
+
   /** The house's agent just proved its secret: a house still in the making is now live. Returns true if it flipped. */
   async markLive(houseId: string): Promise<boolean> {
     const flipped = await this.db

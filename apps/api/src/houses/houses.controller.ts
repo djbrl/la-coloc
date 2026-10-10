@@ -9,6 +9,7 @@ import {
   MessageEvent,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Req,
   Sse,
@@ -41,6 +42,11 @@ const RentBody = z.object({
 const ServerBody = z.object({
   plan: z.enum(["small", "medium", "large"], { errorMap: () => ({ message: "Pick a small, medium or large server." }) }),
   renew: z.boolean().optional(),
+});
+
+// The house's review rule. Strict: a merge only goes online once a flatmate approves it.
+const RulesBody = z.object({
+  strictReviews: z.boolean({ errorMap: () => ({ message: "Say whether reviews are strict: true or false." }) }),
 });
 
 function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, body: unknown): T {
@@ -99,6 +105,17 @@ export class HousesController {
     // A new key replaces the old one: an agent still on the line with the old key is hung up on.
     if (input.renew) this.agents.hangUp(id, "the house's key was replaced");
     return { secret, command: installCommand(id, secret, this.auth.config.publicUrl, domain), plan, monthlyCostFcfa };
+  }
+
+  // The chef switches the house between strict and relaxed reviews. The flatmates hear of it on the fridge.
+  @Patch(":id/rules")
+  async setRules(@Param("id") id: string, @Body() body: unknown, @Req() req: HttpRequest) {
+    const user = await this.auth.userFromRequest(req);
+    if (!user) throw new UnauthorizedException("Log in first.");
+    if (!(await this.houses.exists(id))) throw new NotFoundException();
+    if ((await this.houses.membership(id, user.id))?.role !== "chef") throw new ForbiddenException("Only the chef sets the house's rules.");
+    const input = parse(RulesBody, body);
+    return { rules: await this.houses.setRules(id, input.strictReviews, user.name ?? user.login) };
   }
 
   // Empties a room: every container in it is stopped and removed. The base for eviction, so chef only.

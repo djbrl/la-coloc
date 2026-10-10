@@ -25,6 +25,7 @@ import Inside from "./lobby/Inside.vue";
 import KeyLegend from "./lobby/KeyLegend.vue";
 import KeysSheet from "./lobby/KeysSheet.vue";
 import Minimap from "./lobby/Minimap.vue";
+import TouchDash from "./lobby/TouchDash.vue";
 import PersonCard from "./lobby/PersonCard.vue";
 import { type Place, placeKey } from "./lobby/place";
 import RentSteps from "./lobby/RentSteps.vue";
@@ -731,6 +732,8 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
       <div v-if="neighbourhood && shows('map')" class="hud map" :class="{ covered: !!card }">
         <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" @travel="fastTravel" />
       </div>
+      <!-- Phones have no Shift: a round dash button above the minimap, there whenever the round tools are. -->
+      <TouchDash v-if="shows('tools') && !place && !card" @dash="lobby?.dash()" />
 
       <!-- The tutorial's two welcome cards: before the first step, and in the real city after the last. -->
       <Welcome v-if="t.active && (t.step === 'welcome' || t.step === 'city')" :key="t.step" :step="t.step === 'city' ? 'city' : 'welcome'" :busy="tutorial.busy.value" @start="startTutorial" @skip="tutorial.finish" @end="endTutorial" />

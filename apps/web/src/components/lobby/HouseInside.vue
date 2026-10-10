@@ -4,12 +4,13 @@
 // foot. Everything fits the sheet without scrolling; only the body scrolls, inside itself, when a list or the chat
 // is longer than the space. The house view arrives from the API and keeps arriving over its stream, as on HousePage.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import { postJSON } from "../../session";
+import { postJSON, sendJSON } from "../../session";
 import type { HouseView, Room } from "../../types";
 import Avatar from "../Avatar.vue";
 import ChatPanel from "../ChatPanel.vue";
 import FridgeDoor from "../FridgeDoor.vue";
 import KnockSteps from "../KnockSteps.vue";
+import UiNote, { loud, type Note } from "../UiNote.vue";
 import { crewOf, footFor, rowAction, type Seat, type Situation } from "./house/crew";
 import Crew from "./house/Crew.vue";
 import Icon from "./house/Icon.vue";
@@ -30,13 +31,15 @@ const props = defineProps<{
   // The tutorial asks for the window's rundown (Rundown.vue). It also stands in for the first-time tour.
   rundown?: boolean;
 }>();
-const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: [] }>();
+// `view`: the house as it arrives (first fetch, then each push on its stream), for a page that shows more of it.
+const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: []; view: [house: HouseView | null] }>();
 
 // The chef's server info is new on the API side; reading it through this type works whether or not the shared
 // HouseView type has caught up.
 type View = HouseView & { server?: ServerInfo | null };
 
 const house = ref<View | null>(null);
+watch(house, (h) => emit("view", h));
 const error = ref("");
 let source: EventSource | null = null;
 
@@ -63,6 +66,7 @@ watch(
 onBeforeUnmount(() => {
   source?.close();
   clearTimeout(litTimer);
+  clearTimeout(rulesNoteTimer);
 });
 
 // Who's looking. Everything below branches on these; crew.ts decides what each of them is offered.
@@ -114,9 +118,9 @@ watch(member, (is) => {
 const shownTab = computed((): TabKey => (member.value ? tab.value : "rooms"));
 const explainLine = computed(() => explain[shownTab.value]);
 
-// The chef of a house being made can invite people and see the review rule from the head.
+// The chef of a house being made can invite people from the head. In any state, the chef also sets the review rule
+// there; everyone else sees it as a pill in the head's line.
 const copied = ref(false);
-const rulesSoon = ref(false);
 async function copyLink() {
   const link = `${location.origin}/houses/${encodeURIComponent(props.id)}`;
   try {
@@ -127,10 +131,34 @@ async function copyLink() {
     // No clipboard (an old browser, or no permission): the link is in the address bar anyway.
   }
 }
-function rules() {
-  // There's no endpoint to switch the rule yet; the button shows the state and says so for a moment.
-  rulesSoon.value = true;
-  setTimeout(() => (rulesSoon.value = false), 1500);
+
+// The review rule, in the words both the chef's switch and everyone's pill use. Strict: a merge only goes online
+// once a flatmate approves it (the API's GitHub deploys hold it back otherwise).
+const strict = computed(() => !!house.value?.rules.strictReviews);
+const ruleWord = computed(() => (strict.value ? "Strict" : "Relaxed"));
+const ruleSentence = computed(() =>
+  strict.value ? "Strict reviews: merges go online once a flatmate approves." : "Relaxed reviews: merges go online without waiting for a review.",
+);
+const savingRules = ref(false);
+const rulesNote = ref<Note | null>(null);
+let rulesNoteTimer = 0;
+async function switchRules() {
+  const h = house.value;
+  if (!h || savingRules.value) return;
+  savingRules.value = true;
+  rulesNote.value = null;
+  const res = await sendJSON<{ rules: { strictReviews: boolean } }>("PATCH", `/api/houses/${encodeURIComponent(h.id)}/rules`, {
+    strictReviews: !h.rules.strictReviews,
+  });
+  savingRules.value = false;
+  // The stream brings the new rule too; taking the answer's copy right away saves the switch a visible lag.
+  if (res.ok) {
+    if (house.value?.id === h.id) house.value = { ...house.value, rules: res.data.rules };
+    return;
+  }
+  rulesNote.value = loud(res.message);
+  clearTimeout(rulesNoteTimer);
+  rulesNoteTimer = window.setTimeout(() => (rulesNote.value = null), 5000);
 }
 
 const renting = ref(false);
@@ -305,22 +333,34 @@ function rundownEnded() {
         <div class="head">
           <div data-tour="header">
             <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
-              <template v-if="chef && making" #aside>
-                <button type="button" class="chip" :aria-label="copied ? 'Invite link copied' : 'Copy an invite link'" @click="copyLink">
+              <!-- Everyone but the chef reads the rule here; the chef has the switch in the aside instead. An example
+                   house's rule can't change, so its chef reads it here too. -->
+              <template v-if="!chef || house.demo" #line>
+                <span class="rule" :title="ruleSentence">
+                  <Icon name="rules" :size="14" /><span class="chip-word" aria-hidden="true">{{ ruleWord }}</span><span class="sr-only">{{ ruleSentence }}</span>
+                </span>
+              </template>
+              <template v-if="chef && (making || !house.demo)" #aside>
+                <button v-if="making" type="button" class="chip" :aria-label="copied ? 'Invite link copied' : 'Copy an invite link'" @click="copyLink">
                   <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? "Copied" : "Invite" }}</span>
                 </button>
+                <!-- A toggle: pressed is strict. Its name stays "Strict reviews" so the pressed state reads true. -->
                 <button
+                  v-if="!house.demo"
                   type="button"
                   class="chip"
-                  :aria-pressed="house.rules.strictReviews"
-                  :aria-label="`Review rule: ${house.rules.strictReviews ? 'strict' : 'relaxed'}`"
-                  @click="rules"
+                  :aria-pressed="strict"
+                  aria-label="Strict reviews"
+                  :title="`${ruleSentence} Press to switch.`"
+                  :disabled="savingRules"
+                  @click="switchRules"
                 >
-                  <Icon name="rules" :size="16" /><span class="chip-word">{{ rulesSoon ? "Soon" : house.rules.strictReviews ? "Strict" : "Relaxed" }}</span>
+                  <Icon name="rules" :size="16" /><span class="chip-word">{{ ruleWord }}</span>
                 </button>
               </template>
             </PanelHead>
           </div>
+          <UiNote v-if="rulesNote" :note="rulesNote" />
           <Crew data-tour="crew" :seats="seats" @pick="pick" />
         </div>
       </template>
@@ -484,6 +524,9 @@ function rundownEnded() {
 /* The chef's two small things in the head: chunky pills with an icon, like a game's menu buttons. */
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; font-size: 14px; font-weight: 600; }
 .chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.chip:active:not(:disabled) { transform: scale(0.96); }
+/* The rule, read-only, for everyone but the chef: a quiet pill beside the state, never truncated like the city. */
+.rule { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; background: var(--fill); color: var(--muted); font-size: 13px; font-weight: 600; }
 
 .plain { list-style: none; margin: 0; padding: 0; }
 /* A tighter line height than the page's, so a row stays at the row's 60px and six of them fit with the head. */
