@@ -426,3 +426,32 @@ the list view's city and house pages in light and dark; the subagent checked eve
 - The find and travel sheets copy the row's look in CSS rather than using `ListRow`.
 - Settings' new icons (sun, moon, walk, list…) live in `SettingsPane.vue`, not `icons.ts`.
 - The loading screen is light in day mode now, so the city fades in from a light screen.
+
+## 10 10 2026, review fixes: the API side
+
+The adversarial review (`adversarial_review.md`) said the exchange was invisible: ledgers at zero, no reviews as
+rent, no tontine, no mobile money. Four agents fixed it in parallel; this is the API's part.
+
+| What | Where |
+|---|---|
+| **Reviews as rent (R15)**: each review done this month knocks 500 FCFA off its reviewer's line. Whoever let reviews go late pays for those credits, at most 500 per late review; the house pool pays the rest, so the lines add up to the total minus the pool | `packages/domain/src/bill.ts` `creditReviews` (5 tests) |
+| **Tontine turns (R17)**: a fortnight each, in tontine-position order, counted from Monday 21 09 2026 for every house, so turns pass on the same Monday everywhere and never depend on when someone looked | `packages/domain/src/tontine.ts` `tontineTurn` (3 tests), `apps/api/src/houses/money.ts` |
+| **The city's live exchange (R12, R19, R32)**: per house `openChores`, `lateChores`, `knocking`, `reviewsThisMonth`, `tontine`, and per room `building` (its latest prod deploy, `rooms.lastDeployId`, still on its way and updated in the last 15 minutes). On the city stream too | `houses.service.ts` `city()` |
+| **The house page**: `reviewsThisMonth` and `tontine` for everyone, `bill` for flatmates; `POST /api/houses/:id/bill/paid` marks your own line paid (a mock; no money moves) | `houses.service.ts`, `houses.controller.ts`, migration `0010_bill_payments.sql` |
+| **Mobile money (R16)**: operator names per country, text only. Amounts stay in FCFA | `money.ts` |
+| **Demo reset (R7)**: only for `COLOC_ADMINS` (default `jib,Djbrl` when the dev login is on), at most once every ten minutes; `GET /api/auth/config` says `demoReset` per viewer | `demo/*`, `auth.config.ts`, `auth.controller.ts` |
+| **A free room is empty (R24)**, whatever runs there, and the caretaker is asked to clear a free room that still has containers (the existing `remove_room` command) | `houses.service.ts` `applySnapshot`, `agents.gateway.ts` |
+| **A month of life (R4)**: Sacré-Cœur's ledger (Awa 7/5, Jib 5/6, Moussa 4/5), two open reviews on `Djbrl/coloc-test` (one late), a dozen messages in English, French and a little Wolof, fridge notes, 3–5 deploys per lived-in room, part of the bill paid; demo houses get reviews, a short chat, notes and deploys too. Seed rows only: nothing calls GitHub, no @-mentions. The dev seed and the demo reset plant it; tests start from the bare city | `apps/api/src/seed/life.ts`, `seed/city.ts` (`life: true`) |
+| **Apps that know where they live (R14)**: every deploy gets `COLOC_ROOM`, `COLOC_HOUSE`, `COLOC_CITY`, `COLOC_COUNTRY`, `COLOC_LOGIN`, `COLOC_NAME` (reserved: secrets can't use them). The tutorial's Hello is a calm page greeting in the city's language ("Nanga def, Awa!"); new `examples/ndaje` (a shop, FCFA prices, a mock mobile-money button) and `examples/prix-marche` (Sandaga and Tilène prices). Awa's and Moussa's seeded rooms point at them | `rooms/room-deployer.ts`, `examples/*` |
+| **Ship hygiene (R10)**: `start.html` moved out of `public/` to `apps/web/dev/` (dev server only, at `/dev/start.html`); `lang="en"`; English description and Open Graph tags; README status | `apps/web/dev/start.html`, `apps/web/index.html`, `README.md` |
+
+### Verified
+Tests: domain 22, protocol 4, db 2, API 149 (9 new in `houses/exchange.test.ts`, 4 new in `demo.test.ts`, 1 in
+`rooms.test.ts`). `npm run build -w @coloc/api` passes. A seeded city printed as expected: Sacré-Cœur shows 2 reviews
+waiting (1 late), 7 this month, Awa's turn until 19 10, and a bill of 3 800 / 2 800 (paid) / 2 400 FCFA with
+3 000 FCFA from the pool. The example apps were run locally with `node` and answer both a browser and curl.
+
+### Rough edges
+- The tontine's turn changes at midnight without an event, so an open city stream shows it after the next change.
+- The examples only reach rooms once this commit is pushed: the seed points at `Djbrl/la-coloc`'s `examples/`.
+- Seeded PR links on `Djbrl/coloc-test` may not match real pull requests there.

@@ -87,11 +87,26 @@ describe("settings and secrets", () => {
     as = "awa";
     await controller.settings("sacre-coeur", "awa", { buildPath: "apps/shop", port: 8080, branch: "prod", project: "Ndaje v2" }, req);
     await controller.setSecret("sacre-coeur", "awa", "WAVE_KEY", { value: "wv_live_123" }, req);
+    // No source: the room has never been deployed from a URL (the seed points it at an example app; forget it).
+    await db.update(rooms).set({ source: null }).where(eq(rooms.name, "awa"));
     await controller.redeploy("sacre-coeur", "awa", req).catch(() => undefined);
-    // No source yet: the room has never been deployed from a URL.
     expect(sent).toHaveLength(0);
     await controller.deploy("sacre-coeur", "awa", { repo: "https://github.com/awa/ndaje.git" }, req);
     expect(deployCmd()).toMatchObject({ path: "apps/shop", port: 8080, ref: "prod", env: { WAVE_KEY: "wv_live_123" } });
+  });
+
+  it("tells the app where it lives, so it can greet in its own city", async () => {
+    as = "awa";
+    await controller.deploy("sacre-coeur", "awa", { repo: "https://github.com/awa/ndaje.git" }, req);
+    expect(deployCmd().env).toMatchObject({
+      COLOC_ROOM: "awa",
+      COLOC_HOUSE: "Sacré-Cœur",
+      COLOC_CITY: "Dakar",
+      COLOC_COUNTRY: "SN",
+      COLOC_LOGIN: "awa",
+      COLOC_NAME: "Awa",
+    });
+    await expect(controller.setSecret("sacre-coeur", "awa", "COLOC_CITY", { value: "Paris" }, req)).rejects.toThrow(/set by La Coloc/);
   });
 
   it("stores secrets encrypted, and only ever shows their names", async () => {

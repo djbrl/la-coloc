@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Logger, Patch, Post, Query, Req, Res, UnauthorizedException } from "@nestjs/common";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { isAdmin } from "./auth.config";
 import { AuthService, SESSION_COOKIE, SESSION_DAYS, STATE_COOKIE } from "./auth.service";
 import { clearCookie, type HttpRequest, type HttpResponse, parseCookies, setCookie } from "./http";
 import { MembershipsService } from "./memberships.service";
@@ -24,10 +25,15 @@ export class AuthController {
     private readonly memberships: MembershipsService,
   ) {}
 
-  // Tells the login page which buttons to show.
+  // Tells the login page which buttons to show. The demo reset only shows for admins, on a server that has it on.
   @Get("auth/config")
-  config() {
-    return { github: !!this.auth.config.github, dev: this.auth.config.devLogin, demoReset: this.auth.config.demoReset };
+  async config(@Req() req: HttpRequest) {
+    const viewer = this.auth.config.demoReset ? await this.auth.userFromRequest(req) : null;
+    return {
+      github: !!this.auth.config.github,
+      dev: this.auth.config.devLogin,
+      demoReset: this.auth.config.demoReset && isAdmin(this.auth.config, viewer?.login),
+    };
   }
 
   @Get("auth/github")

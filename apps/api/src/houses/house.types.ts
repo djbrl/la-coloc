@@ -91,6 +91,51 @@ export interface HouseView {
   server: { plan: HousePlan | null; keyMade: boolean } | null;
   // Public: who reviewed how much. The house's reputation in the city.
   ledger: LedgerLine[];
+  // Public: reviews done inside this house this calendar month.
+  reviewsThisMonth: number;
+  // Public: whose project the house rallies behind this fortnight, who comes next, and when the turn passes.
+  tontine: TontineView | null;
+  // Flatmates only: this month's bill, with reviews paid as rent.
+  bill: BillView | null;
+}
+
+export interface TontineView {
+  current: (PersonView & { project: string | null }) | null;
+  line: PersonView[];
+  // ISO date: when the turn passes to the next in line.
+  until: string;
+}
+
+export interface BillLineView {
+  login: string;
+  name: string | null;
+  // Their part of the server, by room size and CPU used (domain splitBill).
+  share: number;
+  // Reviews they did this month, and what those knocked off (reviews × reviewCredit, at most their share).
+  reviews: number;
+  credit: number;
+  // Reviews they let go late this month, and what they pay towards everyone's credits because of it.
+  skipped: number;
+  surcharge: number;
+  // What they owe: share − credit + surcharge.
+  due: number;
+  paid: boolean;
+}
+
+export interface BillView {
+  // "2026-10"
+  month: string;
+  // The house's monthly cost, in FCFA.
+  total: number;
+  // FCFA knocked off per review done this month.
+  reviewCredit: number;
+  lines: BillLineView[];
+  // Credits nobody's skipped chores paid for: the house pool covers them, so the lines add up to total − pool.
+  pool: number;
+  // How to pay in the house's country, as text (no logos).
+  operators: string[];
+  // What to write in the payment's note.
+  reference: string;
 }
 
 export interface ChoreView {
@@ -124,7 +169,17 @@ export interface CityHouseView {
   monthlyCostFcfa: number | null;
   // The lobby plot it rented ("2.1.0.1"), or null: the lobby places it near the market.
   plot: string | null;
-  rooms: Pick<RoomView, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant">[];
+  // building: a prod deploy is running for that room right now, even if an older version is live.
+  rooms: (Pick<RoomView, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant"> & { building: boolean })[];
+  // Reviews waiting in this house, and how many of them are late. Counts only: titles are for flatmates.
+  openChores: number;
+  lateChores: number;
+  // Open knocks on the house.
+  knocking: number;
+  // Reviews done inside this house this calendar month.
+  reviewsThisMonth: number;
+  // Whose project the house rallies behind this fortnight.
+  tontine: { login: string; name: string | null; project: string | null } | null;
 }
 
 export interface CityView {

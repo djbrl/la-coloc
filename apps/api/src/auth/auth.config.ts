@@ -8,6 +8,14 @@ export interface AuthConfig {
   secureCookies: boolean;
   // Demo servers only: a button puts the whole city back to the seed (COLOC_DEMO_RESET=1).
   demoReset: boolean;
+  // Who may press it: GitHub logins, from COLOC_ADMINS (a comma list). With the dev login on and no list given,
+  // Jib's logins ("jib", "Djbrl"); otherwise nobody.
+  admins: string[];
+}
+
+// Is this login one of the admins? Logins are compared without case, as GitHub does.
+export function isAdmin(config: AuthConfig, login: string | null | undefined): boolean {
+  return !!login && config.admins.some((a) => a.toLowerCase() === login.toLowerCase());
 }
 
 export function loadAuthConfig(env = process.env): AuthConfig {
@@ -20,5 +28,9 @@ export function loadAuthConfig(env = process.env): AuthConfig {
     devLogin: env.COLOC_DEV_LOGIN === "1",
     secureCookies: publicUrl.startsWith("https://"),
     demoReset: env.COLOC_DEMO_RESET === "1",
+    admins: (env.COLOC_ADMINS ?? (env.COLOC_DEV_LOGIN === "1" ? "jib,Djbrl" : ""))
+      .split(",")
+      .map((a) => a.trim())
+      .filter(Boolean),
   };
 }

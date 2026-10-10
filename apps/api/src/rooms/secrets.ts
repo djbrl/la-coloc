@@ -2,9 +2,10 @@
 // doesn't leak anyone's API keys. The key comes from COLOC_SECRETS_KEY and lives only in the API's environment.
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
-// Shell-style names. PORT is ours: the room's port comes from its settings.
+// Shell-style names. PORT is ours: the room's port comes from its settings. So are the COLOC_ ones: they tell the
+// app where it lives (see RoomDeployer.context).
 export const SECRET_NAME = /^[A-Z_][A-Z0-9_]{0,63}$/;
-export const RESERVED = new Set(["PORT"]);
+export const RESERVED = new Set(["PORT", "COLOC_ROOM", "COLOC_HOUSE", "COLOC_CITY", "COLOC_COUNTRY", "COLOC_LOGIN", "COLOC_NAME"]);
 export const MAX_SECRET_BYTES = 4096;
 export const MAX_SECRETS = 50;
 

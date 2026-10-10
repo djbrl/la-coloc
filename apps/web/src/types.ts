@@ -127,6 +127,52 @@ export interface HouseView {
   tutorial?: boolean;
   // Public: reviews given and received per flatmate.
   ledger: { login: string; given: number; received: number }[];
+  // Public: reviews done inside this house this calendar month.
+  reviewsThisMonth: number;
+  // Public: whose project the house rallies behind this fortnight, who comes next, and when the turn passes.
+  tontine: Tontine | null;
+  // Flatmates only: this month's bill, with reviews paid as rent.
+  bill: Bill | null;
+}
+
+export interface Tontine {
+  current: (Person & { project: string | null }) | null;
+  line: Person[];
+  // ISO date: when the turn passes to the next in line.
+  until: string;
+}
+
+export interface BillLine {
+  login: string;
+  name: string | null;
+  // Their part of the server, by room size and CPU used.
+  share: number;
+  // Reviews they did this month, and what those knocked off (reviews × reviewCredit, at most their share).
+  reviews: number;
+  credit: number;
+  // Reviews they let go late this month, and what they pay towards everyone's credits because of it
+  // (at most reviewCredit per skip).
+  skipped: number;
+  surcharge: number;
+  // What they owe: share − credit + surcharge.
+  due: number;
+  paid: boolean;
+}
+
+export interface Bill {
+  // "2026-10"
+  month: string;
+  // The house's monthly cost, in FCFA.
+  total: number;
+  // FCFA knocked off per review done this month (500).
+  reviewCredit: number;
+  lines: BillLine[];
+  // Credits no skipped review paid for: the house pool covers them, so the lines add up to total − pool.
+  pool: number;
+  // How to pay in the house's country, as text only (no logos): ["Wave", "Orange Money", "Free Money"].
+  operators: string[];
+  // What to write in the payment's note: "COLOC-SACRE-COEUR-2026-10".
+  reference: string;
 }
 
 export interface Chore {
@@ -153,7 +199,17 @@ export interface CityHouse {
   monthlyCostFcfa: number | null;
   // The lobby plot it rented ("block column.block row.plot column.plot row"), or null: placed near the market.
   plot: string | null;
-  rooms: Pick<Room, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant">[];
+  // building: a prod deploy is running for that room right now, even if an older version is live.
+  rooms: (Pick<Room, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant"> & { building: boolean })[];
+  // Reviews waiting in this house, and how many are late. Counts only: titles are for flatmates.
+  openChores: number;
+  lateChores: number;
+  // Open knocks on the house.
+  knocking: number;
+  // Reviews done inside this house this calendar month.
+  reviewsThisMonth: number;
+  // Whose project the house rallies behind this fortnight.
+  tontine: { login: string; name: string | null; project: string | null } | null;
 }
 
 export interface Me {

@@ -272,6 +272,21 @@ export const chores = pgTable(
   (t) => [uniqueIndex("chores_pr").on(t.repoId, t.prNumber), index("chores_house_status").on(t.houseId, t.status)],
 );
 
+// Someone marked their line of a month's bill as paid. A mock for the contest: no money moves yet; the bill tab
+// says so. One row per flatmate per house per month ("2026-10").
+export const billPayments = pgTable(
+  "bill_payments",
+  {
+    houseId: text("house_id").notNull().references(() => houses.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    month: text("month").notNull(),
+    // What their line said was due when they paid, in whole FCFA.
+    amount: integer("amount").notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.houseId, t.userId, t.month] })],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({ memberships: many(memberships) }));
 export const housesRelations = relations(houses, ({ many, one }) => ({
   rooms: many(rooms),

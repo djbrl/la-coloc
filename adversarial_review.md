@@ -1,0 +1,389 @@
+# La Coloc: adversarial review (10 10 2026)
+
+Reviewed by walking the running app (http://localhost:5175) in a separate headless Chrome at 1440×900 and 390×844, as
+a visitor, as a new dev-login user (`reviewer`, who went through the whole tutorial and knocked on Sacré-Cœur), and as
+`jib` (chef of Sacré-Cœur). I also read the code those screens come from. The screenshots named below are in
+`/private/tmp/claude-501/-Users-dsy-la-coloc/df183610-6920-4e68-832e-80f5dee7868a/scratchpad/review/shots/`.
+
+## Verdict
+
+1. **The peer vote: probably top 3 in Senegal.** A walkable 3D city with a real deploy is far above the median
+   hackathon entry, and peers judge on first impressions.
+2. **The final, as it stands: probably not top 3.** The engineering is real: GitHub App, rotation, isolated rooms,
+   zero-downtime swaps, and a tutorial that actually builds and serves a container in about 10 s. But a juror sees a
+   generic Western suburb in English, with the "African exchange" only in the docs.
+3. **The exchange that should win "relevance" (25) is invisible or zero.** Every house's ledger is 0/0, chores and
+   channels are empty after the demo reset, the bill is an even split with no reviews-as-rent, there's no tontine in
+   the UI and no mobile money. The flagship "Wave shop" serves `{"hello":"from my room"}`.
+4. **The 3D world is decoration, not interface.** Apart from four tiny dots on a signpost, nothing in it reflects real
+   activity. The lamps mini-game is the most visible "feature" and a juror will call it a gimmick.
+5. **Two weeks is enough to flip this.** Do the quick wins below, then French, a living exchange (seeded and shown),
+   rooms you can see from the street, and a per-city identity. That's a credible winner. Without them, it's a
+   beautiful tech demo that answers a different brief.
+
+## Prioritised fix list
+
+Quick, high-impact wins come first. H/M/L means high, medium, low; S/M/L means small, medium, large.
+
+| ID | Area | Problem (specific) | Fix (specific) | Impact | Effort |
+|---|---|---|---|---|---|
+| R1 | Onboarding copy | The visitor welcome (`components/Onboarding.vue`, steps welcome/windows/walk/join/lamps) never says Africa, exchange, reviews, rent or tontine. Its last step is "light the lamps". Its second claim is false: "Every window is someone's room", but the Kenney windows aren't tied to rooms; only the dots on the signpost are | Rewrite as 4 steps: (1) "A city of dev houses, from Dakar to Kigali." (2) "Rent a server together, pay part of the rent in code reviews." (3) "Push, and your project is online, in your room." (4) "Knock on a free room; the house votes." Drop the lamps step. Fix the windows sentence, or make it true with R12 | H | S |
+| R2 | Onboarding bug | The welcome card is 382 px tall around 142 px of content: a dead black void under the buttons (v02-3s.png, v1w2.png). Cause: `LobbyView.vue`'s scoped `.sheet { top: 50%; … }` (line 879) also applies to Onboarding's root `.sheet`, because scoped styles reach child component roots. It gets `top: 50%` plus `bottom: 24px` and stretches | Rename Onboarding's root class (for example `.welcome-card`) or give LobbyView's find/travel sheets their own class | H | S |
+| R3 | First frame | A visitor spawns on the street south of the market, behind a faded (occluded) building. No dev house is on screen; the first frame is parasols, crosswalks and a translucent box (v05-lobby.png, v10-marrakech.png). The same happens when a house opens from the top bar or a deep link: the avatar stands inside a ghosted building (j03-house.png, l01-light.png) | `neighbourhood.ts`: spawn on the sidewalk facing the nearest real house's door, with the camera turned so its front, name tag and lit rooms are in frame. `Lobby.ts`: when a house opens from the URL or the top bar, `teleport` to its door first | H | S |
+| R4 | Demo data | After the demo reset, every ledger is all zeros (`/api/houses/sacre-coeur` gives given 0 / received 0 for everyone), Chores says "No reviews waiting", the Channel says "No messages yet", History says "Nothing built yet" while the room is Online (j07-history.png) | `apps/api/src/seed/city.ts` and `apps/api/src/demo/*`: seed a month of life: ledger lines (for example Awa gave 7 / got 5), 2 open chores with real PR titles on `Djbrl/coloc-test`, a dozen channel messages (French and Wolof mixed), fridge notes (thanks, a late review), and 3–5 deployments per room. The reset must replant all of it | H | S–M |
+| R5 | HUD | The top-centre pill, the most valuable spot on screen, says "One person is walking around. 0 of 12 lamps lit." The minimap says "7 people here" at the same moment (it counts NPC residents, `Minimap.vue:90`), and the welcome claims more. It's contradictory and says nothing about the product | `LobbyView.vue` `hereLine`/`lampLine`: replace it with live city activity from the city stream: "Dakar: 7 projects online, 1 building, 2 reviews waiting." Make the minimap count online people only, or say "7 residents, 1 online" | H | S |
+| R6 | Accessibility | Tab is hijacked from page load: focus sits on `<body>`, and `Lobby.ts` keydown (line ~1321) cycles 3D targets whenever focus is on body. Eight Tab presses never left BODY (k01.png). Keyboard users can't reach the skip link, Log in, Dakar, Find, the turn buttons or Settings. All single-key shortcuts (WASD, E, Q, R, 1, 2, M, F, ?) also fire on body (WCAG 2.1.4) | Only take Tab, and the letter keys, when the stage itself has focus. Give `.stage` `tabindex="0"` (it's `-1`) and put it after the HUD in the DOM order. Move target cycling to `[`/`]` or the arrow keys while the stage is focused. Add a "Keyboard shortcuts" switch in Settings | H | S |
+| R7 | Security / demo risk | `POST /api/demo/reset` works "for anyone logged in" (`demo/demo.controller.ts`). If `COLOC_DEMO_RESET=1` is on the judged server during the public vote (04–10 11), any GitHub user can wipe the city mid-jury | Gate it on a `COLOC_ADMINS` login list plus a 10-minute cooldown, or turn it off in prod and reset with a script. Hide the Settings tile for non-admins | H | S |
+| R8 | World ↔ data | A deploy, a merge, a knock or a room going down changes nothing visible in the city | Diff the city stream in `LobbyView.vue` (`props.houses` before/after). On a room going building→live, fire `Lobby.celebrate(houseId)` (confetti/fireworks particles over the house, a "pop" in `sound.ts`) and a one-line toast ("Awa's Ndaje is online"). Data exists: `rooms[].status` in the city stream | H | S |
+| R9 | Deep links | A logged-in first-timer opening `/?in=house:sacre-coeur` gets the tutorial and loses the link (`location.search` became empty after the tutorial welcome). Any link shared to a juror or voter who logs in is swallowed | `LobbyView.vue`/`useTutorial.ts`: when `?in=` is present, skip the auto-start, open the place, and offer the tutorial as a corner chip | M | S |
+| R10 | Ship hygiene | `index.html` says `lang="fr"` but every string is English, so screen readers read English with a French voice. `public/start.html` (dev ports) ships to prod. The dev login link is visible whenever `COLOC_DEV_LOGIN=1`. The README "Status (08 10)" says previews and deploy-on-merge aren't done (they are). No `og:image`. The title is always "La Coloc" | Set `document.documentElement.lang` from the UI language (R11). Exclude `start.html` from the prod build (move it to `dev/`). Check that the prod env has dev login off. Update the README. Add an `og:image` (a city render) and per-route titles ("Sacré-Cœur, Dakar · La Coloc") | M | S |
+| R11 | Language | The whole UI is English. The organiser is Systalink Sénégal, the rules are French, 20 of the 25 eligible countries are francophone, and the public voters are mostly francophone. "La Coloc" is a French word in an English app | Add a tiny `t()` with `fr` (default when `navigator.language` starts with `fr`) and `en`. `components/lobby/panel/words.ts` already centralises the vocabulary; extend that pattern to every component. Add a language toggle in Settings. Use French money formatting everywhere (already done for FCFA) | H | M |
+| R12 | World ↔ data | Room state shows as four 0.11-unit emissive spheres on a post (`models.ts` `makeRoomBoard`), unreadable at default zoom (v06-sacre.png). "deploying" never shows for a live room: `houses.service.ts:201` only sets it on a first deploy | One lit window per room on the facade (emissive planes in front of the Kenney model, placed per room): warm = online, blue with an "À louer" placard = free, red flicker = down/failed, scaffold + crane (`STREET.fence/barrier` + a procedural crane) while a build runs. The whole house goes dark when `agentOnline` is false: a "délestage" (power cut), a metaphor every West African dev gets instantly. Add `building: boolean` per room to `CityHouseView` from the latest deployment | H | M |
+| R13 | Tutorial | A new user spends about 60–90 s on control drills (WASD in 4 directions, dash, map open/close, ?, camera tour, Q, R) before hearing what a house or room is (r02–r07). Jurors will churn | `tutorial/tutorial.ts`: keep walk + E only. Move dash, map, keys and turn to one-time contextual tips (first time far from a target: "Shift dashes"). Put the product idea on the welcome card ("You'll get a room in a shared server and put a project online in 1 minute.") | H | S–M |
+| R14 | Demo authenticity | Every room serves the same JSON: awa/jib/moussa give `{"hello":"from my room",…}`. "A small shop that takes Wave payments" and "A Discord bot" log `hello listening on 3000` (j08-logs.png). The tutorial's payoff, "a small Hello page", is a raw JSON line (r15-hello.png) | Write 3–4 tiny example apps in `examples/`: Ndaje (a shop page, FCFA prices, a "Payer par mobile money" button that's a mock), Prix Marché (a table of today's prices at Sandaga/Tilène, scraped or seeded), Kër Bot (a status page). Make the tutorial's Hello a styled HTML page: "Nanga def, @reviewer! This page runs in room tuto-reviewer of L'Atelier, Dakar", with the container id and build time | H | M |
+| R15 | Theme: exchange | "Rent is partly paid in code reviews" is only a claim. `packages/domain/src/bill.ts` splits by memory and CPU only; the Bill tab is an even split (j04-Bill.png). The public ledger shows only as a tiny check+count on a room row when `given > 0` (`HouseInside.vue:403`) | Domain: `splitBill(total, rooms, { reviewCredit: 500 })`: each completed chore this month knocks 500 FCFA off your line, paid by members with skipped chores (or the pool). Bill tab: "Awa reviewed 4 PRs: −2 000 FCFA." House panel head: one public sentence, "23 reviews traded this month." Test it in `domain.test.ts` | H | M |
+| R16 | Theme: money | No mobile money anywhere (one PersonCard button says "Wave", meaning a hand wave). Bills can't be paid | Bill tab: "Pay your 4 000 FCFA" with the operators per country (text only, no logos): SN Wave / Orange Money / Free Money; CI Orange / MTN / Moov / Wave; TG T-Money / Flooz; BJ MTN MoMo / Moov; CM MTN MoMo / Orange Money; RW MTN MoMo / Airtel. For the contest, a "Mark as paid" plus a copyable amount and reference is enough; name an aggregator (PayDunya, CinetPay, FedaPay, Kkiapay) in the pitch as the next step | H | M |
+| R17 | Theme: tontine | `packages/domain/src/tontine.ts` exists and `memberships.tontinePosition` is stored, but no screen shows a turn | House panel: "This fortnight the house rallies behind Moussa's Prix Marché: his PRs are reviewed first." Show a ring of faces with the current one lit. City: a calabash/jar "pot" on the market square listing this week's featured project per house. API: add `tontine: { current, line }` to `HouseView` (public) | H | M |
+| R18 | Theme: Africa | Travel is a plain list of 8 city names with "1 house." (v09-travel.png). Nothing says "a continent" | Make "Where to?" a map of Africa (one hand-simplified SVG path, or Natural Earth public domain, ask Jib first) with a dot per city, local time, its houses and who's online. That's the instant "African platform" read for a juror | H | M |
+| R19 | World usefulness | Walking is never faster than the list for anything | A "tableau des corvées" (chores board) on the market square: open PRs needing review across the city, a pin per house. Walk up, press E, pick one up (it opens the PR). Needs a public `openChores`/`lateChores` count per house in `CityHouseView`; titles for flatmates only | H | M |
+| R20 | World identity | Every city is the same 3×2 block grid, palette, pink paving, zebra crossings, traffic lights, lavender Kenney towers and green-roof US suburban houses. Dakar and Marrakech are indistinguishable (v05-lobby.png vs v10-marrakech.png) | A `CityStyle` per city (palette, ground, props, skyline, sounds, greeting): see section 3. Start with procedural changes (colours, laterite/sand ground, rooftop water tanks, rebar, pirogues, wax-print awnings), then CC0 swaps | H | M–L |
+| R21 | Technical quality (mastery) | One committer. Every row of `docs/ai-usage.md` says "Jib (to review)". `Lobby.ts` is 1 684 lines and `LobbyView.vue` 931. The rules require teams of 2–5, every member votes in the peer vote, and 30 % of the score includes "maîtrise … y compris des parties produites à l'aide de l'IA" | Recruit the teammates now and give them real commits (R14 apps, R11 French). Fill the review column with real dates. Split `Lobby.ts` into `camera.ts`, `input.ts`, `people.ts`, `town.ts`. Prepare a 1-page "how a push becomes a live room" diagram Jib can explain | H | M |
+| R22 | Admissibility | Not yet deployed on Datacloud. `install.sh` has never run on a real server. No HTTPS for rooms | Do it this week: rent the server, run `install.sh`, wildcard DNS, HTTPS (`websecure`), and keep Sacré-Cœur's rooms live through 10 11 with an uptime monitor | H | L |
+| R23 | Localisation | Every price is in FCFA, including Kigali (RWF), Tunis (TND) and Marrakech (MAD). Douala uses XAF (BEAC), not XOF (BCEAO): same peg, different currency, and a Cameroonian juror will notice | Replace `monthlyCostFcfa` with `{ amount, currency }`, with the currency from the house's country. Format with `Intl.NumberFormat('fr', { style: 'currency', currency })` | M | S–M |
+| R24 | Data bug | Sacré-Cœur room-4 is free (no occupant) but its status is `live` and `room-4.coloc.localhost:8000` answers `{"hello":"from coloc-test","version":2}`. A leftover container makes a free room "live" | `houses.service.ts` snapshot (around line 263): a room without an occupant is `empty` whatever runs; ask the caretaker to remove a free room's containers | M | S |
+| R25 | Knock flow | The login page promises "Houses see what you've built before they let you in", but voters see only the note (j05-knockview.png). The knocker's view shows voter-facing copy ("Ask for a free room…") to the flatmate. "Room room-4" | `ApplicationPage.vue`: show the applicant's top 3 public repos and languages (the GitHub login already has them), and their ledger. Write copy per viewer. Name free rooms ("La chambre du fond") instead of slugs | M | M |
+| R26 | No-label rule | Visible labels: the room Overview tiles "State / Memory / CPU" with "its share", "right now", "never built" (`room/RoomOverview.vue:106–122`, r11-room.png, j06-room.png); the Settings rows "City / Look / Graphics / Calmer motion / Sounds" (`SettingsPane.vue`, j09-settings.png); the pills "Server up", "Strict", "Online", "Free", "Example house", "You're here", "Knocking", "Waiting for votes"; bare "256 MB"; the key strip "use / next / dash / map / keys" (`KeyLegend.vue`) | Turn the tiles into one sentence: "Online for 3 days, using 9 of its 256 MB and almost no CPU." Settings as sentences: "Walk the city / See it as a list", "Calmer motion: no camera glide". Rows: drop the pill and put the state in the sentence ("Awa's shop, online"), with a coloured dot only. The key strip can stay as keycaps without words, with hidden names | M | M |
+| R27 | Phone | On a phone, the top pill wraps to 2 lines and covers house tags (m01-first.png, m02-hud.png). The interact prompt ("An empty shop. Have a look") sits on top of the bottom card's primary button and clips its text. "Jib" and "you" tags overlap at spawn. The inside sheet covers about 90 % of the screen | Under 520 px: hide the lamps line, one-line census. Hide the prompt while a card is open. Collision-avoid the CSS2D tags (offset stacked tags vertically). Inside sheet at 70 % with the house visible above | M | S |
+| R28 | Performance | The first visit loads 222 requests, about 9.5 MB in dev, 5 MB of it the 78 Kenney GLBs. That's fine on fibre and slow on 3G with a low-end Android, which is the target user | Pack the GLBs (`gltf-transform` with meshopt plus one shared palette texture), load the 3D only after first paint. Default to Low quality and offer "list view" when `navigator.connection.saveData`, `effectiveType` 2g/3g or `deviceMemory < 4`. Measure on a real cheap Android before submission | M | M |
+| R29 | World | The world is always dusk. "Look: Day/Night" only changes the panels (l01-light.png) | Light each city by its real local time (`Intl.DateTimeFormat` with `Africa/Dakar`, `Africa/Lagos` for Cotonou/Douala, `Africa/Kigali`, `Africa/Tunis`, `Africa/Casablanca`). Lamps come on at sunset on their own | M | S |
+| R30 | Gimmick | The lamps mini-game (localStorage only, single-player, "0 of 12 lamps lit") is unrelated to the product | Remove it, or make a lamp = a review done in this neighbourhood this week (lit for everyone, from the ledger) | M | S |
+| R31 | Honesty vs emptiness | 8 of 9 houses carry an "Example house" pill, and their rooms say "Online" while nothing runs. A juror reads "fake" twice | Get 5–10 real devs (friends, the team) into real rooms before the vote. For the rest, say it once per house in a sentence ("An example house, to show how one looks") and drop "Online" on example rooms ("An example project") | M | M |
+| R32 | World ↔ data | Knocks are invisible in the city | When a house has open knocks, the applicant (or a faceless visitor) waits at its door with a "☝️" bubble. Add a public `knocking: number` to `CityHouseView` | M | S–M |
+| R33 | World ↔ data | The house channel is invisible in the city | Speech bubbles over flatmates from the latest channel message (flatmates of that house only), or public fridge notes as pinned paper on the door | M | M |
+| R34 | Avatars | Kenney mini-characters in generic clothes | Recolour shirts and boubous with procedural wax-print textures (canvas patterns in `textures.ts`), and let the look picker choose a pattern | M | M |
+| R35 | Code structure | `Lobby.ts` (1 684 lines) mixes input, camera, pathing glue, building, people, outlines and audio cues | Split it as in R21. Jurors read code for "qualité du code" | M | M |
+| R36 | Copy, local | The PersonCard button "Wave" (`PersonCard.vue:108`) reads as the Wave payment app in Senegal, right next to "takes Wave payments" | "Say hi" / "Saluer", with the hand icon | L | S |
+| R37 | Copy | Rundown: "The pill says if its server is up" (jargon), and on example houses the pill says "Example house" (v08, l01-light.png). The rundown bubble covers the crew row and the first room's title (v07-sacre2.png, r09-inside.png) | "The green dot means its server is running." Skip that line on example houses. Anchor the first bubble below the crew row | L | S |
+| R38 | Room page | The tutorial room shows "Untitled project" while the coach says "Hello page". The coach's "Put it online" and the panel's "Put online" are two primary CTAs side by side (r11-room.png) | Seed the project name "Hello" with its description. While the coach is up, demote the panel tile to secondary | L | S |
+| R39 | NPCs | Flatmates stack and interpenetrate at doors (Babacar/Aïssatou, r09-inside.png). Name tags of people behind buildings float over rooftops ("Jib", m05-house.png) | Space NPC homes at least 0.9 units apart. Hide a tag when its owner is occluded (raycast or depth test) | L | S |
+
+## 1. UI/UX critique
+
+### Time to understand (measured)
+
+- **A visitor, desktop:**
+  - The loading screen shows for about 2–3 s on localhost (real 4G: more; see R28).
+  - The welcome card at about 4 s says "a server shared by a few developers". Someone who reads it gets "shared hosting
+    for devs" by about 10 s.
+  - They never learn "Africa", "exchange", "reviews as rent" or "tontine" anywhere in the visitor flow.
+  - Someone who presses Skip sees parasols, crosswalks and a ghost building, with no house on screen (v05-lobby.png).
+- **A logged-in first-timer:**
+  - The tutorial teaches game controls for about 60–90 s before the first product concept (r02–r07).
+  - Their first project is online at about 2–3 min, which is a genuinely strong payoff (r13-live.png). That payoff is a
+    JSON line (r15-hello.png).
+- **A juror's 10-second test fails on purpose.** The screen never says what the product is for, who it's for, or why
+  Africa.
+
+### Genuinely good (one line each)
+
+- The tutorial's deploy is real: the sample was cloned, built and started, and answered on its own subdomain in about
+  10 s. That's rare at a hackathon.
+- The knock flow is a clean 3-step dialog (note → repo → review), and the thread opens in place (r20–r23).
+- The panel kit is consistent, nothing scrolls, there's one main action per panel, and Escape and Back behave.
+- The interact prompt is `role="status"`, there's a skip link, reduced motion is honoured, and the turn and find
+  buttons have accessible names.
+- The local names are well chosen: Almadies, Bè Kpota, Cocody, Akwa, Kacyiru, Ganhi; Wolof NLP, Taxi Clando, Ligue 1
+  Live.
+
+### Screen-by-screen problems
+
+- **Loading (v01-0s.png):** a progress bar and a wordmark. That's a missed chance for one sentence of pitch, the
+  one moment you're guaranteed attention ("Des maisons de devs, de Dakar à Kigali.").
+- **Welcome card:**
+  - The dead void (R2).
+  - The light colours ("warm" vs "amber") are nearly the same colour (v1w2.png). Use free = blue, lived-in = warm
+    white, setting up = scaffold icon, not a third yellow.
+  - "1 and 2 wave yes or no" is a game detail in a product pitch.
+- **Lobby HUD (v05-lobby.png):**
+  - The top pill contradicts the minimap (R5).
+  - The three icon-only round buttons on the right (find, turn left, turn right) have no tooltip. The turn buttons
+    take prime HUD space for a camera feature most people never need.
+- **House panel (v07-sacre2.png, j03-house.png):**
+  - It shows who and what, but not what it costs to live there ("about 3 000 FCFA a month plus reviews") or the
+    house's review record. Those are the two things a knocker decides on.
+  - There's a "Free" pill and "256 MB" on the free row, but nothing on what the house wants beyond the ad.
+- **Room panel (j06-room.png):**
+  - Label tiles (R26).
+  - "Update" next to "Restart", with no last-deploy line ("last put online 2 days ago from PR #12").
+  - History is empty while the room is Online (R4).
+- **Knock thread (r23-thread.png):** works. Nothing happens in the world: no knocker at the door, no notification for
+  the flatmates in the lobby.
+- **Bill (j04-Bill.png):** an even split, no reviews, no pay action, wrong currency outside the XOF zone (R15, R16,
+  R23).
+- **Settings (j09-settings.png):**
+  - Label rows (R26).
+  - "Reset the demo city" in red, available to every logged-in user (R7).
+  - "Look: Day/Night" doesn't change the world (R29).
+- **List view (j10-list.png):**
+  - Honestly the clearest explanation of the product. Flags appear here but not in 3D.
+  - The avatar initials overlap ("AN AW MA").
+  - It's a card-on-black, which reads like an admin panel next to the lobby.
+  - Consider making the list the visitor's first view on phones and slow connections (R28).
+- **Login (v12-login.png):** clean. The "Use a development login" link must not exist in prod (R10).
+- **Phone (m01–m06):** usable. The sheet takes the screen, and there are overlaps (R27). Tap-to-walk works. There's
+  no hint that tapping walks ("Tap the ground to walk" on first load).
+
+### Dead ends and odd states seen
+
+- Arriving at the workshop by route, the first E did nothing (the route was dropped about 3.8 units from the door,
+  next to a lamp post). A second E worked. That's a minor pathing stall.
+- A free room shows as `live` in the API, and its URL answers (R24).
+- Opening a house from the top bar leaves you standing in a ghosted building (R3).
+
+### Accessibility summary
+
+- The Tab hijack and the global single-key shortcuts (R6) are the big ones.
+- The `lang` mismatch (R10).
+- The 3D stage is `role="img"` with a good label; the live prompt compensates.
+- Light theme: the "Example house" / "Strict" pills and the rule sentence measure 4.15:1 at 12–13 px. Below 4.5:1,
+  so darken `--muted` in the light tokens.
+- Dark theme passed my automated contrast scan for visible text.
+
+## 2. Fit with the theme ("an African exchange platform built for devs by devs")
+
+| Claim | Where it's visible today | Verdict |
+|---|---|---|
+| **African** | House and project names; flags in the list view only; FCFA | Weak. The 3D city reads as a generic Western suburb (green-roof US houses, zebra crossings, traffic lights). No French, no local languages, no local money, no local time |
+| **Exchange: reviews** | GitHub PR comments (real), a tiny check counter on room rows, the Chores tab | Invisible in the demo: all ledgers are 0, chores are empty (R4, R15) |
+| **Exchange: money** | Even-split bill | Claimed, not built: no reviews-as-rent, no pay action (R15, R16) |
+| **Exchange: mutual aid (tontine)** | Domain function only | Invisible (R17) |
+| **Exchange: skills / teaming up** | Ads on free rooms ("Looking for a mobile dev") | Weak. No skills on people, no team-up action |
+| **Exchange: server space** | The house/room model itself, isolation | **Strong, and real.** It's the best thing you have; show it in the world (R12) |
+| **By devs, for devs** | GitHub login, PR rotation, deploy on merge, votes to admit | Strong in the code, and needs to be seen in the demo video |
+
+**What would most raise relevance (25):**
+
+1. Make the exchange numbers non-zero and on screen: R4, R15, R5.
+2. Make money concrete in local terms: R16, R23.
+3. Make the tontine a visible turn: R17.
+4. Speak French: R11.
+
+**What would most raise innovation (15):**
+
+- Reviews as a currency that changes your rent is genuinely novel. Nobody prices code review in FCFA. Ship it (R15)
+  and make it the headline.
+- A world that is the status page is the second novelty: the house goes dark on a power cut, a crane while it
+  builds, fireworks on merge (R12, R8). That turns the 3D from a gimmick into an ops dashboard you can walk.
+
+**What a skeptical juror calls a gimmick, and what to do about each:**
+
+- The lamps mini-game: remove or repurpose it (R30).
+- The 3D walk itself, if walking is never faster than the list. Fix that with the chores board (R19) and visible
+  status (R12).
+- The dash, emotes and camera turns as a third of the tutorial (R13).
+- "Example house" everywhere (R31).
+
+**Public vote (10):**
+
+- People vote for people they know. Get real devs into real rooms (R31) and let each house share its own page with a
+  good `og:image` and a WhatsApp share button. WhatsApp is the channel in West Africa.
+- French copy (R11).
+- A short, punchy video (section 5).
+- Being able to play it on a phone over 3G (R28).
+
+## 3. Localisation beyond names
+
+Principles:
+
+- Do the procedural changes first (code-drawn geometry and canvas textures, no downloads, no licence work).
+- Then the CC0 swaps. Each download goes to Jib first with its name, source and size, and gets logged in
+  `docs/licences.md` (handoff rule).
+- Never use operator or brand logos (Wave, Orange): that's impersonation and licence risk. Use text names and
+  generic colours.
+
+**Where it goes in the code:** a new `apps/web/src/lobby/cityStyle.ts` exporting `styleFor(city)`, returning:
+
+- `palette`: walls, roofs, shutters, ground, sidewalk, sky tint.
+- `ground`: "asphalt+sand", "laterite" or "terracotta".
+- `props[]`: which street props to scatter.
+- `trees[]`.
+- `vehicles[]`.
+- `skyline`: landmark silhouettes.
+- `coast`: boolean.
+- `tz`: the time zone.
+- `greeting`.
+- `currency`.
+- `operators[]`.
+
+How each part is consumed:
+
+- `neighbourhood.ts` stays pure; it adds a `style` field and seeds prop positions.
+- `textures.ts` gains `laterite()`, `sandDrift()`, `zellige()`, `waxPrint(seed)` and `tole()` (corrugated metal),
+  all canvas-drawn like the existing paving.
+- `Lobby.ts` `setNeighbourhood`, `market()`, `tree()` and `streetMarkings()` read the style. Most West African
+  streets have no zebra crossings or traffic lights, so make those per-style.
+- `models.ts` gains the procedural props listed below.
+
+### Per city
+
+| City | Architecture | Street life | Palette (start points) | Ground | Sound | Greeting (verify with a local) | Time zone | Money |
+|---|---|---|---|---|---|---|---|---|
+| **Dakar** | Flat-roof R+1/R+2 concrete houses, rooftop terraces, **rebar sticking out of an unfinished upper floor** (the most recognisable West African skyline detail), black polytank water tanks, painted murals (Set Setal), a baobab at a roundabout. Skyline: Renaissance monument silhouette, Ouakam/Mamelles hill | **Car rapide** (blue/yellow painted minibus), a **ataya corner** (bench, tiny stove, three glasses), wax-print stalls, a boutique kiosk, a sheep on a roof near Tabaski, **painted pirogues** on the coast (Soumbédioune) | sand `#E8D3A9`, ochre walls `#D9A55B`, shutter blue `#3E7CB1`, car-rapide yellow `#F2C230`, bougainvillea `#C2187A` | Asphalt with sand drifts at the curbs, cement sidewalks | Waves, a distant horn, a sabar drum hit on merge | Wolof: "Nanga def ?", "Dalal ak jàmm" (welcome) | Africa/Dakar (UTC+0) | XOF; Wave, Orange Money, Free Money |
+| **Lomé** | Single-storey houses with **corrugated metal (tôle) roofs**, painted shopfronts, Grand Marché | Zémidjan moto-taxis, coconut palms, pirogues on the beach | laterite `#B5552B`, palm green `#3C8D2F`, faded pastel shopfronts | **Laterite red earth** sidewalks | Waves, motos | Ewe: "Woezɔ" (welcome) | Africa/Lome (UTC+0) | XOF; T-Money, Flooz |
+| **Cotonou** | Tôle roofs, two-storey blocks, Dantokpa market stalls | **Zemidjans in yellow shirts**, lagoon pirogues | laterite `#A9472A`, zem yellow `#F4C20D` | Laterite | Moto swarm, market chatter | Fon morning greeting (for example "A fɔ́n ganjí à?"; verify) | Africa/Porto-Novo (UTC+1) | XOF; MTN MoMo, Moov Money |
+| **Abidjan** | Plateau glass towers in the skyline (the Kenney skyscrapers already fit), lagoon with a bridge, a **maquis** (open-air restaurant: plastic chairs, tables, string lights) | Orange taxis, woro-woro, garbadrome-style food stands | lagoon `#2E8B9A`, taxi orange `#F28C28`, glass `#7FB3D5` | Asphalt, red-earth verges | Zouglou/coupé-décalé-style beat from the maquis (synthesised, no samples) | "Akwaba" (welcome); Nouchi "On dit quoi ?" | Africa/Abidjan (UTC+0) | XOF; Orange, MTN, Moov, Wave |
+| **Douala** | Ochre colonial façades (Akwa), the Wouri bridge in the skyline, humid greenery | Yellow taxis, bend-skin moto-taxis, occasional rain particles | ochre `#C98B3A`, green `#2F6B3A`, taxi yellow `#F5C518` | Asphalt, puddles | Rain, horns | Camfranglais "On dit quoi ?" (Duala greeting: verify) | Africa/Douala (UTC+1) | **XAF**; MTN MoMo, Orange Money |
+| **Kigali** | Red-brick houses on **hills** (cheap version: a ring of green hill cones in the skyline plus a terraced ground edge), very clean streets | Moto-taxis with helmets for passengers, banana plants, eucalyptus | brick `#9C3D2C`, hill green `#4F8A3B` | Clean paving, red-earth verges | Birds, quiet | Kinyarwanda: "Muraho" (hello), "Murakaza neza" (welcome) | Africa/Kigali (UTC+2) | **RWF**; MTN MoMo, Airtel Money |
+| **Tunis** | Whitewashed cubes, **blue doors and arched windows** (Sidi Bou Said), medina arches | Yellow taxis, olive trees, café terraces | white `#F4F4F0`, door blue `#1F5FA8`, taxi yellow `#F2C200` | Pale stone | Café chatter | Tunisian: "Aslema" (hello), "Marhbé" (welcome) | Africa/Tunis (UTC+1) | **TND**; D17, Flouci |
+| **Marrakech** | **Riads**: blank outer walls, an inner courtyard with a fountain and an orange tree, seen from the isometric camera from above. A perfect "rooms around a courtyard" metaphor for a house. Ochre-pink "ville rouge" walls, zellige tiles, the Atlas in the skyline | Petit taxis, palm trees, a souk alley with lanterns | terracotta pink `#C66B4E`, zellige green/blue `#1E7B6A` `#2B5DA8`, taxi beige `#D8C39A` | Terracotta tiles | Fountain, souk | Darija: "Salam", "Labas ?", "Marhba bik"; Tamazight "Azul" | Africa/Casablanca (UTC+1, UTC+0 in Ramadan) | **MAD**; card / bank transfer (mobile wallets are less central) |
+
+### Cheap in code (procedural, no downloads)
+
+- **Palettes per city:** traverse the loaded Kenney meshes and tint wall and roof materials by name. Kenney
+  materials have stable names such as `wall`, `roof` or `door`; check each pack. Effort S, and this alone breaks the
+  sameness of R20.
+- **Grounds:**
+  - Laterite, sand drift, terracotta and zellige as canvas textures beside the existing `paving`/`sidewalk`.
+  - Drop the zebra crossings and traffic lights for the West African cities.
+  - Effort S.
+- **Props built from primitives** in `models.ts`:
+  - Rooftop black water tank (a cylinder).
+  - Rebar on unfinished roofs (thin dark cylinders).
+  - Corrugated tôle roof (a plane with a stripe texture).
+  - A **pirogue**: a lathe/extruded hull with painted stripes, rocking with a sine on the y position.
+  - A **baobab**: a fat tapered cylinder and a few low-poly branch clusters.
+  - An ataya set: tiny cylinders on a box.
+  - A riad: a hollow box with an inner courtyard.
+  - Arched doors: a box with a half-cylinder cut.
+  - All S–M.
+- **Wax-print awnings:**
+  - Replace the market parasols' material with `waxPrint(seed)`: concentric circles, swirls and leaves in
+    2–3 bold colours, drawn on a canvas.
+  - Use it for stalls, awnings and clothes (R34).
+  - Effort S.
+- **Day/night by local time** (R29). Effort S.
+- **Sounds:** `sound.ts` already synthesises.
+  - Add filtered-noise surf for coastal cities and a distant horn blip.
+  - Add a percussion hit on merge.
+  - Effort S.
+- **Greeting:**
+  - The welcome card and the tutorial's Hello page say the city's greeting ("Nanga def, @reviewer").
+  - The travel arrival toast: "Woezɔ à Lomé".
+  - Effort S. Have native speakers check every greeting.
+- **Mobile money and currency:** R16, R23. Effort M.
+
+### CC0 candidates (name only, don't download; ask Jib)
+
+- **Kenney (kenney.nl, CC0):**
+  - Car Kit (vans/minibus, taxi, bus: recolour into a car rapide, yellow taxis).
+  - Nature Kit (check it has palm trees and rocks).
+  - Furniture Kit (plastic chairs and tables for a maquis or ataya corner).
+  - Watercraft/boat packs (check for rowboats as a pirogue base).
+  - Food Kit (check for a teapot and glasses).
+- **Quaternius (quaternius.com, CC0):**
+  - Ultimate Nature / Stylized Nature MegaKit (palms, bushes).
+  - Cars pack.
+  - Farm/animated animals (goats, sheep for Tabaski).
+  - Ultimate Modular characters (more varied bodies and skin tones than Kenney's minis).
+- **Poly Pizza (poly.pizza), filtered to CC0:** search "baobab", "canoe", "motorbike", "market stall", "water
+  tank", "minibus". Many items are CC-BY: allowed only with credit, and only if Jib accepts CC-BY for art.
+- **ambientCG and Poly Haven (CC0 textures):** red soil, sand, plaster, corrugated steel, tiles. Down-sample them to
+  256 px to match the low-poly look.
+- **Freesound, filtered to CC0:** surf, market ambience, motorbikes, rain. Small files, loaded lazily.
+- **Needs Jib's art:** car-rapide livery details, the Renaissance monument, Wouri bridge and Atlas silhouettes (a
+  simple silhouette is fine), riad tilework, the African skyline cards, and the avatars eventually.
+
+## 4. Making the 3D world alive
+
+Ranked by impact on the jury divided by effort. "Data" says whether the API already has it.
+
+| Rank | Feature | What you see | Data | Impact | Effort |
+|---|---|---|---|---|---|
+| 1 | **Rooms as windows, house state at a glance** (R12) | One lit window per room: warm = online, blue + "À louer" = free, red flicker = down/failed | `CityHouseView.rooms[].status` and `occupant`, on the city stream, live: **exists** | H | M |
+| 2 | **Délestage** | When a house's caretaker is offline, the whole house goes dark, with a little generator sputter sound; the lights come back with a "clunk" | `agentOnline` on the city stream: **exists** | H | S |
+| 3 | **Fireworks on going live** (R8) | Confetti or fireworks over the house when a room's deploy lands, plus a toast | City-stream diff of `rooms[].status`: **exists** (add `building` for redeploys of live rooms; `deployments` already have the status) | H | S |
+| 4 | **Crane/scaffold while building** | Fences, cones and a small crane by the house while a build runs, with a hammer sound | Needs `building: boolean` per room in `CityHouseView` (from the latest `deployments.status`): **small API change** | H | S–M |
+| 5 | **Chores board on the market square** (R19) | A cork board with a pin per open review. As a flatmate, E picks one and opens the PR. Late ones are red | `ChoreView` exists for flatmates; needs a **public count** in `CityHouseView` | H | M |
+| 6 | **Tontine pot** (R17) | A calabash on the market with this fortnight's featured projects. Walking up shows whose turn it is in each house | `memberships.tontinePosition` and `domain/tontine.ts`: **needs an endpoint** | H | M |
+| 7 | **Knocker at the door** (R32) | A visitor with a "☝️" bubble waits at a house with open knocks. Flatmates see the applicant's name | `doorbell` (flatmates); needs a public `knocking` count | M | S–M |
+| 8 | **Review courier** | When a review lands (webhook `pull_request_review`), an NPC walks from the reviewer's house to the author's house with an envelope; the ledger ticks up | Webhook events exist; needs a lightweight "event" message on the city or lobby stream | M | M |
+| 9 | **Chimney smoke = CPU** | Smoke from the roof scales with the house's total CPU. A memory-hog OOM shows a puff and a red flash on that one window: **the isolation demo, visible in the world** | `RoomUsage` in `HouseView` (samples every 30 s); add an aggregate to the city view | M | S–M |
+| 10 | **Channel speech bubbles** (R33) | The latest messages float over flatmates (flatmates only) | `channel` in `HouseView` (flatmates) and the house stream: **exists** | M | M |
+| 11 | **Bump → team up** | Walking into someone shows their card with "Team up" (opens a shared-room request) | Needs a team-room model: **not built**. Roadmap cut-list item 2 | M | L |
+| 12 | **Ambient life** | Car rapides looping the outer street, pirogues rocking, goats, an ataya group chatting | Purely client-side | M (identity) | M |
+
+**Order of work:** 2 → 3 → 1 → 4 → 5 → 9 → 6 → 7.
+
+- Items 1–4 make the city a status page.
+- Item 5 gives walking a reason to exist.
+- Item 9 turns the isolation demo, the best technical proof, into a moment you see from the street.
+
+## 5. Anything else a ruthless juror would say
+
+**Technical quality signals:**
+
+- **Strong:**
+  - Real GitHub App with rotation and deploy-on-merge, previews.
+  - AES-GCM secrets, route-file proxying with no Docker socket for Traefik.
+  - zod-validated presence with rate limits and bounds.
+  - 32 test files, and CI with a copyleft licence check.
+- **Weak:**
+  - One committer and "to review" everywhere in the AI declaration (R21).
+  - God files (R35).
+  - No ESLint or Prettier.
+  - No rate limiting on HTTP endpoints. No `Throttle`/`helmet` in `apps/api`; knocks and messages can be spammed;
+    the roadmap's Wed 21 hardening is still to do.
+  - The demo reset is open (R7).
+  - `install.sh` is untested.
+  - No gVisor. Be ready to say why userns-remap, caps and the memory/CPU limits are enough for side projects.
+
+**The jury's likely questions; prepare one-line answers:**
+
+- "Why not a shared VPS plus branch protection?"
+- "Who pays Datacloud if a flatmate doesn't?"
+- "What stops a crypto-miner?"
+- "What did the AI write and can you explain it?"
+
+**Demo video (3 min), what to show, in French with English subtitles:**
+
+1. **0:00–0:15, the hook.** "Moussa's scraper dies at every délestage. Awa can't afford a server alone. Nobody
+   reviews anyone's code." Cut to the city at dusk in Dakar: houses lit room by room.
+2. **0:15–0:45.** A newcomer walks up to Sacré-Cœur: lit windows, a blue "À louer". Knock in 3 steps; Jib votes
+   yes on a phone; the newcomer is in.
+3. **0:45–1:40, the core loop, split screen** (lobby on the left, GitHub on the right):
+   - Open a PR; La Coloc's comment assigns Moussa by rotation; a preview link.
+   - Moussa approves; merge.
+   - A crane on the house, then fireworks, and the room's page is live.
+   - The ledger ticks: Moussa +1 review, −500 FCFA on his rent.
+4. **1:40–2:10, the isolation demo.** Launch the memory hog in one room: its window flashes red and restarts; the
+   neighbour's app never misses a request (the counter keeps going). That's the technical-quality shot.
+5. **2:10–2:35.**
+   - The Bill: usage split, reviews credited, "Payer par Wave / Orange Money".
+   - The tontine: "this fortnight we rally behind Awa".
+6. **2:35–3:00.** Travel on the Africa map to Lomé and Kigali (different streets, greetings, local time). End card:
+   "Fait par des devs, pour des devs. Datacloud, Dakar."
+
+**Risks before 25 10:**
+
+- **Admissibility:**
+  - Must be deployed on Datacloud (R22).
+  - Must be a team of 2–5, and every member must vote on 01–02 11 or you're out.
+  - No copyleft (the CI check covers code; check the art licences too).
+- **Demo fragility:**
+  - Everything hinges on smee and the local caretaker today. On the real server, use direct webhooks.
+  - Keep a recorded video as the fallback.
+  - Don't let the public reset the city (R7).
+- **The empty city.** One real house out of nine reads as a mock. Recruit (R31).
+- **Rights.** Winning transfers the code to Systalink (Art. 8); Jib knows. Keep the art you care about out of the
+  repo if you want to keep it.
+
+## State changes made during this review (local demo only)
+
+- Created the dev-login user `reviewer`. It took the tutorial, so it owns the workshop room `tuto-reviewer` in
+  L'Atelier, with a running container.
+- It knocked on Sacré-Cœur room-4, then withdrew the knock. A withdrawn application and its fridge note remain.
+- As `jib`, I pressed "Skip the tutorial" so the house could be reviewed as its chef. This set Jib's tutorial-done
+  mark.
+
+The demo city was not reset; no server was started or stopped. The review Chrome used its own profile in the scratch
+directory and has been closed.

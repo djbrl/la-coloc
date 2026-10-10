@@ -71,6 +71,13 @@
       "when": 1791602271794,
       "tag": "0009_demo_rooms",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791615123320,
+      "tag": "0010_bill_payments",
+      "breakpoints": true
     }
   ]
 }

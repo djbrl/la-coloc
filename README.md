@@ -11,7 +11,7 @@ Product: [`docs/how-it-works.md`](docs/how-it-works.md) · Stack: [`docs/archite
 
 ## Every address
 
-Open **http://localhost:5175/start.html** once the dev server runs: it lists the site, the API, every house and its
+Open **http://localhost:5175/dev/start.html** once the dev server runs (development only; production builds don't ship it): it lists the site, the API, every house and its
 rooms (live, from the city) and the development tools. The short version:
 
 | What | Where |
@@ -32,22 +32,25 @@ rooms (live, from the city) and the development tools. The short version:
 | `packages/protocol` | Messages between API and agent, validated with zod on both ends | shared |
 | `packages/domain` | Pure house rules: reviewer rotation, bill split, tontine line | shared |
 | `packages/db` | coloc.dev's database: Drizzle schema + SQL migrations (Postgres; PGlite in tests) | coloc.dev |
-| `examples/` | `hello` (a well-behaved app) and `memory-hog` (the flatmate from hell) | rooms |
+| `examples/` | `hello` (the tutorial's page, greeting in the city's language), `ndaje` (a shop with a mock mobile-money button), `prix-marche` (market prices at Sandaga and Tilène), and `memory-hog` (the flatmate from hell) | rooms |
 | `dev/` | Local Traefik (a house's front door) and Postgres (coloc.dev's database) | Docker |
 
-## Status (08 10 2026)
+## Status (10 10 2026)
 
-Works locally:
+Works locally, end to end:
 - **Rooms:** deploy a repo into a room → built, started with its walls (RAM/CPU caps, no capabilities, own network),
   health-checked, swapped in with no downtime, served at `http://<room>.coloc.localhost:8000`. A room that runs out of
-  memory restarts alone and leaves a fridge note.
-- **The city:** every house, its rooms (lived in, free, in the making) and what it's looking for; public house pages.
+  memory restarts alone and leaves a fridge note. Every app is told where it lives (`COLOC_ROOM`, `COLOC_HOUSE`,
+  `COLOC_CITY`…), so it can greet in its city's language.
+- **GitHub:** the GitHub App, chores by rotation, deploy on merge (strict houses wait for an approval), PR previews.
+- **The city:** a walkable 3D lobby per city, every house with its rooms, what's building, reviews waiting and knocks.
 - **Moving in:** log in (GitHub, or the dev login), knock on a free room, talk with the house, get voted in.
-- **Living together:** the house chat, the fridge door, and chores: a PR in a flatmate's repo gets a reviewer from the
-  house (GitHub App webhooks), late reviews get a note, done reviews count in the house's exchange ledger.
+- **Living together:** the house chat, the fridge door, chores and the exchange ledger, the tontine's turn (a
+  fortnight each), and the monthly bill: split by room size and CPU, with each review done knocking 500 FCFA off your
+  line, and mobile-money operators per country (paying is a mock for now).
+- **The demo city:** seeded with a month of life; admins can reset it (`COLOC_DEMO_RESET=1`, `COLOC_ADMINS`).
 
-Not yet: the GitHub App registered for real, PR previews, deploy on merge, the kitchen, bills, tontine turns,
-presence avatars, `install.sh` on a real server. See the roadmap.
+Not yet: `install.sh` on a real server, real mobile-money payments (through an aggregator), French. See the roadmap.
 
 ## Run it locally
 

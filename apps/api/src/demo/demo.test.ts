@@ -20,7 +20,7 @@ import { TutorialService } from "../tutorial/tutorial.service";
 import { DemoController } from "./demo.controller";
 import { DemoService } from "./demo.service";
 
-const seed = { agentSecret: "s", domain: (id: string) => `${id}.coloc.localhost` };
+const seed = { agentSecret: "s", domain: (id: string) => `${id}.coloc.localhost`, life: true };
 let db: Db;
 let sent: { house: string; cmd: ApiToAgent }[];
 let hungUp: string[];
@@ -28,6 +28,7 @@ let changed: string[];
 let auth: AuthService;
 let houses: HousesService;
 let demo: DemoController;
+let demoService: DemoService;
 let tutorial: TutorialController;
 let me: AuthController;
 
@@ -47,8 +48,9 @@ beforeEach(async () => {
   houses = new HousesService(db);
   changed = [];
   houses.changes.subscribe((id) => changed.push(id));
-  auth = new AuthService(db, loadAuthConfig({ COLOC_DEV_LOGIN: "1", COLOC_DEMO_RESET: "1" }));
-  demo = new DemoController(new DemoService(db, houses, agents, seed), auth);
+  auth = new AuthService(db, loadAuthConfig({ COLOC_DEV_LOGIN: "1", COLOC_DEMO_RESET: "1", COLOC_ADMINS: "Fatou, jib" }));
+  demoService = new DemoService(db, houses, agents, seed);
+  demo = new DemoController(demoService, auth);
   const rs = new RoomsService(db, houses, null);
   tutorial = new TutorialController(new TutorialService(db, houses, rs, new RoomDeployer(db, houses, agents, null, null), agents, null, { repo: "https://x/y.git", path: "." }), auth);
   me = new AuthController(auth, new MembershipsService(db));
@@ -81,7 +83,10 @@ describe("the demo reset", () => {
     const workshop = await db.select().from(rooms).where(eq(rooms.houseId, "atelier"));
     expect(workshop.map((r) => r.name).sort()).toEqual(["aissatou", "babacar", "coumba", "lamine", "ndeye"]);
     expect(workshop.every((r) => r.demo && r.status === "live" && r.url === null)).toBe(true);
-    expect(await db.select().from(messages)).toHaveLength(0);
+    // Fatou's message went with the old city; the seeded chat is back.
+    const said = await db.select().from(messages);
+    expect(said.some((m) => m.body === "salut")).toBe(false);
+    expect(said.length).toBeGreaterThan(0);
     const [jibRoom] = await db.select().from(rooms).where(eq(rooms.name, "jib"));
     expect(jibRoom).toMatchObject({ project: "Kër Bot", status: "live", url: "http://jib.coloc.localhost:8000" });
 
@@ -100,8 +105,9 @@ describe("the demo reset", () => {
     expect(await db.select().from(users).where(eq(users.login, "jib"))).toHaveLength(1);
   });
 
-  it("can run twice in a row", async () => {
+  it("can run twice in a row once the cooldown is over", async () => {
     const req = await loggedIn("fatou");
+    demoService.cooldownMs = 0;
     await demo.reset(req);
     await demo.reset(req);
     expect(await db.select().from(houseRows)).toHaveLength(CITY.length);
@@ -114,6 +120,47 @@ describe("the demo reset", () => {
     expect((e as HttpException).getStatus()).toBe(403);
     expect(e.message).toBe("The demo reset is off on this server.");
     await expect(demo.reset({ headers: {} })).rejects.toThrow("Log in first.");
-    expect(me.config()).toMatchObject({ demoReset: true });
+    expect(await me.config(req)).toMatchObject({ demoReset: true });
+  });
+
+  it("is only for the admins, and the button only shows for them", async () => {
+    const awa = await loggedIn("awa");
+    const e = await demo.reset(awa).catch((x) => x);
+    expect((e as HttpException).getStatus()).toBe(403);
+    expect(e.message).toBe("Only the city's admins can reset it.");
+    expect(await me.config(awa)).toMatchObject({ demoReset: false });
+    expect(await me.config({ headers: {} })).toMatchObject({ demoReset: false });
+    // Logins compare without case: "Fatou, jib" lets jib in.
+    expect(await me.config(await loggedIn("jib"))).toMatchObject({ demoReset: true });
+  });
+
+  it("waits ten minutes between two resets", async () => {
+    const req = await loggedIn("fatou");
+    await demo.reset(req);
+    const e = await demo.reset(req).catch((x) => x);
+    expect((e as HttpException).getStatus()).toBe(429);
+    expect(e.message).toBe("The city was just reset. Try again in 10 minutes.");
+  });
+
+  it("replants a month of life: ledger, chores, channel, notes, history, tontine and payments", async () => {
+    const req = await loggedIn("fatou");
+    await demo.reset(req);
+    const view = (await houses.view("sacre-coeur"))!;
+    expect(view.ledger.find((l) => l.login === "awa")).toMatchObject({ given: 7, received: 5 });
+    expect(view.reviewsThisMonth).toBeGreaterThan(0);
+    expect(view.tontine?.current).toMatchObject({ login: expect.any(String) });
+    const city = await houses.city();
+    const sacre = city.houses.find((h) => h.id === "sacre-coeur")!;
+    expect(sacre).toMatchObject({ openChores: 2, lateChores: 1 });
+    // Jib, a flatmate, sees the channel, the history and the bill.
+    const jib = await auth.devLogin("jib");
+    const inside = (await houses.view("sacre-coeur", jib.id))!;
+    expect(inside.channel!.length).toBeGreaterThanOrEqual(12);
+    expect(inside.chores).toHaveLength(2);
+    expect(inside.deployments!.length).toBeGreaterThanOrEqual(9);
+    expect(inside.notes!.some((n) => n.tone === "thanks")).toBe(true);
+    expect(inside.bill!.lines.some((l) => l.paid)).toBe(true);
+    // Never an @-mention in anything seeded.
+    expect(inside.channel!.every((m) => !m.body.includes("@"))).toBe(true);
   });
 });

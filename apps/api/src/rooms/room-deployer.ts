@@ -1,7 +1,7 @@
 // One way to deploy a room, whoever asks: the room page, a merged pull request, a preview. It builds the agent's
 // deploy command from the room's settings (branch, folder, port) and its decrypted secrets.
 import { Inject, Injectable } from "@nestjs/common";
-import { type Db, repos, roomSecrets, rooms } from "@coloc/db";
+import { type Db, houses, repos, roomSecrets, rooms, users } from "@coloc/db";
 import type { DeployKind } from "@coloc/protocol";
 import { and, eq } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
@@ -40,6 +40,20 @@ export class RoomDeployer {
     return Object.fromEntries(rows.map((r) => [r.name, this.secrets!.decrypt(r.value)]));
   }
 
+  /**
+   * Where the app lives, as environment variables, so a page can say hello in its own city: COLOC_ROOM, COLOC_HOUSE
+   * (the house's name), COLOC_CITY, COLOC_COUNTRY (two letters), COLOC_LOGIN and COLOC_NAME (who lives there).
+   * Nothing secret: all of it is on the house's public page already.
+   */
+  async context(room: Room): Promise<Record<string, string>> {
+    const [h] = await this.db.select({ name: houses.name, city: houses.city, country: houses.country }).from(houses).where(eq(houses.id, room.houseId));
+    const [u] = room.occupantId ? await this.db.select({ login: users.login, name: users.name }).from(users).where(eq(users.id, room.occupantId)) : [];
+    const env: Record<string, string> = { COLOC_ROOM: room.name };
+    if (h) Object.assign(env, { COLOC_HOUSE: h.name, COLOC_CITY: h.city, COLOC_COUNTRY: h.country });
+    if (u) Object.assign(env, { COLOC_LOGIN: u.login, COLOC_NAME: u.name ?? u.login });
+    return env;
+  }
+
   /** Where the room's code comes from: its linked GitHub repo if it has one, else the repo it was deployed from by hand. */
   async source(room: Room): Promise<Source | null> {
     const [repo] = await this.db.select().from(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name)));
@@ -61,7 +75,8 @@ export class RoomDeployer {
   }): Promise<DeploymentView> {
     const { room, kind, source } = opts;
     if (!this.agents.isOnline(room.houseId)) throw new Error("The house's server is offline.");
-    const env = await this.env(room.houseId, room.name);
+    // The room's secrets can't reuse these names (secrets.ts RESERVED), so neither hides the other.
+    const env = { ...(await this.context(room)), ...(await this.env(room.houseId, room.name)) };
     const d = await this.houses.createDeployment(
       room.houseId,
       room.name,

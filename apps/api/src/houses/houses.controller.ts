@@ -118,6 +118,18 @@ export class HousesController {
     return { rules: await this.houses.setRules(id, input.strictReviews, user.name ?? user.login) };
   }
 
+  // A flatmate marks their own line of this month's bill as paid. A mock payment for now: no money moves, and the
+  // bill tab says so. The next step is a mobile-money aggregator (PayDunya, CinetPay, FedaPay or Kkiapay).
+  @Post(":id/bill/paid")
+  @HttpCode(200)
+  async billPaid(@Param("id") id: string, @Req() req: HttpRequest) {
+    const user = await this.auth.userFromRequest(req);
+    if (!user) throw new UnauthorizedException("Log in first.");
+    if (!(await this.houses.exists(id))) throw new NotFoundException();
+    if (!(await this.houses.membership(id, user.id))) throw new ForbiddenException("Only flatmates pay this house's bill.");
+    return { ok: true, ...(await this.houses.markBillPaid(id, user.id)) };
+  }
+
   // Empties a room: every container in it is stopped and removed. The base for eviction, so chef only.
   @Post(":id/rooms/:room/empty")
   async empty(@Param("id") id: string, @Param("room") room: string, @Req() req: HttpRequest) {

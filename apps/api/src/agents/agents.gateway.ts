@@ -78,9 +78,12 @@ export class AgentsGateway implements OnGatewayConnection {
       case "room_event":
         await this.houses.recordRoomEvent(houseId, msg);
         break;
-      case "rooms_snapshot":
-        await this.houses.applySnapshot(houseId, msg);
+      case "rooms_snapshot": {
+        // A free room still running something (someone moved out, a leftover from a test): clear it out.
+        const leftovers = await this.houses.applySnapshot(houseId, msg);
+        for (const room of leftovers) this.registry.send(houseId, { type: "remove_room", room });
         break;
+      }
       case "logs":
         this.logs.deliver(houseId, msg);
         break;

@@ -46,3 +46,63 @@ export function splitBill(total: number, rooms: RoomUsage[], reservedShare = 0.6
 
   return rooms.map((r, i) => ({ memberId: r.memberId, amount: floored[i] }));
 }
+
+export interface ReviewedLine {
+  memberId: string;
+  // The usage share from splitBill.
+  share: number;
+  // Reviews this flatmate did for the house this month.
+  reviews: number;
+  // Reviews assigned to them this month that they let go late or never did.
+  skipped: number;
+}
+
+export interface CreditedLine {
+  memberId: string;
+  share: number;
+  // What their reviews knocked off (reviews × credit, never more than their share).
+  credit: number;
+  // What their skipped chores add: their part of paying for everyone else's credits.
+  surcharge: number;
+  // What they actually owe this month: share − credit + surcharge.
+  due: number;
+}
+
+/**
+ * Reviews as rent. Each review a flatmate does this month knocks `creditPerReview` francs off their line (never
+ * below zero). The house still owes the server its whole total, so someone pays for those credits:
+ * - first the flatmates who skipped chores, in proportion to how many they skipped (largest remainder, whole francs).
+ *   A skipped review costs at most what a done review earns, so nobody pays more than `creditPerReview` per skip;
+ * - whatever is left over is paid by the house pool, so the lines then add up to less than the total.
+ * Returns the lines and how much the pool covers. With nobody skipping, the pool covers every credit.
+ */
+export function creditReviews(lines: ReviewedLine[], creditPerReview: number): { lines: CreditedLine[]; pool: number } {
+  if (!Number.isInteger(creditPerReview) || creditPerReview < 0) throw new Error("creditPerReview must be a whole, non-negative amount");
+  const credited = lines.map((l) => ({ ...l, credit: Math.min(l.share, l.reviews * creditPerReview), surcharge: 0 }));
+  let toCover = credited.reduce((s, l) => s + l.credit, 0);
+
+  // Spread the credits over the skippers, by skips. A skipper's own credit is netted first (they did some reviews).
+  const skippers = credited.filter((l) => l.skipped > 0);
+  const skips = skippers.reduce((s, l) => s + l.skipped, 0);
+  if (skips > 0 && toCover > 0) {
+    const exact = skippers.map((l) => (toCover * l.skipped) / skips);
+    const whole = exact.map(Math.floor);
+    let leftover = toCover - whole.reduce((s, a) => s + a, 0);
+    const order = exact.map((x, i) => ({ i, rem: x - Math.floor(x) })).sort((a, b) => b.rem - a.rem || a.i - b.i);
+    for (const { i } of order) {
+      if (leftover === 0) break;
+      whole[i] += 1;
+      leftover -= 1;
+    }
+    skippers.forEach((l, i) => {
+      // A skip costs what a review earns, no more: the rest falls to the pool.
+      l.surcharge = Math.min(whole[i], l.skipped * creditPerReview);
+      toCover -= l.surcharge;
+    });
+  }
+
+  return {
+    lines: credited.map((l) => ({ memberId: l.memberId, share: l.share, credit: l.credit, surcharge: l.surcharge, due: l.share - l.credit + l.surcharge })),
+    pool: toCover,
+  };
+}

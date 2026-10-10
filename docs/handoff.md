@@ -1,0 +1,155 @@
+# Handoff: La Coloc, 10 10 2026
+
+A briefing for the next agent picking this up. Everything below was true at commit `737d7da` (pushed to
+`Djbrl/la-coloc`, `main`). Read this first, then the docs it points to.
+
+## The project in five lines
+
+- **Contest:** the CADEV hackathon (organiser Systalink). The subject is "an African exchange platform built for devs
+  by devs". We submit **Sun 25 10 2026**; the hard deadline is **31 10, 17:00 Dakar time**. Scoring is relevance 25,
+  technical quality 30, UX 20, innovation 15 and public vote 10, gated by a peer vote. Details are in
+  [contest-rules.md](contest-rules.md).
+- **Product:** *La Coloc* is a city of dev houses.
+  - A house is a server that flatmates rent together. Each flatmate has a room where their app deploys when they push.
+  - To get in, you knock on a free room and the house votes you in.
+  - Part of the rent is paid in code reviews ("chores"), and a tontine rotates through the flatmates.
+  - Flatmates can team up.
+  - House pages are public. The channel, chores and bill are for flatmates only.
+- **The user** is Jib (Djibril Sy, GitHub `Djbrl`). They are the team lead and own the UX and the art, and they must be
+  able to explain the code to the jury, so keep the code readable and the comments plain. Use they/them for Jib.
+- **They're entering for fun.** If we win, the rights go to Systalink.
+- **Start with these docs:** [how-it-works.md](how-it-works.md) for the product,
+  [architecture.md](architecture.md) for the stack, [roadmap.md](roadmap.md) for the plan,
+  [build-notes.md](build-notes.md) for what was built, verified and fixed, night by night, and [dev.md](dev.md) to
+  run it locally.
+
+## How Jib wants things done
+
+- **Design:**
+  - Follow Apple's design philosophy everywhere: system font, big headlines, whitespace, sections rather than cards,
+    one main action per view, and multi-step flows.
+  - **There is no visible label text anywhere.** Write sentences instead. Hidden accessible names are fine and
+    expected.
+- **Lobby:** the reference is 2XKO's hangout lobby: warm lights, emotes over heads, an interact prompt, a corner card
+  showing who's here.
+- **Git:** commit and push only when asked. End commit messages with the Co-Authored-By line. Never touch
+  `hello-world.md`, an untracked file of unknown origin.
+- **Art:** use CC0 or permissive assets only, and log every one in [licences.md](licences.md). No ArtStation and no
+  rips. Ask Jib before downloading anything; give the filename, source and size.
+- **Logins and secrets:**
+  - Never type passwords or sign in for Jib.
+  - OAuth "Authorize" clicks are Jib's to make.
+  - Jib is logged into GitHub in their own Chrome.
+- **GitHub etiquette:** never @-mention a user who hasn't linked a GitHub account (demo flatmates are made up).
+- **Subagents** are welcome on big requests. Give each one files the others don't touch, and review the work before
+  committing.
+- **Logging:** record every notable AI contribution in [ai-usage.md](ai-usage.md); the contest asks for it. Add a
+  dated section to [build-notes.md](build-notes.md) after each batch of work.
+
+## Stack and layout
+
+An npm-workspaces monorepo on Node 22 or later:
+
+| Path | What |
+|---|---|
+| `apps/web` | Vue 3 + Vite, three.js 0.186 for the lobby. Dev server on **:5175** (`.claude/launch.json`, name `web`); it proxies `/api` and `/lobby-ws` to the API |
+| `apps/api` | NestJS on **:4100** with WsAdapter. Holds auth, houses, doorbell, rooms, GitHub (webhooks, chores, deploys, previews), agents and lobby presence |
+| `apps/agent` | The caretaker that runs on each house's server (Node + dockerode). It connects out to the API, builds and swaps containers, and writes Traefik route files to `/tmp/coloc-agent/proxy`, so Traefik never sees the Docker socket |
+| `packages/protocol` | zod schemas shared by the API and the agent |
+| `packages/domain` | Pure rules: reviewer rotation and the like |
+| `packages/db` | Drizzle 0.45 + pg, with PGlite in tests. Local Postgres runs on 127.0.0.1:5433 |
+
+- **Auth:**
+  - Sessions are random tokens. The database stores only their SHA-256, and the cookie is HttpOnly and SameSite=Lax.
+  - The dev login exists only when `COLOC_DEV_LOGIN=1`.
+- **The development GitHub App** is "La Coloc - Dev" (id 5245871, slug `la-coloc-dev`).
+  - It was created with `scripts/github-app.mjs`. Its keys are in `dev/.env.github` and `dev/github-app.pem`, both
+    git-ignored.
+  - Webhooks arrive through smee (`npm run dev:webhooks`).
+  - It's installed only on the private test repo **`Djbrl/coloc-test`**.
+- **Room secrets** are encrypted with AES-256-GCM using `COLOC_SECRETS_KEY` from `dev/.env.local`. The API's start
+  script loads that file.
+
+### Running it (what was up at handoff)
+
+The Docker proxy and Postgres (`npm run dev:proxy`), then:
+
+```bash
+COLOC_DEV_LOGIN=1 COLOC_PUBLIC_URL=http://localhost:5175 npm run start -w @coloc/api
+COLOC_HOUSE_ID=sacre-coeur COLOC_AGENT_SECRET=dev-secret-change-me COLOC_USAGE_INTERVAL_MS=5000 COLOC_ALLOW_LOCAL_REPOS=1 npm run start -w @coloc/agent
+npm run dev:webhooks
+npm run dev -w @coloc/web -- --port 5175 --strictPort
+```
+
+- **Gotcha:** another project of Jib's (`~/rundown`) runs on port 4000. To restart the API, stop it by its PID, and
+  only a process whose working directory is `/Users/dsy/la-coloc/apps/api`. Never kill by port or by name.
+- **Tests:** `npm test` runs 123 of them: domain 14, protocol 4, agent 13, db 2, API 83, web 7.
+- **Other checks:** `npm run build` and `npm run licences:check` both pass.
+
+## What works today
+
+All of this was verified end to end. The evidence is in build-notes.
+
+- **GitHub login.** Plus a dev login.
+- **City and house pages.** There are nine seeded houses in eight cities. Only **Sacré-Cœur** is real, run by the local
+  agent; the others are flagged `demo`.
+- **The doorbell.** Knock, then the application thread, the house vote, and moving in.
+- **The house channel.**
+- **Chores.** A PR gets a reviewer by rotation, a review request, and an outcome; the reviewer's latest review counts.
+- **The exchange ledger.**
+- **Deploy on merge, against real GitHub.**
+  - A strict house needs the assigned flatmate's approval.
+  - Private repos are cloned with a one-hour installation token.
+  - Swaps have no downtime, using route files.
+  - The result is a comment on the PR.
+- **PR previews.** Built at `preview-<room>…`; closing the PR removes them.
+- **The room page.** Build settings, encrypted secrets, live logs, restart, redeploy and history.
+- **The isolation demo** (`scripts/isolation-demo.sh`). One room's memory hog is OOM-killed while the neighbouring room
+  never misses a request.
+- **The 3D lobby**, full screen. The list view stays as an option in Settings.
+  - **Neighbourhoods:** one procedural neighbourhood per city (`apps/web/src/lobby/neighbourhood.ts`, seeded
+    mulberry32), with blocks, a market, a park, shops, towers, trees, lamps, traffic lights and a skyline. The
+    buildings are Kenney CC0 kits, and the ground textures are drawn in code (`textures.ts`).
+  - **Travel and presence:** travel between cities through "Where to?" (the URL keeps `?city=`). Live presence is
+    partitioned per city (`apps/api/src/lobby/presence.ts`), with a live census.
+  - **Who's who:**
+    - Rings under people show their house's colour; grey means just visiting.
+    - Clicking a person opens a card.
+    - Emotes, and lamps you light with E.
+    - A look you choose, saved to your profile.
+  - **Comfort:** a five-step welcome, a loading screen, and a settings sheet.
+  - **Readability:** buildings between the camera and you fade, and Q and R turn the view.
+  - **Cost:** about 240 draw calls and 85k triangles in Dakar.
+  - **Debugging:** in development builds, `window.lobby` is the engine.
+
+## Known rough edges
+
+- In the lobby:
+  - Houses only face north or south, so some fronts point away until you turn the camera.
+  - There's no pinch-to-zoom.
+  - Clicking a specific person on a narrow phone takes aim.
+  - Nobody has measured it on a low-end phone yet.
+- A chore being *done* has never been seen live; that needs a second real GitHub account (a teammate).
+- smee re-encodes the JSON it relays, so a webhook might one day fail the signature check. Watch for 401s in the
+  relay's log.
+- Screenshots in the in-app browser fail when its pane is hidden. three.js's `requestAnimationFrame` also pauses then,
+  so the lobby looks frozen in that state.
+
+## What's next (from the roadmap; confirm with Jib before starting)
+
+1. **A real server.** Rent a VPS (on Datacloud if possible; Jib makes the purchase). Write `install.sh`: Docker,
+   userns-remap, Traefik, and the agent as a systemd service. Set up wildcard DNS per house and pick a domain
+   (`coloc.dev`?).
+2. **GitHub's Deployments panel.** Add the `deployments: write` permission to the App; Jib must accept the change.
+3. **Rent a flat:** onboarding for a new house's chef, ending with the install command.
+4. **Bills and tontine:** usage samples are already collected every 30 seconds. Build the monthly split and the
+   tontine turns.
+5. **Teammates and art.** Recruit 1–2 teammates (teams are 2–5). Jib's own art is to replace the Kenney
+   placeholders.
+6. **CI** (tests and `licences:check` on GitHub Actions), ESLint and Prettier.
+7. **Lobby polish:**
+   - Houses that face east and west.
+   - Pinch-to-zoom.
+   - A walk-in hangout room inside each house.
+   - Speech bubbles from the house chat.
+   - A day/night cycle on Dakar time.

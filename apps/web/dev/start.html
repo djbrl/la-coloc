@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>La Coloc, every address</title>
 <!-- The start page: every address in one place, so nobody has to remember a port. The houses and their rooms come
-     from the city itself (the API), so the list is never stale. Served by the website at /start.html. -->
+     from the city itself (the API), so the list is never stale. Served by the Vite dev server at /dev/start.html only:
+     it lives outside public/, so a production build never ships it. -->
 <style>
   :root { color-scheme: light dark; --text: #1d1d1f; --muted: #6e6e73; --bg: #fff; --line: #d2d2d7; --accent: #0071e3; }
   @media (prefers-color-scheme: dark) { :root { --text: #f5f5f7; --muted: #a1a1a6; --bg: #000; --line: #3a3a3c; --accent: #6eb4ff; } }

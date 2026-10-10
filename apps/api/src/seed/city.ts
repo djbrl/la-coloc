@@ -2,9 +2,10 @@
 // is the workshop where newcomers take the tutorial (a second agent runs it, with the same secret).
 // Every other house is a demo house: flagged `demo`, labelled as such in the UI, with made-up flatmates
 // who have no GitHub account. They exist so the city isn't empty on screen.
-import { applications, chores, type Db, deployments, fridgeNotes, houses, memberships, messages, repos, rooms, sessions, usageSamples, users, votes } from "@coloc/db";
+import { applications, billPayments, chores, type Db, deployments, fridgeNotes, houses, memberships, messages, repos, rooms, sessions, usageSamples, users, votes } from "@coloc/db";
 import { eq } from "drizzle-orm";
 import { hashSecret } from "../houses/houses.service";
+import { plantLife } from "./life";
 
 interface SeedRoom {
   name: string;
@@ -17,6 +18,9 @@ interface SeedRoom {
   ad?: string;
   // An example room in a real house: shown as lived in and online, but nothing runs there (rooms.demo).
   demo?: boolean;
+  // Where a redeploy gets its code when no GitHub repo is linked: a repo URL and the folder with the Dockerfile.
+  source?: string;
+  buildPath?: string;
 }
 
 interface SeedHouse {
@@ -35,6 +39,9 @@ interface SeedHouse {
   rooms: SeedRoom[];
 }
 
+// The project's own repo, which holds the example apps in examples/.
+const EXAMPLES_REPO = "https://github.com/Djbrl/la-coloc.git";
+
 export const CITY: SeedHouse[] = [
   {
     id: "sacre-coeur",
@@ -48,8 +55,23 @@ export const CITY: SeedHouse[] = [
     chef: "jib",
     rooms: [
       { name: "jib", who: "jib", project: "Kër Bot", description: "A Discord bot for the neighbourhood's football league." },
-      { name: "awa", who: "awa", project: "Ndaje", description: "A small shop that takes Wave payments." },
-      { name: "moussa", who: "moussa", memoryMb: 128, project: "Prix Marché", description: "Scrapes market prices every morning." },
+      {
+        name: "awa",
+        who: "awa",
+        project: "Ndaje",
+        description: "A small shop that takes mobile money.",
+        source: EXAMPLES_REPO,
+        buildPath: "examples/ndaje",
+      },
+      {
+        name: "moussa",
+        who: "moussa",
+        memoryMb: 128,
+        project: "Prix Marché",
+        description: "Today's prices at Sandaga and Tilène.",
+        source: EXAMPLES_REPO,
+        buildPath: "examples/prix-marche",
+      },
       { name: "room-4", ad: "Looking for a mobile dev (Flutter or React Native)" },
     ],
   },
@@ -227,6 +249,9 @@ export interface SeedOptions {
   // The secret of the real houses' agents (Sacré-Cœur and L'Atelier share it).
   agentSecret: string;
   domain: (houseId: string) => string;
+  // Plant a month of life too (reviews, chat, notes, deploy history, payments; see life.ts). The dev seed and the
+  // demo reset do; most tests start from the bare city.
+  life?: boolean;
 }
 
 /**
@@ -240,6 +265,7 @@ export function devSeedOptions(env = process.env): SeedOptions {
     // Locally Sacré-Cœur serves its rooms at <room>.coloc.localhost and the workshop at <room>.atelier.coloc.localhost.
     // Demo houses never serve anything.
     domain: (id) => (id === "sacre-coeur" ? houseDomain : id === "atelier" ? `atelier.${houseDomain}` : `${id}.coloc.dev`),
+    life: true,
   };
 }
 
@@ -249,7 +275,8 @@ export function devSeedOptions(env = process.env): SeedOptions {
  */
 export async function seedCity(db: Db, opts: SeedOptions) {
   await db.transaction(async (tx) => {
-    for (const t of [messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, sessions, memberships, rooms, houses, users]) await tx.delete(t);
+    for (const t of [messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, billPayments, sessions, memberships, rooms, houses, users])
+      await tx.delete(t);
     await plantCity(tx, opts);
   });
 }
@@ -291,15 +318,40 @@ export async function plantCity(db: Db, opts: SeedOptions) {
         projectDescription: r.description ?? null,
         ad: r.ad ?? null,
         demo: r.demo ?? false,
+        source: r.source ?? null,
+        buildPath: r.buildPath ?? ".",
         // Demo houses that are live, and example rooms, show as lived in; nothing actually runs there.
         status: ((h.demo && h.status === "live" && r.who) || r.demo ? "live" : "empty") as "live" | "empty",
       })),
     );
     const members = h.rooms.filter((r) => r.who);
     await db.insert(memberships).values(
-      members.map((r, i) => ({ houseId: h.id, userId: id[r.who!], role: r.who === h.chef ? ("chef" as const) : ("flatmate" as const), tontinePosition: i })),
+      members.map((r, i) => ({
+        houseId: h.id,
+        userId: id[r.who!],
+        role: r.who === h.chef ? ("chef" as const) : ("flatmate" as const),
+        // The tontine goes round in room order (the reviewer rotation breaks ties in the same order).
+        tontinePosition: i,
+      })),
     );
   }
+
+  // A month of life on top: reviews, chat, notes, deploy history, bill payments.
+  if (!opts.life) return;
+  await plantLife(
+    db,
+    CITY.map((h) => ({
+      id: h.id,
+      live: h.status === "live",
+      demo: h.demo,
+      tutorial: h.tutorial ?? false,
+      monthlyCostFcfa: h.monthlyCostFcfa,
+      flatmates: h.rooms
+        .filter((r) => r.who)
+        .map((r) => ({ login: r.who!, room: r.name, name: displayName(r.who!), example: !!r.demo })),
+    })),
+    id,
+  );
 }
 
 /**
