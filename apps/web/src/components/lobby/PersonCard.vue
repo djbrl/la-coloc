@@ -7,8 +7,8 @@ import type { CityHouse } from "../../types";
 import Icon from "./house/Icon.vue";
 import { type CityRoom, freeRooms, type Home, homeLine, knockOn, roomOf, sentence } from "./cards";
 import LobbyCard from "./LobbyCard.vue";
-import StatusPill from "./panel/StatusPill.vue";
-import { roomState } from "./panel/words";
+import StatusDot from "./panel/StatusDot.vue";
+import { roomLine, roomState } from "./panel/words";
 
 const props = defineProps<{
   login: string;
@@ -33,7 +33,9 @@ const askLogin = computed(() => !props.isMe && !!props.house && free.value.lengt
 // Their room in the city's list: what they build, in their own words, and whether it's online.
 const room = computed(() => roomOf(props.house, props.home?.room));
 const project = computed(() => room.value?.project ?? props.home?.project ?? null);
-const state = computed(() => (room.value ? roomState(room.value, props.house?.status) : null));
+const state = computed(() => (room.value ? roomState(room.value, props.house?.status, props.house?.demo) : null));
+// Its state in words, first in the line under the name ("Online."), the dot beside the name in colour.
+const stateWords = computed(() => (room.value ? roomLine(room.value, props.house?.status, props.house?.demo) : ""));
 const where = computed(() => homeLine(props.login, props.home));
 
 // Several free rooms: pick one first.
@@ -64,10 +66,10 @@ function ask() {
       <div class="what">
         <p class="name">
           <strong>{{ project ?? `Room ${home.room}` }}</strong>
-          <StatusPill v-if="state && project" :state="state" />
+          <StatusDot v-if="state && project" :state="state" />
         </p>
         <p v-if="!project" class="soft small desc">Nothing online in this room yet.</p>
-        <p v-else-if="room?.projectDescription" class="soft small desc">{{ sentence(room.projectDescription) }}</p>
+        <p v-else class="soft small desc">{{ stateWords }}{{ room?.projectDescription ? ` ${sentence(room.projectDescription)}` : "" }}</p>
       </div>
     </div>
 
@@ -105,7 +107,7 @@ function ask() {
               stroke-linejoin="round"
             />
           </svg>
-          <span>Wave</span>
+          <span>Say hi</span>
         </button>
       </div>
     </div>

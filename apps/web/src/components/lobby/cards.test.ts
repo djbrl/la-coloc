@@ -9,6 +9,7 @@ const room = (name: string, occupied: boolean) => ({
   projectDescription: null,
   ad: null,
   occupant: occupied ? { login: name, name: null, avatarUrl: null } : null,
+  building: false,
 });
 
 describe("what a house card says", () => {

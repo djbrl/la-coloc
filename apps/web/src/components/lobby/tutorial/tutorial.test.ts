@@ -1,6 +1,7 @@
 // The tutorial's step machine, driven with plain events: the order of the steps, and what each one waits for.
 import { describe, expect, it } from "vitest";
 import type { TutorialState } from "../../../types";
+import { nextTip, type Tip, tipParts } from "./tips";
 import { type Action, goingWord, SETUP, STEPS, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
 
 // What GET /api/tutorial says, with a room (or not) and GitHub linked (or not).
@@ -20,12 +21,8 @@ const act = (m: TutorialMachine, ...names: Action[]) => names.forEach((name) => 
 function playTo(m: TutorialMachine, until: string) {
   const moves: Record<string, () => void> = {
     welcome: () => m.send({ type: "start" }),
-    walk: () => act(m, "walk-up", "walk-left", "walk-down", "walk-right"),
-    dash: () => act(m, "dash"),
-    map: () => (m.send({ type: "map", open: true }), m.send({ type: "map", open: false })),
-    keys: () => (m.send({ type: "keys", open: true }), m.send({ type: "keys", open: false })),
+    walk: () => act(m, "walk-up"),
     look: () => m.send({ type: "shown" }),
-    turn: () => act(m, "turn-left", "turn-right"),
     go: () => m.send({ type: "inside", houseId: TUTORIAL_HOUSE }),
     rundown: () => m.send({ type: "rundownDone" }),
     room: () => m.send({ type: "state", state: state({ status: "empty" }) }),
@@ -51,28 +48,28 @@ describe("the tutorial", () => {
     expect(m.active).toBe(false);
   });
 
-  it("waits for all four directions before the dash", () => {
+  it("teaches walking and E, nothing else: any walk moves on", () => {
     const m = new TutorialMachine();
     m.start();
     m.send({ type: "start" });
     expect(m.step).toBe("walk");
-    act(m, "walk-up", "walk-up", "walk-left", "walk-down");
-    // The same direction twice counts once, and a dash or a turn isn't a direction.
+    // A dash or a turn isn't a walk.
     act(m, "dash", "turn-left");
     expect(m.step).toBe("walk");
-    expect(m.walked).toEqual(["walk-up", "walk-left", "walk-down"]);
-    act(m, "walk-right");
-    expect(m.step).toBe("dash");
+    act(m, "walk-left");
+    expect(m.step).toBe("look");
+    expect(STEPS).not.toContain("dash");
+    expect(STEPS).not.toContain("map");
   });
 
-  it("counts any walk on a touch screen, and skips the dash and the keys", () => {
+  it("counts a click or a tap on the ground as walking", () => {
     const m = new TutorialMachine({ touch: true });
     m.start();
     m.send({ type: "start" });
     m.send({ type: "moved" });
-    expect(m.step).toBe("map");
-    m.send({ type: "next" });
     expect(m.step).toBe("look");
+    m.send({ type: "shown" });
+    expect(m.step).toBe("go");
   });
 
   it("ignores events meant for other steps", () => {
@@ -81,18 +78,6 @@ describe("the tutorial", () => {
     act(m, "walk-up", "walk-left", "walk-down", "walk-right");
     m.send({ type: "inside", houseId: TUTORIAL_HOUSE });
     expect(m.step).toBe("welcome");
-  });
-
-  it("needs the map opened, then closed", () => {
-    const m = new TutorialMachine();
-    m.start();
-    playTo(m, "map");
-    m.send({ type: "map", open: false });
-    expect(m.step).toBe("map");
-    m.send({ type: "map", open: true });
-    expect(m.mapOpen).toBe(true);
-    m.send({ type: "map", open: false });
-    expect(m.step).toBe("keys");
   });
 
   it("goes back out on the street when the window closes during its rundown", () => {
@@ -140,7 +125,7 @@ describe("the tutorial", () => {
   it("skips to the city from anywhere", () => {
     const m = new TutorialMachine();
     m.start();
-    playTo(m, "turn");
+    playTo(m, "go");
     m.send({ type: "city" });
     expect(m.step).toBe("city");
   });
@@ -148,7 +133,7 @@ describe("the tutorial", () => {
   it("starts with nothing on screen and ends with everything", () => {
     expect(SETUP.welcome.reveal).toEqual([]);
     expect(SETUP.welcome.controls.walk).toBe(false);
-    expect(SETUP.map.reveal).toEqual(["map"]);
+    expect(SETUP.walk.reveal).toEqual([]);
     expect(SETUP.look.reveal).not.toContain("chrome");
     expect(SETUP.look.reveal).not.toContain("emotes");
     expect(SETUP.city.reveal).toContain("chrome");
@@ -169,5 +154,38 @@ describe("putting the sample online, in words", () => {
     expect(goingWord("live", true)).toBe("");
     expect(goingWord("failed", true)).toBe("");
     expect(goingWord(undefined, false)).toBe("");
+  });
+});
+
+describe("the one-time tips", () => {
+  it("says how to walk on arrival, and the dash after a long walk", () => {
+    expect(nextTip("arrived", [], false)).toBe("walk");
+    expect(nextTip("arrived", ["walk"], false)).toBeNull();
+    expect(nextTip("walking", [], false)).toBe("dash");
+    expect(nextTip("walking", ["dash"], false)).toBeNull();
+  });
+
+  it("brings the others one quiet moment at a time, in order, each once", () => {
+    const seen: Tip[] = [];
+    const order: (Tip | null)[] = [];
+    for (let i = 0; i < 5; i++) {
+      const tip = nextTip("idle", seen, false);
+      order.push(tip);
+      if (tip) seen.push(tip);
+    }
+    expect(order).toEqual(["turn", "map", "pick", "keys", null]);
+  });
+
+  it("skips what a touch screen has no keys for", () => {
+    expect(nextTip("idle", ["turn", "map"], true)).toBeNull();
+    expect(nextTip("walking", [], true)).toBe("dash");
+  });
+
+  it("cuts a tip into words and key caps", () => {
+    expect(tipParts("Tap {Shift} to dash.")).toEqual([
+      { key: false, text: "Tap " },
+      { key: true, text: "Shift" },
+      { key: false, text: " to dash." },
+    ]);
   });
 });

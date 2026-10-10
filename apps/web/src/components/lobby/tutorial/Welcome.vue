@@ -22,8 +22,8 @@ function onKey(e: KeyboardEvent) {
     <section class="card" role="dialog" aria-modal="true" aria-labelledby="tutorial-welcome-title" @keydown="onKey">
       <template v-if="props.step === 'welcome'">
         <h2 id="tutorial-welcome-title">Welcome to La Coloc.</h2>
-        <p>A city of houses. A house is a server a few devs share, and you get a room in one for your project.</p>
-        <p class="soft">A short tutorial: by the end, your first project is online.</p>
+        <p>A city of dev houses, from Dakar to Kigali. Each house is a server a few developers rent together, and part of the rent is paid in code reviews.</p>
+        <p class="soft">You'll get a room in a shared server and put a project online in a minute.</p>
         <div class="nav">
           <button type="button" class="link quiet" :disabled="busy" @click="emit('skip')">Skip the tutorial</button>
           <button ref="go" type="button" class="primary go" :disabled="busy" @click="emit('start')">Start</button>
@@ -31,8 +31,8 @@ function onKey(e: KeyboardEvent) {
       </template>
       <template v-else>
         <h2 id="tutorial-welcome-title">Welcome to the city.</h2>
-        <p>Go into any house to see who lives there and what they build. Knock on a free room to ask for it: the flatmates vote.</p>
-        <p class="soft">The map, bottom right, takes you to other cities. The tutorial is in settings.</p>
+        <p>Every lit window is someone's project. Go into a house to see who lives there and what they build. Knock on a free room, and the house votes.</p>
+        <p class="soft">The city's name, top left, takes you to other cities. The tutorial is in settings.</p>
         <div class="nav">
           <button ref="go" type="button" class="primary go" @click="emit('end')">Let's go</button>
         </div>

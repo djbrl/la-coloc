@@ -8,8 +8,8 @@ import Avatar from "../Avatar.vue";
 import Icon from "./house/Icon.vue";
 import { type CityRoom, knockOn, listNames, nameOf, roomsLine, sentence } from "./cards";
 import LobbyCard from "./LobbyCard.vue";
-import StatusPill from "./panel/StatusPill.vue";
-import { explain, houseState } from "./panel/words";
+import StatusDot from "./panel/StatusDot.vue";
+import { explain, houseLine, houseState } from "./panel/words";
 
 const props = defineProps<{
   house: CityHouse;
@@ -29,7 +29,9 @@ const knock = computed(() => (mine.value ? null : knockOn(me.value?.knocks, prop
 // Knocking needs someone to answer the door: a real house, you logged in, not living there, not knocked yet.
 const canKnock = computed(() => !!me.value && !props.house.demo && !mine.value && !knock.value);
 
-const where = computed(() => `${props.house.city} · ${roomsLine(props.house)}`);
+// One sentence: where it is, whether its server runs (the dot beside it in colour), and its rooms.
+// "Dakar. Its server is running. 4 rooms, 1 free."
+const where = computed(() => `${houseLine(props.house)} ${roomsLine(props.house)}.`.replace(/^./, (c) => c.toUpperCase()));
 const state = computed(() => houseState(props.house.status, props.house.agentOnline, props.house.demo));
 // What the house is: its own words if it has some, else what a house is at all.
 const what = computed(() => (props.house.tagline ? sentence(props.house.tagline) : explain.house));
@@ -48,9 +50,9 @@ const hereLine = computed(() => {
     <button class="x" aria-label="Close (Esc)" @click="emit('close')">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
     </button>
-    <p class="where small"><StatusPill :state="state" /><span class="soft">{{ where }}</span></p>
+    <p class="where small"><StatusDot :state="state" /><span class="soft">{{ where }}</span></p>
     <p class="what">{{ what }}</p>
-    <p v-if="house.demo && !mine" class="soft small">A sample house: nobody's in to answer the door.</p>
+    <p v-if="house.demo && !mine" class="soft small">Nobody's in to answer the door.</p>
     <p v-if="mine" class="soft small">This is your house.</p>
     <p v-else-if="hereLine" class="soft small">{{ hereLine }}</p>
 
@@ -89,8 +91,8 @@ const hereLine = computed(() => {
 </template>
 
 <style scoped>
-.where { display: flex; align-items: center; gap: 8px; margin-top: -6px; min-width: 0; }
-.where .soft { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.where { display: flex; align-items: baseline; gap: 8px; margin-top: -6px; min-width: 0; }
+.where .status-dot { translate: 0 -1px; }
 .rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .rooms li { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 10px; border-radius: 14px; background: var(--tile); font-size: 15px; }
 .grow { flex: 1; min-width: 0; }

@@ -1,23 +1,27 @@
 <script setup lang="ts">
 // The full-screen lobby, one neighbourhood (city) at a time, and everything that sits on top of it: loading, the
-// welcome, the prompt for whatever is in reach, emotes, who's here, the lamps, a card for the house, person or
-// empty plot you picked, the inside of a house (its page, an application, a room) opened over the city so you
-// never leave it, a minimap you can travel from, the keys in the corner, and sheets to find a house or travel
-// to another city. The first time someone logged in arrives, the tutorial takes the city's place: one street
-// with a workshop at the end, a coach at the bottom, and the screen empty but for what the step has unlocked;
-// the city comes back, behind a last welcome, when it ends.
+// welcome, the prompt for whatever is in reach, emotes, the city's live activity, a card for the house, person,
+// empty plot or chores board you picked, the inside of a house (its page, an application, a room) opened over the
+// city so you never leave it, a minimap you can travel from, the keys in the corner, short news and tips at the
+// top, and sheets to find a house or travel to another city on a map of Africa. The first time someone logged in
+// arrives, the tutorial takes the city's place: one street with a workshop at the end, a coach at the bottom, and
+// the screen empty but for what the step has unlocked; the city comes back, behind a last welcome, when it ends.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { loading } from "../lobby/assets";
+import { styleFor } from "../lobby/cityStyle";
 import { type Emote, Lobby, type Target } from "../lobby/Lobby";
 import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
 import { loadMe, me, meLoaded } from "../session";
-import { lobbyUi, settings, settingsPane } from "../settings";
+import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
 import type { CityHouse } from "../types";
 import KnockSteps from "./KnockSteps.vue";
+import { localTime } from "./lobby/africa";
+import AfricaMap from "./lobby/AfricaMap.vue";
+import BoardCard from "./lobby/BoardCard.vue";
 import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam, plural, statusLine } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
 import HouseCard from "./lobby/HouseCard.vue";
@@ -30,14 +34,12 @@ import PersonCard from "./lobby/PersonCard.vue";
 import { type Place, placeKey } from "./lobby/place";
 import RentSteps from "./lobby/RentSteps.vue";
 import Coach from "./lobby/tutorial/Coach.vue";
+import { nextTip, type Tip, TIP_TEXT, type TipCue, tipParts } from "./lobby/tutorial/tips";
 import { FREE, type Piece, PIECES, SETUP, STEPS, TUTORIAL_HOUSE } from "./lobby/tutorial/tutorial";
 import { useTutorial } from "./lobby/tutorial/useTutorial";
 import Welcome from "./lobby/tutorial/Welcome.vue";
 import LoadingScreen from "./LoadingScreen.vue";
 import Onboarding from "./Onboarding.vue";
-
-// What a card can show: anything you can select. Lamps just switch; they never get a card.
-type Card = Exclude<Target, { kind: "lamp" }>;
 
 const props = defineProps<{ houses: CityHouse[] }>();
 const route = useRoute();
@@ -45,7 +47,7 @@ const router = useRouter();
 const host = ref<HTMLElement | null>(null);
 const sheetEl = ref<HTMLElement | null>(null);
 const near = ref<Target | null>(null);
-const card = ref<Card | null>(null);
+const card = ref<Target | null>(null);
 const failed = ref(false);
 const progress = ref<number | null>(null);
 const ready = ref(false);
@@ -53,7 +55,6 @@ const leaving = ref(false);
 const others = ref(new Set<string>());
 const connected = ref(false);
 const census = ref<Record<string, number>>({});
-const lamps = ref({ lit: 0, total: 0 });
 const sheet = ref<"" | "find" | "travel">("");
 const query = ref("");
 // The strip of keys, bottom left: folded or not. The full list and the big map are overlays.
@@ -72,9 +73,10 @@ const knock = ref<{ houseId: string; room: CityRoom } | null>(null);
 const rent = ref<{ city: string; plot: string } | null>(null);
 let lobby: Lobby | null = null;
 let link: LobbyLink | null = null;
-let walkAfterArrival: string | null = null;
 // A house you just started: walk to it once the city stream has pushed it.
 let awaiting: string | null = null;
+// The city was opened on a place (`?in=house:…`, a shared link): the tutorial waits, and offers itself in a corner.
+const linkedAtStart = !!parsePlace(route.query.in);
 
 // ---- Which neighbourhood ----
 
@@ -99,6 +101,8 @@ const residents = computed(() => {
   return map;
 });
 
+// Draws the neighbourhood on screen. The engine only rebuilds when what's drawn changed (a house, a plot, who
+// lives where); for live news alone (a room going online, a build, a power cut) it redraws those in place.
 function build() {
   if (!lobby) return;
   // The tutorial's neighbourhood is one street, drawn by hand, with the workshop at its far end: nowhere to get lost.
@@ -106,31 +110,23 @@ function build() {
   neighbourhood.value = n;
   lobby.setNeighbourhood(n, shown.value);
   lobby.setResidents(residents.value);
-  lamps.value = lobby.lampCount();
-  if (walkAfterArrival) {
-    lobby.goTo(walkAfterArrival);
-    walkAfterArrival = null;
-  }
   if (awaiting && here.value.some((h) => h.id === awaiting)) {
     lobby.goTo(awaiting);
     awaiting = null;
   }
 }
 
-function travel(to: string, thenWalkTo?: string) {
+function travel(to: string) {
   sheet.value = "";
   card.value = null;
-  walkAfterArrival = thenWalkTo ?? null;
-  if (to === city.value) {
-    if (thenWalkTo) lobby?.goTo(thenWalkTo);
-    return;
-  }
+  if (to === city.value) return;
   city.value = to;
   router.replace({ query: { ...route.query, city: to } });
   others.value = new Set();
   lobby?.clearRemotes();
   build();
   link?.enter(to);
+  greet(to);
 }
 
 /** Fast travel: the engine lands you on the nearest walkable spot. From the big map, that closes it. */
@@ -150,6 +146,21 @@ function openSheet(which: "find" | "travel") {
   noticeTimer = window.setTimeout(() => (notice.value = ""), 1800);
 }
 
+// Puts you at a house's door, facing it (the engine snaps, no walk), travelling to its city first if it's in
+// another one. For a house opened from the address bar, the top bar, Find or the chores board.
+function arriveFor(p: Place | null) {
+  const id = p?.kind === "house" ? p.id : p?.kind === "room" ? p.houseId : null;
+  if (!id || inWorkshop.value) return;
+  const h = props.houses.find((x) => x.id === id);
+  if (!h) return;
+  if (h.city !== city.value) {
+    // Before the engine is up, choosing the city is enough: it's built there.
+    if (lobby) travel(h.city);
+    else city.value = h.city;
+  }
+  lobby?.arriveAt(id);
+}
+
 // ---- The tutorial ----
 
 // Its step machine (tutorial.ts) and the API calls around it (useTutorial.ts); the coach shows the step.
@@ -166,13 +177,16 @@ const picking = computed(() => !inWorkshop.value || STEPS.indexOf(t.step) >= STE
 // Travel and find are off during the tutorial; pressing them shows this line for a moment.
 const notice = ref("");
 let noticeTimer = 0;
+// Opened on a shared link by someone the tutorial is for: it didn't start, and this corner button offers it.
+const tutorialChip = ref(false);
 
-// The old five-step welcome, for visitors and anyone the tutorial isn't for (an API without it leaves
-// `tutorialDone` out). Someone logged in who hasn't done the tutorial gets the tutorial instead.
-const welcoming = computed(() => meLoaded.value && !settings.welcomed && !t.active && me.value?.tutorialDone !== false);
+// The visitors' welcome (Onboarding.vue), for visitors and anyone the tutorial isn't for (an API without it leaves
+// `tutorialDone` out). Someone logged in who hasn't done the tutorial gets the tutorial instead. A place opened
+// from a link comes first: the welcome waits until it's closed.
+const welcoming = computed(() => meLoaded.value && !settings.welcomed && !t.active && me.value?.tutorialDone !== false && !place.value);
 
 // What's on screen besides the city itself. In the tutorial, only what the step has unlocked, starting from
-// nothing; outside it, everything (the keys, the map and the prompt wait for the old welcome to end).
+// nothing; outside it, everything (the keys, the map and the prompt wait for the welcome to end).
 const reveal = computed<Set<Piece>>(() => {
   if (t.active) return new Set(SETUP[t.step].reveal);
   if (welcoming.value) return new Set(PIECES.filter((p) => p !== "keys" && p !== "map" && p !== "prompt"));
@@ -209,6 +223,7 @@ watch(
 // to a place of your own so nobody else walks in. From the welcome card on, the step machine decides what you see.
 function enterTutorial() {
   if (!lobby || !me.value || inWorkshop.value) return;
+  tutorialChip.value = false;
   card.value = null;
   knock.value = null;
   rent.value = null;
@@ -240,9 +255,11 @@ watch(inWorkshop, (now, before) => {
   if (before && !now) leaveWorkshop();
 });
 
-// The city's welcome card said "Let's go": the tutorial is over, and the keyboard goes back to the city.
+// The city's welcome card said "Let's go": the tutorial is over, and the keyboard goes back to the city. Walking
+// was its first lesson, so that tip is never needed.
 function endTutorial() {
   t.send({ type: "end" });
+  seeTip("walk");
   host.value?.focus({ preventScroll: true });
 }
 
@@ -259,22 +276,25 @@ function openMyRoom() {
 }
 
 // It starts on its own, once the lobby is up, for someone logged in who hasn't done it (an API without the
-// tutorial leaves `tutorialDone` out, and then nothing starts). Settings can ask for it again.
+// tutorial leaves `tutorialDone` out, and then nothing starts). Opened on a shared link, it waits in a corner
+// instead, so the link isn't lost. Settings can ask for it again.
 watch(
   [ready, () => me.value?.tutorialDone],
   ([up, done]) => {
-    if (up && done === false && !failed.value) enterTutorial();
+    if (!up || done !== false || failed.value) return;
+    if (linkedAtStart) tutorialChip.value = true;
+    else enterTutorial();
   },
   { immediate: true },
 );
 watch(() => settingsPane.tutorialRequested, enterTutorial);
-// The workshop changes as you take a room and it goes live: its windows on the map follow.
+// The workshop changes as you take a room and it goes live: its windows follow, and going live is celebrated.
 watch(tutorial.house, () => {
   if (inWorkshop.value) build();
 });
-// The big map and the key list, opened and closed, are two of the steps.
-watch(bigMap, (open) => t.send({ type: "map", open }));
-watch(keysOpen, (open) => t.send({ type: "keys", open }));
+watch(tutorial.live, (live) => {
+  if (live && inWorkshop.value) lobby?.celebrate(TUTORIAL_HOUSE);
+});
 
 // An outside link was clicked inside a house's window: if it's your live room, the "run" step counts it as opened.
 function insideLink(url: string) {
@@ -283,15 +303,119 @@ function insideLink(url: string) {
   if (mine && bare(url) === bare(mine)) t.send({ type: "opened" });
 }
 
-// ---- Lamps, remembered per browser ----
+// ---- News and tips: one short line at a time, under the city's activity ----
 
-const LAMPS_KEY = "coloc.lamps";
-function savedLamps(): string[] {
+// A toast: plain words and key caps (tipParts), and how long it stays.
+interface Toast {
+  id: number;
+  parts: { key: boolean; text: string }[];
+  // A second, quieter part of the line (a greeting's meaning).
+  soft?: string;
+  ms: number;
+}
+const toast = ref<Toast | null>(null);
+const toastQueue: Toast[] = [];
+let toastId = 0;
+let toastTimer = 0;
+
+function say(text: string, opts: { soft?: string; ms?: number } = {}) {
+  toastQueue.push({ id: ++toastId, parts: tipParts(text), soft: opts.soft, ms: opts.ms ?? 4200 });
+  if (!toast.value) nextToast();
+}
+function nextToast() {
+  clearTimeout(toastTimer);
+  toast.value = toastQueue.shift() ?? null;
+  if (toast.value) toastTimer = window.setTimeout(nextToast, toast.value.ms);
+}
+
+// Arriving in a city: its greeting, in its own language (lobby/cityStyle.ts), and what it means.
+function greet(to: string) {
+  const g = styleFor(to).greeting;
+  if (!g || g.language === "English") return;
+  say(g.text, { soft: `"${g.meaning}", in ${g.language}.`, ms: 5500 });
+}
+
+// The tips seen in this browser. Each one shows once (tutorial/tips.ts).
+const TIPS_KEY = "coloc.tips";
+const touch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
+function seenTips(): Tip[] {
   try {
-    return JSON.parse(localStorage.getItem(LAMPS_KEY) ?? "[]");
+    return JSON.parse(localStorage.getItem(TIPS_KEY) ?? "[]");
   } catch {
     return [];
   }
+}
+function seeTip(tip: Tip) {
+  const seen = seenTips();
+  if (seen.includes(tip)) return;
+  try {
+    localStorage.setItem(TIPS_KEY, JSON.stringify([...seen, tip]));
+  } catch {
+    // Private mode: the tips come back next time.
+  }
+}
+// When the last tip showed: a quiet moment brings the next one only after a while.
+let lastTipAt = 0;
+const TIP_GAP_MS = 25_000;
+function cue(c: TipCue) {
+  // Tips wait while the tutorial, a welcome, a card or anything else is up.
+  const busy = t.active || welcoming.value || !!place.value || !!sheet.value || bigMap.value || keysOpen.value || !!knock.value || !!rent.value || !!card.value;
+  if (!ready.value || failed.value || busy || toast.value) return;
+  if (c === "idle" && performance.now() - lastTipAt < TIP_GAP_MS) return;
+  const tip = nextTip(c, seenTips(), touch);
+  if (!tip) return;
+  const text = touch ? TIP_TEXT[tip].touch : TIP_TEXT[tip].keys;
+  if (!text) return;
+  seeTip(tip);
+  lastTipAt = performance.now();
+  say(text, { ms: 6500 });
+}
+// Using a control counts as knowing it: its tip never shows.
+function used(action: string) {
+  if (action === "dash") seeTip("dash");
+  if (action === "turn-left" || action === "turn-right") seeTip("turn");
+}
+// How long you've been walking without a stop: a long walk brings the dash tip.
+let walkingSince = 0;
+function walking(moving: boolean) {
+  if (!moving) walkingSince = 0;
+  else if (!walkingSince) walkingSince = performance.now();
+  else if (performance.now() - walkingSince > 3500) cue("walking");
+}
+let idleTimer = 0;
+// The city on screen without the tutorial or the welcome: how to walk, once.
+watch(
+  () => ready.value && !failed.value && !t.active && !welcoming.value,
+  (on) => {
+    if (on) setTimeout(() => cue("arrived"), 1200);
+  },
+  { immediate: true },
+);
+
+// ---- A slow device: low quality is already the default (settings.ts); the list view is offered once ----
+
+const offerList = computed(() => ready.value && slowDevice() && !settings.listOffered && settings.view === "lobby" && !t.active && !welcoming.value);
+function seeAsList() {
+  settings.listOffered = true;
+  settings.view = "list";
+}
+
+// ---- The keyboard: only while the city has it ----
+
+// Clicked or tapped the city at least once: from then on, keys pressed with nothing focused are the city's too.
+let stageTouched = false;
+function touchStage() {
+  stageTouched = true;
+}
+/**
+ * Whether a key press is for the city (WCAG 2.1.4): the stage has focus, or nothing has (the page itself) after a
+ * click on the stage, and the shortcuts are on in settings. The engine follows the same rule for its own keys.
+ */
+function cityHasKeys(): boolean {
+  if (!settings.shortcuts) return false;
+  const focused = document.activeElement;
+  if (focused && focused !== document.body) return !!host.value?.contains(focused);
+  return stageTouched;
 }
 
 onMounted(() => {
@@ -315,6 +439,8 @@ onMounted(() => {
   // Browsers keep audio asleep until the first click or key press: that's when the sounds wake up.
   window.addEventListener("pointerdown", unlock, { once: true });
   window.addEventListener("keydown", unlock, { once: true });
+  host.value?.addEventListener("pointerdown", touchStage);
+  idleTimer = window.setInterval(() => cue("idle"), 5000);
 
   try {
     lobby = new Lobby(
@@ -326,27 +452,28 @@ onMounted(() => {
         onHover: () => undefined,
         onMove: (s) => {
           link?.move(s);
-          // On a touch screen a tap on the ground is the only way to walk: the tutorial's walk step counts it.
+          walking(s.moving);
+          // A click or a tap on the ground walks too: the tutorial's walk step counts it.
           if (s.moving) t.send({ type: "moved" });
         },
-        // Each control you use (a walk direction, a dash, a turn): the tutorial's steps listen.
-        onAction: (name) => t.send({ type: "action", name }),
-        onMap: (s) => (mapState.value = s),
-        onLamps: (lit) => {
-          try {
-            localStorage.setItem(LAMPS_KEY, JSON.stringify(lit));
-          } catch {
-            // Private mode: the lamps go dark when the tab closes.
-          }
-          lamps.value = lobby!.lampCount();
+        // Each control you use (a walk direction, a dash, a turn): the tutorial's steps and the tips listen.
+        onAction: (name) => {
+          used(name);
+          t.send({ type: "action", name });
         },
+        onMap: (s) => (mapState.value = s),
       },
-      { login: me.value?.login ?? null, character: me.value?.avatar ?? null, quality: settings.quality, reduceMotion: settings.reduceMotion, litLamps: savedLamps() },
+      { login: me.value?.login ?? null, character: me.value?.avatar ?? null, quality: settings.quality, reduceMotion: settings.reduceMotion },
     );
     build();
     applyControls();
-    // Opened from the address bar (`?in=…`): the window was already there before the engine, so frame it now.
-    if (place.value) lobby.frame("left");
+    lobby.setShortcuts(settings.shortcuts);
+    // Opened from the address bar (`?in=…`): the window was already there before the engine. Stand at the house's
+    // door, then frame it.
+    if (place.value) {
+      arriveFor(place.value);
+      lobby.frame("left");
+    }
   } catch {
     // No WebGL (an old phone, a disabled GPU): the list still works.
     failed.value = true;
@@ -378,40 +505,87 @@ onMounted(() => {
   link.enter(city.value);
 });
 
-// Rebuild when the city changes (a room fills up, a house goes online).
-watch(() => props.houses, build);
+// ---- The city stream: what changed since the last word ----
+
+// Each room as last heard: online or not, and building or not. Null before the first word, so nothing that was
+// already true when you arrived is celebrated.
+let lastRooms: Map<string, { live: boolean; building: boolean }> | null = null;
+
+/** "Awa" from "Awa Diop", else the login. */
+const firstName = (p: { name: string | null; login: string }) => p.name?.trim().split(/\s+/)[0] || p.login;
+
+// A project just went online (a room became live, or a build finished in a live room): fireworks over its house
+// if it's in this neighbourhood, and one line of news if it's here or in your own house.
+function newsFrom(houses: CityHouse[]) {
+  const next = new Map<string, { live: boolean; building: boolean }>();
+  const mine = new Set(me.value?.houses.map((h) => h.id) ?? []);
+  for (const h of houses)
+    for (const r of h.rooms) {
+      const now = { live: r.status === "live", building: !!r.building };
+      next.set(`${h.id}/${r.name}`, now);
+      const before = lastRooms?.get(`${h.id}/${r.name}`);
+      if (!before || !r.occupant || !now.live) continue;
+      if (before.live && !(before.building && !now.building)) continue;
+      const inView = h.city === city.value && !inWorkshop.value;
+      if (inView) lobby?.celebrate(h.id);
+      if (inView || mine.has(h.id)) {
+        const what = r.project ? `${firstName(r.occupant)}'s ${r.project}` : `${firstName(r.occupant)}'s room in ${h.name}`;
+        say(`${what} is online${inView ? "" : `, in ${h.city}`}.`);
+      }
+    }
+  lastRooms = next;
+}
+
+// The city changed: the world follows (build only redraws what changed), then the news.
+watch(
+  () => props.houses,
+  (houses) => {
+    build();
+    newsFrom(houses);
+  },
+);
+newsFrom(props.houses);
 watch(
   () => [settings.quality, settings.reduceMotion] as const,
   ([q, calm]) => lobby?.setQuality(q, calm),
+);
+watch(
+  () => settings.shortcuts,
+  (on) => lobby?.setShortcuts(on),
 );
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
   window.removeEventListener("pointerdown", unlock);
   window.removeEventListener("keydown", unlock);
+  host.value?.removeEventListener("pointerdown", touchStage);
   link?.close();
   link = null;
   lobby?.dispose();
   lobby = null;
   tutorial.dispose();
-  // The site's top bar comes back with whatever page comes next.
+  // The site's top bar comes back with whatever page comes next, and so does the plain title.
   lobbyUi.chrome = true;
+  document.title = "La Coloc";
   clearTimeout(noticeTimer);
+  clearTimeout(toastTimer);
+  clearInterval(idleTimer);
   loading.onProgress = () => undefined;
   loading.onLoad = () => undefined;
 });
 
-// ---- Cards: a house, a person or an empty plot, floating over the city ----
+// ---- Cards: a house, a person, an empty plot or the chores board, floating over the city ----
 
 // One line per thing, so we can tell "the card is already about this" from "something new".
-const keyOf = (t: Target | null) => (!t ? "" : t.kind === "house" ? `house:${t.house.id}` : t.kind === "empty" ? `empty:${t.plot.key}` : t.kind === "person" ? `person:${t.login}` : `lamp:${t.id}`);
+const keyOf = (t: Target | null) =>
+  !t ? "" : t.kind === "house" ? `house:${t.house.id}` : t.kind === "empty" ? `empty:${t.plot.key}` : t.kind === "person" ? `person:${t.login}` : `board:${t.city}`;
 const cardKey = computed(() => keyOf(card.value));
 const nearKey = computed(() => keyOf(near.value));
 
 // You used something. A house you're standing at opens straight away; anything else gets a card first. Early in
 // the tutorial nothing opens: those steps are about walking.
 function open(target: Target) {
-  if (target.kind === "lamp" || !picking.value) return;
+  if (!picking.value) return;
   if (target.kind === "house" && nearKey.value === keyOf(target)) {
     goInside({ kind: "house", id: target.house.id });
     return;
@@ -439,8 +613,8 @@ const cardHomeHouse = computed(() => {
   return home ? (props.houses.find((h) => h.id === home.houseId) ?? null) : null;
 });
 
-// A card opens with a sound and takes focus itself; when it closes, focus goes back to the stage so Tab cycles
-// through the things on screen again.
+// A card opens with a sound and takes focus itself; when it closes, focus goes back to the stage so the keys
+// work on the city again.
 watch(cardKey, (now, before) => {
   if (now) play("open");
   else if (before) {
@@ -454,6 +628,13 @@ function seeHouse(id: string) {
   if (!h) return;
   card.value = { kind: "house", house: h };
   lobby?.goTo(id);
+}
+
+// A house picked on the chores board: you're at its door, and inside.
+function boardHouse(id: string) {
+  card.value = null;
+  arriveFor({ kind: "house", id });
+  goInside({ kind: "house", id });
 }
 
 function rentHere() {
@@ -519,7 +700,7 @@ function showInUrl(param: string) {
 }
 
 // The address bar is the other way in: the top bar sets `in` for your house, and a link may carry one. When it
-// names something other than what's showing, open it; when it's gone, close.
+// names something other than what's showing, open it, at the house's door; when it's gone, close.
 watch(
   () => route.query.in,
   (v) => {
@@ -527,6 +708,7 @@ watch(
     if (param === top.value) return;
     const p = parsePlace(param);
     top.value = p && picking.value ? param : "";
+    if (p && picking.value) arriveFor(p);
     if (p) openInside(p);
     else if (place.value) {
       place.value = null;
@@ -536,26 +718,46 @@ watch(
   { immediate: true },
 );
 
+// The tab's title says where you are: "Sacré-Cœur, Dakar · La Coloc", "Ndaje, Sacré-Cœur · La Coloc", "Dakar · La Coloc".
+watchEffect(() => {
+  const p = parsePlace(top.value) ?? place.value;
+  const houseOf = (id: string) => props.houses.find((h) => h.id === id) ?? (id === TUTORIAL_HOUSE ? tutorial.house.value : null);
+  let where = placeName.value;
+  if (p?.kind === "house") {
+    const h = houseOf(p.id);
+    if (h) where = h.city && h.city !== "Atelier" ? `${h.name}, ${h.city}` : h.name;
+  } else if (p?.kind === "room") {
+    const h = houseOf(p.houseId);
+    const r = h?.rooms.find((x) => x.name === p.room);
+    where = h ? `${r?.project ?? p.room}, ${h.name}` : p.room;
+  } else if (p?.kind === "application") where = "A knock";
+  document.title = `${where} · La Coloc`;
+});
+
 // ---- Sheets, keys, emotes ----
 
 // A sheet takes focus on its first control; closing it puts focus back on the stage.
 watch(sheet, async (now) => {
   await nextTick();
-  if (now) sheetEl.value?.querySelector<HTMLElement>("input, button")?.focus();
+  if (now) sheetEl.value?.querySelector<HTMLElement>("input, .entry")?.focus();
   else host.value?.focus({ preventScroll: true });
 });
-// The big map and the key list take focus themselves; when they close, it goes back to the stage.
+// The big map and the key list take focus themselves; when they close, it goes back to the stage. Opening one
+// counts as knowing it: its tip never shows.
 watch([bigMap, keysOpen], ([map, keys], [mapBefore, keysBefore]) => {
+  if (map) seeTip("map");
+  if (keys) seeTip("keys");
   if ((!map && mapBefore) || (!keys && keysBefore)) host.value?.focus({ preventScroll: true });
 });
 
-// The lobby's own keys (walking, E, Q, R, 1, 2, Tab, Shift) live in the engine. These are the ones around it.
+// The lobby's own keys (walking, E, Q, R, 1, 2, [ ], Shift) live in the engine. These are the ones around it.
+// Escape closes what's open wherever the focus is; the letters only work while the city has the keys.
 function onKey(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   // A knock or rent dialog, or the Inside sheet, handles its own keys (Escape closes it), and the welcomes (the
-  // old one, and the tutorial's cards at either end) have their own too.
+  // visitors' one, and the tutorial's cards at either end) have their own too.
   if (knock.value || rent.value || place.value || !ready.value || failed.value || welcoming.value) return;
   if (t.active && (t.step === "welcome" || t.step === "city")) return;
   if (e.key === "Escape") {
@@ -565,13 +767,16 @@ function onKey(e: KeyboardEvent) {
     else if (card.value) closeCard();
     return;
   }
+  // The big map and the key list hold the focus while they're open, so their own key closes them from there.
+  const overlay = bigMap.value || keysOpen.value;
+  if (!overlay && !cityHasKeys()) return;
   // An overlay on top: only its own key, and Escape, do anything. The map and the key list answer only once the
   // tutorial has shown them.
   if (e.key === "m" || e.key === "M") {
-    if (shows("map")) bigMap.value = !bigMap.value;
+    if (shows("map") && (bigMap.value || !overlay)) bigMap.value = !bigMap.value;
   } else if (e.key === "?") {
-    if (shows("keys")) keysOpen.value = !keysOpen.value;
-  } else if (bigMap.value || keysOpen.value) return;
+    if (shows("keys") && (keysOpen.value || !overlay)) keysOpen.value = !keysOpen.value;
+  } else if (overlay) return;
   else if (e.key === "f" || e.key === "F") openSheet("find");
   else if (e.key === "t" || e.key === "T") openSheet("travel");
 }
@@ -581,8 +786,11 @@ function emote(name: Emote) {
   link?.emote(name);
 }
 
+// A house from Find: its city, then its door, and its card.
 function findHouse(h: CityHouse) {
-  travel(h.city, h.id);
+  travel(h.city);
+  lobby?.arriveAt(h.id);
+  card.value = { kind: "house", house: h };
 }
 
 const found = computed(() => {
@@ -590,44 +798,91 @@ const found = computed(() => {
   if (!q) return props.houses;
   return props.houses.filter((h) => [h.name, h.city, h.tagline, ...h.rooms.flatMap((r) => [r.project, r.ad, r.occupant?.login])].join(" ").toLowerCase().includes(q));
 });
-const hereLine = computed(() => {
-  const n = others.value.size;
-  // The workshop is yours alone: no need to say so.
-  if (!connected.value || inWorkshop.value) return "";
-  if (me.value) return n === 0 ? "You're the only one here right now." : n === 1 ? "You and one other person are here." : `You and ${n} others are here.`;
-  return n === 0 ? "Nobody's walking around here right now." : `${n === 1 ? "One person is" : `${n} people are`} walking around.`;
+
+// The top pill: what this city is doing right now, from the city stream. "Dakar: 7 projects online, 1 building,
+// 2 reviews waiting." Under 520px the city's name (already top left) is left out, so it fits on one line.
+const activity = computed(() => {
+  if (inWorkshop.value) return null;
+  let online = 0;
+  let building = 0;
+  let reviews = 0;
+  for (const h of here.value) {
+    for (const r of h.rooms) {
+      if (r.occupant && r.status === "live") online++;
+      if (r.building) building++;
+    }
+    reviews += h.openChores ?? 0;
+  }
+  const parts = [online ? `${plural(online, "project", "projects")} online` : "no project online yet"];
+  if (building) parts.push(`${building} building`);
+  if (reviews) parts.push(plural(reviews, "review waiting", "reviews waiting"));
+  const line = `${parts.join(", ")}.`;
+  return { city: city.value, line, short: line[0].toUpperCase() + line.slice(1) };
 });
-const lampLine = computed(() => {
-  const { lit, total } = lamps.value;
-  if (!total) return "";
-  return lit === total ? `Every lamp in ${placeName.value} is lit.` : `${lit} of ${total} lamps lit.`;
+
+// The travel menu's rows: each city's houses, who's walking around there right now, and its local time (the clock
+// ticks while the menu is open).
+const now = ref(new Date());
+let clock = 0;
+watch(sheet, (s) => {
+  clearInterval(clock);
+  if (s !== "travel") return;
+  now.value = new Date();
+  clock = window.setInterval(() => (now.value = new Date()), 15_000);
 });
+onBeforeUnmount(() => clearInterval(clock));
+const litCity = ref<string | null>(null);
+function cityLine(c: { name: string; houses: number }): string {
+  const people = census.value[c.name] ?? 0;
+  const time = localTime(c.name, now.value);
+  const who = people ? `${plural(people, "person", "people")} walking around` : "nobody walking around";
+  return `${plural(c.houses, "house", "houses")}, ${who}${time ? `. It's ${time} there` : ""}.`;
+}
 const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 </script>
 
 <template>
   <div class="lobby" :class="{ paused: !!place }">
-    <div
-      ref="host"
-      class="stage"
-      role="img"
-      tabindex="-1"
-      :aria-label="`${placeName}, a neighbourhood you can walk around in 3D. The list view in settings shows the same houses as text.`"
-    />
-
     <p v-if="failed" class="failed">This browser can't show the city in 3D. Open settings to see it as a list.</p>
 
     <template v-if="ready && !failed">
-      <!-- Each piece of the screen shows once the tutorial has unlocked it (always, outside the tutorial). -->
+      <!-- Each piece of the screen shows once the tutorial has unlocked it (always, outside the tutorial). The HUD
+           comes first in the page, so Tab reaches the skip link, the top bar and these buttons before the city. -->
       <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? `You're in ${placeName}, the tutorial's workshop` : `You're in ${city}. Travel to another city`" @click="openSheet('travel')">
         <span class="city">{{ placeName }}</span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
 
+      <!-- Top centre: what the city is doing right now (and, for a moment, a word from the tutorial). -->
       <div class="hud top" aria-live="polite">
         <p v-if="notice">{{ notice }}</p>
-        <p v-if="hereLine && shows('here')">{{ hereLine }}</p>
-        <p v-if="lampLine && shows('here')" class="lamps">{{ lampLine }}</p>
+        <p v-else-if="activity && shows('here')">
+          <span class="wide">{{ activity.city }}: {{ activity.line }}</span>
+          <span class="narrow">{{ activity.short }}</span>
+        </p>
+      </div>
+
+      <!-- Under it: one line of news (a project went online), a city's greeting, or a one-time tip. -->
+      <div class="hud news" role="status">
+        <Transition name="rise">
+          <p v-if="toast" :key="toast.id" class="toast">
+            <span class="said"><template v-for="(part, i) in toast.parts" :key="i"><kbd v-if="part.key">{{ part.text }}</kbd><template v-else>{{ part.text }}</template></template></span>
+            <span v-if="toast.soft" class="soft">{{ " " + toast.soft }}</span>
+          </p>
+        </Transition>
+      </div>
+
+      <!-- Top left, under the place: what's offered once (the tutorial, after a shared link; the list view, on a
+           slow device). -->
+      <div v-if="tutorialChip || offerList" class="hud corner">
+        <div v-if="tutorialChip" class="chip">
+          <button class="chip-go" @click="enterTutorial">Take the tour: your first project online in a minute</button>
+          <button class="chip-x" aria-label="No thanks" @click="tutorialChip = false"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button>
+        </div>
+        <div v-if="offerList" class="chip">
+          <button class="chip-go" @click="seeAsList">The 3D city may be slow here. See it as a list</button>
+          <button class="chip-x" aria-label="Keep the 3D city" @click="settings.listOffered = true"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button>
+        </div>
       </div>
 
       <div v-if="shows('tools')" class="hud tools">
@@ -672,13 +927,14 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
             @close="closeCard"
           />
           <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />
+          <BoardCard v-else-if="card?.kind === 'board'" :key="cardKey" :city="city" :houses="here" @open="boardHouse" @close="closeCard" />
         </Transition>
         <KeyLegend v-if="shows('keys')" :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" />
       </div>
 
-      <!-- Bottom centre: the coach during the tutorial, what's in reach (or highlighted with Tab) unless its card is
-           already open, and the emotes. The coach must stay usable over a house's window, so the column lifts above
-           it; on a wide screen, where the window docks on the right, the column moves out of its way. -->
+      <!-- Bottom centre: the coach during the tutorial, what's in reach (or highlighted with [ and ]) while no card
+           is open, and the emotes. The coach must stay usable over a house's window, so the column lifts above it;
+           on a wide screen, where the window docks on the right, the column moves out of its way. -->
       <div class="hud centre" :class="{ lifted: inWorkshop, aside: inWorkshop && !!place }">
         <Coach
           v-if="inWorkshop && t.step !== 'welcome' && t.step !== 'rundown'"
@@ -697,7 +953,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
           @skip="tutorial.finish"
         />
         <Transition name="rise">
-          <div v-if="near && shows('prompt') && nearKey !== cardKey && !place" class="prompt" role="status">
+          <div v-if="near && shows('prompt') && !card && !place" class="prompt" role="status">
             <template v-if="near.kind === 'house'">
               <span>
                 <strong>{{ near.house.name }}</strong>
@@ -717,8 +973,8 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
               <button class="pill" @click="lobby?.interact()">Say hi <kbd>E</kbd></button>
             </template>
             <template v-else>
-              <span>{{ near.on ? "This lamp is lit." : "This lamp is off." }}</span>
-              <button class="pill" @click="lobby?.interact()">{{ near.on ? "Switch it off" : "Light it" }} <kbd>E</kbd></button>
+              <span>The chores board<span class="soft">, reviews waiting in {{ city }}</span></span>
+              <button class="pill" @click="lobby?.interact()">Have a look <kbd>E</kbd></button>
             </template>
           </div>
         </Transition>
@@ -730,7 +986,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 
       <!-- Bottom right: the neighbourhood from above. Click it to travel; M opens it big. -->
       <div v-if="neighbourhood && shows('map')" class="hud map" :class="{ covered: !!card }">
-        <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" @travel="fastTravel" />
+        <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" @travel="fastTravel" />
       </div>
       <!-- Phones have no Shift: a round dash button above the minimap, there whenever the round tools are. -->
       <TouchDash v-if="shows('tools') && !place && !card" @dash="lobby?.dash()" />
@@ -752,12 +1008,22 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
       <RentSteps v-if="rent" :city="rent.city" :plot="rent.plot" @built="built" @close="rent = null" />
 
       <Transition name="fade">
-        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" large @travel="fastTravel" @close="bigMap = false" />
+        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" large @travel="fastTravel" @close="bigMap = false" />
       </Transition>
       <Transition name="fade">
         <KeysSheet v-if="keysOpen" @close="keysOpen = false" />
       </Transition>
     </template>
+
+    <!-- The city itself, after the HUD in the page so Tab reaches the buttons first. It takes the keys only while it
+         has the focus (a click on it, or Tab to it). Under the HUD on screen all the same (z-index). -->
+    <div
+      ref="host"
+      class="stage"
+      role="application"
+      tabindex="0"
+      :aria-label="`${placeName}, a neighbourhood you can walk around in 3D. W A S D walks, E goes in, the question mark lists every key. The list view in settings shows the same houses as text.`"
+    />
 
     <!-- The inside of a house, over the city. Also reachable from the address bar (`?in=…`), 3D or not. -->
     <!-- In the tutorial's rundown step, the window first walks you through itself, then says so. -->
@@ -766,6 +1032,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
       :key="placeKey(place)"
       :start="place"
       :rundown="t.active && t.step === 'rundown'"
+      :coached="inWorkshop && t.step !== 'welcome' && t.step !== 'rundown'"
       @change="insideChanged"
       @close="closeInside"
       @rundown-done="t.send({ type: 'rundownDone' })"
@@ -790,9 +1057,8 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
               <span class="lead"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 11l9-8 9 8 M5 9.5V21h14V9.5 M10 21v-6h4v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
               <span class="text">
                 <span class="title">{{ h.name }}</span>
-                <span class="sub">{{ h.city }} · {{ statusLine(h) }}</span>
+                <span class="sub">{{ h.city }}. {{ statusLine(h) }}{{ h.demo ? " An example house." : "" }}</span>
               </span>
-              <span v-if="h.demo" class="tag">Example</span>
               <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
             </button>
           </li>
@@ -800,23 +1066,32 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
         <p v-else class="none">No house matches that.</p>
         <button class="x" aria-label="Close (Esc)" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
       </section>
-      <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet" role="dialog" aria-modal="true" aria-label="Travel to another city" @keydown.esc="sheet = ''">
+      <!-- Where to: Africa with a dot per city, and the cities as rows beside it (under it on a phone). -->
+      <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet travel" role="dialog" aria-modal="true" aria-label="Travel to another city" @keydown.esc="sheet = ''">
         <h2>Where to?</h2>
-        <ul class="entries">
-          <li v-for="c in cities" :key="c.name">
-            <button class="entry" :class="{ here: c.name === city }" :aria-current="c.name === city ? 'location' : undefined" @click="travel(c.name)">
-              <span class="lead"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z M12 7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
-              <span class="text">
-                <span class="title">{{ c.name }}</span>
-                <span class="sub">
-                  {{ c.houses }} {{ c.houses === 1 ? "house" : "houses" }}<template v-if="census[c.name]">, {{ census[c.name] }} {{ census[c.name] === 1 ? "person" : "people" }} walking around</template>.
+        <div class="atlas">
+          <AfricaMap class="africa" :cities="cities.map((c) => c.name)" :here="city" :lit="litCity" @travel="travel" @hover="(c) => (litCity = c)" />
+          <ul class="entries">
+            <li v-for="c in cities" :key="c.name">
+              <button
+                class="entry"
+                :class="{ here: c.name === city }"
+                :aria-current="c.name === city ? 'location' : undefined"
+                @click="travel(c.name)"
+                @pointerenter="litCity = c.name"
+                @pointerleave="litCity = null"
+                @focus="litCity = c.name"
+                @blur="litCity = null"
+              >
+                <span class="text">
+                  <span class="title">{{ c.name }}<span v-if="c.name === city" class="you">, you're here</span></span>
+                  <span class="sub lines">{{ cityLine(c) }}</span>
                 </span>
-              </span>
-              <span v-if="c.name === city" class="tag here">You're here</span>
-              <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
-            </button>
-          </li>
-        </ul>
+                <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+              </button>
+            </li>
+          </ul>
+        </div>
         <button class="x" aria-label="Close (Esc)" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
       </section>
     </Transition>
@@ -829,6 +1104,8 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 .lobby { position: relative; height: 100dvh; min-height: 420px; overflow: hidden; background: linear-gradient(180deg, #2a2148 0%, #4b3a74 45%, #8a6aa0 100%); }
 /* Its own stacking context: three.js gives every name tag a z-index, which would otherwise float over the sheets. */
 .stage { position: absolute; inset: 0; z-index: 0; isolation: isolate; outline: none; }
+/* Tabbed to with the keyboard: a ring inside the screen's edge says the city has the keys now. */
+.stage:focus-visible { box-shadow: inset 0 0 0 3px var(--accent-fill); }
 .stage :deep(canvas) { display: block; }
 /* No WebGL: one flat card in the middle says so. */
 .failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
@@ -841,11 +1118,23 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 .place { top: 60px; left: 16px; display: flex; align-items: baseline; gap: 6px; padding: 8px 16px; min-height: 44px; border: 0; border-radius: 980px; cursor: pointer; }
 .place .city { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
 .place .chev { font-size: 20px; color: var(--muted); }
-/* Who's here, in a pill at the top; it never catches clicks. */
+/* What the city is doing, in a pill at the top; it never catches clicks. */
 .top { top: 64px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 980px; background: var(--surface); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
 .top:empty { display: none; }
 .top p { margin: 0; font-size: 15px; }
-.top .lamps { margin-top: 1px; font-size: 13px; color: var(--muted); }
+.top .narrow { display: none; }
+/* News and tips: one line under the pill, popping in and out; never in the way of a click. */
+.news { top: 112px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
+.toast { margin: 0; padding: 8px 16px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); font-size: 15px; line-height: 1.45; text-align: center; }
+.toast .said { font-weight: 600; }
+.toast kbd { margin: 0 1px; }
+/* The corner offers, under the place button: a soft accent pill and a small way to say no. */
+.corner { top: 116px; left: 16px; display: grid; gap: 8px; justify-items: start; max-width: min(340px, calc(100vw - 96px)); }
+.chip { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 18px; background: var(--surface); box-shadow: var(--lift); }
+.chip-go { min-height: 40px; padding: 6px 12px; border: 0; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.3; text-align: left; cursor: pointer; }
+.chip-go:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
+.chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: var(--muted); cursor: pointer; }
+.chip-x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .tools { top: 60px; right: 16px; display: grid; gap: 8px; }
 .tools button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; }
 /* The dock stacks the card over the keys; its empty space lets clicks through to the city. */
@@ -897,10 +1186,15 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .sheet .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
 .sheet .title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet .tag { flex: none; padding: 3px 10px; border-radius: 12px; background: var(--fill); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.sheet .tag.here { background: var(--accent-soft); color: var(--accent); }
 .sheet .chev { flex: none; display: grid; color: var(--muted); }
 .sheet .none { margin: 0; padding: 8px 2px; font-size: 15px; color: var(--muted); }
+/* Where to: wider, the map on the left and the cities beside it. */
+.sheet.travel { width: min(820px, calc(100vw - 32px)); max-height: min(700px, calc(100dvh - 96px)); }
+.atlas { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 18px; align-items: start; }
+.atlas .africa { max-height: calc(min(700px, 100dvh - 96px) - 110px); max-width: 100%; justify-self: center; }
+.atlas .entries { max-height: calc(min(700px, 100dvh - 96px) - 110px); }
+.sheet .sub.lines { white-space: normal; }
+.sheet .you { font-weight: 500; color: var(--accent); }
 .rise-enter-active, .rise-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .rise-enter-from, .rise-leave-to { opacity: 0; transform: translateY(8px); }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
@@ -916,9 +1210,20 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   kbd { display: none; }
 }
 @media (max-width: 520px) {
-  .prompt { gap: 10px; padding-left: 16px; font-size: 15px; }
+  .prompt { gap: 10px; padding-left: 16px; font-size: 15px; max-width: 100%; }
   .prompt .soft { display: none; }
-  .top { top: 112px; }
+  .prompt > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* The prompt and the emotes move to the left, beside the minimap rather than under it. The coach (lifted)
+     keeps the middle. */
+  .centre:not(.lifted) { left: 16px; transform: none; align-items: flex-start; max-width: calc(100vw - 180px); }
+  /* One line: the city's name is already top left, and anything longer ends in "…". */
+  .top { top: 112px; max-width: calc(100vw - 24px); padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top p { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+  .top .wide { display: none; }
+  .top .narrow { display: inline; }
+  .news { top: 156px; }
+  .toast { font-size: 14px; }
+  .corner { top: 200px; }
   .map { right: 12px; }
   /* A card is a sheet along the bottom edge here: the map would hide under it. */
   .map.covered { display: none; }
@@ -926,6 +1231,10 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .dock { left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
   .dock .legend, .dock .peek { order: -1; align-self: flex-start; margin: 0 16px 12px; }
   /* Find and travel become a sheet along the bottom edge. */
-  .sheet { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 80dvh; border-radius: 24px 24px 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+  .sheet, .sheet.travel { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 86dvh; border-radius: 24px 24px 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+  /* Where to: the map on top, small, and the cities under it, scrolling. */
+  .atlas { grid-template-columns: minmax(0, 1fr); gap: 10px; overflow-y: auto; }
+  .atlas .africa { width: auto; height: 30dvh; max-height: none; }
+  .atlas .entries { max-height: none; overflow: visible; }
 }
 </style>

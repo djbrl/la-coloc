@@ -10,17 +10,17 @@ export const TUTORIAL_HOUSE = "atelier";
 // What the engine reports each time you use a control (Lobby's `onAction`).
 export type Action = "walk-up" | "walk-down" | "walk-left" | "walk-right" | "dash" | "turn-left" | "turn-right";
 export const WALKS: Action[] = ["walk-up", "walk-left", "walk-down", "walk-right"];
-export const TURNS: Action[] = ["turn-left", "turn-right"];
 
-// The steps, in order. On a touch screen there are no keys to learn, so a few are left out (see stepsFor).
-export type Step = "welcome" | "walk" | "dash" | "map" | "keys" | "look" | "turn" | "go" | "rundown" | "room" | "run" | "github" | "done" | "city";
-export const STEPS: Step[] = ["welcome", "walk", "dash", "map", "keys", "look", "turn", "go", "rundown", "room", "run", "github", "done", "city"];
+// The steps, in order: walking and E are the only controls it teaches; the rest (dash, the map, the key list,
+// turning the view) come later as one-time tips (tips.ts), when they're useful.
+export type Step = "welcome" | "walk" | "look" | "go" | "rundown" | "room" | "run" | "github" | "done" | "city";
+export const STEPS: Step[] = ["welcome", "walk", "look", "go", "rundown", "room", "run", "github", "done", "city"];
 
-// The pieces of the lobby's screen, besides the city itself: the site's top bar ("chrome"), who's here, the
-// place button, the round tools, the keys, the minimap, the emotes, and the prompt for what's in reach.
+// The pieces of the lobby's screen, besides the city itself: the site's top bar ("chrome"), the city's activity,
+// the place button, the round tools, the keys, the minimap, the emotes, and the prompt for what's in reach.
 export type Piece = "chrome" | "here" | "place" | "tools" | "keys" | "map" | "emotes" | "prompt";
 export const PIECES: Piece[] = ["chrome", "here", "place", "tools", "keys", "map", "emotes", "prompt"];
-// Everything but the top bar and the emotes: what the workshop shows once you know the keys.
+// Everything but the top bar and the emotes: what the workshop shows once you can walk.
 const HUD: Piece[] = ["here", "place", "tools", "keys", "map", "prompt"];
 
 // What the engine lets you do (Lobby's `setControls`).
@@ -32,8 +32,6 @@ export interface Controls {
 }
 const OFF: Controls = { walk: false, dash: false, turn: false, targets: "houses" };
 const WALK: Controls = { walk: true, dash: false, turn: false, targets: "houses" };
-const MOVE: Controls = { walk: true, dash: true, turn: false, targets: "houses" };
-const TURN: Controls = { walk: false, dash: false, turn: true, targets: "houses" };
 const ALL: Controls = { walk: true, dash: true, turn: true, targets: "houses" };
 // Outside the tutorial: everything.
 export const FREE: Controls = { walk: true, dash: true, turn: true, targets: "all" };
@@ -47,11 +45,7 @@ export interface Setup {
 export const SETUP: Record<Step, Setup> = {
   welcome: { controls: OFF, reveal: [], poll: false },
   walk: { controls: WALK, reveal: [], poll: false },
-  dash: { controls: MOVE, reveal: [], poll: false },
-  map: { controls: MOVE, reveal: ["map"], poll: false },
-  keys: { controls: MOVE, reveal: ["map", "keys"], poll: false },
   look: { controls: OFF, reveal: HUD, poll: false },
-  turn: { controls: TURN, reveal: HUD, poll: false },
   go: { controls: ALL, reveal: HUD, poll: false },
   rundown: { controls: ALL, reveal: HUD, poll: false },
   room: { controls: ALL, reveal: HUD, poll: true },
@@ -62,18 +56,11 @@ export const SETUP: Record<Step, Setup> = {
   city: { controls: OFF, reveal: PIECES, poll: false },
 };
 
-/** The steps for this screen. Touch screens have no Shift and no key list, so they skip dash and keys. */
-export function stepsFor(touch: boolean): Step[] {
-  return touch ? STEPS.filter((s) => s !== "dash" && s !== "keys") : STEPS;
-}
-
 // Everything that can happen, as the lobby, the API or the coach's buttons report it.
 export type TutorialEvent =
   | { type: "start" } // "Start" on the welcome card
   | { type: "action"; name: Action } // a control was used
-  | { type: "moved" } // you moved (on a touch screen, a tap on the ground is the only way to walk)
-  | { type: "map"; open: boolean } // the big map opened or closed
-  | { type: "keys"; open: boolean } // the key list opened or closed
+  | { type: "moved" } // you moved (a click or a tap on the ground walks too)
   | { type: "shown" } // the camera came back from showing the workshop
   | { type: "inside"; houseId: string | null } // a house's inside opened (its id) or closed (null)
   | { type: "rundownDone" } // the window's own tour ended
@@ -103,14 +90,6 @@ export function goingWord(status: string | undefined, pressed: boolean): string 
 export class TutorialMachine {
   active = false;
   step: Step = "welcome";
-  readonly steps: Step[];
-  // The walk directions and turns used so far in their steps: the coach lights their keys.
-  walked: Action[] = [];
-  turned: Action[] = [];
-  // The big map in the map step, and the key list in the keys step: opened yet, and open right now.
-  mapOpened = false;
-  mapOpen = false;
-  keysOpened = false;
   // The live room was opened (run step: putting the sample online), GitHub got linked (github step), or was
   // already when the step began.
   roomOpened = false;
@@ -119,17 +98,16 @@ export class TutorialMachine {
   // The API's latest word, or null before the first.
   state: TutorialState | null = null;
 
-  constructor(opts: { touch?: boolean } = {}) {
-    this.steps = stepsFor(opts.touch ?? false);
-  }
+  // A phone or a tablet: the coach talks about tapping, not keys.
+  readonly touch: boolean;
 
-  get touch(): boolean {
-    return !this.steps.includes("dash");
+  constructor(opts: { touch?: boolean } = {}) {
+    this.touch = opts.touch ?? false;
   }
 
   /** Where you are, counted over the steps between the two welcome cards: 0 at the first, 1 at the last. */
   get progress(): number {
-    const inner: Step[] = this.steps.filter((s) => s !== "welcome" && s !== "city");
+    const inner: Step[] = STEPS.filter((s) => s !== "welcome" && s !== "city");
     const i = inner.indexOf(this.step);
     if (i < 0) return this.step === "city" ? 1 : 0;
     return (i + 1) / inner.length;
@@ -159,30 +137,11 @@ export class TutorialMachine {
         if (e.type === "start" || e.type === "next") this.advance();
         return;
       case "walk":
-        if (e.type === "action" && WALKS.includes(e.name) && !this.walked.includes(e.name)) this.walked = [...this.walked, e.name];
-        // Every direction once on a keyboard; on a touch screen, any walk at all.
-        if (this.walked.length === WALKS.length || (this.touch && (e.type === "moved" || (e.type === "action" && WALKS.includes(e.name))))) this.advance();
-        return;
-      case "dash":
-        if (e.type === "action" && e.name === "dash") this.advance();
-        return;
-      case "map":
-        if (e.type === "map" && e.open) this.mapOpened = this.mapOpen = true;
-        else if (e.type === "map" && !e.open) {
-          this.mapOpen = false;
-          if (this.mapOpened) this.advance();
-        } else if (e.type === "next" && this.touch) this.advance();
-        return;
-      case "keys":
-        if (e.type === "keys" && e.open) this.keysOpened = true;
-        else if (e.type === "keys" && !e.open && this.keysOpened) this.advance();
+        // Any walk at all: a walk key, or a click or tap on the ground.
+        if (e.type === "moved" || (e.type === "action" && WALKS.includes(e.name))) this.advance();
         return;
       case "look":
         if (e.type === "shown") this.advance();
-        return;
-      case "turn":
-        if (e.type === "action" && TURNS.includes(e.name) && !this.turned.includes(e.name)) this.turned = [...this.turned, e.name];
-        if (this.turned.length === TURNS.length) this.advance();
         return;
       case "go":
         if (e.type === "inside" && e.houseId === TUTORIAL_HOUSE) this.advance();
@@ -212,17 +171,13 @@ export class TutorialMachine {
   }
 
   private advance() {
-    const next = this.steps[this.steps.indexOf(this.step) + 1];
+    const next = STEPS[STEPS.indexOf(this.step) + 1];
     if (next) this.enter(next);
   }
 
   // A step starts fresh. Some are already done when they start (a room taken on an earlier try): they move on.
   private enter(step: Step) {
     this.step = step;
-    this.walked = [];
-    this.turned = [];
-    this.mapOpened = this.mapOpen = false;
-    this.keysOpened = false;
     this.roomOpened = false;
     this.linked = this.linkedBefore = false;
     if (step === "room" && this.state?.room) this.advance();

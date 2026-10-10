@@ -9,9 +9,11 @@ import { isLive, SETUP, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
 
 // How often the API is asked about the room and GitHub while those steps are on.
 const POLL_MS = 2000;
+// The steps of putting a room online, as the API reports them while a deploy runs.
+const BUILDING = ["queued", "cloning", "building", "starting", "deploying"];
 
 export function useTutorial() {
-  // Phones and tablets: no keys to learn (see stepsFor).
+  // Phones and tablets: the coach and the tips talk about tapping, not keys.
   const touch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
   // Reactive, so the coach and the lobby follow every step the machine takes.
   const machine = reactive(new TutorialMachine({ touch })) as TutorialMachine;
@@ -45,7 +47,13 @@ export function useTutorial() {
       agentOnline: s?.house.agentOnline ?? v?.agentOnline ?? false,
       monthlyCostFcfa: v?.monthlyCostFcfa ?? null,
       plot: null,
-      rooms: v?.rooms ?? [],
+      // Your room shows a crane while the sample is fetched, built and started.
+      rooms: (v?.rooms ?? []).map((r) => ({ ...r, building: r.name === s?.room?.name && BUILDING.includes(s.room.status) })),
+      openChores: 0,
+      lateChores: 0,
+      knocking: 0,
+      reviewsThisMonth: 0,
+      tontine: null,
     };
   });
 

@@ -8,6 +8,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { colorFor } from "../../lobby/models";
 import type { Neighbourhood } from "../../lobby/neighbourhood";
+import { me } from "../../session";
 import { settings } from "../../settings";
 import type { CityHouse } from "../../types";
 import { type Home, type MapState, statusLine } from "./cards";
@@ -22,6 +23,9 @@ const props = defineProps<{
   residents: Map<string, Home>;
   // The latest word from the engine, or null before the first.
   state: MapState | null;
+  // People logged in and walking around this city right now, you included if you're logged in: the live presence,
+  // as the travel menu counts it, not the flatmates drawn standing by their doors.
+  online: number;
   large?: boolean;
 }>();
 const emit = defineEmits<{ travel: [x: number, z: number]; close: [] }>();
@@ -82,13 +86,16 @@ const housesOnMap = computed(() => {
 
 // "Sacré-Cœur, 3 rooms free" / "Bè Kpota, full".
 const line = (h: CityHouse) => `${h.name}, ${statusLine(h).replace(/\.$/, "").toLowerCase()}`;
-// Under a house's name in the list: whether it has room, and whether it's only an example.
-const sub = (h: CityHouse) => (h.demo ? `Example house · ${statusLine(h)}` : statusLine(h));
+// Under a house's name in the list: whether it has room, and, in a sentence, whether it's only an example.
+const sub = (h: CityHouse) => (h.demo ? `${statusLine(h)} An example house.` : statusLine(h));
 
-// "3 people here", under the small map, so a glance (or a screen reader) gets the gist without the dots.
+// "7 live here, 2 out walking", under the small map, so a glance (or a screen reader) gets the gist without the
+// dots. Two different counts, said as two: the flatmates of this neighbourhood's houses (the dots by the doors
+// stand in for them), and who is actually online and walking around, you included.
 const peopleLine = computed(() => {
-  const n = props.state?.people.length ?? 0;
-  return n === 0 ? "You're the only one here" : n === 1 ? "1 person here" : `${n} people here`;
+  const live = props.houses.reduce((n, h) => n + h.rooms.filter((r) => r.occupant).length, 0);
+  const out = props.online === 0 ? "nobody else out walking" : props.online === 1 && me.value ? "only you out walking" : `${props.online} out walking`;
+  return `${live} ${live === 1 ? "lives" : "live"} here, ${out}`;
 });
 
 // ---- World to canvas and back: a uniform scale, with a margin, centred ----

@@ -8,7 +8,8 @@ import { onMounted, ref } from "vue";
 const emit = defineEmits<{ close: [] }>();
 const closeButton = ref<HTMLButtonElement | null>(null);
 
-// `or`: keys that each do it on their own (Q or R), rather than together (Shift with Tab).
+// `or`: keys that each do it on their own (Q or R), rather than together. The keys only work while the city itself
+// has the focus (click it, or Tab to it after the buttons); Tab moves between the buttons as on any page.
 interface Control {
   keys: string[];
   does: string;
@@ -27,8 +28,8 @@ const groups: { name: string; rows: Control[] }[] = [
     name: "Act",
     rows: [
       { keys: ["E"], does: "use, open" },
-      { keys: ["Tab"], does: "next thing" },
-      { keys: ["Shift", "Tab"], does: "previous thing" },
+      { keys: ["]"], does: "next thing" },
+      { keys: ["["], does: "previous thing" },
       { keys: ["1", "2"], does: "react", or: true },
     ],
   },

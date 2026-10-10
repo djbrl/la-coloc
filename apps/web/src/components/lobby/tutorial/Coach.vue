@@ -6,7 +6,7 @@
 // app whose code is in a Git repo, and putting it online means fetching, building and starting it at an address.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { bare, explain } from "../panel/words";
-import { type Action, goingWord, isLive, type TutorialMachine } from "./tutorial";
+import { goingWord, isLive, type TutorialMachine } from "./tutorial";
 
 const props = defineProps<{
   machine: TutorialMachine;
@@ -22,17 +22,8 @@ const emit = defineEmits<{ room: []; run: []; opened: []; next: []; skipGithub: 
 const step = computed(() => props.machine.step);
 const touch = computed(() => props.machine.touch);
 
-// The key caps of the walk and turn steps, each lit once you've used it.
-const walkCaps: { action: Action; key: string }[] = [
-  { action: "walk-up", key: "W" },
-  { action: "walk-left", key: "A" },
-  { action: "walk-down", key: "S" },
-  { action: "walk-right", key: "D" },
-];
-const turnCaps: { action: Action; key: string }[] = [
-  { action: "turn-left", key: "Q" },
-  { action: "turn-right", key: "R" },
-];
+// The key caps of the walk step.
+const walkCaps = ["W", "A", "S", "D"];
 
 // The room, and its status in the words of the step that puts it online.
 const room = computed(() => props.machine.state?.room ?? null);
@@ -73,36 +64,12 @@ onBeforeUnmount(() => clearTimeout(timer));
       <template v-else-if="step === 'walk'">
         <p v-if="touch" class="text">Tap the ground to walk there.</p>
         <template v-else>
-          <p class="text">Walk around with W A S D.</p>
-          <p class="caps"><kbd v-for="c in walkCaps" :key="c.key" :class="{ lit: machine.walked.includes(c.action) }">{{ c.key }}</kbd></p>
+          <p class="text">Walk with W A S D, or click the ground.</p>
+          <p class="caps"><kbd v-for="c in walkCaps" :key="c">{{ c }}</kbd></p>
         </template>
-      </template>
-
-      <template v-else-if="step === 'dash'">
-        <p class="text">Tap Shift to dash: it covers more ground.</p>
-        <p class="caps"><kbd class="wide">Shift</kbd></p>
-      </template>
-
-      <template v-else-if="step === 'map'">
-        <p v-if="touch" class="text">That's your map: the ring is you. Tap it to jump somewhere.</p>
-        <p v-else-if="machine.mapOpen" class="text">Esc or M closes it.</p>
-        <p v-else class="text">That's your map: the ring is you. Press M to open it.</p>
-      </template>
-
-      <template v-else-if="step === 'keys'">
-        <p v-if="machine.keysOpened" class="text">Esc closes the list.</p>
-        <p v-else class="text">Every other key is behind ?. Press it.</p>
       </template>
 
       <p v-else-if="step === 'look'" class="text">That's the workshop. That's where you're going.</p>
-
-      <template v-else-if="step === 'turn'">
-        <p v-if="touch" class="text">Turn the view with the two round arrows, top right.</p>
-        <template v-else>
-          <p class="text">Turn the view with Q and R.</p>
-          <p class="caps"><kbd v-for="c in turnCaps" :key="c.key" :class="{ lit: machine.turned.includes(c.action) }">{{ c.key }}</kbd></p>
-        </template>
-      </template>
 
       <p v-else-if="step === 'go'" class="text">{{ touch ? "Walk to the workshop and tap Go in at its door." : "Walk to the workshop and press E at its door." }}</p>
 
@@ -150,7 +117,6 @@ onBeforeUnmount(() => clearTimeout(timer));
       <button v-if="step !== 'done'" type="button" class="link quiet" @click="emit('skip')">Skip the tutorial</button>
 
       <button v-if="missing && (step === 'room' || step === 'run' || step === 'github')" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('skip')">Leave</button>
-      <button v-else-if="step === 'map' && touch" ref="go" type="button" class="primary go" @click="emit('next')">Next</button>
       <button v-else-if="step === 'room'" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('room')">Take a room</button>
       <template v-else-if="step === 'run'">
         <button v-if="live && machine.roomOpened" ref="go" type="button" class="primary go" @click="emit('next')">Next</button>
@@ -202,11 +168,9 @@ onBeforeUnmount(() => clearTimeout(timer));
 .open:hover { background: var(--accent-soft); text-decoration: none; box-shadow: inset 0 0 0 2px var(--accent-fill); }
 /* The room's address, as people read it, in bold. A long one wraps rather than push the card wider. */
 .address { font-weight: 700; overflow-wrap: anywhere; }
-/* The keys of the step, as raised caps; a used one fills with the accent. */
+/* The keys of the step, as raised caps. */
 .caps { margin: 4px 0 0; display: flex; gap: 6px; }
 kbd { display: inline-grid; place-items: center; min-width: 36px; height: 36px; padding: 0 8px; border-radius: 9px; border: 1px solid var(--border); border-bottom-width: 3px; background: var(--surface); color: var(--text); font: 700 14px/1 var(--font); transition: background-color 0.15s, color 0.15s, border-color 0.15s, transform 0.15s; }
-kbd.wide { min-width: 72px; }
-kbd.lit { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); transform: translateY(1px); }
 .nav { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .nav:empty { display: none; }
 /* The way out sits on the left as a quiet grey button; the step's action on the right, in the accent. */
@@ -220,7 +184,6 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--accent-fill); o
 @media (prefers-reduced-motion: reduce) {
   .coach { animation: none; }
   .line span, kbd { transition: none; }
-  kbd.lit { transform: none; }
   :is(.quiet, .go):active:not(:disabled) { transform: none; }
 }
 @media (max-width: 520px) {

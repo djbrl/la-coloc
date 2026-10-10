@@ -13,6 +13,8 @@ const props = defineProps<{
   start: Place;
   // The tutorial asks a house's view for the window's rundown (HouseInside, house/Rundown.vue).
   rundown?: boolean;
+  // The tutorial's coach is up, with its own main action: a room's page then keeps its own buttons quieter.
+  coached?: boolean;
 }>();
 const emit = defineEmits<{
   change: [top: Place | null];
@@ -191,7 +193,7 @@ function trapTab(e: KeyboardEvent) {
           @rundown-done="rundownEnded"
         />
         <ApplicationPage v-else-if="top.kind === 'application'" :key="topKey" :id="top.id" embedded @label="(l) => (label = l)" />
-        <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded @label="(l) => (label = l)" />
+        <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded :coached="coached" @label="(l) => (label = l)" />
       </div>
     </section>
   </div>
@@ -250,11 +252,12 @@ function trapTab(e: KeyboardEvent) {
   from { opacity: 0; }
 }
 /* Narrower than 720px there's no room beside the panel: it becomes a sheet along the bottom edge, with rounded
-   top corners, over a dimmed city. */
+   top corners, about 70% of the screen tall so the house still shows above it. The city above stays lit (a light
+   veil only), since it's what the sheet is about; a tap there closes. */
 @media (max-width: 719px) {
   .inside { display: grid; place-items: end stretch; }
-  .scrim { background: var(--scrim); animation: fade-in 0.25s var(--ease); }
-  .sheet { position: relative; inset: auto; width: 100%; height: 88dvh; border-radius: 24px 24px 0 0; animation-name: rise-in; }
+  .scrim { background: color-mix(in srgb, var(--scrim) 45%, transparent); animation: fade-in 0.25s var(--ease); }
+  .sheet { position: relative; inset: auto; width: 100%; height: 70dvh; min-height: min(460px, 88dvh); border-radius: 24px 24px 0 0; animation-name: rise-in; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet, .scrim { animation: none; }

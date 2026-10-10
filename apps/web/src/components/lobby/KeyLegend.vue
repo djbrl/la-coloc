@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The keys you reach for most, on one line in the bottom-left corner: E use, Tab next, Shift dash, M map, and a
+// The keys you reach for most, on one line in the bottom-left corner: E use, ] next, Shift dash, M map, and a
 // "? keys" button for the full list. The little × folds it to a "?" button. The keys are drawn as small key caps,
 // like a game's button hints in a corner. Nothing shows on a touch screen, where there are no keys.
 defineProps<{ open: boolean }>();
@@ -7,7 +7,7 @@ const emit = defineEmits<{ toggle: []; keys: [] }>();
 
 const quick: { key: string; does: string }[] = [
   { key: "E", does: "use" },
-  { key: "Tab", does: "next" },
+  { key: "]", does: "next" },
   { key: "Shift", does: "dash" },
   { key: "M", does: "map" },
 ];
