@@ -1,8 +1,13 @@
 <script setup lang="ts">
-// The city: a full-screen place to walk around, or (in settings) a plain list of the same houses.
+// The city: a full-screen place to walk around, or (in settings) a plain list of the same houses. The list is the
+// lobby's no-3D twin: one floating card, like the lobby's panels, with the city's name and numbers, a search and a
+// filter, and the houses as rows (components/list/CityRow.vue), each one way into its house's page.
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from "vue";
-import HouseDrawing from "../components/HouseDrawing.vue";
 import LoadingScreen from "../components/LoadingScreen.vue";
+import Choice, { type Option } from "../components/list/Choice.vue";
+import { cityTotals, keeps, plural, type Show, yoursFirst } from "../components/list/city";
+import CityRow from "../components/list/CityRow.vue";
+import ListCard from "../components/list/ListCard.vue";
 import { me, meLoaded } from "../session";
 import { settings } from "../settings";
 import type { CityHouse } from "../types";
@@ -12,7 +17,7 @@ const LobbyView = defineAsyncComponent({ loader: () => import("../components/Lob
 
 const houses = ref<CityHouse[] | null>(null);
 const error = ref("");
-const show = ref<"all" | "free" | "making">("all");
+const show = ref<Show>("all");
 const search = ref("");
 let source: EventSource | null = null;
 
@@ -29,38 +34,33 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => source?.close());
 
-const free = (h: CityHouse) => h.rooms.filter((r) => !r.occupant);
-const lived = (h: CityHouse) => h.rooms.filter((r) => r.occupant).length;
-const totals = computed(() => {
-  const all = houses.value ?? [];
-  return { houses: all.length, free: all.reduce((n, h) => n + free(h).length, 0), making: all.filter((h) => h.status === "making").length };
+const options: Option[] = [
+  { key: "all", icon: "house", word: "All" },
+  { key: "free", icon: "door", word: "Free room" },
+  { key: "making", icon: "server", word: "Setting up" },
+];
+
+const mine = computed(() => me.value?.houses.map((h) => h.id) ?? []);
+const totals = computed(() => cityTotals(houses.value ?? []));
+const shown = computed(() => yoursFirst((houses.value ?? []).filter((h) => keeps(h, show.value, search.value)), mine.value));
+const filtered = computed(() => show.value !== "all" || !!search.value.trim());
+// The line under the controls: what the list holds. It's polite live text, so a search or a filter is heard.
+const listLine = computed(() => {
+  if (!houses.value) return "";
+  if (!shown.value.length) return "No house matches that.";
+  if (filtered.value) return `${shown.value.length} of ${plural(totals.value.houses, "house", "houses")}.`;
+  return "Every house in every city. Go into one to see its rooms and its people.";
 });
-const shown = computed(() => {
-  const q = search.value.trim().toLowerCase();
-  return (houses.value ?? []).filter((h) => {
-    if (show.value === "free" && !free(h).length) return false;
-    if (show.value === "making" && h.status !== "making") return false;
-    if (!q) return true;
-    // What the house is about, what it's building, what it's looking for, and who lives there.
-    return [h.name, h.city, h.tagline, ...h.rooms.flatMap((r) => [r.project, r.ad, r.occupant?.login])].join(" ").toLowerCase().includes(q);
-  });
-});
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-function sentence(h: CityHouse): string {
-  const parts = [`${h.city}.`];
-  if (h.status === "making") parts.push(`${plural(lived(h), "person has", "people have")} signed up; the server isn't rented yet.`);
-  else parts.push(`${lived(h)} of ${h.rooms.length} rooms lived in.`);
-  const ad = free(h).find((r) => r.ad)?.ad;
-  if (ad) parts.push(`${ad}.`);
-  if (h.demo) parts.push("A sample house.");
-  return parts.join(" ");
-}
 </script>
 
 <template>
   <div v-if="error" class="list">
-    <h1>The city.</h1>
-    <p class="lede" role="alert">{{ error }}</p>
+    <ListCard>
+      <div class="card">
+        <h1 class="name">The city</h1>
+        <p class="line" role="alert">{{ error }}</p>
+      </div>
+    </ListCard>
   </div>
 
   <!-- The lobby waits for "who am I", so you walk in as yourself; logging in or out rebuilds it. -->
@@ -68,63 +68,53 @@ function sentence(h: CityHouse): string {
   <LoadingScreen v-else-if="settings.view === 'lobby'" class="full" />
 
   <div v-else class="list">
-    <h1>The city.</h1>
-    <p v-if="houses" class="lede">
-      {{ plural(totals.houses, "house", "houses") }}, {{ plural(totals.free, "free room", "free rooms") }}, and {{ totals.making }} still finding their flatmates.
-    </p>
+    <ListCard>
+      <div class="card">
+        <header class="head">
+          <h1 class="name">The city</h1>
+          <p class="line">
+            <template v-if="houses">
+              {{ plural(totals.houses, "house", "houses") }} · {{ plural(totals.free, "free room", "free rooms") }} · {{ totals.making }} setting up
+            </template>
+            <template v-else>Opening the city…</template>
+          </p>
+        </header>
 
-    <div class="controls">
-      <input v-model="search" type="search" placeholder="Search houses, cities, stacks" aria-label="Search the city" />
-      <div class="segmented" role="radiogroup" aria-label="Which houses">
-        <button role="radio" :aria-checked="show === 'all'" :class="{ on: show === 'all' }" @click="show = 'all'">Every house</button>
-        <button role="radio" :aria-checked="show === 'free'" :class="{ on: show === 'free' }" @click="show = 'free'">With a free room</button>
-        <button role="radio" :aria-checked="show === 'making'" :class="{ on: show === 'making' }" @click="show = 'making'">Being set up</button>
+        <div class="controls" role="search" aria-label="Find a house">
+          <input v-model="search" type="search" placeholder="Search houses, cities, projects, people" aria-label="Search the city" />
+          <Choice v-model="show" :options="options" label="Which houses" />
+        </div>
+
+        <p class="explain" aria-live="polite">{{ listLine }}</p>
+
+        <ul v-if="shown.length" class="plain lines" aria-label="Houses">
+          <CityRow v-for="h in shown" :key="h.id" :house="h" :mine="mine.includes(h.id)" />
+        </ul>
       </div>
-    </div>
-
-    <p v-if="houses && !shown.length" class="none">No house matches that.</p>
-    <ul class="houses">
-      <li v-for="h in shown" :key="h.id">
-        <RouterLink :to="`/houses/${h.id}`" class="house">
-          <HouseDrawing :house="h" class="drawing" aria-hidden="true" />
-          <span class="text">
-            <span class="name">{{ h.name }}<span v-if="h.agentOnline" class="online" aria-label="server online" /></span>
-            <span class="tagline" v-if="h.tagline">{{ h.tagline }}</span>
-            <span class="facts">{{ sentence(h) }}</span>
-          </span>
-          <span class="chevron" aria-hidden="true">›</span>
-        </RouterLink>
-      </li>
-    </ul>
+    </ListCard>
   </div>
 </template>
 
 <style scoped>
 .full { position: fixed; inset: 0; }
-.list { max-width: 980px; margin: 0 auto; padding: 96px 22px 80px; }
-h1 { margin: 0; font-size: clamp(40px, 6vw, 64px); line-height: 1.05; font-weight: 600; letter-spacing: -0.03em; }
-.lede { margin: 12px 0 0; font-size: clamp(19px, 2.2vw, 24px); line-height: 1.4; color: var(--muted, #6e6e73); max-width: 40ch; }
-.controls { display: grid; gap: 14px; margin: 48px 0 24px; }
-.controls input { width: 100%; min-height: 48px; padding: 12px 18px; border-radius: 14px; border: 0; background: color-mix(in srgb, currentColor 6%, transparent); color: inherit; font-size: 17px; }
-.segmented { display: inline-grid; grid-auto-flow: column; justify-self: start; padding: 3px; border-radius: 12px; background: color-mix(in srgb, currentColor 6%, transparent); max-width: 100%; overflow-x: auto; }
-.segmented button { border: 0; border-radius: 9px; min-height: 38px; padding: 0 16px; background: none; color: inherit; font-size: 15px; white-space: nowrap; cursor: pointer; }
-.segmented button.on { background: var(--bg, #fff); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); font-weight: 500; }
-.none { color: var(--muted, #6e6e73); font-size: 17px; }
-.houses { list-style: none; margin: 0; padding: 0; }
-.house { display: grid; grid-template-columns: 72px 1fr auto; gap: 20px; align-items: center; padding: 22px 0; border-bottom: 1px solid var(--border, #d2d2d7); color: inherit; text-decoration: none; }
-.drawing { width: 72px; }
-.text { display: grid; gap: 4px; min-width: 0; }
-.name { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
-.online { width: 8px; height: 8px; border-radius: 50%; background: #34c759; }
-.tagline { font-size: 17px; }
-.facts { font-size: 15px; line-height: 1.45; color: var(--muted, #6e6e73); }
-.chevron { font-size: 28px; color: var(--muted, #86868b); }
-.house:hover .name { color: var(--accent, #0071e3); }
-.house:focus-visible, .segmented button:focus-visible, .controls input:focus-visible { outline: 3px solid var(--accent, #0071e3); outline-offset: 3px; border-radius: 8px; }
-@media (max-width: 520px) {
-  .list { padding-top: 80px; }
-  .house { grid-template-columns: 52px 1fr; gap: 14px; }
-  .drawing { width: 52px; }
-  .chevron { display: none; }
+/* The top bar floats over this route (it's the lobby's), so the column starts under it. */
+.list { max-width: calc(760px + 2 * var(--gutter)); margin: 0 auto; padding: 72px var(--gutter) 80px; }
+.card { display: grid; gap: 14px; padding: 26px var(--gutter) 22px; }
+.head { display: grid; gap: 6px; }
+.name { font-size: 32px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+.line { font-size: 14px; color: var(--muted); }
+.controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.controls input { min-height: 44px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--fill); font-size: 15px; }
+.controls input:focus { box-shadow: 0 0 0 3px var(--focus); }
+.explain { margin-top: -4px; font-size: 13px; line-height: 1.3; color: var(--muted); }
+.plain { list-style: none; margin: 0; padding: 0; }
+/* The same tight rows as the lobby's panels. */
+.lines { display: grid; gap: 6px; align-content: start; line-height: 1.3; }
+@media (max-width: 640px) {
+  .controls { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .list { padding-top: 60px; }
+  .name { font-size: 26px; }
 }
 </style>
