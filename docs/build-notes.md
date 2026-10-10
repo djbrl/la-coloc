@@ -460,3 +460,25 @@ Awa's app", and crash/deploy notes say "A free room" rather than a slug when nob
 - The tontine's turn changes at midnight without an event, so an open city stream shows it after the next change.
 - The examples only reach rooms once this commit is pushed: the seed points at `Djbrl/la-coloc`'s `examples/`.
 - Seeded PR links on `Djbrl/coloc-test` may not match real pull requests there.
+
+### The web's part (World, Lobby UI and Panels agents)
+
+| What | Where |
+|---|---|
+| **A city that is the status page (R12, R8, R19, R32)**: one window per room (warm: online, blue + placard: free, red flicker: down, dark: not built yet), a crane and scaffold while a room builds, the whole house dark when its caretaker is offline (délestage, with a sputter and a clunk), fireworks and a toast when a project goes live, a reviews board on the market square, a visitor with ☝️ at doors with an open knock | `lobby/windows.ts`, `live.ts`, `fireworks.ts`, `props.ts`; `LobbyView.vue` diffs the city stream |
+| **Each city its own (R20, R29)**: palette (the Kenney colour atlas recoloured per city), ground (sand, laterite, terracotta, zellige, stone), zebra crossings and traffic lights only where they belong, water tanks and rebar, a baobab in Dakar, palms, pirogues on a sea for coastal cities, wax-print parasols; light from the city's real local time, lamps on at dusk | `lobby/cityStyle.ts`, `tint.ts`, `daylight.ts`, `textures.ts` |
+| **The lobby explains itself (R1, R2, R5, R13)**: a 4-step welcome about the product; the top line is city news ("Dakar: 7 projects online, 2 reviews waiting."); the tutorial teaches walking and going in, the rest are one-time tips | `Onboarding.vue`, `tutorial/*`, `tutorial/tips.ts` |
+| **Africa (R18)**: "Where to?" is a hand-drawn map of Africa, a dot per city, with its houses, who's around and its local time; arriving greets you in the city's language | `lobby/AfricaMap.vue`, `africa.ts` |
+| **The exchange on screen (R15, R16, R17)**: the Bill tab says what each flatmate's reviews took off and what they owe; "Pay your share" offers the country's mobile money (a mock); the tontine is a row of faces with the current one lit | `house/exchange.ts`, `house/PayBill.vue`, `HouseInside.vue` |
+| **No labels (R26)**: pills and tiles became sentences with a coloured dot (`panel/StatusDot.vue`); Settings rows are sentences | `room/RoomOverview.vue`, `SettingsPane.vue`, `list/*` |
+| **Keyboard and phones (R6, R27, R28)**: Tab reaches the page before the city and never gets trapped; one-key shortcuts only while the city has focus, and a switch in Settings; phones get a one-line top and a 70% sheet with the house framed above it; slow devices start in Low and are offered the list | `LobbyView.vue`, `Lobby.ts`, `settings.ts` |
+| **Links (R3, R9, R10)**: a link into a house puts you at its door and skips the tutorial (a "Take the tour" chip instead); tab titles follow the place | `LobbyView.vue`, `App.vue` |
+
+Verified: web tests 113, `vue-tsc` clean, production build passes. Each agent checked its part in its own headless
+Chrome (desktop and 390×844); the lead then walked the merged app: the visitor welcome, a link into Sacré-Cœur as
+Jib (tontine line, 7 reviews this month, the Bill tab adding up to 12 000 FCFA minus the 3 000 pool), and the Africa
+map. Draw calls in Dakar: 113 at spawn, 142 zoomed out.
+
+Still open: the tutorial's workshop map (L'Atelier) has no city style yet; the key strip still shows words beside
+its keycaps; the house panel keeps a "Strict" chip next to the sentence that says the same; Kigali's hills and roof
+smoke; French.

@@ -387,3 +387,11 @@ Ranked by impact on the jury divided by effort. "Data" says whether the API alre
 
 The demo city was not reset; no server was started or stopped. The review Chrome used its own profile in the scratch
 directory and has been closed.
+
+## Status after fix wave 1 (10 10 2026)
+
+Commits 1c7832b, 39c4461, 3fc0de9, 8b016ce, 60d7bf5. Details in `docs/build-notes.md`, "fix wave 1".
+
+| Done | Partly | Not done, and why |
+|---|---|---|
+| R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R12, R13, R14, R15, R16, R17, R18, R19, R24, R25, R27, R29, R30, R31 (copy), R32, R36, R37, R38, R39 | R20 (procedural styles done; CC0 swaps need Jib's OK to download), R26 (key strip words, the "Strict" chip), R28 (Low by default on slow devices; GLB packing not done) | R11 French: next wave, it touches every screen. R21, R22, R31 (recruiting, the real server): Jib's to do. R23: skipped, servers are rented in FCFA and "FCFA" is right for XOF and XAF. R33, R34, R35: later |
