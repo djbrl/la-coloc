@@ -344,6 +344,8 @@ onMounted(() => {
     );
     build();
     applyControls();
+    // Opened from the address bar (`?in=…`): the window was already there before the engine, so frame it now.
+    if (place.value) lobby.frame("left");
   } catch {
     // No WebGL (an old phone, a disabled GPU): the list still works.
     failed.value = true;
@@ -603,7 +605,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 </script>
 
 <template>
-  <div class="lobby">
+  <div class="lobby" :class="{ paused: !!place }">
     <div
       ref="host"
       class="stage"
@@ -651,6 +653,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
             @knock="(room) => (knock = { houseId: cardHouse!.id, room })"
             @enter="goInside({ kind: 'house', id: cardHouse!.id })"
             @walk="lobby?.goTo(cardHouse!.id)"
+            @thread="(id) => goInside({ kind: 'application', id })"
             @close="closeCard"
           />
           <PersonCard
@@ -663,6 +666,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
             :is-me="card.login === me?.login"
             @knock="(houseId, room) => (knock = { houseId, room })"
             @see="seeHouse"
+            @thread="(id) => goInside({ kind: 'application', id })"
             @wave="emote('yes')"
             @close="closeCard"
           />
@@ -733,7 +737,15 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 
       <Onboarding v-if="welcoming" @focus="(on) => lobby?.focusOnPlayer(on)" @character="(c) => lobby?.setCharacter(c)" @done="settings.welcomed = true" />
 
-      <KnockSteps v-if="knock" :house-id="knock.houseId" :room="knock.room" stay @knocked="(id) => goInside({ kind: 'application', id })" @close="knock = null" />
+      <KnockSteps
+        v-if="knock"
+        :house-id="knock.houseId"
+        :house-name="houses.find((h) => h.id === knock!.houseId)?.name"
+        :room="knock.room"
+        stay
+        @knocked="(id) => goInside({ kind: 'application', id })"
+        @close="knock = null"
+      />
       <RentSteps v-if="rent" :city="rent.city" :plot="rent.plot" @built="built" @close="rent = null" />
 
       <Transition name="fade">
@@ -803,7 +815,10 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 /* No WebGL: one flat card in the middle says so. */
 .failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
 /* Everything on top of the city is a flat piece of the site's surface, lifted by a shadow: no glass, no blur. */
-.hud { position: absolute; z-index: 10; color: var(--text); }
+.hud { position: absolute; z-index: 10; color: var(--text); transition: opacity 0.2s var(--ease); }
+/* A house, a room or a knock is open: like a game's pause menu, the HUD around it steps back (who's here, the
+   round tools and the minimap, which the panel would half cover), leaving the place and the keys. */
+.paused .hud.top, .paused .hud.tools, .paused .hud.map { opacity: 0; pointer-events: none; }
 .place, .tools button, .emotes button { background: var(--surface); color: var(--text); box-shadow: var(--lift); }
 .place { top: 60px; left: 16px; display: flex; align-items: baseline; gap: 6px; padding: 8px 16px; min-height: 44px; border: 0; border-radius: 980px; cursor: pointer; }
 .place .city { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }

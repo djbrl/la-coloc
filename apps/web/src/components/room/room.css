@@ -1,0 +1,52 @@
+/* The room panel's controls, shared by its tabs. It should feel like a game's pause menu, not a web page: chunky
+   buttons with an icon and a word, no underlined links for actions, and edit flows that read like a settings
+   sub-screen (one question, a big Next). Everything is under .room-panel so none of it leaks into the rest. */
+
+/* A chunky button: an icon and a word, on a soft fill. Used for Edit, Add, Follow, Refresh, Back. */
+.room-panel .chunk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: var(--fill);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color 0.15s var(--ease), transform 0.12s var(--ease);
+}
+.room-panel .chunk:hover:not(:disabled) { background: var(--fill-hover); text-decoration: none; }
+.room-panel .chunk:active:not(:disabled) { transform: scale(0.97); }
+.room-panel .chunk.small { min-height: 34px; padding: 0 12px; font-size: 14px; border-radius: 10px; }
+.room-panel .chunk.on { background: var(--accent-soft); color: var(--accent); }
+.room-panel .chunk.danger { background: var(--danger-soft); color: var(--danger); }
+.room-panel .chunk.primary { background: var(--accent-fill); color: var(--on-accent); }
+.room-panel .chunk.primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
+
+/* An edit flow: one card, one question, a big Next. */
+.room-panel .flow { padding: 18px; border-radius: 18px; background: var(--tile); }
+.room-panel .flow .steps { gap: 16px; }
+.room-panel .flow .step { gap: 14px; }
+.room-panel .flow h3 { font-size: 21px; }
+.room-panel .flow .hint { margin-top: -6px; font-size: 14px; color: var(--muted); }
+.room-panel .flow form { display: grid; gap: 14px; }
+.room-panel .flow .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.room-panel .flow-nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 4px; }
+.room-panel .flow-nav .next { min-height: 52px; min-width: 140px; padding: 0 28px; border-radius: 14px; font-size: 17px; font-weight: 600; }
+.room-panel .caps { text-transform: uppercase; }
+.room-panel .mono { font-family: var(--mono); }
+
+/* A list of rows: the lobby's ListRow, with the list's own styles reset. */
+.room-panel .row-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+
+@media (max-width: 480px) {
+  .room-panel .flow .pair { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .room-panel .chunk { transition: none; }
+  .room-panel .chunk:active:not(:disabled) { transform: none; }
+}

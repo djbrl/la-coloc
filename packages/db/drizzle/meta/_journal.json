@@ -64,6 +64,13 @@
       "when": 1791570074505,
       "tag": "0008_tutorial",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791602271794,
+      "tag": "0009_demo_rooms",
+      "breakpoints": true
     }
   ]
 }

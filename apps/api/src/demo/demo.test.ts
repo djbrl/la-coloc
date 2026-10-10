@@ -77,7 +77,10 @@ describe("the demo reset", () => {
 
     const left = await db.select({ id: houseRows.id }).from(houseRows).orderBy(asc(houseRows.id));
     expect(left.map((h) => h.id)).toEqual(CITY.map((h) => h.id).sort());
-    expect(await db.select().from(rooms).where(eq(rooms.houseId, "atelier"))).toHaveLength(0);
+    // The workshop is back to its host and learners, in their example rooms; Fatou's tutorial room is gone.
+    const workshop = await db.select().from(rooms).where(eq(rooms.houseId, "atelier"));
+    expect(workshop.map((r) => r.name).sort()).toEqual(["aissatou", "babacar", "coumba", "lamine", "ndeye"]);
+    expect(workshop.every((r) => r.demo && r.status === "live" && r.url === null)).toBe(true);
     expect(await db.select().from(messages)).toHaveLength(0);
     const [jibRoom] = await db.select().from(rooms).where(eq(rooms.name, "jib"));
     expect(jibRoom).toMatchObject({ project: "Kër Bot", status: "live", url: "http://jib.coloc.localhost:8000" });

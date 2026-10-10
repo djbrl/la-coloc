@@ -43,6 +43,32 @@ export const icons = {
   tick: "M5 12l5 5L20 7",
   // A thread: a knock you've already made.
   thread: "M4 5h16v11H9l-5 4z M8 9h8 M8 12h5",
+  // A power symbol: restart.
+  power: "M12 3v8 M6.3 6.8a8 8 0 1 0 11.4 0",
+  // An arrow leaving a box: opens in a new tab.
+  external: "M14 4h6v6 M20 4l-9 9 M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
+  // A pencil: edit.
+  edit: "M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4",
+  // Angle brackets: code.
+  code: "M8 7l-5 5 5 5 M16 7l5 5-5 5 M14 4l-4 16",
+  // A padlock: secrets.
+  lock: "M6 11h12v10H6z M8.5 11V7.5a3.5 3.5 0 0 1 7 0V11",
+  // A terminal prompt: logs.
+  logs: "M4 4h16v16H4z M8 9l3 3-3 3 M13 15h3",
+  // A clock: history.
+  clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 7v5l3 2",
+  // A gauge: a room at a glance.
+  gauge: "M4 18a8 8 0 1 1 16 0 M12 18l4-6 M3 18h18",
+  // A crown: the chef.
+  crown: "M4 18h16 M4 18L3 8l5 4 4-6 4 6 5-4-1 10",
+  // A plus: add.
+  plus: "M12 5v14 M5 12h14",
+  // A rocket: put online.
+  rocket: "M5 15c-1.5 1.5-2 4-2 6 2 0 4.5-.5 6-2 M9 15l-3-3c2-6 7-9 14-9 0 7-3 12-9 14z M14.5 9.5h.01",
+  // A box: a project.
+  box: "M3 7l9-4 9 4-9 4z M3 7v10l9 4 9-4V7 M12 11v10",
+  // An "i" in a circle: what is this.
+  info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h.01",
 } as const;
 
 export type IconName = keyof typeof icons;

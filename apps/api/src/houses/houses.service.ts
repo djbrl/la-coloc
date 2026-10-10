@@ -238,9 +238,10 @@ export class HousesService {
     this.changes.next(houseId);
   }
 
-  // The agent's word is the truth about what's running: rebuild room status from it.
+  // The agent's word is the truth about what's running: rebuild room status from it. Example rooms (`demo`)
+  // never run anything, so the agent never reports them; they keep the status the seed gave them.
   async applySnapshot(houseId: string, snap: RoomsSnapshot) {
-    const all = await this.db.select().from(rooms).where(eq(rooms.houseId, houseId));
+    const all = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.demo, false)));
     for (const room of all) {
       const prod = snap.rooms.find((r) => r.room === room.name && r.kind === "prod");
       const next = prod
@@ -297,6 +298,7 @@ export class HousesService {
       tagline: h.tagline,
       status: h.status,
       demo: h.demo,
+      tutorial: h.tutorial,
       domain: h.domain,
       agentOnline: this.online.has(h.id),
       monthlyCostFcfa: h.monthlyCostFcfa,
@@ -313,6 +315,7 @@ export class HousesService {
         ad: r.occupantId ? null : r.ad,
         occupant: person(r.occupant),
         usage: live?.get(r.name) ?? null,
+        demo: r.demo,
       })),
       viewer: viewerRow
         ? {
@@ -406,7 +409,15 @@ export class HousesService {
         agentOnline: this.online.has(h.id),
         monthlyCostFcfa: h.monthlyCostFcfa,
         plot: h.plot,
-        rooms: h.rooms.map((r) => ({ name: r.name, status: r.status, url: r.url, project: r.project, ad: r.occupantId ? null : r.ad, occupant: person(r.occupant) })),
+        rooms: h.rooms.map((r) => ({
+          name: r.name,
+          status: r.status,
+          url: r.url,
+          project: r.project,
+          projectDescription: r.projectDescription,
+          ad: r.occupantId ? null : r.ad,
+          occupant: person(r.occupant),
+        })),
       })),
     };
   }

@@ -95,6 +95,9 @@ export const rooms = pgTable(
     buildPath: text("build_path").notNull().default("."),
     port: integer("port"),
     source: text("source"),
+    // A seeded example in a real house (the workshop's other learners): shown as lived in, but nothing runs
+    // there, so the agent's snapshot never changes it.
+    demo: boolean("demo").notNull().default(false),
   },
   (t) => [uniqueIndex("rooms_house_name").on(t.houseId, t.name)],
 );

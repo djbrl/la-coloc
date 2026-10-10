@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // A chat: the house's living room, or a knock's thread. Messages arrive through the page's live stream;
-// this only shows them and sends new ones.
+// this only shows them and sends new ones. Placed in a column with a fixed height (a panel's body), it fills
+// what's left: the messages scroll inside it and the composer stays at the bottom. On a page that grows, it grows.
 import { nextTick, ref, watch } from "vue";
 import { postJSON } from "../session";
 import type { Message } from "../types";
@@ -74,17 +75,22 @@ async function send() {
 </template>
 
 <style scoped>
-.chat { display: grid; gap: 16px; }
-.list { display: grid; gap: 14px; align-content: start; max-height: 440px; overflow-y: auto; padding: 4px 2px; }
-.empty { padding: 24px 0; }
+.chat { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.list { position: relative; flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; overscroll-behavior: contain; padding: 4px 2px; }
+/* Few messages sit at the bottom, by the composer, the way a chat reads. */
+.list > :first-child { margin-top: auto; }
+.empty { padding: 24px 0; text-align: center; }
 .system { text-align: center; font-size: 13px; color: var(--muted); padding: 4px 0; }
-.msg { display: flex; gap: 10px; align-items: flex-end; max-width: 85%; }
+.msg { flex: none; display: flex; gap: 10px; align-items: flex-end; max-width: 85%; }
 .msg.mine { margin-left: auto; justify-content: flex-end; }
 .body { display: grid; gap: 4px; min-width: 0; }
 .mine .body { justify-items: end; }
 .meta { font-size: 12px; color: var(--muted); padding: 0 14px; }
 .bubble { padding: 10px 16px; border-radius: 20px; background: var(--fill); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
 .mine .bubble { background: var(--accent-fill); color: var(--on-accent); }
-.compose { display: flex; gap: 10px; }
-.compose input { border-radius: 980px; padding-left: 20px; }
+.compose { flex: none; display: flex; gap: 10px; }
+.compose input { flex: 1 1 auto; min-width: 0; border-radius: 980px; padding-left: 20px; }
+/* "Send" stays one word on one line, however narrow the panel. */
+.compose button { flex: none; white-space: nowrap; }
+.chat > .error { flex: none; }
 </style>

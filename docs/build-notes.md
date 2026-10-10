@@ -371,3 +371,36 @@ Tests: 197. Build and `licences:check` pass.
 ### Rough edges
 - Other learners' workshop rooms show up as flatmates standing outside the workshop.
 - On touch screens the dash and keys steps are skipped (no Shift, no key list).
+
+## 10 10 2026, early morning: panels that fit, like a pause menu
+
+(The two sections above are headed "11 10 2026", but their commits are from 9 October; this one is 10 October.)
+
+Jib reviewed every panel and found them unintuitive: they scrolled, the house view had a row of icon buttons and a
+tab bar with the same words, "Run", "project", "Redeploy" and "Restart" were never explained, room cards didn't say
+what anyone builds, and the workshop was empty. Then they added: floating cards that feel like a game's pause menu,
+not website UI, paired with the camera zoom. Rebuilt by four subagents on a shared panel kit written first.
+
+| What | Where |
+|---|---|
+| **A panel kit** every inside panel is built on: a fixed head, one row of tabs as the only navigation, a body that fits (only a chat, logs or a long history scroll, inside themselves), one next step in the foot; dense rows (face, name and project, state, one action) instead of tall cards; one place for the words (house, room, project, put online, update, restart, knock) | `lobby/panel/` (`Panel`, `PanelHead`, `PanelTabs`, `ListRow`, `StatusPill`, `words.ts` + test) |
+| **The sheet as a pause menu**: a floating card centred on the right that pops in; the HUD around it (who's here, the round tools, the minimap) steps back while it's open; the camera frames you on the left even when the window opens from the address bar | `Inside.vue`, `LobbyView.vue` |
+| **The house**: the people as a crew row under the name (chef's crown, you ringed, knockers at the door, empty seats); rooms as rows saying who builds what and whether it's online, with Visit / Open / Knock; one foot action per viewer; tabs only for flatmates; the rundown rewritten in plain words | `HouseInside.vue`, `house/Crew.vue`, `house/crew.ts` (tests), `house/Rundown.vue`, `FridgeDoor.vue` |
+| **The room**: what a room is and its address under the name; Overview / Code / Secrets / Logs / History; "Put online" or "Update" and "Restart" as big tiles with a line saying what each does; editing the project and the code as short step flows | `RoomPage.vue`, `room/*` (tests) |
+| **Knocks and people**: the knock thread fits (vote strip, chat filling the rest); knocking twice goes straight to "You've already knocked"; the person card shows what they build and if it's online, and "See your knock" when you have one; game-menu cards | `ApplicationPage.vue`, `ChatPanel.vue`, `KnockSteps.vue`, `PersonCard.vue`, `HouseCard.vue`, `EmptyCard.vue`, `LobbyCard.vue`, `cards.ts` (tests) |
+| **L'Atelier inhabited**: a host (Ndèye) and four learners with small first projects, as example rooms (`rooms.demo`): shown online, nothing runs, the caretaker's snapshot leaves them alone, they can't be put online, never asked to review; the tutorial's sample is named "Hello" in your room | `seed/city.ts`, migration `0009_demo_rooms`, `houses.service.ts`, `rooms.controller.ts`, `chores.service.ts`, `tutorial.service.ts` (tests) |
+| **Plain tutorial words**: "Put it online", what a project and a room are, "Fetching the code… Building… Starting…" from the deployment's real step, what linking GitHub does | `tutorial/Coach.vue`, `Welcome.vue`, `tutorial.ts` |
+| **API fields**: `HouseView.tutorial`, `rooms[].demo`, the city's `projectDescription`, `me.knocks` (open knocks) | `houses.service.ts`, `auth/*` |
+
+### Verified
+In a headless Chrome with a throwaway profile, at 1440×900, logged in as Jib: the whole tutorial ran on the new
+panels (the workshop's five example rooms, the rundown in four steps, "Take it", "Put it online", the live room,
+GitHub skipped, the room panel); then, in dark and light, Sacré-Cœur as its chef (Rooms, Channel, Chores, Fridge,
+Bill), Jib's room (Overview, Code, Secrets, Logs, History), Almadies as a visitor: every one measured 715 px tall
+with zero scroll in the sheet and in the panel body. A second dev login knocked on room-4 through the three steps,
+landed on the thread (it fits), and the house then offered "See your knock"; the knock was withdrawn. No errors.
+Tests: API 132, web 76. Build passes.
+
+### Rough edges
+- The crew row and the rundown's first bubble overlap while the bubble is on the header.
+- Reviews given show on a room row only once there are some.

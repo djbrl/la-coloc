@@ -56,6 +56,10 @@ function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   return r.data;
 }
 
+
+// A seeded example room (the workshop's made-up learners) is only there to be looked at: nothing runs in it.
+const EXAMPLE_ROOM = "This is an example room: nothing runs in it.";
+
 @Controller("houses/:id/rooms/:room")
 export class RoomsController {
   constructor(
@@ -121,6 +125,7 @@ export class RoomsController {
   async restart(@Param("id") id: string, @Param("room") roomName: string, @Req() req: HttpRequest) {
     const user = await this.user(req);
     const { room } = await this.rooms.manageable(id, roomName, user.id);
+    if (room.demo) throw new ConflictException(EXAMPLE_ROOM);
     if (!this.agents.isOnline(id)) throw new ConflictException("The house's server is offline.");
     this.agents.send(id, { type: "restart_room", room: room.name });
     await this.houses.note(id, { tone: "info", room: room.name, text: `${user.name ?? user.login} restarted ${room.name}.` });
@@ -143,6 +148,7 @@ export class RoomsController {
 
   private async redeployRoom(id: string, roomName: string, userId: string, kind: "prod" | "preview", requestedBy?: string | null) {
     const { room } = await this.rooms.manageable(id, roomName, userId);
+    if (room.demo) throw new ConflictException(EXAMPLE_ROOM);
     const source = await this.deployer.source(room);
     if (!source) throw new BadRequestException("This room has no code yet: give it a repo URL, or install the GitHub App on your repo.");
     try {

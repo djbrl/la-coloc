@@ -67,7 +67,7 @@
   --bg-alt: #1d1d1f;
   --surface: #1d1d1f;
   --sunken: #1d1d1f;
-  --tile: #1d1d1f;
+  --tile: #2c2c2e;
   --fill: #333336;
   --fill-hover: #424245;
   --text: #f5f5f7;
@@ -86,7 +86,7 @@
   --roof: #a5583a;
   --wall: #3a332b;
   --window-off: #4a4339;
-  --code-bg: #1d1d1f;
+  --code-bg: #0b0b0c;
   --nav-bg: rgba(22, 22, 23, 0.8);
   --nav-bg-float: rgba(22, 22, 23, 0.55);
   --scrim: rgba(0, 0, 0, 0.6);
@@ -99,7 +99,7 @@
     --bg-alt: #1d1d1f;
     --surface: #1d1d1f;
     --sunken: #1d1d1f;
-    --tile: #1d1d1f;
+    --tile: #2c2c2e;
     --fill: #333336;
     --fill-hover: #424245;
     --text: #f5f5f7;
@@ -118,7 +118,7 @@
     --roof: #a5583a;
     --wall: #3a332b;
     --window-off: #4a4339;
-    --code-bg: #1d1d1f;
+    --code-bg: #0b0b0c;
     --nav-bg: rgba(22, 22, 23, 0.8);
     --nav-bg-float: rgba(22, 22, 23, 0.55);
     --scrim: rgba(0, 0, 0, 0.6);

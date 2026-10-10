@@ -134,6 +134,10 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       .where(eq(memberships.houseId, repo.houseId))
       .orderBy(memberships.tontinePosition);
     const author = flatmates.find((f) => f.githubId === pr.user.id);
+    // The workshop's example learners (people living in a `demo` room) are scenery: they never review anything.
+    const examples = new Set(
+      (await this.db.select({ id: rooms.occupantId }).from(rooms).where(and(eq(rooms.houseId, repo.houseId), eq(rooms.demo, true)))).map((r) => r.id),
+    );
 
     const open = await this.db.select().from(chores).where(eq(chores.houseId, repo.houseId));
     const load: Record<string, ReviewLoad> = {};
@@ -143,7 +147,7 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       l.lastAssignedAt = Math.max(l.lastAssignedAt ?? 0, c.createdAt.getTime());
     }
     const reviewerId = pickReviewer(
-      flatmates.map((f) => ({ id: f.id, active: true })),
+      flatmates.filter((f) => !examples.has(f.id)).map((f) => ({ id: f.id, active: true })),
       author?.id ?? "",
       load,
     );

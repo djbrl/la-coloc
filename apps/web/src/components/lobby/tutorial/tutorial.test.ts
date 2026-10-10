@@ -1,7 +1,7 @@
 // The tutorial's step machine, driven with plain events: the order of the steps, and what each one waits for.
 import { describe, expect, it } from "vitest";
 import type { TutorialState } from "../../../types";
-import { type Action, SETUP, STEPS, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
+import { type Action, goingWord, SETUP, STEPS, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
 
 // What GET /api/tutorial says, with a room (or not) and GitHub linked (or not).
 function state(room: { status: string } | null, linked = false): TutorialState {
@@ -154,5 +154,20 @@ describe("the tutorial", () => {
     expect(SETUP.city.reveal).toContain("chrome");
     expect(SETUP.city.reveal).toContain("emotes");
     expect(STEPS.filter((s) => SETUP[s].poll)).toEqual(["room", "run", "github"]);
+  });
+});
+
+describe("putting the sample online, in words", () => {
+  it("follows the deployment: fetching, building, starting", () => {
+    expect(goingWord("empty", false)).toBe("");
+    expect(goingWord("empty", true)).toBe("Fetching the code…");
+    expect(goingWord("queued", true)).toBe("Fetching the code…");
+    expect(goingWord("cloning", true)).toBe("Fetching the code…");
+    expect(goingWord("building", true)).toBe("Building…");
+    expect(goingWord("deploying", true)).toBe("Building…");
+    expect(goingWord("starting", true)).toBe("Starting…");
+    expect(goingWord("live", true)).toBe("");
+    expect(goingWord("failed", true)).toBe("");
+    expect(goingWord(undefined, false)).toBe("");
   });
 });

@@ -1,6 +1,6 @@
 // Small helpers the lobby's cards share: what a house says about itself, and who lives where.
 import type { Resident } from "../../lobby/Lobby";
-import type { CityHouse } from "../../types";
+import type { CityHouse, Me } from "../../types";
 import type { Place } from "./place";
 
 // A room as the city lists it (fewer fields than the house page's Room).
@@ -29,6 +29,40 @@ export const sentence = (s: string) => (/[.!?…]$/.test(s.trim()) ? s.trim() : 
 export function listNames(names: string[]): string {
   if (names.length <= 1) return names.join("");
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** "4 rooms, 1 free" / "4 rooms, full" / "1 room, free": how big a house is, and whether there's space. */
+export function roomsLine(h: Pick<CityHouse, "rooms">): string {
+  const total = h.rooms.length;
+  const free = h.rooms.filter((r) => !r.occupant).length;
+  if (total === 1) return `1 room, ${free ? "free" : "taken"}`;
+  return `${plural(total, "room", "rooms")}, ${free ? `${free} free` : "full"}`;
+}
+
+/** "@moussa · lives in Sacré-Cœur, Dakar", or null for someone just visiting (the card says so in words). */
+export function homeLine(login: string, home: Pick<Home, "houseName" | "city"> | null): string | null {
+  return home ? `@${login} · lives in ${home.houseName}, ${home.city}` : null;
+}
+
+/** Someone's room in their house, as the city lists it: where their project's name, words and state live. */
+export function roomOf(house: Pick<CityHouse, "rooms"> | null, room: string | null | undefined): CityRoom | null {
+  if (!house || !room) return null;
+  return house.rooms.find((r) => r.name === room) ?? null;
+}
+
+// ---- Your knocks ----
+
+/** Your open knock on a house, if you have one. `me.knocks` is missing on an API that doesn't send it yet: no
+ *  knock known then, and the knock dialog finds out from the API's answer instead. */
+export function knockOn(knocks: Me["knocks"] | null | undefined, houseId: string | null | undefined): { id: string; houseId: string; room: string } | null {
+  if (!houseId || !Array.isArray(knocks)) return null;
+  return knocks.find((k) => k.houseId === houseId) ?? null;
+}
+
+/** A repo link as people read it: "djbrl/app" for GitHub, "gitlab.com/djbrl/app" for anywhere else. */
+export function shortRepo(url: string): string {
+  const bare = url.replace(/^https?:\/\//, "").replace(/\/+$/, "").replace(/\.git$/, "");
+  return bare.replace(/^(www\.)?github\.com\//, "");
 }
 
 // ---- Where you are "inside": the house, application or room open over the city ----

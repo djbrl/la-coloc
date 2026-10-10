@@ -87,6 +87,19 @@ export type TutorialEvent =
 // A room is live, as the API says it.
 export const isLive = (s: TutorialState | null) => s?.room?.status === "live";
 
+/**
+ * While the sample goes online, what's happening, in the coach's words. The API reports the deployment's own step
+ * while the room is being put online ("cloning", "building", "starting"); right after "Put it online" is pressed
+ * the room may still say "empty". Empty string: nothing is going on.
+ */
+export function goingWord(status: string | undefined, pressed: boolean): string {
+  if (status === "queued" || status === "cloning" || (pressed && status === "empty")) return "Fetching the code…";
+  // "deploying" is what an API without the finer steps says the whole way through.
+  if (status === "building" || status === "deploying") return "Building…";
+  if (status === "starting") return "Starting…";
+  return "";
+}
+
 export class TutorialMachine {
   active = false;
   step: Step = "welcome";
@@ -98,7 +111,8 @@ export class TutorialMachine {
   mapOpened = false;
   mapOpen = false;
   keysOpened = false;
-  // The live room was opened (run step), GitHub got linked (github step), or was already when the step began.
+  // The live room was opened (run step: putting the sample online), GitHub got linked (github step), or was
+  // already when the step began.
   roomOpened = false;
   linked = false;
   linkedBefore = false;

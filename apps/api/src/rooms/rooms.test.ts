@@ -122,6 +122,15 @@ describe("settings and secrets", () => {
   });
 });
 
+describe("the workshop's example rooms", () => {
+  it("never go online or restart, even for the learner who lives there", async () => {
+    as = "babacar";
+    await expect(controller.redeploy("atelier", "babacar", req)).rejects.toThrow(/example room/);
+    await expect(controller.restart("atelier", "babacar", req)).rejects.toThrow(/example room/);
+    expect(sent).toHaveLength(0);
+  });
+});
+
 describe("restart and logs", () => {
   it("restarts the room and says so on the fridge", async () => {
     as = "awa";

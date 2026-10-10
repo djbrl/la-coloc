@@ -80,7 +80,7 @@ function onWindowKey(e: KeyboardEvent) {
 watch(topKey, async (now) => {
   if (!now) return;
   await nextTick();
-  sheet.value?.scrollTo({ top: 0 });
+  sheet.value?.querySelector(".page-host")?.scrollTo({ top: 0 });
   sheet.value?.focus({ preventScroll: true });
 });
 
@@ -168,7 +168,10 @@ function trapTab(e: KeyboardEvent) {
       @keydown="onKey"
     >
       <div class="bar">
-        <button v-if="stack.length > 1" type="button" class="link" aria-label="Back" @click="back"><span aria-hidden="true">‹</span> Back</button>
+        <button v-if="stack.length > 1" type="button" class="back-btn" @click="back">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          Back
+        </button>
         <span v-else />
         <button type="button" class="close" aria-label="Close" @click="closeAll">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
@@ -199,42 +202,46 @@ function trapTab(e: KeyboardEvent) {
 .inside { position: absolute; inset: 0; z-index: 60; }
 /* On a wide screen the click-catcher over the city is clear: no dimming, the city stays lit. */
 .scrim { position: absolute; inset: 0; }
-/* A flat panel on the site's surface, docked on the right under the top bar; the page scrolls inside it. */
+/* A floating card over the city, like a game's pause menu: it pops in on the right with the city still lit beside
+   it, while the camera zooms so your character stands on the left. Centred in the height it has, at most 760px
+   tall, never under the top bar. */
 .sheet {
   position: absolute;
-  top: 72px;
-  right: 16px;
-  bottom: 16px;
+  top: max(72px, calc(50% - 380px));
+  bottom: max(24px, calc(50% - 380px));
+  right: 32px;
   width: min(600px, 48vw);
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-radius: 22px;
+  /* The sheet never scrolls: the bar stays, and the page under it (a Panel, see panel/Panel.vue) is made to fit.
+     Only a panel's body scrolls, inside itself, when it holds a stream. */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px;
   background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), 0 0 0 1px var(--hairline);
   outline: none;
   overflow-wrap: anywhere;
-  animation: slide-in 0.25s var(--ease);
+  transform-origin: 70% 50%;
+  animation: pop-in 0.22s var(--ease);
 }
-/* Back and Close stay in reach while the page scrolls under them. */
+/* Back and Close: one slim line, no rule under it, so the page's own head is the first thing you read. */
 .bar {
-  position: sticky;
-  top: 0;
-  z-index: 4;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 56px;
-  padding: 6px var(--gutter);
-  background: var(--surface);
-  border-bottom: 1px solid var(--hairline);
+  min-height: 44px;
+  padding: 12px 12px 0 calc(var(--gutter) - 6px);
 }
-.bar .link { font-size: 15px; }
-.close { width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; }
-.page-host { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
-@keyframes slide-in {
-  from { opacity: 0; transform: translateX(16px); }
+.back-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 14px 0 8px; font-size: 14px; font-weight: 600; }
+.close { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+/* The page fills what's left. If a window is too short for it, it scrolls here rather than spilling out. */
+.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.page-host > * { flex: 1 1 auto; min-height: 0; }
+/* The pause menu's entrance: a quick scale up from just under full size. */
+@keyframes pop-in {
+  from { opacity: 0; transform: translateX(12px) scale(0.96); }
 }
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(12px); }
@@ -247,7 +254,7 @@ function trapTab(e: KeyboardEvent) {
 @media (max-width: 719px) {
   .inside { display: grid; place-items: end stretch; }
   .scrim { background: var(--scrim); animation: fade-in 0.25s var(--ease); }
-  .sheet { position: relative; inset: auto; width: 100%; max-height: 88dvh; border-radius: 20px 20px 0 0; animation-name: rise-in; }
+  .sheet { position: relative; inset: auto; width: 100%; height: 88dvh; border-radius: 24px 24px 0 0; animation-name: rise-in; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet, .scrim { animation: none; }

@@ -15,6 +15,8 @@ interface SeedRoom {
   project?: string;
   description?: string;
   ad?: string;
+  // An example room in a real house: shown as lived in and online, but nothing runs there (rooms.demo).
+  demo?: boolean;
 }
 
 interface SeedHouse {
@@ -53,6 +55,8 @@ export const CITY: SeedHouse[] = [
   },
   {
     // Newcomers take their first room here during the tutorial; each room is removed when its tutorial restarts.
+    // The host and four learners live here already so the house doesn't feel empty: their rooms are examples
+    // (`demo`), seeded online with no address, and nothing runs in them.
     id: "atelier",
     name: "L'Atelier",
     city: "Dakar",
@@ -62,8 +66,14 @@ export const CITY: SeedHouse[] = [
     demo: false,
     tutorial: true,
     monthlyCostFcfa: null,
-    chef: "jib",
-    rooms: [],
+    chef: "ndeye",
+    rooms: [
+      { name: "ndeye", who: "ndeye", demo: true, project: "Hello", description: "The ready-made page every newcomer puts online first." },
+      { name: "aissatou", who: "aissatou", demo: true, project: "Salut Gorée", description: "A hello page with her name and a photo of Gorée." },
+      { name: "babacar", who: "babacar", demo: true, project: "Météo Bot", description: "A Telegram bot that sends Dakar's weather every morning." },
+      { name: "coumba", who: "coumba", demo: true, project: "Portfolio", description: "Her design work, on one page." },
+      { name: "lamine", who: "lamine", demo: true, project: "Tâches API", description: "A to-do API: add a task, tick it off, list what's left." },
+    ],
   },
   {
     id: "almadies",
@@ -207,6 +217,8 @@ const NAMES: Record<string, string> = {
   awa: "Awa",
   moussa: "Moussa",
   "awa-k": "Awa K.",
+  ndeye: "Ndèye",
+  aissatou: "Aïssatou",
 };
 
 const displayName = (login: string) => NAMES[login] ?? login.charAt(0).toUpperCase() + login.slice(1);
@@ -267,7 +279,6 @@ export async function plantCity(db: Db, opts: SeedOptions) {
       // Only the real houses have an agent.
       agentSecretHash: h.demo ? null : hashSecret(opts.agentSecret),
     });
-    // The workshop starts with no rooms: each newcomer takes one during the tutorial.
     if (!h.rooms.length) continue;
     await db.insert(rooms).values(
       h.rooms.map((r) => ({
@@ -279,8 +290,9 @@ export async function plantCity(db: Db, opts: SeedOptions) {
         project: r.project ?? null,
         projectDescription: r.description ?? null,
         ad: r.ad ?? null,
-        // Demo houses that are live show their rooms as lived in; nothing actually runs there.
-        status: (h.demo && h.status === "live" && r.who ? "live" : "empty") as "live" | "empty",
+        demo: r.demo ?? false,
+        // Demo houses that are live, and example rooms, show as lived in; nothing actually runs there.
+        status: ((h.demo && h.status === "live" && r.who) || r.demo ? "live" : "empty") as "live" | "empty",
       })),
     );
     const members = h.rooms.filter((r) => r.who);

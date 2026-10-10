@@ -93,15 +93,28 @@ describe("taking a room in the workshop", () => {
     expect(await tutorial.room(req, again)).toEqual({ room: { name: "tuto-fatou", status: "empty", url: null } });
     expect(again.code).toBe(200);
 
-    const rs = await db.select().from(rooms).where(eq(rooms.houseId, "atelier"));
+    // One new room, next to the workshop's example rooms; it's a real one.
+    const rs = await db.select().from(rooms).where(and(eq(rooms.houseId, "atelier"), eq(rooms.demo, false)));
     expect(rs).toHaveLength(1);
-    expect(rs[0]).toMatchObject({ memoryMb: 256, cpus: 0.5, status: "empty" });
+    expect(rs[0]).toMatchObject({ memoryMb: 256, cpus: 0.5, status: "empty", demo: false });
     const fatou = await user("fatou");
     expect(rs[0].occupantId).toBe(fatou.id);
-    const ms = await db.select().from(memberships).where(eq(memberships.houseId, "atelier"));
-    expect(ms.map((m) => [m.userId, m.role])).toEqual([[fatou.id, "flatmate"]]);
+    const ms = await db.select().from(memberships).where(and(eq(memberships.houseId, "atelier"), eq(memberships.userId, fatou.id)));
+    expect(ms.map((m) => m.role)).toEqual(["flatmate"]);
 
     expect((await tutorial.state(req)).room).toEqual({ name: "tuto-fatou", status: "empty", url: null });
+  });
+
+  it("doesn't take an example room for the newcomer's, even when they log in as one of the learners", async () => {
+    // A dev login as "babacar" is the seeded learner, who lives in an example room: they still get a tuto- room.
+    const asBabacar = await loggedIn("babacar");
+    expect(await tutorial.room(asBabacar, response())).toEqual({ room: { name: "tuto-babacar", status: "empty", url: null } });
+    expect((await tutorial.state(req)).room).toBeNull();
+    // Taking it again removes that room only: Babacar still lives in the example room, as a flatmate.
+    await tutorial.reset(asBabacar);
+    const theirs = await db.select().from(rooms).where(and(eq(rooms.houseId, "atelier"), eq(rooms.occupantId, (await user("babacar")).id)));
+    expect(theirs.map((r) => r.name)).toEqual(["babacar"]);
+    expect(await db.select().from(memberships).where(and(eq(memberships.houseId, "atelier"), eq(memberships.userId, (await user("babacar")).id)))).toHaveLength(1);
   });
 
   it("keeps room names valid, whatever the login", () => {
@@ -140,7 +153,19 @@ describe("putting the sample online", () => {
     const cmd = sent.find((c) => c.type === "deploy") as DeployCommand;
     expect(cmd).toMatchObject({ deployId: id, room: "tuto-fatou", repo: sample.repo, ref: "main", path: "examples/hello" });
     const [r] = await db.select().from(rooms).where(and(eq(rooms.houseId, "atelier"), eq(rooms.name, "tuto-fatou")));
-    expect(r).toMatchObject({ source: sample.repo, buildPath: "examples/hello", branch: null, status: "deploying" });
+    expect(r).toMatchObject({ source: sample.repo, buildPath: "examples/hello", branch: null, status: "deploying", project: "Hello" });
+  });
+
+  it("says which step the deployment is at while it goes, so the coach can follow it", async () => {
+    await tutorial.room(req, response());
+    const { id } = await tutorial.deploy(req);
+    expect((await tutorial.state(req)).room!.status).toBe("queued");
+    for (const step of ["cloning", "building", "starting"] as const) {
+      await houses.recordDeployStatus("atelier", { type: "deploy_status", deployId: id, room: "tuto-fatou", status: step });
+      expect((await tutorial.state(req)).room!.status).toBe(step);
+    }
+    await houses.recordDeployStatus("atelier", { type: "deploy_status", deployId: id, room: "tuto-fatou", status: "live", url: "http://tuto-fatou.atelier.coloc.localhost" });
+    expect((await tutorial.state(req)).room).toEqual({ name: "tuto-fatou", status: "live", url: "http://tuto-fatou.atelier.coloc.localhost" });
   });
 
   it("answers 409 when the workshop's server is offline", async () => {
@@ -165,8 +190,19 @@ describe("taking the tutorial again", () => {
 
     expect(await tutorial.reset(req)).toEqual({ ok: true });
     expect(sent).toEqual([{ type: "remove_room", room: "tuto-fatou" }]);
-    expect(await db.select().from(rooms).where(eq(rooms.houseId, "atelier"))).toHaveLength(0);
-    expect(await db.select().from(memberships).where(eq(memberships.houseId, "atelier"))).toHaveLength(0);
+    // Only the newcomer's room and place go: the host and the learners stay, in their example rooms.
+    const left = await db.select().from(rooms).where(eq(rooms.houseId, "atelier"));
+    expect(left.map((r) => [r.name, r.demo, r.status]).sort()).toEqual([
+      ["aissatou", true, "live"],
+      ["babacar", true, "live"],
+      ["coumba", true, "live"],
+      ["lamine", true, "live"],
+      ["ndeye", true, "live"],
+    ]);
+    const fatou = await user("fatou");
+    const ms = await db.select().from(memberships).where(eq(memberships.houseId, "atelier"));
+    expect(ms).toHaveLength(5);
+    expect(ms.some((m) => m.userId === fatou.id)).toBe(false);
     const state = await tutorial.state(req);
     expect(state.room).toBeNull();
     expect(state.done).toBe(false);
@@ -188,6 +224,10 @@ describe("me and the tutorial", () => {
     await tutorial.room(req, response());
     expect((await me.me(req)).user!.houses).toEqual([]);
   });
+
+  it("lists no knocks for a newcomer", async () => {
+    expect((await me.me(req)).user!.knocks).toEqual([]);
+  });
 });
 
 describe("the city", () => {
@@ -195,7 +235,7 @@ describe("the city", () => {
     const city = await new CityController(houses, auth).city();
     expect(city.houses.map((h) => h.id)).not.toContain("atelier");
     expect(city.houses.map((h) => h.id)).toContain("sacre-coeur");
-    expect((await houses.view("atelier"))!).toMatchObject({ name: "L'Atelier", city: "Dakar", status: "live", demo: false });
+    expect((await houses.view("atelier"))!).toMatchObject({ name: "L'Atelier", city: "Dakar", status: "live", demo: false, tutorial: true });
   });
 });
 

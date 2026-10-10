@@ -26,6 +26,8 @@ export interface RoomView {
   ad: string | null;
   occupant: PersonView | null;
   usage: RoomUsage | null;
+  // A seeded example in a real house (the workshop's other learners): shown as lived in, but nothing runs.
+  demo: boolean;
 }
 
 export interface DeploymentView {
@@ -68,6 +70,8 @@ export interface HouseView {
   tagline: string | null;
   status: HouseStatus;
   demo: boolean;
+  // The tutorial's workshop (L'Atelier).
+  tutorial: boolean;
   domain: string;
   agentOnline: boolean;
   monthlyCostFcfa: number | null;
@@ -120,7 +124,7 @@ export interface CityHouseView {
   monthlyCostFcfa: number | null;
   // The lobby plot it rented ("2.1.0.1"), or null: the lobby places it near the market.
   plot: string | null;
-  rooms: Pick<RoomView, "name" | "status" | "url" | "project" | "ad" | "occupant">[];
+  rooms: Pick<RoomView, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant">[];
 }
 
 export interface CityView {

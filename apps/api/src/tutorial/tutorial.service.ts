@@ -15,6 +15,9 @@ import { RoomsService } from "../rooms/rooms.service";
 
 export const TUTORIAL_SAMPLE = Symbol("TUTORIAL_SAMPLE");
 
+// What the sample is called in your room once it's online.
+export const SAMPLE_PROJECT = { name: "Hello", description: "My first project: a small page that says hello." };
+
 // The sample project the newcomer puts online: a repo, and the folder in it that holds the Dockerfile.
 export interface TutorialSample {
   repo: string;
@@ -61,7 +64,7 @@ export class TutorialService {
     const linked = await this.hasLinkedRepo(user.id);
     return {
       house: { id: house.id, name: house.name, city: house.city, agentOnline: this.agents.isOnline(house.id) },
-      room: room ? roomView(room) : null,
+      room: room ? { ...roomView(room), status: await this.finerStatus(room) } : null,
       sample: this.sample,
       github: {
         // Installing the App on a repo moves that repo into the installer's room (see ChoresService).
@@ -108,7 +111,14 @@ export class TutorialService {
     const room = await this.roomOf(house.id, user.id);
     if (!room) throw new NotFoundException("Take a room in the workshop first.");
     if (!this.agents.isOnline(house.id)) throw new ConflictException("The workshop's server is offline.");
-    await this.rooms.updateSettings(house.id, room.name, user.id, { source: this.sample.repo, buildPath: this.sample.path, branch: null });
+    // The sample gets a name and a line, so the room reads as a project on the house view (unless you named it).
+    await this.rooms.updateSettings(house.id, room.name, user.id, {
+      source: this.sample.repo,
+      buildPath: this.sample.path,
+      branch: null,
+      project: room.project ?? SAMPLE_PROJECT.name,
+      projectDescription: room.projectDescription ?? SAMPLE_PROJECT.description,
+    });
     const { room: ready } = await this.rooms.manageable(house.id, room.name, user.id);
     try {
       const source = await this.deployer.source(ready);
@@ -141,13 +151,32 @@ export class TutorialService {
         await tx.delete(rooms).where(eq(rooms.id, room.id));
       });
     }
-    // Only a flatmate's place: the workshop's chef stays its chef.
-    await this.db
-      .delete(memberships)
-      .where(and(eq(memberships.houseId, house.id), eq(memberships.userId, user.id), eq(memberships.role, "flatmate")));
+    // Only a flatmate's place: the workshop's chef stays its chef, and a seeded learner still lives in their
+    // example room.
+    const [example] = await this.db
+      .select({ id: rooms.id })
+      .from(rooms)
+      .where(and(eq(rooms.houseId, house.id), eq(rooms.occupantId, user.id), eq(rooms.demo, true)))
+      .limit(1);
+    if (!example) {
+      await this.db
+        .delete(memberships)
+        .where(and(eq(memberships.houseId, house.id), eq(memberships.userId, user.id), eq(memberships.role, "flatmate")));
+    }
     await this.db.update(users).set({ tutorialDoneAt: null }).where(eq(users.id, user.id));
     this.houses.changes.next(house.id);
     return { ok: true };
+  }
+
+  // While the room is being put online, the step its deployment is at ("cloning", "building", "starting"), so the
+  // coach can say "Fetching the code…", then "Building…", then "Starting…". Otherwise the room's own status.
+  private async finerStatus(room: Room): Promise<string> {
+    if (room.status !== "deploying" || !room.lastDeployId) return room.status;
+    const [d] = await this.db
+      .select({ status: deployments.status })
+      .from(deployments)
+      .where(and(eq(deployments.id, room.lastDeployId), eq(deployments.houseId, room.houseId)));
+    return d && ["queued", "cloning", "building", "starting"].includes(d.status) ? d.status : room.status;
   }
 
   // The workshop: the first house flagged `tutorial` (the seed makes one, L'Atelier).
@@ -170,8 +199,14 @@ export class TutorialService {
     return found.length > 0;
   }
 
+  // The newcomer's own room in the workshop. The example rooms (`demo`) never count, even for a seeded learner
+  // who logs in and takes the tutorial: theirs is scenery, and taking it again must not remove it.
   private async roomOf(houseId: string, userId: string): Promise<Room | undefined> {
-    const [room] = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.occupantId, userId))).limit(1);
+    const [room] = await this.db
+      .select()
+      .from(rooms)
+      .where(and(eq(rooms.houseId, houseId), eq(rooms.occupantId, userId), eq(rooms.demo, false)))
+      .limit(1);
     return room;
   }
 }

@@ -3,6 +3,7 @@ import { type Db, memberships, rooms } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { MembershipsService } from "../auth/memberships.service";
 import { HousesService } from "../houses/houses.service";
 import { seedCity } from "../seed/city";
 import { DoorbellService } from "./doorbell.service";
@@ -53,6 +54,23 @@ describe("knocking", () => {
     await expect(knock("awa")).rejects.toThrow(/already live here/);
     await knock();
     await expect(knock()).rejects.toThrow(/already knocked/);
+  });
+});
+
+describe("your knocks", () => {
+  it("lists the knocks still waiting for a vote, and drops them once withdrawn or decided", async () => {
+    const memberships = new MembershipsService(db);
+    expect(await memberships.openKnocks(ids.fatou)).toEqual([]);
+    const { id } = await knock();
+    expect(await memberships.openKnocks(ids.fatou)).toEqual([{ id, houseId: "sacre-coeur", room: "room-4" }]);
+    expect(await memberships.openKnocks(ids.koffi)).toEqual([]);
+    await doorbell.withdraw(id, ids.fatou);
+    expect(await memberships.openKnocks(ids.fatou)).toEqual([]);
+
+    const again = await knock();
+    await doorbell.vote(again.id, ids.jib, true);
+    await doorbell.vote(again.id, ids.awa, true);
+    expect(await memberships.openKnocks(ids.fatou)).toEqual([]);
   });
 });
 

@@ -193,6 +193,19 @@ describe("installing the App during the tutorial", () => {
     expect(await roomOf(100)).toBeUndefined();
   });
 
+  it("never picks one of the workshop's example learners to review", async () => {
+    await svc.handle("installation", install(1, ["jib/hello"]));
+    const pr: GhEvent = {
+      action: "opened",
+      installation: { id: 1 },
+      sender: jib,
+      repository: { id: 100, full_name: "jib/hello" },
+      pull_request: { number: 1, title: "Hello", html_url: "https://github.com/jib/hello/pull/1", user: jib },
+    };
+    // The host and the learners are scenery: with nobody real beside the newcomer, nobody reviews.
+    expect(await svc.handle("pull_request", pr)).toBe("nobody to review");
+  });
+
   it("links to the real room when the installer left the workshop room and lives in just one", async () => {
     await db.delete(rooms).where(eq(rooms.name, "tuto-jib"));
     expect(await svc.handle("installation", install(1, ["jib/hello"]))).toBe("linked 1");

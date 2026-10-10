@@ -1,6 +1,6 @@
 // The tutorial for Vue: the step machine (tutorial.ts) made reactive, plus everything that talks to the API:
-// where the tutorial stands (asked every two seconds while a step waits on it), taking a room, running the
-// sample, and marking the tutorial done. LobbyView owns one of these.
+// where the tutorial stands (asked every two seconds while a step waits on it), taking a room, putting the
+// sample online, and marking the tutorial done. LobbyView owns one of these.
 import { computed, reactive, ref, watch } from "vue";
 import { loadMe, postJSON, sendJSON } from "../../../session";
 import { settings } from "../../../settings";
@@ -21,7 +21,7 @@ export function useTutorial() {
   const missing = ref(false);
   const busy = ref(false);
   const error = ref("");
-  // "Run it" was pressed: from here the coach's sentence follows the room's status.
+  // "Put it online" was pressed: from here the coach's sentence follows the room's status.
   const ran = ref(false);
   let timer = 0;
   // The room as last fetched (name and status): when it changes, the house view is fetched again.

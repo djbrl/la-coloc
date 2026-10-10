@@ -26,6 +26,8 @@ export interface Room {
   ad: string | null;
   occupant: Person | null;
   usage: RoomUsage | null;
+  // A seeded example room in a real house (the workshop's other learners): it shows as lived in, but nothing runs.
+  demo?: boolean;
 }
 
 export interface Deployment {
@@ -121,6 +123,8 @@ export interface HouseView {
   chores: Chore[] | null;
   // The chef only: the server size they rented (null: none yet) and whether its agent key has been made.
   server: { plan: "small" | "medium" | "large" | null; keyMade: boolean } | null;
+  // The tutorial's workshop (L'Atelier): a newcomer without a room there takes one from the house view.
+  tutorial?: boolean;
   // Public: reviews given and received per flatmate.
   ledger: { login: string; given: number; received: number }[];
 }
@@ -149,7 +153,7 @@ export interface CityHouse {
   monthlyCostFcfa: number | null;
   // The lobby plot it rented ("block column.block row.plot column.plot row"), or null: placed near the market.
   plot: string | null;
-  rooms: Pick<Room, "name" | "status" | "url" | "project" | "ad" | "occupant">[];
+  rooms: Pick<Room, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant">[];
 }
 
 export interface Me {
@@ -161,6 +165,8 @@ export interface Me {
   houses: { id: string; name: string; role: MemberRole; room: string | null }[];
   // Finished (or skipped) the tutorial? Missing on an API that doesn't have the tutorial yet.
   tutorialDone?: boolean;
+  // Your knocks still waiting for a vote, one per house at most: the lobby offers "Your knock" instead of "Knock".
+  knocks?: { id: string; houseId: string; room: string }[];
 }
 
 // The tutorial as the API sees it: GET /api/tutorial. The workshop is the house "atelier"; your room in it appears
