@@ -226,4 +226,7 @@ export interface ApplicationView {
   votes: { voter: PersonView; yes: boolean }[] | null;
   viewer: { login: string; as: "applicant" | "flatmate"; vote: boolean | null };
   messages: MessageView[];
+  // What the applicant has built and traded, so the house can judge more than the note: their top public repos
+  // (read at GitHub login; empty for dev logins) and reviews given and received across every house.
+  work: { repos: { fullName: string; url: string; language: string | null }[]; given: number; received: number };
 }

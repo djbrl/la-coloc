@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { type Db, sessions, users } from "@coloc/db";
+import { type Db, type PublicRepo, sessions, users } from "@coloc/db";
 import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import { DB } from "../db/db.module";
@@ -20,6 +20,27 @@ export interface GithubProfile {
   avatar_url: string | null;
   bio: string | null;
   location: string | null;
+  // Ours, not GitHub's: their top public repos, read at login. Undefined when GitHub didn't say (keep what we had).
+  repos?: PublicRepo[];
+}
+
+interface GithubRepo {
+  full_name: string;
+  html_url: string;
+  language: string | null;
+  fork: boolean;
+  archived?: boolean;
+  stargazers_count: number;
+  pushed_at: string | null;
+}
+
+/** Someone's best public repos for their knock: their own (no forks, nothing archived), most stars first, then most recently pushed. */
+export function topRepos(list: GithubRepo[], n = 3): PublicRepo[] {
+  return list
+    .filter((r) => !r.fork && !r.archived)
+    .sort((a, b) => b.stargazers_count - a.stargazers_count || (b.pushed_at ?? "").localeCompare(a.pushed_at ?? ""))
+    .slice(0, n)
+    .map((r) => ({ fullName: r.full_name, url: r.html_url, language: r.language }));
 }
 
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
@@ -73,7 +94,10 @@ export class AuthService {
     return u.toString();
   }
 
-  /** Trades GitHub's one-time code for the user's profile. We don't keep GitHub's token: login only needs who you are. */
+  /**
+   * Trades GitHub's one-time code for the user's profile, plus their top public repos (shown to a house they knock
+   * on). We don't keep GitHub's token: it's used for these two reads and forgotten.
+   */
   async githubProfile(code: string): Promise<GithubProfile> {
     if (!this.config.github) throw new Error("GitHub login isn't configured");
     const tokenRes = await this.fetch("https://github.com/login/oauth/access_token", {
@@ -93,7 +117,21 @@ export class AuthService {
       headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token.access_token}`, "User-Agent": "coloc.dev" },
     });
     if (!userRes.ok) throw new Error(`couldn't read the GitHub profile (${userRes.status})`);
-    return (await userRes.json()) as GithubProfile;
+    const profile = (await userRes.json()) as GithubProfile;
+    return { ...profile, repos: await this.publicRepos(profile.login, token.access_token) };
+  }
+
+  // Their public repos, best first. Never fails the login: if GitHub doesn't answer, we keep what we had.
+  private async publicRepos(login: string, accessToken: string): Promise<PublicRepo[] | undefined> {
+    try {
+      const res = await this.fetch(`https://api.github.com/users/${encodeURIComponent(login)}/repos?type=owner&sort=pushed&per_page=50`, {
+        headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${accessToken}`, "User-Agent": "coloc.dev" },
+      });
+      const list = res.ok ? await res.json() : null;
+      return Array.isArray(list) ? topRepos(list as GithubRepo[]) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -102,7 +140,14 @@ export class AuthService {
    * inherits anything from a seeded one.
    */
   async upsertGithubUser(p: GithubProfile): Promise<User> {
-    const fields = { login: p.login, name: p.name, avatarUrl: p.avatar_url, bio: p.bio, location: p.location };
+    const fields = {
+      login: p.login,
+      name: p.name,
+      avatarUrl: p.avatar_url,
+      bio: p.bio,
+      location: p.location,
+      ...(p.repos !== undefined ? { githubRepos: p.repos } : {}),
+    };
     return this.db.transaction(async (tx) => {
       await tx
         .update(users)

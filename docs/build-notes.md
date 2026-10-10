@@ -451,6 +451,11 @@ Tests: domain 22, protocol 4, db 2, API 149 (9 new in `houses/exchange.test.ts`,
 waiting (1 late), 7 this month, Awa's turn until 19 10, and a bill of 3 800 / 2 800 (paid) / 2 400 FCFA with
 3 000 FCFA from the pool. The example apps were run locally with `node` and answer both a browser and curl.
 
+Follow-ups: a knock's thread now carries the applicant's `work` (their top 3 public repos, read once at GitHub login
+into `users.github_repos`, migration `0011`; empty for dev logins; and reviews given and received in every house), and
+the house no longer writes room slugs: "knocked on a free room", "moved in", "moved X into their room", "restarted
+Awa's app", and crash/deploy notes say "A free room" rather than a slug when nobody lives there. API tests: 152.
+
 ### Rough edges
 - The tontine's turn changes at midnight without an event, so an open city stream shows it after the next change.
 - The examples only reach rooms once this commit is pushed: the seed points at `Djbrl/la-coloc`'s `examples/`.

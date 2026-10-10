@@ -1,9 +1,9 @@
 // The doorbell: someone knocks on a free room, chats with the house in a thread, and the house votes.
 // Also the house's living-room chat, which works the same way.
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { applications, type Db, houses, memberships, messages, rooms, users, votes } from "@coloc/db";
+import { applications, chores, type Db, houses, memberships, messages, rooms, users, votes } from "@coloc/db";
 import { tallyVotes } from "@coloc/domain";
-import { and, eq, isNull, max, ne } from "drizzle-orm";
+import { and, count, eq, isNull, max, ne } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
@@ -46,11 +46,11 @@ export class DoorbellService {
     await this.db.transaction(async (tx) => {
       await tx.insert(applications).values({ id, houseId, room: roomName, applicantId, message, repo: input.repo ?? null });
       await tx.insert(messages).values([
-        { channel: applicationChannel(id), authorId: null, body: `${applicant.name ?? applicant.login} knocked on ${roomName}.` },
+        { channel: applicationChannel(id), authorId: null, body: `${applicant.name ?? applicant.login} knocked on a free room.` },
         { channel: applicationChannel(id), authorId: applicantId, body: message },
       ]);
     });
-    await this.houses.note(houseId, { tone: "info", room: roomName, text: `${applicant.name ?? applicant.login} knocked on ${roomName}. Answer the door!` });
+    await this.houses.note(houseId, { tone: "info", room: roomName, text: `${applicant.name ?? applicant.login} knocked on a free room. Answer the door!` });
     return { id };
   }
 
@@ -79,7 +79,20 @@ export class DoorbellService {
       votes: as === "flatmate" ? app.votes.map((v) => ({ voter: person(v.voter), yes: v.yes })) : null,
       viewer: { login: viewer.login, as, vote: app.votes.find((v) => v.voterId === viewerId)?.yes ?? null },
       messages: await channelMessages(this.db, applicationChannel(app.id)),
+      work: await this.work(app.applicant),
     };
+  }
+
+  // The applicant's record: their top public repos (stored at GitHub login, never fetched here) and the reviews
+  // they gave and got in every house they've lived in.
+  private async work(applicant: typeof users.$inferSelect): Promise<ApplicationView["work"]> {
+    const done = (who: typeof chores.assigneeId | typeof chores.authorId) =>
+      this.db
+        .select({ n: count() })
+        .from(chores)
+        .where(and(eq(who, applicant.id), eq(chores.status, "done")))
+        .then(([r]) => r?.n ?? 0);
+    return { repos: applicant.githubRepos ?? [], given: await done(chores.assigneeId), received: await done(chores.authorId) };
   }
 
   async postToApplication(applicationId: string, authorId: string, body: string) {
@@ -159,7 +172,7 @@ export class DoorbellService {
       await this.close(other, "declined", "Someone else moved into this room first. Knock on another one?");
       this.changes.next(other.id);
     }
-    await this.houses.note(app.houseId, { tone: "thanks", room: app.room, text: `${name} moved into ${app.room}. Welcome home!` });
+    await this.houses.note(app.houseId, { tone: "thanks", room: app.room, text: `${name} moved in. Welcome home!` });
   }
 
   private async close(app: typeof applications.$inferSelect, status: "declined" | "withdrawn", why: string) {

@@ -30,6 +30,15 @@ function fakeGithub(profile: object) {
       return Response.json({ access_token: "gho_x" });
     }
     if ((init?.headers as Record<string, string>).Authorization !== "Bearer gho_x") return new Response("", { status: 401 });
+    if (String(url).includes("/repos")) {
+      return Response.json([
+        { full_name: "jib/old", html_url: "https://github.com/jib/old", language: "C", fork: false, stargazers_count: 0, pushed_at: "2020-01-01T00:00:00Z" },
+        { full_name: "jib/forked", html_url: "https://github.com/jib/forked", language: "Go", fork: true, stargazers_count: 99, pushed_at: "2026-01-01T00:00:00Z" },
+        { full_name: "jib/coloc", html_url: "https://github.com/jib/coloc", language: "TypeScript", fork: false, stargazers_count: 12, pushed_at: "2026-10-01T00:00:00Z" },
+        { full_name: "jib/new", html_url: "https://github.com/jib/new", language: null, fork: false, stargazers_count: 0, pushed_at: "2026-10-09T00:00:00Z" },
+        { full_name: "jib/mid", html_url: "https://github.com/jib/mid", language: "Python", fork: false, stargazers_count: 3, pushed_at: "2025-01-01T00:00:00Z" },
+      ]);
+    }
     return Response.json(profile);
   }) as typeof globalThis.fetch;
   return { fetch, calls };
@@ -77,6 +86,21 @@ describe("GitHub login", () => {
     auth.fetch = fakeGithub(profile).fetch;
     expect((await auth.githubProfile("good-code")).id).toBe(4242);
     await expect(auth.githubProfile("stolen-code")).rejects.toThrow(/refused/);
+  });
+
+  it("keeps their top three public repos, their own, best first", async () => {
+    const auth = new AuthService(db, config());
+    auth.fetch = fakeGithub(profile).fetch;
+    const p = await auth.githubProfile("good-code");
+    expect(p.repos!.map((r) => r.fullName)).toEqual(["jib/coloc", "jib/mid", "jib/new"]);
+    const u = await auth.upsertGithubUser(p);
+    expect(u.githubRepos).toEqual([
+      { fullName: "jib/coloc", url: "https://github.com/jib/coloc", language: "TypeScript" },
+      { fullName: "jib/mid", url: "https://github.com/jib/mid", language: "Python" },
+      { fullName: "jib/new", url: "https://github.com/jib/new", language: null },
+    ]);
+    // A login where GitHub didn't list the repos keeps the ones we had.
+    expect((await auth.upsertGithubUser(profile)).githubRepos).toHaveLength(3);
   });
 
   it("never lets a GitHub account inherit a seeded demo user with the same login", async () => {

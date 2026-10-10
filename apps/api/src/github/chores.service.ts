@@ -102,7 +102,7 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       moved.set(room, [...(moved.get(room) ?? []), r.full_name]);
     }
     for (const [room, names] of moved) {
-      await this.houses.note(room.houseId, { tone: "info", room: room.name, text: `${u.name ?? u.login} moved ${names.join(", ")} into ${room.name}.` });
+      await this.houses.note(room.houseId, { tone: "info", room: room.name, text: `${u.name ?? u.login} moved ${names.join(", ")} into their room.` });
     }
     return `linked ${[...moved.values()].flat().length}`;
   }

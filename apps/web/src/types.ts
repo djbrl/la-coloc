@@ -96,6 +96,9 @@ export interface Application {
   votes: { voter: Person; yes: boolean }[] | null;
   viewer: { login: string; as: "applicant" | "flatmate"; vote: boolean | null };
   messages: Message[];
+  // What the applicant has built and traded: top public repos (read at GitHub login; empty for dev logins) and
+  // reviews given and received across every house.
+  work?: { repos: { fullName: string; url: string; language: string | null }[]; given: number; received: number };
 }
 
 export interface HouseView {

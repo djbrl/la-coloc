@@ -77,7 +77,7 @@ describe("chores", () => {
 
   it("links an installed repo to the installer's room, and ignores strangers", async () => {
     const jibs = await houses.view("sacre-coeur", (await db.query.users.findFirst({ where: (u, { eq }) => eq(u.login, "jib") }))!.id);
-    expect(jibs!.notes!.some((n) => n.text.includes("moved awa/ndaje into awa"))).toBe(true);
+    expect(jibs!.notes!.some((n) => n.text.includes("moved awa/ndaje into their room"))).toBe(true);
     expect(await svc.handle("installation", { action: "created", installation: { id: 8 }, sender: { id: 999, login: "x" }, repositories: [{ id: 5, full_name: "x/y" }] })).toBe(
       "installer isn't a coloc user",
     );

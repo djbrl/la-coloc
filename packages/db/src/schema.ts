@@ -6,6 +6,13 @@ import { bigint, bigserial, boolean, index, integer, jsonb, pgTable, primaryKey,
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
+// One of someone's public GitHub repos, as their knock shows it to the house.
+export interface PublicRepo {
+  fullName: string;
+  url: string;
+  language: string | null;
+}
+
 // Everyone who has logged in with GitHub. Demo flatmates (seeded) have no GitHub id.
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -17,6 +24,8 @@ export const users = pgTable("users", {
   location: text("location"),
   // Their character in the lobby: one of the models in apps/web/public/lobby/people ("female-a" … "male-f").
   avatar: text("avatar"),
+  // Their top public repos (at most 3), read from GitHub when they log in. Null: never read (dev logins, seeded people).
+  githubRepos: jsonb("github_repos").$type<PublicRepo[]>(),
   // When they finished the tutorial (walk into the workshop, take a room, put a sample online, link GitHub).
   // Null: not done yet, or they chose to take it again.
   tutorialDoneAt: timestamp("tutorial_done_at", { withTimezone: true }),

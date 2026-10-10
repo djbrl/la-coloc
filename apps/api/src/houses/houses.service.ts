@@ -239,7 +239,7 @@ export class HousesService {
         await this.db.update(rooms).set({ status: "failed" }).where(eq(rooms.id, room.id));
       }
     }
-    const note = room ? noteForDeploy(s, await this.flatmateName(room.occupantId, room.name)) : null;
+    const note = room ? noteForDeploy(s, await this.occupantName(room.occupantId)) : null;
     if (note) await this.addNote(houseId, note);
     this.changes.next(houseId);
     if (d && (s.status === "live" || s.status === "failed")) this.deployFinished.next({ houseId, deployment: d, url: s.url ?? null });
@@ -266,7 +266,7 @@ export class HousesService {
     // Out of memory: Docker restarts it on its own, so the room is still lived in.
     if ((e.event === "oom" || e.event === "restarted") && room.url) status = "live";
     if (status) await this.db.update(rooms).set({ status }).where(eq(rooms.id, room.id));
-    await this.addNote(houseId, noteForRoomEvent(e, await this.flatmateName(room.occupantId, room.name)));
+    await this.addNote(houseId, noteForRoomEvent(e, await this.occupantName(room.occupantId)));
     this.changes.next(houseId);
   }
 
@@ -652,10 +652,11 @@ export class HousesService {
     }));
   }
 
-  private async flatmateName(userId: string | null, roomName: string): Promise<string> {
-    if (!userId) return roomName;
+  /** A room's occupant as notes name them (people read names, never room slugs): their name, else their login, else "A free room" (nobody lives there). */
+  async occupantName(userId: string | null): Promise<string> {
+    if (!userId) return "A free room";
     const [u] = await this.db.select({ name: users.name, login: users.login }).from(users).where(eq(users.id, userId));
-    return u?.name ?? u?.login ?? roomName;
+    return u?.name ?? u?.login ?? "A free room";
   }
 
   // Pins a note on a house's fridge door (collapsing repeats) and tells live pages.

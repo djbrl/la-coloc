@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { type Db, memberships, rooms } from "@coloc/db";
+import { chores, type Db, memberships, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -34,10 +34,33 @@ describe("knocking", () => {
     const { id } = await knock();
     const asFatou = await doorbell.view(id, ids.fatou);
     expect(asFatou.viewer.as).toBe("applicant");
-    expect(asFatou.messages.map((m) => m.body)).toEqual(["Fatou knocked on room-4.", "Mobile dev from Lomé, I'd host my tontine app."]);
+    expect(asFatou.messages.map((m) => m.body)).toEqual(["Fatou knocked on a free room.", "Mobile dev from Lomé, I'd host my tontine app."]);
     expect(asFatou.messages[0].author).toBeNull();
     expect((await doorbell.view(id, ids.awa)).viewer.as).toBe("flatmate");
     await expect(doorbell.view(id, ids.koffi)).rejects.toThrow();
+  });
+
+  it("shows the house what the applicant has built: their top repos and the reviews they traded anywhere", async () => {
+    const repos = [{ fullName: "fatou/tontine", url: "https://github.com/fatou/tontine", language: "Dart" }];
+    await db.update(users).set({ githubRepos: repos }).where(eq(users.id, ids.fatou));
+    const chore = (n: number, assignee: string, author: string, status: "open" | "done") =>
+      ({ houseId: "almadies", repoId: 7, repoFullName: "x/y", prNumber: n, prTitle: "t", prUrl: "u", assigneeId: ids[assignee], authorId: ids[author], status, dueAt: new Date() });
+    await db.insert(chores).values([chore(1, "fatou", "cheikh", "done"), chore(2, "fatou", "ibou", "done"), chore(3, "cheikh", "fatou", "done"), chore(4, "fatou", "ibou", "open")]);
+    const { id } = await knock();
+    expect((await doorbell.view(id, ids.awa)).work).toEqual({ repos, given: 2, received: 1 });
+    // Someone who never logged in with GitHub has no repos to show.
+    await db.update(users).set({ githubRepos: null }).where(eq(users.id, ids.fatou));
+    expect((await doorbell.view(id, ids.fatou)).work).toEqual({ repos: [], given: 2, received: 1 });
+  });
+
+  it("names people, never room slugs, in what the house says", async () => {
+    const { id } = await knock();
+    const notes = (await houses.view("sacre-coeur", ids.jib))!.notes!;
+    expect(notes[0].text).toBe("Fatou knocked on a free room. Answer the door!");
+    for (const flatmate of ["jib", "awa"]) await doorbell.vote(id, ids[flatmate], true);
+    const after = (await houses.view("sacre-coeur", ids.jib))!.notes!.map((n) => n.text);
+    expect(after).toContain("Fatou moved in. Welcome home!");
+    expect(after.join(" ")).not.toContain("room-4");
   });
 
   it("rings the house: a fridge note and the doorbell list on the house page", async () => {
