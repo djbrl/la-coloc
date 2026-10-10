@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // The welcome, one idea per step, over the live lobby. Ends with picking your look (or an invitation to log in).
+// It floats at the bottom like a game's dialogue box: a flat card, a bold line, chunky buttons, one main one.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { CHARACTERS } from "../lobby/assets";
 import { me, sendJSON } from "../session";
+import Icon from "./lobby/house/Icon.vue";
 
 const emit = defineEmits<{
   // Zoom on your character while you pick a look.
@@ -93,16 +95,21 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
         <template v-else-if="current === 'look'">
           <h2 id="onboarding-title" ref="title" tabindex="-1">Pick your look.</h2>
           <p>Everyone in the city sees you this way. You can change it later in settings.</p>
+          <!-- Like a game's character select: arrows either side of the count (the arrow keys work too). -->
           <div class="picker">
-            <button class="round" aria-label="Previous look" @click="turn(-1)">‹</button>
+            <button class="turn" aria-label="Previous look" @click="turn(-1)">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
             <span class="count" aria-live="polite">{{ look + 1 }} of {{ CHARACTERS.length }}</span>
-            <button class="round" aria-label="Next look" @click="turn(1)">›</button>
+            <button class="turn" aria-label="Next look" @click="turn(1)">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
           </div>
         </template>
         <template v-else-if="current === 'join'">
           <h2 id="onboarding-title" ref="title" tabindex="-1">Move in.</h2>
           <p>Log in with GitHub to get your own character, knock on free rooms, and talk with the houses.</p>
-          <RouterLink class="text-link" to="/login">Log in ›</RouterLink>
+          <RouterLink class="button login" to="/login"><Icon name="login" :size="20" />Log in</RouterLink>
         </template>
         <template v-else>
           <h2 id="onboarding-title" ref="title" tabindex="-1">One more thing.</h2>
@@ -114,52 +121,75 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
 
     <div class="foot">
       <div class="dots" aria-hidden="true">
-        <span v-for="(s, i) in steps" :key="s" :class="{ on: i === step }" />
+        <span v-for="(s, i) in steps" :key="s" :class="{ on: i === step, done: i < step }" />
       </div>
-      <button v-if="step > 0" class="quiet" @click="go(step - 1)">Back</button>
-      <button v-else class="quiet" @click="finish">Skip</button>
-      <button class="pill" @click="next">{{ step === steps.length - 1 ? "Start exploring" : current === "look" ? "This is me" : "Next" }}</button>
+      <button v-if="step > 0" class="second" @click="go(step - 1)">Back</button>
+      <button v-else class="second" @click="finish">Skip</button>
+      <button class="primary go" @click="next">{{ step === steps.length - 1 ? "Start exploring" : current === "look" ? "This is me" : "Next" }}</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.sheet { position: absolute; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 20; width: min(560px, calc(100vw - 32px)); padding: 28px 28px 20px; border-radius: 28px; color: #f5f5f7; background: rgba(28, 24, 44, 0.72); backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); }
+/* A flat card on the site's surface, lifted by a shadow: no glass, no blur. It pops up from the bottom. */
+.sheet {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  translate: -50% 0;
+  z-index: 20;
+  width: min(560px, calc(100vw - 32px));
+  padding: 24px 24px 18px;
+  border-radius: 28px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: menu-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+}
 .body { display: grid; gap: 10px; }
-h2 { margin: 0; font-size: 30px; line-height: 1.12; font-weight: 600; letter-spacing: -0.02em; color: #fff; outline: none; }
-p { margin: 0; font-size: 17px; line-height: 1.5; color: rgba(245, 245, 247, 0.82); }
+h2 { margin: 0; font-size: 28px; line-height: 1.12; font-weight: 700; letter-spacing: -0.02em; outline: none; }
+p { margin: 0; font-size: 17px; line-height: 1.5; }
+/* The window lights by each door, in the colours the city draws them (the same in day and night). */
 .glow { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px 1px 2px; vertical-align: middle; }
 .glow.lit { background: #ffc96b; box-shadow: 0 0 10px #ffc96b; }
 .glow.free { background: #6f9cff; box-shadow: 0 0 10px #6f9cff; }
 .glow.making { background: #e0a640; box-shadow: 0 0 10px #e0a640; }
-kbd { font: 600 12px/1 -apple-system, BlinkMacSystemFont, sans-serif; padding: 4px 6px; margin: 0 2px; border-radius: 6px; background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.18); color: #fff; }
-.picker { display: flex; align-items: center; gap: 18px; margin-top: 6px; }
-.round { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.14); color: #fff; font-size: 24px; line-height: 1; cursor: pointer; }
-.round:hover { background: rgba(255, 255, 255, 0.22); }
-.count { font-size: 15px; color: rgba(245, 245, 247, 0.7); min-width: 64px; text-align: center; }
-.text-link { color: #6eb4ff; font-size: 17px; text-decoration: none; }
-.error { color: #ff8a80; font-size: 15px; }
-.foot { display: flex; align-items: center; gap: 12px; margin-top: 22px; }
+/* Key caps, raised like real keys. */
+kbd { display: inline-grid; place-items: center; min-width: 24px; height: 24px; margin: 0 2px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--border); border-bottom-width: 2px; background: var(--surface); color: var(--text); font: 700 12px/1 var(--font); vertical-align: 1px; }
+.picker { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; padding: 6px; border-radius: 18px; background: var(--tile); }
+.turn { width: 52px; height: 52px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: var(--lift); }
+.turn:hover:not(:disabled) { background: var(--surface); color: var(--accent); }
+.turn:active:not(:disabled) { transform: scale(0.94); }
+.count { flex: 1; font-size: 17px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.login { justify-self: start; gap: 8px; min-height: 50px; border-radius: 14px; font-weight: 700; background: var(--accent-fill); color: var(--on-accent); }
+.login:hover { background: var(--accent-fill-hover); }
+.error { color: var(--danger); font-size: 15px; }
+.foot { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+/* How far along: dots, the current one a longer pill, as in every step flow. */
 .dots { display: flex; gap: 6px; margin-right: auto; }
-.dots span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, 0.25); transition: background 0.2s; }
-.dots span.on { background: #fff; }
-.quiet { border: 0; background: none; color: rgba(245, 245, 247, 0.75); font-size: 17px; padding: 10px 6px; cursor: pointer; }
-.pill { border: 0; border-radius: 980px; padding: 12px 22px; min-height: 44px; font-size: 17px; font-weight: 500; background: #fff; color: #1d1d1f; cursor: pointer; }
-/* Our own hovers: the site's button styles are for light pages, not this dark glass. */
-.pill:hover:not(:disabled) { background: #e8e8ed; }
-.quiet:hover:not(:disabled) { background: none; color: #fff; }
-.round:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22); }
-.round { min-height: 44px; padding: 0; }
-button:focus-visible, .text-link:focus-visible { outline: 3px solid #6eb4ff; outline-offset: 2px; }
+.dots span { width: 8px; height: 8px; border-radius: 4px; background: var(--border); transition: background-color 0.2s, width 0.2s; }
+.dots span.done { background: var(--muted); }
+.dots span.on { width: 22px; background: var(--accent-fill); }
+/* Chunky buttons, as in a game's menu. */
+.foot button { min-height: 50px; padding: 0 20px; border-radius: 14px; font-size: 17px; font-weight: 600; white-space: nowrap; }
+.foot .go { min-width: 120px; font-weight: 700; }
+.foot button:active:not(:disabled) { transform: scale(0.97); }
+button:focus-visible, .login:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 .step-enter-active, .step-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .step-enter-from { opacity: 0; transform: translateY(6px); }
 .step-leave-to { opacity: 0; transform: translateY(-6px); }
 @media (prefers-reduced-motion: reduce) {
-  .step-enter-active, .step-leave-active { transition: none; }
+  .sheet { animation: none; }
+  .step-enter-active, .step-leave-active, .dots span { transition: none; }
+  .turn:active:not(:disabled), .foot button:active:not(:disabled) { transform: none; }
 }
 @media (max-width: 520px) {
-  .sheet { padding: 22px 20px 16px; border-radius: 24px; }
-  h2 { font-size: 26px; }
+  .sheet { padding: 20px 18px 14px; border-radius: 24px; }
+  h2 { font-size: 24px; }
   p { font-size: 16px; }
+  .foot button { padding: 0 16px; }
 }
 </style>

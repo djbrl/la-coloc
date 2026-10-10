@@ -404,3 +404,25 @@ Tests: API 132, web 76. Build passes.
 ### Rough edges
 - The crew row and the rundown's first bubble overlap while the bubble is on the header.
 - Reviews given show on a room row only once there are some.
+
+## 10 10 2026, night shift: the rest as pause menus, the rule switch, the list view
+
+Jib asked for a batch to run while they slept: three subagents, one chunk each, committed separately.
+
+| What | Where |
+|---|---|
+| **Pause menus everywhere else**: renting the server (sizes as tiles), starting a coloc, settings as an options menu (City Walk/List, Look Auto/Day/Night, Graphics, Calmer motion, Sounds, then the tutorial, the welcome and the demo reset as big buttons), the controls screen, the key strip, the big map, the character picker, the coach and welcomes, the loading screen, and the find and travel sheets: flat floating cards, chunky icon buttons, no text-link actions, no blur | `RentServer.vue`, `RentSteps.vue`, `SettingsPane.vue`, `KeysSheet.vue`, `KeyLegend.vue`, `Minimap.vue`, `Onboarding.vue`, `Coach.vue`, `Welcome.vue`, `LoadingScreen.vue`, `LobbyView.vue` (sheets) |
+| **The house rule switches for real**: `PATCH /api/houses/:id/rules`, chef only, a note on the fridge; the chef's chip in the panel, a read-only pill for everyone else | `houses.controller.ts`, `houses.service.ts` (4 tests), `HouseInside.vue` |
+| **A dash button on phones**, with the cooldown as a ring | `lobby/TouchDash.vue`, `LobbyView.vue` |
+| **The list view** reads like the lobby: the house page is the lobby's house panel plus cards for knocks, use, builds and facts; the city page is dense house rows with a search and a filter | `HousePage.vue`, `CityPage.vue`, `RoomCard.vue`, `list/*` (tests) |
+
+### Verified
+The rule switch through the API as Jib (relaxed, then strict again, each with its fridge note; a non-chef gets 403).
+In headless Chrome: every lobby panel and tab re-measured at 715 px with zero scroll after the restyle, no errors;
+the list view's city and house pages in light and dark; the subagent checked every restyled screen at 1440×900,
+1280×640 and phone width in both themes. Tests: API 136, web 88. Build and `licences:check` pass.
+
+### Rough edges
+- The find and travel sheets copy the row's look in CSS rather than using `ListRow`.
+- Settings' new icons (sun, moon, walk, list…) live in `SettingsPane.vue`, not `icons.ts`.
+- The loading screen is light in day mode now, so the city fades in from a light screen.

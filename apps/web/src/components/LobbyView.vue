@@ -775,34 +775,49 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
     <Transition name="fade">
       <div v-if="sheet" class="scrim" @click="sheet = ''" />
     </Transition>
+    <!-- Find and travel: floating menus in the middle of the screen, a bold title, then one row per house or city,
+         like a game's menu entries. The close button comes last, so the first field or row takes the focus. -->
     <Transition name="sheet">
       <section v-if="sheet === 'find'" ref="sheetEl" class="sheet" role="dialog" aria-modal="true" aria-label="Find a house" @keydown.esc="sheet = ''">
-        <input v-model="query" type="search" placeholder="A house, a city, a stack…" aria-label="Search the city" autofocus />
-        <ul>
+        <h2>Find a house</h2>
+        <div class="search">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z M15.5 15.5L21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          <input v-model="query" type="search" placeholder="A house, a city, a stack…" aria-label="Search the city" autofocus />
+        </div>
+        <ul v-if="found.length" class="entries">
           <li v-for="h in found" :key="h.id">
-            <button @click="findHouse(h)">
-              <strong>{{ h.name }}</strong>
-              <span>
-                {{ h.city }}. {{ statusLine(h) }}
-                <template v-if="h.demo"> A sample house.</template>
+            <button class="entry" @click="findHouse(h)">
+              <span class="lead"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 11l9-8 9 8 M5 9.5V21h14V9.5 M10 21v-6h4v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+              <span class="text">
+                <span class="title">{{ h.name }}</span>
+                <span class="sub">{{ h.city }} · {{ statusLine(h) }}</span>
               </span>
+              <span v-if="h.demo" class="tag">Example</span>
+              <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
             </button>
           </li>
         </ul>
-        <p v-if="!found.length" class="none">No house matches that.</p>
+        <p v-else class="none">No house matches that.</p>
+        <button class="x" aria-label="Close (Esc)" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
       </section>
       <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet" role="dialog" aria-modal="true" aria-label="Travel to another city" @keydown.esc="sheet = ''">
         <h2>Where to?</h2>
-        <ul>
+        <ul class="entries">
           <li v-for="c in cities" :key="c.name">
-            <button :aria-current="c.name === city ? 'location' : undefined" @click="travel(c.name)">
-              <strong>{{ c.name }}<span v-if="c.name === city" class="youre-here"> · you're here</span></strong>
-              <span>
-                {{ c.houses }} {{ c.houses === 1 ? "house" : "houses" }}<template v-if="census[c.name]">, {{ census[c.name] }} {{ census[c.name] === 1 ? "person" : "people" }} walking around</template>.
+            <button class="entry" :class="{ here: c.name === city }" :aria-current="c.name === city ? 'location' : undefined" @click="travel(c.name)">
+              <span class="lead"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z M12 7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+              <span class="text">
+                <span class="title">{{ c.name }}</span>
+                <span class="sub">
+                  {{ c.houses }} {{ c.houses === 1 ? "house" : "houses" }}<template v-if="census[c.name]">, {{ census[c.name] }} {{ census[c.name] === 1 ? "person" : "people" }} walking around</template>.
+                </span>
               </span>
+              <span v-if="c.name === city" class="tag here">You're here</span>
+              <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
             </button>
           </li>
         </ul>
+        <button class="x" aria-label="Close (Esc)" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
       </section>
     </Transition>
 
@@ -860,22 +875,39 @@ kbd { font: 600 11px/1 var(--font); padding: 3px 5px; border-radius: 5px; border
 .place:hover:not(:disabled), .tools button:hover:not(:disabled), .emotes button:hover:not(:disabled) { background: var(--fill); }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 .scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); }
-.sheet { position: absolute; z-index: 50; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); padding: 72px 20px 24px; display: grid; grid-template-rows: auto 1fr auto; gap: 16px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
-.sheet h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
-.sheet input { width: 100%; min-height: 44px; padding: 10px 16px; border-radius: 12px; border: 0; background: var(--fill); color: inherit; font-size: 17px; }
-.sheet ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
-.sheet li button { width: 100%; text-align: left; display: grid; gap: 2px; padding: 14px 4px; min-height: 0; border: 0; border-bottom: 1px solid var(--hairline); border-radius: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
-.sheet li button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 4%, transparent); }
-.sheet li strong { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
-.sheet li span { font-size: 15px; color: var(--muted); }
-.sheet li .youre-here { font-size: 15px; font-weight: 400; color: var(--accent); }
-.none { color: var(--muted); }
+/* Find and travel: a floating menu in the middle of the screen, flat and big-cornered, popping in. */
+.sheet { position: absolute; z-index: 50; top: 50%; left: 50%; translate: -50% -50%; width: min(500px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 96px)); padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 14px; border-radius: 28px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.sheet h2 { flex: none; margin: 0; padding-right: 48px; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+/* The round close button in the corner, like the lobby's cards. */
+.sheet .x { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
+.sheet .x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
+.sheet .search { flex: none; position: relative; }
+.sheet .search svg { position: absolute; left: 15px; top: 50%; translate: 0 -50%; color: var(--muted); pointer-events: none; }
+.sheet input { width: 100%; min-height: 50px; padding: 10px 16px 10px 46px; border-radius: 14px; border: 1px solid transparent; background: var(--tile); color: inherit; font-size: 17px; }
+.sheet input:focus { border-color: var(--accent-fill); background: var(--surface); }
+/* The rows: the panels' list rows, each one whole button, lit under the pointer and when it holds the focus. */
+.sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0 -6px; padding: 2px 6px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
+.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px 8px 12px; border: 0; border-radius: 14px; background: var(--tile); color: var(--text); font: inherit; line-height: 1.3; text-align: left; cursor: pointer; transition: background-color 0.15s var(--ease), box-shadow 0.2s var(--ease); }
+.sheet .entry:hover:not(:disabled) { background: var(--fill); }
+.sheet .entry:focus-visible { outline: none; background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
+.sheet .entry:active { transform: scale(0.99); }
+.sheet .entry.here { box-shadow: inset 0 0 0 2px var(--accent-fill); }
+.sheet .lead { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--surface); color: var(--muted); }
+.sheet .here .lead { background: var(--accent-fill); color: var(--on-accent); }
+.sheet .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
+.sheet .title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet .tag { flex: none; padding: 3px 10px; border-radius: 12px; background: var(--fill); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.sheet .tag.here { background: var(--accent-soft); color: var(--accent); }
+.sheet .chev { flex: none; display: grid; color: var(--muted); }
+.sheet .none { margin: 0; padding: 8px 2px; font-size: 15px; color: var(--muted); }
 .rise-enter-active, .rise-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .rise-enter-from, .rise-leave-to { opacity: 0; transform: translateY(8px); }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-.sheet-enter-active, .sheet-leave-active { transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
-.sheet-enter-from, .sheet-leave-to { transform: translateX(100%); }
+.sheet-enter-active { transition: opacity 0.22s var(--ease), transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.sheet-leave-active { transition: opacity 0.15s var(--ease), transform 0.15s var(--ease); }
+.sheet-enter-from, .sheet-leave-to { opacity: 0; transform: translateY(10px) scale(0.94); }
 @media (prefers-reduced-motion: reduce) {
   .rise-enter-active, .rise-leave-active, .fade-enter-active, .fade-leave-active, .sheet-enter-active, .sheet-leave-active { transition: none; }
 }
@@ -893,5 +925,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   /* Cards become a sheet along the bottom edge; the keys, if a narrow window still shows them, sit above it. */
   .dock { left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
   .dock .legend, .dock .peek { order: -1; align-self: flex-start; margin: 0 16px 12px; }
+  /* Find and travel become a sheet along the bottom edge. */
+  .sheet { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 80dvh; border-radius: 24px 24px 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
 }
 </style>

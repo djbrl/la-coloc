@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // Renting the house's server, one step at a time: pick a size, run one command on the server, then wait for it
 // to call home. A native <dialog>, like the knock and rent-a-plot steps: it traps focus and closes on Escape.
+// It reads like a game's menu: a short bold title per step, big tiles to pick from, chunky buttons with one main one.
 import { onMounted, ref, watch } from "vue";
 import UiSteps from "../../UiSteps.vue";
+import { explain } from "../panel/words";
 import Icon from "./Icon.vue";
 import { fcfa, type PlanId, plans } from "./server";
 
@@ -59,6 +61,17 @@ async function copy() {
   }
 }
 
+// The sizes are one radio group: the arrow keys move the choice, as in any radio group, and the focus follows it.
+const planButtons: HTMLButtonElement[] = [];
+function onPlanKey(e: KeyboardEvent, i: number) {
+  const last = plans.length - 1;
+  const to = { ArrowRight: i === last ? 0 : i + 1, ArrowDown: i === last ? 0 : i + 1, ArrowLeft: i === 0 ? last : i - 1, ArrowUp: i === 0 ? last : i - 1 }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  plan.value = plans[to].id;
+  planButtons[to]?.focus();
+}
+
 // Clicks on the dimmed backdrop land on the dialog itself: treat them as Cancel.
 function onClick(e: MouseEvent) {
   if (e.target === dialog.value) dialog.value?.close();
@@ -71,7 +84,7 @@ function startOver() {
   error.value = "";
 }
 
-// The server called home while we were waiting: move focus to "It's live." so readers hear it too. `post`: the
+// The server called home while we were waiting: move focus to "Server up" so readers hear it too. `post`: the
 // heading only exists once Vue has drawn the new state.
 watch(
   () => props.live,
@@ -83,63 +96,74 @@ watch(
 <template>
   <dialog ref="dialog" class="sheet" aria-label="Rent the server" @close="emit('close')" @click="onClick">
     <div class="inner">
-      <div class="top">
-        <button type="button" class="link" @click="dialog?.close()">{{ step === 3 ? "Later" : "Cancel" }}</button>
-      </div>
+      <button type="button" class="x" :aria-label="step === 3 ? 'Later (Esc)' : 'Cancel (Esc)'" @click="dialog?.close()">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+      </button>
 
       <UiSteps :step="step" :total="3">
         <form v-if="step === 1" class="form" novalidate @submit.prevent="rent(keyExists)">
-          <h2>How big a server?</h2>
+          <h2>Pick a size</h2>
+          <p class="muted">{{ explain.bill }}</p>
           <div class="plans" role="radiogroup" aria-label="Server size">
             <button
-              v-for="p in plans"
+              v-for="(p, i) in plans"
               :key="p.id"
+              :ref="(el) => (planButtons[i] = el as HTMLButtonElement)"
               type="button"
               class="plan"
               role="radio"
               :aria-checked="plan === p.id"
+              :tabindex="plan === p.id ? 0 : -1"
+              :autofocus="p.id === plan"
               :data-autofocus="p.id === plan ? '' : undefined"
               @click="plan = p.id"
+              @keydown="onPlanKey($event, i)"
             >
+              <span class="plan-ic"><Icon name="server" :size="20" /></span>
               <span class="size">{{ p.word }}</span>
-              <span class="spec">{{ p.vcpu }} vCPU · {{ p.gb }} GB</span>
-              <span class="price">{{ fcfa(p.fcfa) }} a month</span>
+              <span class="spec">{{ p.vcpu }} CPU · {{ p.gb }} GB</span>
+              <span class="price">{{ fcfa(p.fcfa) }}<span class="per"> a month</span></span>
+              <span v-if="plan === p.id" class="picked" aria-hidden="true"><Icon name="tick" :size="14" /></span>
             </button>
           </div>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <span />
-            <button class="primary" :disabled="sending">{{ sending ? "Renting…" : keyExists ? "Make a new key" : "Rent it" }}</button>
+            <button class="primary" :disabled="sending">
+              <Icon :name="keyExists ? 'key' : 'server'" :size="20" />{{ sending ? "Renting…" : keyExists ? "Make a new key" : "Rent it" }}
+            </button>
           </div>
         </form>
 
         <div v-else-if="step === 2" class="form">
-          <h2>Run this on your server.</h2>
-          <p class="muted">Once, as root. It installs Docker, the proxy and the caretaker, which then calls the house.</p>
+          <h2>Run this once</h2>
+          <p class="muted">On your server, as root. It installs Docker, the proxy and the caretaker, which then calls the house.</p>
           <pre class="code" tabindex="0" data-autofocus aria-label="The install command"><code>{{ command }}</code></pre>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <button type="button" class="link copy" @click="copy">
-              <Icon :name="copied ? 'tick' : 'copy'" :size="18" />{{ copied ? "Copied" : "Copy" }}
+            <button type="button" class="second" @click="copy">
+              <Icon :name="copied ? 'tick' : 'copy'" :size="20" />{{ copied ? "Copied" : "Copy" }}
             </button>
-            <button type="button" class="primary" @click="step = 3">Done, it's running</button>
+            <button type="button" class="primary" @click="step = 3"><Icon name="next" :size="20" />Done, it's running</button>
           </div>
         </div>
 
         <div v-else class="form wait" aria-live="polite">
           <template v-if="live">
-            <span class="ring on" aria-hidden="true"><Icon name="tick" :size="26" /></span>
-            <h2 data-autofocus tabindex="-1">It's live.</h2>
-            <p class="muted">Every room deploys the moment its flatmate pushes.</p>
-            <div class="nav center">
-              <button type="button" class="primary" @click="dialog?.close()">Close</button>
+            <span class="ring on" aria-hidden="true"><Icon name="tick" :size="28" /></span>
+            <h2 autofocus data-autofocus tabindex="-1">Server up</h2>
+            <p class="muted">Every flatmate can now put their project online in their room.</p>
+            <div class="nav">
+              <button type="button" class="primary" @click="dialog?.close()"><Icon name="tick" :size="20" />Done</button>
             </div>
           </template>
           <template v-else>
             <span class="ring spin" aria-hidden="true" />
-            <h2 data-autofocus tabindex="-1">Listening for your server…</h2>
-            <p class="muted">This finishes on its own once the caretaker calls. You can close this and come back.</p>
-            <button type="button" class="link small" @click="startOver">Lost the command? Make a new key</button>
+            <h2 autofocus data-autofocus tabindex="-1">Waiting for your server</h2>
+            <p class="muted">This finishes on its own once the caretaker calls, so you can close this and come back. Lost the command? Make a new key.</p>
+            <div class="nav">
+              <button type="button" class="second" @click="startOver"><Icon name="key" :size="20" />New key</button>
+              <button type="button" class="primary" @click="dialog?.close()">Later</button>
+            </div>
           </template>
         </div>
       </UiSteps>
@@ -148,45 +172,66 @@ watch(
 </template>
 
 <style scoped>
+/* A floating card over the dimmed city, like a game's menu: flat surface, big corners, a quick pop. */
 .sheet {
-  width: min(560px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
+  width: min(540px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
   padding: 0;
   border: none;
-  border-radius: 22px;
+  border-radius: 28px;
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
-.sheet[open] { animation: sheet-in 0.25s var(--ease); }
+.sheet[open] { animation: menu-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
 .sheet::backdrop { background: var(--scrim); }
-@keyframes sheet-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.94); }
 }
-.inner { padding: 8px 32px 32px; }
-.top { display: flex; justify-content: flex-end; margin-bottom: 4px; }
-.form { display: grid; gap: 16px; }
-.form h2 { font-size: 28px; }
+.inner { position: relative; padding: 26px 28px 24px; }
+.inner :deep(.steps) { gap: 20px; }
+/* The round close button in the corner, like the lobby's cards. */
+.x { position: absolute; top: 16px; right: 16px; z-index: 1; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
+.x:hover:not(:disabled) { color: var(--text); }
+.form { display: grid; gap: 14px; }
+.form h2 { padding-right: 44px; font-size: 28px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+.form > p { font-size: 15px; line-height: 1.4; }
+.error { font-size: 14px; }
+
+/* A size is a big tile you pick, like a game's difficulty: the accent ring and a tick on the chosen one. */
 .plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-/* A plan is a tile you pick, not a pill: square corners, the accent ring when chosen. */
 .plan {
+  position: relative;
   display: grid;
-  gap: 6px;
+  gap: 4px;
   justify-items: start;
   min-height: 0;
-  padding: 14px 12px;
-  border-radius: 16px;
+  padding: 14px;
+  border-radius: 18px;
   background: var(--tile);
+  color: var(--text);
   text-align: left;
+  transition: background-color 0.15s var(--ease), box-shadow 0.15s var(--ease), transform 0.1s var(--ease);
 }
-.plan[aria-checked="true"] { box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.size { font-size: 19px; font-weight: 600; }
+.plan:hover:not(:disabled) { background: var(--fill); }
+.plan:active:not(:disabled) { transform: scale(0.97); }
+.plan[aria-checked="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
+.plan-ic { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 6px; border-radius: 11px; background: var(--surface); color: var(--muted); }
+.plan[aria-checked="true"] .plan-ic { background: var(--accent-fill); color: var(--on-accent); }
+.size { font-size: 19px; font-weight: 700; }
 .spec { font-size: 13px; color: var(--muted); }
-.price { font-size: 13px; }
+.price { display: grid; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.per { display: block; font-weight: 400; color: var(--muted); }
+.picked { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); }
+
 .code {
   margin: 0;
+  max-height: 30vh;
+  overflow-y: auto;
   padding: 16px 18px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--code-bg);
   color: var(--code-text);
   font-family: var(--mono);
@@ -196,27 +241,51 @@ watch(
   overflow-wrap: anywhere;
   user-select: all;
 }
-.copy { gap: 8px; }
-.nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
-.nav.center { justify-content: center; }
-.nav .primary { min-width: 120px; }
+
+/* Chunky buttons, as in a game's menu: the main one in the accent and as wide as it can be, the other in grey. */
+.nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.nav button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 20px; border-radius: 14px; font-size: 17px; font-weight: 600; white-space: nowrap; }
+.nav .primary { flex: 1 1 auto; font-weight: 700; }
+.nav button:active:not(:disabled) { transform: scale(0.97); }
+
 .wait { justify-items: center; text-align: center; }
-.ring { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; }
+.wait h2 { padding: 0; }
+.wait .nav { justify-self: stretch; }
+.ring { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; }
 .ring.on { background: var(--live-soft); color: var(--live); }
-/* A calm spinner: a hairline ring with one accent quarter, turning slowly. */
-.ring.spin { border: 3px solid var(--fill); border-top-color: var(--accent-fill); animation: turn 1.4s linear infinite; }
+/* A calm spinner: a ring with one accent quarter, turning slowly. */
+.ring.spin { border: 4px solid var(--fill); border-top-color: var(--accent-fill); animation: turn 1.4s linear infinite; }
 @keyframes turn {
   to { transform: rotate(360deg); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .ring.spin { animation-duration: 4s; }
-}
-@media (max-width: 480px) {
-  .inner { padding: 8px 20px 24px; }
-  .plans { grid-template-columns: minmax(0, 1fr); }
-  .plan { grid-template-columns: 1fr auto; grid-template-areas: "size price" "spec price"; align-items: center; }
-  .size { grid-area: size; }
+
+@media (max-width: 520px) {
+  /* A phone: the card becomes a sheet along the bottom edge. */
+  .sheet { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 24px 24px 0 0; }
+  .inner { padding: 22px 18px max(18px, env(safe-area-inset-bottom)); }
+  .plans { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .plan { grid-template-columns: auto 1fr auto; grid-template-areas: "ic size price" "ic spec price"; align-items: center; column-gap: 12px; padding: 10px 14px; }
+  .plan-ic { grid-area: ic; margin: 0; }
+  .size { grid-area: size; font-size: 17px; }
   .spec { grid-area: spec; }
-  .price { grid-area: price; }
+  .price { grid-area: price; padding-right: 26px; text-align: right; }
+  .picked { top: 50%; margin-top: -11px; }
+  .nav button { padding: 0 14px; }
+}
+/* A short window (a landscape phone, a small laptop): tighter, so every step fits without scrolling. */
+@media (max-height: 640px) {
+  .inner { padding-top: 20px; padding-bottom: 20px; }
+  .x { top: 12px; }
+  .inner :deep(.steps) { gap: 14px; }
+  .form { gap: 10px; }
+  .form h2 { font-size: 24px; }
+  .code { max-height: 22vh; }
+  .nav { margin-top: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet[open] { animation: none; }
+  .plan, .nav button { transition: none; }
+  .plan:active:not(:disabled), .nav button:active:not(:disabled) { transform: none; }
+  .ring.spin { animation-duration: 4s; }
 }
 </style>

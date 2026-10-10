@@ -1,5 +1,6 @@
 <script setup lang="ts">
-// The city's loading screen: the name, a thin progress line, and one tip at a time.
+// The city's loading screen, like a game's: the name in bold, a chunky progress bar, and one tip at a time on a
+// small floating card. In the site's colours, so it follows day and night.
 import { onBeforeUnmount, onMounted, ref } from "vue";
 
 const props = withDefaults(defineProps<{ progress?: number | null; leaving?: boolean }>(), { progress: null, leaving: false });
@@ -30,26 +31,34 @@ onBeforeUnmount(() => clearInterval(timer));
         <div class="bar" :class="{ unknown: props.progress === null }" :style="props.progress === null ? {} : { width: `${Math.max(4, props.progress * 100)}%` }" />
       </div>
       <Transition name="tip" mode="out-in">
-        <p :key="tip" class="tip">{{ TIPS[tip] }}</p>
+        <p :key="tip" class="tip"><span class="tag" aria-hidden="true">Tip</span>{{ TIPS[tip] }}</p>
       </Transition>
     </div>
   </div>
 </template>
 
 <style scoped>
-.loading { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; background: radial-gradient(120% 90% at 50% 0%, #3b2d63 0%, #1b1630 55%, #0f0c1c 100%); color: #f5f5f7; transition: opacity 0.6s ease; }
+/* The whole screen, in the page's colours with a soft glow of the accent from the top. */
+.loading { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: radial-gradient(120% 80% at 50% 0%, var(--accent-soft) 0%, var(--bg-alt) 60%); color: var(--text); transition: opacity 0.6s ease; }
 .loading.leaving { opacity: 0; pointer-events: none; }
-.center { width: min(420px, 80vw); text-align: center; display: grid; gap: 22px; }
-.name { margin: 0; font-size: 44px; font-weight: 600; letter-spacing: -0.03em; }
-.track { height: 3px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
-.bar { height: 100%; background: #f5f5f7; border-radius: 3px; transition: width 0.4s ease; }
+.center { width: min(440px, 100%); text-align: center; display: grid; gap: 22px; justify-items: center; }
+.name { margin: 0; font-size: 48px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; }
+/* A chunky bar in a grey track, filled in the accent. */
+.track { width: 100%; height: 10px; padding: 2px; border-radius: 6px; background: var(--fill); overflow: hidden; }
+.bar { height: 100%; border-radius: 4px; background: var(--accent-fill); transition: width 0.4s ease; }
 .bar.unknown { width: 30%; animation: slide 1.4s ease-in-out infinite; }
-.tip { margin: 0; min-height: 3em; font-size: 15px; line-height: 1.5; color: rgba(245, 245, 247, 0.72); }
-.tip-enter-active, .tip-leave-active { transition: opacity 0.35s ease; }
-.tip-enter-from, .tip-leave-to { opacity: 0; }
+/* The tip: a flat card, a small label, then the sentence. */
+.tip { display: flex; align-items: flex-start; gap: 10px; margin: 0; min-height: 3.6em; padding: 12px 16px; border-radius: 18px; background: var(--surface); box-shadow: var(--lift); font-size: 15px; line-height: 1.45; text-align: left; }
+.tag { flex: none; margin-top: 1px; padding: 1px 8px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; line-height: 1.6; }
+.tip-enter-active, .tip-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+.tip-enter-from { opacity: 0; transform: translateY(6px); }
+.tip-leave-to { opacity: 0; }
 @keyframes slide {
   from { transform: translateX(-110%); }
   to { transform: translateX(370%); }
+}
+@media (max-width: 520px) {
+  .name { font-size: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bar.unknown { animation: none; width: 60%; }

@@ -88,6 +88,8 @@ function onKey(e: KeyboardEvent, i: number) {
 .tab[aria-selected="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
 .tab:focus-visible { outline-offset: -2px; }
 .ic { position: relative; display: inline-grid; }
+/* A count sits on the icon's corner: leave it room so it doesn't touch the word. */
+.ic:has(.badge) { margin-right: 6px; }
 .badge {
   position: absolute;
   top: -7px;

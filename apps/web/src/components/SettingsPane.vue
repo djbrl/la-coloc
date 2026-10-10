@@ -1,11 +1,13 @@
 <script setup lang="ts">
-// Settings, as a sheet that slides in: how the city shows, how it looks, how it moves, and two ways to start
-// over (the tutorial, and, when this server allows it, the whole demo). Each control reads as a sentence, so
-// nothing needs a label.
-import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+// Settings, as a game's options menu: a floating card in the middle of the screen, one row per setting (what it
+// is on the left, its control on the right), then the ways to start over (the welcome, the tutorial, and, when
+// this server allows it, the whole demo) as big buttons. The arrow keys move a choice inside a row, as in a game.
+import { type FunctionalComponent, h, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { config, loadConfig, loadMe, me, postJSON } from "../session";
 import { settings, settingsPane } from "../settings";
+import Icon from "./lobby/house/Icon.vue";
+import ListRow from "./lobby/panel/ListRow.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -14,12 +16,50 @@ let opener: Element | null = null;
 // "Reset the demo city" asks once more inline; this is whether it's asking.
 const confirming = ref(false);
 
-// "Looks like: the system / day / night": the site's light or dark look, or the system's choice.
-const themes: { value: typeof settings.theme; word: string }[] = [
-  { value: "system", word: "the system" },
-  { value: "light", word: "day" },
-  { value: "dark", word: "night" },
+// A few pictures the shared icon set (house/icons.ts) doesn't have, drawn the same way: a 24px stroke in the text colour.
+const glyphs = {
+  sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4",
+  moon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z",
+  // Half light, half dark: whatever the system says.
+  auto: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 3v18 M12 7h4 M12 11h6 M12 15h5",
+  motion: "M3 7h11 M3 12h15 M3 17h8 M17 5l4 7-4 7",
+  sound: "M4 9v6h4l5 4V5L8 9z M16.5 8.5a5 5 0 0 1 0 7 M19 6a8.5 8.5 0 0 1 0 12",
+  walk: "M13 4a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z M9 21l2.5-6 2.5 2v4 M7 12l3-4h4l2 3 3 1 M11 8l-1 5",
+  list: "M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01",
+};
+const Glyph: FunctionalComponent<{ d: string; size?: number }> = (p) =>
+  h(
+    "svg",
+    { viewBox: "0 0 24 24", width: p.size ?? 20, height: p.size ?? 20, fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", focusable: "false" },
+    [h("path", { d: p.d })],
+  );
+
+// The three looks: the site's day or night, or the system's choice.
+const themes: { value: typeof settings.theme; word: string; glyph: string }[] = [
+  { value: "system", word: "Auto", glyph: glyphs.auto },
+  { value: "light", word: "Day", glyph: glyphs.sun },
+  { value: "dark", word: "Night", glyph: glyphs.moon },
 ];
+const views: { value: typeof settings.view; word: string; glyph: string }[] = [
+  { value: "lobby", word: "Walk", glyph: glyphs.walk },
+  { value: "list", word: "List", glyph: glyphs.list },
+];
+const qualities: { value: typeof settings.quality; word: string }[] = [
+  { value: "low", word: "Low" },
+  { value: "high", word: "High" },
+];
+
+// Left and right (or up and down) move a row's choice, and the focus with it, as in any radio group.
+function arrows<T>(e: KeyboardEvent, values: T[], current: T, set: (v: T) => void) {
+  const i = values.indexOf(current);
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (step === undefined || i < 0) return;
+  e.preventDefault();
+  const to = (i + step + values.length) % values.length;
+  set(values[to]);
+  const group = e.currentTarget as HTMLElement;
+  nextTick(() => group.querySelectorAll<HTMLButtonElement>("[role=radio]")[to]?.focus());
+}
 
 watch(
   () => settingsPane.open,
@@ -46,6 +86,15 @@ function onKey(e: KeyboardEvent) {
 
 function close() {
   settingsPane.open = false;
+}
+
+// The reset's question replaces its button: the keyboard lands on "Keep", and goes back to the button after.
+const keepButton = ref<HTMLButtonElement | null>(null);
+const resetButton = ref<HTMLButtonElement | null>(null);
+async function ask(on: boolean) {
+  confirming.value = on;
+  await nextTick();
+  (on ? keepButton : resetButton).value?.focus();
 }
 
 function goHome() {
@@ -107,120 +156,207 @@ async function resetDemo() {
   <Transition name="fade">
     <div v-if="settingsPane.open" class="scrim" @click="close" />
   </Transition>
-  <Transition name="slide">
+  <Transition name="pop">
     <aside v-if="settingsPane.open" ref="panel" class="pane" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
-      <div class="top">
-        <h2 id="settings-title">Settings</h2>
-        <button class="close" aria-label="Close settings" @click="close">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-        </button>
+      <h2 id="settings-title">Settings</h2>
+      <button class="x" aria-label="Close settings (Esc)" @click="close">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+      </button>
+
+      <ul class="options">
+        <ListRow title="City" sub="A place to walk, or a list">
+          <template #lead><span class="ic"><Icon name="house" :size="20" /></span></template>
+          <template #end>
+            <div class="segmented" role="radiogroup" aria-label="Show the city as" @keydown="arrows($event, views.map((v) => v.value), settings.view, (v) => (settings.view = v))">
+              <button
+                v-for="v in views"
+                :key="v.value"
+                role="radio"
+                :aria-checked="settings.view === v.value"
+                :tabindex="settings.view === v.value ? 0 : -1"
+                :class="{ on: settings.view === v.value }"
+                @click="settings.view = v.value"
+              >
+                <Glyph :d="v.glyph" :size="16" /><span class="word">{{ v.word }}</span>
+              </button>
+            </div>
+          </template>
+        </ListRow>
+
+        <ListRow title="Look" sub="Day or night">
+          <template #lead><span class="ic"><Glyph :d="glyphs.sun" /></span></template>
+          <template #end>
+            <div class="segmented" role="radiogroup" aria-label="Looks like" @keydown="arrows($event, themes.map((t) => t.value), settings.theme, (v) => (settings.theme = v))">
+              <button
+                v-for="t in themes"
+                :key="t.value"
+                role="radio"
+                :aria-checked="settings.theme === t.value"
+                :tabindex="settings.theme === t.value ? 0 : -1"
+                :class="{ on: settings.theme === t.value }"
+                @click="settings.theme = t.value"
+              >
+                <Glyph :d="t.glyph" :size="16" /><span class="word">{{ t.word }}</span>
+              </button>
+            </div>
+          </template>
+        </ListRow>
+
+        <ListRow title="Graphics" sub="Shadows and lamplight. Low saves battery.">
+          <template #lead><span class="ic"><Icon name="gauge" :size="20" /></span></template>
+          <template #end>
+            <div class="segmented" role="radiogroup" aria-label="Graphics" @keydown="arrows($event, qualities.map((q) => q.value), settings.quality, (v) => (settings.quality = v))">
+              <button
+                v-for="q in qualities"
+                :key="q.value"
+                role="radio"
+                :aria-checked="settings.quality === q.value"
+                :tabindex="settings.quality === q.value ? 0 : -1"
+                :class="{ on: settings.quality === q.value }"
+                @click="settings.quality = q.value"
+              >
+                <span class="word">{{ q.word }}</span>
+              </button>
+            </div>
+          </template>
+        </ListRow>
+
+        <!-- A switch row toggles from anywhere on it; the switch itself is what the keyboard reaches. -->
+        <ListRow class="flip" title="Calmer motion" sub="No camera glide, no strolling flatmates" @click="settings.reduceMotion = !settings.reduceMotion">
+          <template #lead><span class="ic"><Glyph :d="glyphs.motion" /></span></template>
+          <template #end>
+            <button class="toggle" role="switch" aria-label="Calmer motion" :aria-checked="settings.reduceMotion"><span class="knob" aria-hidden="true" /></button>
+          </template>
+        </ListRow>
+
+        <ListRow class="flip" title="Sounds" sub="Doors, lamps and friends" @click="settings.sound = !settings.sound">
+          <template #lead><span class="ic"><Glyph :d="glyphs.sound" /></span></template>
+          <template #end>
+            <button class="toggle" role="switch" aria-label="Sounds" :aria-checked="settings.sound"><span class="knob" aria-hidden="true" /></button>
+          </template>
+        </ListRow>
+      </ul>
+
+      <!-- Starting over: big buttons, an icon over their words. The demo's reset asks once more, in place. -->
+      <div v-if="!confirming" class="acts">
+        <button class="act" @click="replayWelcome"><Icon name="people" :size="22" /><span>Watch the welcome again</span></button>
+        <button v-if="me" class="act" :disabled="tutorialBusy" @click="takeTutorialAgain"><Icon name="rocket" :size="22" /><span>Take the tutorial again</span></button>
+        <!-- Only when the server says the demo may be reset: the whole city goes back to its seed. -->
+        <button v-if="config?.demoReset" ref="resetButton" class="act danger" @click="ask(true)"><Icon name="spin" :size="22" /><span>Reset the demo city</span></button>
       </div>
-
-      <section>
-        <p class="lead">Show the city as</p>
-        <div class="segmented" role="radiogroup" aria-label="Show the city as">
-          <button role="radio" :aria-checked="settings.view === 'lobby'" :class="{ on: settings.view === 'lobby' }" @click="settings.view = 'lobby'">a place to walk</button>
-          <button role="radio" :aria-checked="settings.view === 'list'" :class="{ on: settings.view === 'list' }" @click="settings.view = 'list'">a list</button>
+      <div v-else class="confirm" role="group" aria-labelledby="reset-question">
+        <p id="reset-question" class="question"><Icon name="warn" :size="20" />Everything goes back to the start. Reset?</p>
+        <div class="choice">
+          <button ref="keepButton" :disabled="resetBusy" @click="ask(false)">Keep</button>
+          <button class="danger-fill" :disabled="resetBusy" @click="resetDemo"><Icon name="spin" :size="18" />Reset</button>
         </div>
-      </section>
-
-      <section>
-        <p class="lead">Looks like</p>
-        <div class="segmented" role="radiogroup" aria-label="Looks like">
-          <button v-for="t in themes" :key="t.value" role="radio" :aria-checked="settings.theme === t.value" :class="{ on: settings.theme === t.value }" @click="settings.theme = t.value">{{ t.word }}</button>
-        </div>
-      </section>
-
-      <section>
-        <button class="row" role="switch" :aria-checked="settings.quality === 'high'" @click="settings.quality = settings.quality === 'high' ? 'low' : 'high'">
-          <span>
-            <span class="lead">Sharper graphics</span>
-            <span class="sub">Shadows and lamplight. Turn off on a slow computer or to save battery.</span>
-          </span>
-          <span class="switch" :class="{ on: settings.quality === 'high' }" aria-hidden="true" />
-        </button>
-        <button class="row" role="switch" :aria-checked="settings.reduceMotion" @click="settings.reduceMotion = !settings.reduceMotion">
-          <span>
-            <span class="lead">Calmer motion</span>
-            <span class="sub">No camera glide and no strolling flatmates.</span>
-          </span>
-          <span class="switch" :class="{ on: settings.reduceMotion }" aria-hidden="true" />
-        </button>
-        <button class="row" role="switch" :aria-checked="settings.sound" @click="settings.sound = !settings.sound">
-          <span>
-            <span class="lead">Sounds</span>
-            <span class="sub">Little sounds for doors, lamps and friends. Off is fine too.</span>
-          </span>
-          <span class="switch" :class="{ on: settings.sound }" aria-hidden="true" />
-        </button>
-      </section>
-
-      <section class="links">
-        <button class="link" @click="replayWelcome">Watch the welcome again, and change your look ›</button>
-        <template v-if="me">
-          <button class="link" :disabled="tutorialBusy" @click="takeTutorialAgain">Take the tutorial again ›</button>
-          <p v-if="tutorialError" class="sub error" role="alert">{{ tutorialError }}</p>
-        </template>
-      </section>
-
-      <!-- Only when the server says the demo may be reset: the whole city goes back to its seed. -->
-      <section v-if="config?.demoReset" class="reset">
-        <button v-if="!confirming" class="link danger" @click="confirming = true">Reset the demo city ›</button>
-        <template v-else>
-          <p class="lead">Everything goes back to the start. Reset?</p>
-          <div class="choice">
-            <button class="danger-fill" :disabled="resetBusy" @click="resetDemo">Reset</button>
-            <button :disabled="resetBusy" @click="confirming = false">Keep</button>
-          </div>
-          <p v-if="resetError" class="sub error" role="alert">{{ resetError }}</p>
-        </template>
-      </section>
+      </div>
+      <p v-if="tutorialError" class="error" role="alert">{{ tutorialError }}</p>
+      <p v-if="resetError" class="error" role="alert">{{ resetError }}</p>
     </aside>
   </Transition>
 </template>
 
 <style scoped>
 .scrim { position: fixed; inset: 0; z-index: 90; background: var(--scrim); }
-.pane { position: fixed; top: 0; right: 0; bottom: 0; z-index: 100; width: min(400px, 100vw); padding: 24px 24px 32px; overflow-y: auto; display: grid; align-content: start; gap: 28px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); outline: none; }
-.top { display: flex; align-items: center; justify-content: space-between; }
-h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
-.close { width: 36px; height: 36px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--fill); color: inherit; cursor: pointer; padding: 0; }
-section { display: grid; gap: 4px; }
-.lead { display: block; font-size: 17px; font-weight: 500; margin: 0 0 8px; }
-.sub { display: block; font-size: 14px; line-height: 1.4; color: var(--muted); }
-.error { color: var(--danger); margin: 0; }
-/* A segmented control: one column per choice, the chosen one raised on the surface. */
-.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: 12px; background: var(--fill); }
-.segmented button { border: 0; border-radius: 9px; min-height: 40px; background: none; color: inherit; font-size: 15px; cursor: pointer; }
-.segmented button.on { background: var(--surface); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14); font-weight: 500; }
-.row { display: flex; align-items: center; gap: 16px; justify-content: space-between; text-align: left; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--hairline); background: none; color: inherit; font: inherit; cursor: pointer; }
-.row .lead { margin: 0 0 2px; }
-.switch { flex: none; position: relative; width: 51px; height: 31px; border-radius: 31px; background: var(--fill-hover); transition: background 0.2s; }
-.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); transition: transform 0.2s; }
-.switch.on { background: var(--live); }
-.switch.on::after { transform: translateX(20px); }
-.links { gap: 0; }
-.link { justify-self: start; border: 0; background: none; padding: 8px 0; color: var(--accent); font-size: 17px; cursor: pointer; text-align: left; }
-.link.danger { color: var(--danger); }
-/* The reset question: a short line, then Reset in red beside Keep. */
-.reset { padding-top: 20px; border-top: 1px solid var(--hairline); }
-.choice { display: flex; gap: 10px; }
-.choice button { min-height: 40px; padding: 0 20px; font-size: 15px; }
-.danger-fill { background: var(--danger); color: #fff; }
+/* The options menu: a flat card in the middle of the screen, big corners, a quick pop. */
+.pane {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  z-index: 100;
+  width: min(500px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px 22px 20px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  border-radius: 28px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+h2 { margin: 0; padding-right: 48px; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+/* The round close button in the corner, like the lobby's cards. */
+.x { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
+.x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
+
+.options { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; line-height: 1.3; }
+.ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--surface); color: var(--muted); }
+.flip { cursor: pointer; }
+
+/* A segmented control: the chosen part lifted out on the surface, like the panels' tabs. */
+.segmented { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--fill); }
+.options .segmented button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 8px; background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+.options .segmented button:hover:not(:disabled) { background: none; color: var(--text); }
+.options .segmented button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
+
+/* A switch: the knob slides right and the track goes green when it's on. */
+.options .toggle { position: relative; flex: none; width: 51px; min-height: 31px; height: 31px; padding: 0; border-radius: 31px; background: var(--fill-hover); transition: background-color 0.2s var(--ease); }
+.options .toggle:hover:not(:disabled) { background: var(--fill-hover); }
+.options .toggle[aria-checked="true"], .options .toggle[aria-checked="true"]:hover:not(:disabled) { background: var(--live); }
+.knob { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--surface); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); transition: transform 0.2s var(--ease); }
+.toggle[aria-checked="true"] .knob { transform: translateX(20px); }
+
+/* Starting over: equal tiles in a row, an icon over a few words, like the lobby cards' menus. */
+.acts { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+.act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 84px;
+  padding: 10px 8px;
+  border-radius: 16px;
+  background: var(--tile);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  transition: background-color 0.15s var(--ease), transform 0.1s var(--ease);
+}
+.act:hover:not(:disabled) { background: var(--fill); }
+.act:active:not(:disabled) { transform: scale(0.97); }
+.act.danger { color: var(--danger); }
+.act.danger:hover:not(:disabled) { background: var(--danger-soft); }
+
+/* The reset's question, in place of the buttons: a red-tinted card, then Keep beside Reset. */
+.confirm { display: grid; gap: 12px; padding: 14px; border-radius: 16px; background: var(--danger-soft); }
+.question { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: var(--danger); }
+.choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.choice button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border-radius: 14px; font-size: 16px; font-weight: 600; }
+.choice button:not(.danger-fill) { background: var(--surface); }
+.danger-fill { background: var(--danger); color: var(--on-accent); }
 .danger-fill:hover:not(:disabled) { background: var(--danger); opacity: 0.9; }
-/* Our own hovers and sizes, so the site's general button style doesn't reshape these controls. */
-.close { min-height: 36px; }
-.close:hover:not(:disabled) { background: var(--fill-hover); }
-.segmented button { padding: 0 12px; }
-.segmented button:hover:not(:disabled):not(.on) { background: color-mix(in srgb, currentColor 6%, transparent); }
-.segmented button.on:hover { background: var(--surface); }
-.row:hover:not(:disabled), .link:hover:not(:disabled) { background: none; }
+.error { margin: 0; font-size: 14px; color: var(--danger); }
+
 button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-.slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
-.slide-enter-from, .slide-leave-to { transform: translateX(100%); }
+.pop-enter-active { transition: opacity 0.22s var(--ease), transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.pop-leave-active { transition: opacity 0.15s var(--ease), transform 0.15s var(--ease); }
+.pop-enter-from, .pop-leave-to { opacity: 0; transform: translateY(10px) scale(0.94); }
+/* A phone: the menu is a sheet along the bottom edge, and the rows keep only what they need. */
+@media (max-width: 520px) {
+  .pane { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 88dvh; border-radius: 24px 24px 0 0; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .options :deep(.sub) { display: none; }
+  .ic { width: 32px; height: 32px; }
+  .options :deep(.lead) { width: 32px; }
+  .segmented .word { font-size: 13px; }
+  .options .segmented button { padding: 0 9px; }
+}
+@media (max-height: 640px) {
+  .pane { gap: 10px; padding-top: 18px; }
+  .act { min-height: 72px; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .fade-enter-active, .fade-leave-active, .slide-enter-active, .slide-leave-active, .switch, .switch::after { transition: none; }
+  .fade-enter-active, .fade-leave-active, .pop-enter-active, .pop-leave-active, .toggle, .knob, .act { transition: none; }
+  .act:active:not(:disabled) { transform: none; }
 }
 </style>
