@@ -1,7 +1,7 @@
 // How each city looks and sounds: its colours, what its streets are made of, which street furniture it has, what
 // stands around (water tanks, pirogues, a baobab…), its time zone and its greeting. Pure data, no three.js: the
 // lobby reads it to tint the models, pick the ground textures and scatter the props, and Vue may read the greeting
-// and the time zone. The start points come from the review's table (adversarial_review.md, section 3). Greetings
+// and the time zone. The start points come from the review's table (docs/review-2026-10-10.md, section 3). Greetings
 // must be checked with someone who speaks the language.
 
 // The ground a city walks on. The road stays asphalt everywhere; this is the sidewalks, the verges and the market.

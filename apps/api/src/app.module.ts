@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AgentsModule } from "./agents/agents.module";
 import { AuthModule } from "./auth/auth.module";
+import { CoreModule } from "./core/core.module";
 import { DbModule } from "./db/db.module";
 import { DemoModule } from "./demo/demo.module";
 import { DoorbellModule } from "./doorbell/doorbell.module";
@@ -11,5 +12,5 @@ import { HousesModule } from "./houses/houses.module";
 import { LobbyModule } from "./lobby/lobby.module";
 import { TutorialModule } from "./tutorial/tutorial.module";
 
-@Module({ imports: [DbModule, AuthModule, HousesModule, AgentsModule, DoorbellModule, GithubClientModule, RoomsModule, GithubModule, LobbyModule, TutorialModule, DemoModule] })
+@Module({ imports: [DbModule, CoreModule, AuthModule, HousesModule, AgentsModule, DoorbellModule, GithubClientModule, RoomsModule, GithubModule, LobbyModule, TutorialModule, DemoModule] })
 export class AppModule {}

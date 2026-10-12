@@ -2,6 +2,7 @@
 import { computed, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Avatar from "./components/Avatar.vue";
+import CoreStatus from "./components/CoreStatus.vue";
 import SettingsPane from "./components/SettingsPane.vue";
 import { logout, me, meLoaded } from "./session";
 import { lobbyUi, settings, settingsPane } from "./settings";
@@ -21,9 +22,9 @@ watchEffect(() => {
   else document.documentElement.dataset.theme = settings.theme;
 });
 
+// Logging out needs the server: while the core is down you stay as you are (the card on top says why).
 async function leave() {
-  await logout();
-  router.push("/");
+  if (await logout()) router.push("/");
 }
 
 // Your house, in the top bar: in the lobby it opens inside the city (never leaving the game); in the list view it's
@@ -79,6 +80,8 @@ const gear = (() => {
   </main>
 
   <SettingsPane />
+  <!-- "The city can't be reached", over everything while the core is down (components/CoreStatus.vue). -->
+  <CoreStatus />
 </template>
 
 <style scoped>
@@ -108,7 +111,8 @@ button.item { background: none; border-radius: 980px; }
 button.item:hover:not(:disabled) { background: var(--fill); }
 .icon { width: 44px; justify-content: center; padding: 0; }
 
-.flow { min-height: calc(100vh - 48px); outline: none; }
+/* While the core is down, the card under the bar (CoreStatus.vue) takes its place in the page instead of covering it. */
+.flow { min-height: calc(100vh - 48px); padding-top: var(--core-offset, 0px); outline: none; }
 .full { outline: none; }
 @media (max-width: 420px) {
   .item { padding: 0 8px; }

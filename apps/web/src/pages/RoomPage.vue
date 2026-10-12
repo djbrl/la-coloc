@@ -19,7 +19,10 @@ import RoomSecrets from "../components/room/RoomSecrets.vue";
 import { parsePort, projectTitle, type SettingsForm, settingsBody } from "../components/room/room";
 import "../components/room/room.css";
 import { loud, quiet, type Note } from "../components/UiNote.vue";
+import Waiting from "../components/Waiting.vue";
+import { useWhenBack, wentDown } from "../core";
 import { me, sendJSON } from "../session";
+import { openStream, type Stream } from "../stream";
 import type { RoomManage } from "../types";
 
 // `embedded`: shown inside the lobby's sheet, which has its own Back and Close. The page then drops its link
@@ -44,16 +47,27 @@ const logsMessage = ref("");
 const logsLoading = ref(false);
 const follow = ref(false);
 let followTimer: number | undefined;
-let source: EventSource | null = null;
+// No room to show because the core isn't answering (`waiting`: it reloads by itself when the core is back), or
+// because the API answered with something unexpected (`failed`: a button to try again).
+const waiting = ref(false);
+const failed = ref(false);
+let source: Stream | null = null;
 let reloadTimer: number | undefined;
 
 async function load() {
   const res = await fetch(`${base.value}/manage`).catch(() => null);
   if (!res?.ok) {
+    // A refresh that fails keeps the room that's showing.
+    if (data.value) return;
     status.value = res?.status ?? 0;
-    error.value = res?.status === 401 ? "Log in to manage your room." : res?.status === 403 ? "This isn't your room." : "This room doesn't exist.";
+    if (res?.status === 401) error.value = "Log in to manage your room.";
+    else if (res?.status === 403) error.value = "This isn't your room.";
+    else if (res?.status === 404) error.value = "This room doesn't exist.";
+    else if (await wentDown(res)) waiting.value = true;
+    else failed.value = true;
     return;
   }
+  waiting.value = failed.value = false;
   const first = !data.value;
   data.value = await res.json();
   if (first) fillForm();
@@ -75,20 +89,32 @@ function fillForm() {
 
 async function open() {
   source?.close();
+  source = null;
   data.value = null;
   error.value = "";
+  waiting.value = failed.value = false;
   await load();
   if (!data.value) return;
   fetchLogs();
-  // The house's live stream says when anything changes (a build step, a crash): refresh, gently.
-  source = new EventSource(`/api/houses/${encodeURIComponent(props.id)}/stream`);
-  source.addEventListener("house", () => {
-    clearTimeout(reloadTimer);
-    reloadTimer = window.setTimeout(load, 300);
+  // The house's live stream says when anything changes (a build step, a crash): refresh, gently. If it dies it finds
+  // its own way back (stream.ts).
+  source = openStream(`/api/houses/${encodeURIComponent(props.id)}/stream`, {
+    house: () => {
+      clearTimeout(reloadTimer);
+      reloadTimer = window.setTimeout(load, 300);
+    },
   });
 }
 
 watch(() => [props.id, props.room], open, { immediate: true });
+// The core came back: this room again (quietly, if it's showing), and its logs.
+useWhenBack(() => {
+  if (!data.value) void open();
+  else {
+    void load();
+    void fetchLogs();
+  }
+});
 watch(
   () => data.value?.house.name,
   (name) => {
@@ -133,7 +159,8 @@ async function fetchLogs() {
   const res = await fetch(`${base.value}/logs?lines=300`).catch(() => null);
   logsLoading.value = false;
   if (!res?.ok) {
-    logsMessage.value = (await res?.json().catch(() => null))?.message ?? "Couldn't read the logs.";
+    // The core being down is not "couldn't read the logs": they come back with it (and are asked for again then).
+    logsMessage.value = (await wentDown(res)) ? "Waiting for the city. The logs come back with it." : ((await res?.json().catch(() => null))?.message ?? "Couldn't read the logs.");
     return;
   }
   logs.value = (await res.json()).text;
@@ -253,7 +280,9 @@ const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric",
 
     <!-- Not yours, not there, or still loading: one short message in the middle of the panel. -->
     <Panel v-else class="room-panel">
-      <div class="message" :aria-live="error ? undefined : 'polite'">
+      <Waiting v-if="waiting" @retry="open" />
+      <Waiting v-else-if="failed" title="That didn't load." line="Something went wrong on our side. Try again in a moment." @retry="open" />
+      <div v-else class="message" :aria-live="error ? undefined : 'polite'">
         <span class="icon"><Icon :name="error ? (status === 401 ? 'login' : 'door') : 'key'" :size="28" /></span>
         <p class="said">{{ error || "Unlocking the door…" }}</p>
         <div v-if="error && (status === 401 || !embedded)" class="go">

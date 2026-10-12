@@ -12,6 +12,8 @@ const props = defineProps<{
   machine: TutorialMachine;
   // The server doesn't have the tutorial yet (404).
   missing: boolean;
+  // The core is down: the steps that need the API wait, and say so.
+  waiting?: boolean;
   busy: boolean;
   error: string;
   // "Put it online" was pressed: the sentence follows the room's status.
@@ -20,6 +22,8 @@ const props = defineProps<{
 const emit = defineEmits<{ room: []; run: []; opened: []; next: []; skipGithub: []; openRoom: []; finish: []; skip: [] }>();
 
 const step = computed(() => props.machine.step);
+// The steps that talk to the API.
+const needsApi = computed(() => ["room", "run", "github"].includes(step.value));
 const touch = computed(() => props.machine.touch);
 
 // The key caps of the walk step.
@@ -59,7 +63,12 @@ onBeforeUnmount(() => clearTimeout(timer));
     <div class="line" aria-hidden="true"><span :style="{ width: `${Math.round(machine.progress * 100)}%` }" /></div>
 
     <div class="body" aria-live="polite">
-      <p v-if="missing && (step === 'room' || step === 'run' || step === 'github')" class="text">The tutorial isn't on this server yet.</p>
+      <template v-if="waiting && needsApi && !live">
+        <p class="text">Waiting for the city…</p>
+        <p class="sub">Your place is kept. We'll go on when it's back.</p>
+      </template>
+
+      <p v-else-if="missing && (step === 'room' || step === 'run' || step === 'github')" class="text">The tutorial isn't on this server yet.</p>
 
       <template v-else-if="step === 'walk'">
         <p v-if="touch" class="text">Tap the ground to walk there.</p>
@@ -116,12 +125,12 @@ onBeforeUnmount(() => clearTimeout(timer));
     <div class="nav">
       <button v-if="step !== 'done'" type="button" class="link quiet" @click="emit('skip')">Skip the tutorial</button>
 
-      <button v-if="missing && (step === 'room' || step === 'run' || step === 'github')" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('skip')">Leave</button>
-      <button v-else-if="step === 'room'" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('room')">Take a room</button>
+      <button v-if="missing && !waiting && (step === 'room' || step === 'run' || step === 'github')" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('skip')">Leave</button>
+      <button v-else-if="step === 'room'" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('room')">Take a room</button>
       <template v-else-if="step === 'run'">
         <button v-if="live && machine.roomOpened" ref="go" type="button" class="primary go" @click="emit('next')">Next</button>
-        <button v-else-if="!live && (error || failed)" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('run')">Try again</button>
-        <button v-else-if="!live && !going" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('run')">Put it online</button>
+        <button v-else-if="!live && (error || failed)" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('run')">Try again</button>
+        <button v-else-if="!live && !going" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('run')">Put it online</button>
       </template>
       <template v-else-if="step === 'github'">
         <button v-if="machine.linked" ref="go" type="button" class="primary go" @click="emit('next')">Next</button>

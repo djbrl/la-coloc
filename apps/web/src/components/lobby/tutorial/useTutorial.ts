@@ -2,6 +2,7 @@
 // where the tutorial stands (asked every two seconds while a step waits on it), taking a room, putting the
 // sample online, and marking the tutorial done. LobbyView owns one of these.
 import { computed, reactive, ref, watch } from "vue";
+import { core, useWhenBack } from "../../../core";
 import { loadMe, postJSON, sendJSON } from "../../../session";
 import { settings } from "../../../settings";
 import type { CityHouse, HouseView, TutorialState } from "../../../types";
@@ -30,6 +31,8 @@ export function useTutorial() {
   let roomKey = "";
 
   const live = computed(() => isLive(machine.state));
+  // The core is down: the steps that ask the API wait (the coach says so), and nothing is marked done or skipped.
+  const waiting = computed(() => core.state === "down");
 
   // The workshop, shaped like a house in the city list, so the engine, the cards and the minimap draw it as any
   // other house. Before the API answers it's a plain "L'Atelier" with no rooms.
@@ -63,7 +66,7 @@ export function useTutorial() {
   }
 
   // Asks the API where the tutorial stands and tells the machine. A 404 means "not on this server"; any other
-  // failure keeps what we had.
+  // failure (the core being down included) keeps what we had.
   async function refresh() {
     const res = await fetch("/api/tutorial").catch(() => null);
     if (!res) return;
@@ -96,6 +99,11 @@ export function useTutorial() {
   function stop() {
     machine.stop();
   }
+
+  // The core is back: ask where the tutorial stands right away, instead of waiting for the next beat.
+  useWhenBack(() => {
+    if (machine.active && SETUP[machine.step].poll) void refresh();
+  });
 
   // Only the steps that wait on the API ask it, every two seconds.
   watch(
@@ -139,15 +147,20 @@ export function useTutorial() {
 
   // Finishing and skipping both mark the tutorial done on your profile (and the old welcome as seen), then bring
   // the city back behind its own welcome. Settings can bring the tutorial back.
+  // While the core is down nothing is marked and the tutorial stays where it is: the coach says why, and you press
+  // the button again (a new press only, never a retry behind your back).
   async function finish() {
     if (busy.value) return;
     busy.value = true;
-    try {
-      await sendJSON("PATCH", "/api/me", { tutorialDone: true });
-      await loadMe();
-    } catch {
-      // Offline for a moment: the city comes back all the same, and the tutorial offers itself again next time.
+    error.value = "";
+    const res = await sendJSON("PATCH", "/api/me", { tutorialDone: true });
+    if (!res.ok && res.down) {
+      error.value = res.message;
+      busy.value = false;
+      return;
     }
+    // Any other refusal: the city comes back all the same, and the tutorial offers itself again next time.
+    await loadMe();
     busy.value = false;
     settings.welcomed = true;
     machine.send({ type: "city" });
@@ -158,7 +171,7 @@ export function useTutorial() {
     machine.stop();
   }
 
-  return { machine, house, live, missing, busy, error, ran, touch, start, stop, finish, takeRoom, deploy, dispose };
+  return { machine, house, live, missing, waiting, busy, error, ran, touch, start, stop, finish, takeRoom, deploy, dispose };
 }
 
 export type Tutorial = ReturnType<typeof useTutorial>;

@@ -19,6 +19,7 @@ import { auditTime, concatMap, filter, from, interval, map, merge, Observable, s
 import { z } from "zod";
 import { AgentRegistry } from "../agents/agent.registry";
 import { AuthService } from "../auth/auth.service";
+import { skipWhileCoreDown } from "../core/streams";
 import type { HttpRequest } from "../auth/http";
 import { HousesService } from "./houses.service";
 import { installCommand } from "./server";
@@ -81,7 +82,7 @@ export class HousesController {
     const updates = this.houses.changes.pipe(
       filter((houseId) => houseId === id),
       auditTime(250),
-      concatMap(() => from(this.houses.view(id, viewer?.id))),
+      concatMap(() => from(this.houses.view(id, viewer?.id)).pipe(skipWhileCoreDown())),
       map((data) => ({ type: "house", data }) as MessageEvent),
     );
     const heartbeat = interval(25_000).pipe(map(() => ({ type: "ping", data: "" }) as MessageEvent));
@@ -173,7 +174,7 @@ export class CityController {
     const updates = this.houses.changes.pipe(
       auditTime(1000),
       startWith("first"),
-      concatMap(() => from(this.houses.city())),
+      concatMap(() => from(this.houses.city()).pipe(skipWhileCoreDown())),
       map((data) => ({ type: "city", data }) as MessageEvent),
     );
     const heartbeat = interval(25_000).pipe(map(() => ({ type: "ping", data: "" }) as MessageEvent));

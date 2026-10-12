@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nest
 import { chores, type Db, houses, memberships, repos, rooms, users } from "@coloc/db";
 import { pickReviewer, type ReviewLoad } from "@coloc/domain";
 import { and, eq, isNull, lt } from "drizzle-orm";
+import { isCoreDown } from "../core/core";
 import { DB } from "../db/db.module";
 import { HousesService } from "../houses/houses.service";
 import type { GithubAppClient } from "./github.client";
@@ -55,7 +56,14 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    this.sweeper = setInterval(() => this.noteLateChores().catch((e) => this.log.error(e.message)), SWEEP_MS);
+    // Every ten minutes. A failed check is logged and the next one tries again; it never takes the API down.
+    this.sweeper = setInterval(
+      () =>
+        this.noteLateChores().catch((e) =>
+          isCoreDown(e) ? this.log.warn("late-chores check skipped: the database isn't answering. Next try in 10 minutes") : this.log.error(e.message),
+        ),
+      SWEEP_MS,
+    );
     this.sweeper.unref();
   }
 

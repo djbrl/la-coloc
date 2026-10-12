@@ -4,13 +4,16 @@
 // foot. Everything fits the sheet without scrolling; only the body scrolls, inside itself, when a list or the chat
 // is longer than the space. The house view arrives from the API and keeps arriving over its stream, as on HousePage.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { useWhenBack, wentDown } from "../../core";
 import { postJSON, sendJSON } from "../../session";
+import { openStream, type Stream } from "../../stream";
 import type { HouseView, Room } from "../../types";
 import Avatar from "../Avatar.vue";
 import ChatPanel from "../ChatPanel.vue";
 import FridgeDoor from "../FridgeDoor.vue";
 import KnockSteps from "../KnockSteps.vue";
 import UiNote, { loud, type Note } from "../UiNote.vue";
+import Waiting from "../Waiting.vue";
 import { crewOf, footFor, rowAction, type Seat, type Situation } from "./house/crew";
 import Crew from "./house/Crew.vue";
 import { billHead, type BillLine, lineWords, linesYoursFirst, reviewsLine, ruleLine, tontineLine, toPay } from "./house/exchange";
@@ -43,31 +46,54 @@ type View = HouseView & { server?: ServerInfo | null };
 
 const house = ref<View | null>(null);
 watch(house, (h) => emit("view", h));
+// Why there's no house to show: it doesn't exist (404), the core isn't answering (`waiting`: it reloads by itself when
+// the core is back), or the API answered with something else (`failed`: a button to try again).
 const error = ref("");
-let source: EventSource | null = null;
+const waiting = ref(false);
+const failed = ref(false);
+let stream: Stream | null = null;
+// Only the newest load may speak: a slow answer for the house you just left is dropped.
+let loads = 0;
 
-async function load(id: string) {
-  source?.close();
-  house.value = null;
-  error.value = "";
+// `quiet`: a reload behind a house that is already showing (the core came back): it keeps what's on screen, never
+// goes back to "Opening the door…", and a failure leaves things as they are.
+async function load(id: string, quiet = false) {
+  const mine = ++loads;
+  if (!quiet) {
+    stream?.close();
+    stream = null;
+    house.value = null;
+    error.value = "";
+    waiting.value = false;
+    failed.value = false;
+  }
   const res = await fetch(`/api/houses/${encodeURIComponent(id)}`).catch(() => null);
+  if (mine !== loads) return;
   if (!res?.ok) {
-    error.value = res?.status === 404 ? "This house doesn't exist." : "Couldn't reach the API.";
+    if (quiet && house.value) return;
+    if (res?.status === 404) error.value = "This house doesn't exist.";
+    else if (await wentDown(res)) waiting.value = true;
+    else failed.value = true;
     return;
   }
+  error.value = "";
+  waiting.value = false;
+  failed.value = false;
   house.value = await res.json();
-  // The API pushes the whole house view whenever something changes.
-  source = new EventSource(`/api/houses/${encodeURIComponent(id)}/stream`);
-  source.addEventListener("house", (e) => (house.value = JSON.parse((e as MessageEvent).data)));
+  // The API pushes the whole house view whenever something changes. If the stream dies it finds its own way back
+  // (stream.ts); it's only opened once per house.
+  stream ??= openStream(`/api/houses/${encodeURIComponent(id)}/stream`, { house: (e) => (house.value = JSON.parse(e.data)) });
 }
 
-watch(() => props.id, load, { immediate: true });
+watch(() => props.id, (id) => load(id), { immediate: true });
+// The core came back: the house again, quietly if it's showing.
+useWhenBack(() => load(props.id, !!house.value));
 watch(
   () => house.value?.name,
   (name) => name && emit("label", `Inside ${name}`),
 );
 onBeforeUnmount(() => {
-  source?.close();
+  stream?.close();
   clearTimeout(litTimer);
   clearTimeout(rulesNoteTimer);
 });
@@ -373,6 +399,10 @@ function rundownEnded() {
       <p class="muted">Maybe it moved, or the link is off by a letter.</p>
     </div>
 
+    <!-- The core isn't answering: a calm wait, not a dead end. It loads by itself when the core is back. -->
+    <Waiting v-else-if="waiting" @retry="load(id)" />
+    <Waiting v-else-if="failed" title="That didn't load." line="Something went wrong on our side. Try again in a moment." @retry="load(id)" />
+
     <Panel
       v-else-if="house"
       :explain="explainLine"
@@ -600,7 +630,7 @@ function rundownEnded() {
 /* Positioned, so the rundown can place its ring and bubble over the parts in this box's own pixels. The panel
    inside it is exactly as tall as the sheet leaves. */
 .inside-house { position: relative; display: flex; flex-direction: column; min-height: 0; }
-.inside-house > :deep(.panel-shape) { flex: 1 1 auto; }
+.inside-house > :deep(.panel-shape), .inside-house > :deep(.waiting) { flex: 1 1 auto; }
 .empty { padding: 24px var(--gutter); display: grid; gap: 8px; }
 .head { display: grid; gap: 8px; min-width: 0; }
 

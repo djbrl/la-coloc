@@ -3,6 +3,7 @@
 // this only shows them and sends new ones. Placed in a column with a fixed height (a panel's body), it fills
 // what's left: the messages scroll inside it and the composer stays at the bottom. On a page that grows, it grows.
 import { nextTick, ref, watch } from "vue";
+import { useWhenBack } from "../core";
 import { postJSON } from "../session";
 import type { Message } from "../types";
 import Avatar from "./Avatar.vue";
@@ -12,6 +13,11 @@ const props = defineProps<{ messages: Message[]; postUrl: string | null; me: str
 const draft = ref("");
 const sending = ref(false);
 const error = ref("");
+// "The city isn't answering": it's stale once the city is back, so it goes (the draft stays, to be sent again).
+const errorDown = ref(false);
+useWhenBack(() => {
+  if (errorDown.value) error.value = "";
+});
 const list = ref<HTMLElement | null>(null);
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -27,6 +33,8 @@ watch(
 );
 
 async function send() {
+  // Never twice: Enter while the last message is still on its way does nothing.
+  if (sending.value) return;
   error.value = "";
   if (!draft.value.trim()) {
     error.value = "Write something first.";
@@ -36,8 +44,10 @@ async function send() {
   sending.value = true;
   const res = await postJSON(props.postUrl, { body: draft.value });
   sending.value = false;
+  // What you typed stays until the city has it: a message that couldn't be sent is still in the box.
   if (res.ok) draft.value = "";
   else error.value = res.message;
+  errorDown.value = !res.ok && !!res.down;
 }
 </script>
 

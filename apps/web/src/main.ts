@@ -6,8 +6,13 @@ import CityPage from "./pages/CityPage.vue";
 import HousePage from "./pages/HousePage.vue";
 import LoginPage from "./pages/LoginPage.vue";
 import RoomPage from "./pages/RoomPage.vue";
+import { installCoreFetch, onRecovered } from "./core";
 import { loadMe } from "./session";
 import "./style.css";
+
+// Every same-origin /api request now tells the core store whether the API answered (core.ts), and the card on top of
+// the page (CoreStatus.vue) says so when it didn't. Installed before anything fetches.
+installCoreFetch();
 
 const router = createRouter({
   history: createWebHistory(),
@@ -41,4 +46,6 @@ router.afterEach(async (to, from) => {
 });
 
 loadMe();
+// Whoever you are is asked again the moment the core is back, whether the page opened on an outage or it fell later.
+onRecovered(() => void loadMe());
 createApp(App).use(router).mount("#app");

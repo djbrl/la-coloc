@@ -5,6 +5,7 @@ import { isAdmin } from "./auth.config";
 import { AuthService, SESSION_COOKIE, SESSION_DAYS, STATE_COOKIE } from "./auth.service";
 import { clearCookie, type HttpRequest, type HttpResponse, parseCookies, setCookie } from "./http";
 import { MembershipsService } from "./memberships.service";
+import { isCoreDown } from "../core/core";
 import { AVATARS } from "../lobby/presence";
 
 const DevLoginBody = z.object({ login: z.string().min(1).max(39) });
@@ -70,7 +71,8 @@ export class AuthController {
     const parsed = DevLoginBody.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     const user = await this.auth.devLogin(parsed.data.login).catch((e: Error) => {
-      throw new BadRequestException(e.message);
+      // A database outage isn't the visitor's mistake: let it become the calm 503.
+      throw isCoreDown(e) ? e : new BadRequestException(e.message);
     });
     await this.startSession(res, user.id);
     return { login: user.login };

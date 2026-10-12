@@ -3,6 +3,7 @@ import { RoomName } from "@coloc/protocol";
 import { auditTime, concatMap, filter, from, interval, map, merge, Observable } from "rxjs";
 import { z } from "zod";
 import { AuthService } from "../auth/auth.service";
+import { skipWhileCoreDown } from "../core/streams";
 import type { HttpRequest } from "../auth/http";
 import { DoorbellService, MAX_MESSAGE } from "./doorbell.service";
 
@@ -61,7 +62,7 @@ export class DoorbellController {
     const updates = this.doorbell.changes.pipe(
       filter((appId) => appId === id),
       auditTime(150),
-      concatMap(() => from(this.doorbell.view(id, user.id))),
+      concatMap(() => from(this.doorbell.view(id, user.id)).pipe(skipWhileCoreDown())),
       map((data) => ({ type: "application", data }) as MessageEvent),
     );
     const heartbeat = interval(25_000).pipe(map(() => ({ type: "ping", data: "" }) as MessageEvent));

@@ -11,6 +11,7 @@ import { useRoute, useRouter } from "vue-router";
 import { loading } from "../lobby/assets";
 import { styleFor } from "../lobby/cityStyle";
 import { type Emote, Lobby, type Target } from "../lobby/Lobby";
+import { checkCore, core } from "../core";
 import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
@@ -195,6 +196,8 @@ const reveal = computed<Set<Piece>>(() => {
 const shows = (piece: Piece) => reveal.value.has(piece);
 // The site's top bar is a piece like the others: App.vue hides it while the tutorial says so.
 watchEffect(() => (lobbyUi.chrome = shows("chrome")));
+// A house's window docked on the right: the "can't reach the city" card keeps to the left half (CoreStatus.vue).
+watchEffect(() => (lobbyUi.inside = !!place.value));
 
 // The engine lets you do what the step allows; outside the tutorial, everything.
 function applyControls() {
@@ -499,7 +502,11 @@ onMounted(() => {
       next.delete(login);
       others.value = next;
     },
-    onStatus: (up) => (connected.value = up),
+    // The live line dropping may be the core going away: one health check says (no-op if it's already known down).
+    onStatus: (up) => {
+      connected.value = up;
+      if (!up) void checkCore();
+    },
     onCensus: (counts) => (census.value = counts),
   });
   link.enter(city.value);
@@ -566,6 +573,7 @@ onBeforeUnmount(() => {
   tutorial.dispose();
   // The site's top bar comes back with whatever page comes next, and so does the plain title.
   lobbyUi.chrome = true;
+  lobbyUi.inside = false;
   document.title = "La Coloc";
   clearTimeout(noticeTimer);
   clearTimeout(toastTimer);
@@ -803,6 +811,8 @@ const found = computed(() => {
 // 2 reviews waiting." Under 520px the city's name (already top left) is left out, so it fits on one line.
 const activity = computed(() => {
   if (inWorkshop.value) return null;
+  // The city couldn't be loaded (the core is down): an empty street isn't news, so the pill says nothing.
+  if (core.state === "down" && !props.houses.length) return null;
   let online = 0;
   let building = 0;
   let reviews = 0;
@@ -940,6 +950,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
           v-if="inWorkshop && t.step !== 'welcome' && t.step !== 'rundown'"
           :machine="t"
           :missing="tutorial.missing.value"
+          :waiting="tutorial.waiting.value"
           :busy="tutorial.busy.value"
           :error="tutorial.error.value"
           :ran="tutorial.ran.value"
@@ -992,7 +1003,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
       <TouchDash v-if="shows('tools') && !place && !card" @dash="lobby?.dash()" />
 
       <!-- The tutorial's two welcome cards: before the first step, and in the real city after the last. -->
-      <Welcome v-if="t.active && (t.step === 'welcome' || t.step === 'city')" :key="t.step" :step="t.step === 'city' ? 'city' : 'welcome'" :busy="tutorial.busy.value" @start="startTutorial" @skip="tutorial.finish" @end="endTutorial" />
+      <Welcome v-if="t.active && (t.step === 'welcome' || t.step === 'city')" :key="t.step" :step="t.step === 'city' ? 'city' : 'welcome'" :busy="tutorial.busy.value" :error="tutorial.error.value" @start="startTutorial" @skip="tutorial.finish" @end="endTutorial" />
 
       <Onboarding v-if="welcoming" @focus="(on) => lobby?.focusOnPlayer(on)" @character="(c) => lobby?.setCharacter(c)" @done="settings.welcomed = true" />
 
@@ -1119,23 +1130,28 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 .place .city { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
 .place .chev { font-size: 20px; color: var(--muted); }
 /* What the city is doing, in a pill at the top; it never catches clicks. */
-.top { top: 64px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 980px; background: var(--surface); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
+.top { top: calc(64px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 980px; background: var(--surface); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
 .top:empty { display: none; }
 .top p { margin: 0; font-size: 15px; }
 .top .narrow { display: none; }
 /* News and tips: one line under the pill, popping in and out; never in the way of a click. */
-.news { top: 112px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
+.news { top: calc(112px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
 .toast { margin: 0; padding: 8px 16px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); font-size: 15px; line-height: 1.45; text-align: center; }
 .toast .said { font-weight: 600; }
 .toast kbd { margin: 0 1px; }
 /* The corner offers, under the place button: a soft accent pill and a small way to say no. */
-.corner { top: 116px; left: 16px; display: grid; gap: 8px; justify-items: start; max-width: min(340px, calc(100vw - 96px)); }
+.corner { top: calc(116px + var(--core-offset, 0px)); left: 16px; display: grid; gap: 8px; justify-items: start; max-width: min(340px, calc(100vw - 96px)); }
 .chip { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 18px; background: var(--surface); box-shadow: var(--lift); }
 .chip-go { min-height: 40px; padding: 6px 12px; border: 0; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.3; text-align: left; cursor: pointer; }
 .chip-go:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
 .chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: var(--muted); cursor: pointer; }
 .chip-x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .tools { top: 60px; right: 16px; display: grid; gap: 8px; }
+/* The "can't reach the city" card (CoreStatus.vue) sits at the top centre. On a screen too narrow to leave it room
+   beside the place and the tools, they step down under it, like the pill and the news do at every width. */
+@media (max-width: 899px) {
+  .place, .tools { top: calc(60px + var(--core-offset, 0px)); }
+}
 .tools button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; }
 /* The dock stacks the card over the keys; its empty space lets clicks through to the city. */
 .dock { left: 16px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-start; gap: 12px; pointer-events: none; }
@@ -1217,13 +1233,13 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
      keeps the middle. */
   .centre:not(.lifted) { left: 16px; transform: none; align-items: flex-start; max-width: calc(100vw - 180px); }
   /* One line: the city's name is already top left, and anything longer ends in "…". */
-  .top { top: 112px; max-width: calc(100vw - 24px); padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top { top: calc(112px + var(--core-offset, 0px)); max-width: calc(100vw - 24px); padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top p { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
   .top .wide { display: none; }
   .top .narrow { display: inline; }
-  .news { top: 156px; }
+  .news { top: calc(156px + var(--core-offset, 0px)); }
   .toast { font-size: 14px; }
-  .corner { top: 200px; }
+  .corner { top: calc(200px + var(--core-offset, 0px)); }
   .map { right: 12px; }
   /* A card is a sheet along the bottom edge here: the map would hide under it. */
   .map.covered { display: none; }

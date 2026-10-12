@@ -6,6 +6,7 @@ import { type Db, deployments, fridgeNotes, houses, memberships, repos, roomSecr
 import { and, asc, eq } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
 import type { User } from "../auth/auth.service";
+import { isCoreDown } from "../core/core";
 import { DB } from "../db/db.module";
 import type { GithubAppConfig } from "../github/github.config";
 import { GITHUB_CONFIG } from "../github/github.controller";
@@ -126,6 +127,7 @@ export class TutorialService {
       const d = await this.deployer.deploy({ room: ready, kind: "prod", source, requestedBy: user.id });
       return { id: d.id };
     } catch (e) {
+      if (isCoreDown(e)) throw e;
       throw new ConflictException((e as Error).message);
     }
   }

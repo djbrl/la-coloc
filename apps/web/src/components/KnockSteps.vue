@@ -5,6 +5,7 @@
 // and takes you to it, instead of letting you write a note only to hear it on the last step.
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { coreDown, DOWN_READ, DOWN_WRITE, wentDown } from "../core";
 import { loadMe, me } from "../session";
 import type { Room } from "../types";
 import { knockOn } from "./lobby/cards";
@@ -54,6 +55,8 @@ function back() {
 }
 
 async function send() {
+  // Never twice: a second press (or Enter) while the first is on its way does nothing.
+  if (sending.value) return;
   error.value = "";
   sending.value = true;
   // fetch rather than postJSON: a 409 here means "already knocked", and we need its status and its body.
@@ -62,8 +65,14 @@ async function send() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ room: props.room.name, message: note.value.trim(), repo: repo.value.trim() || null }),
   }).catch(() => null);
-  const data = res ? await res.json().catch(() => ({})) : {};
+  // The core isn't answering: nothing was sent, and what you wrote stays in the form for another go.
+  const down = await wentDown(res);
+  const data = res && !down ? await res.json().catch(() => ({})) : {};
   sending.value = false;
+  if (down) {
+    error.value = DOWN_WRITE;
+    return;
+  }
   if (res?.status === 409 && /already knocked/i.test(String(data.message ?? ""))) {
     refused.value = { id: typeof data.application === "string" ? data.application : "" };
     void loadMe();
@@ -96,6 +105,7 @@ async function seeKnock() {
     id = knockOn(me.value?.knocks, props.houseId)?.id ?? "";
   }
   if (id) open(id);
+  else if (coreDown()) error.value = `${DOWN_READ} Try again in a moment.`;
   else error.value = "We couldn't find your knock. It may have just been decided: have a look at the house.";
 }
 

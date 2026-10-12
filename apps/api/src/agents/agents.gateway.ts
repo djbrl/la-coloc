@@ -2,11 +2,15 @@ import { Logger } from "@nestjs/common";
 import { OnGatewayConnection, WebSocketGateway } from "@nestjs/websockets";
 import { parseAgentToApi } from "@coloc/protocol";
 import type WebSocket from "ws";
+import { Core, isCoreDown } from "../core/core";
 import { HousesService } from "../houses/houses.service";
 import { AgentRegistry } from "./agent.registry";
 import { LogsBroker } from "./logs.broker";
 
 const HELLO_TIMEOUT_MS = 5000;
+// WebSocket close code 1013, "try again later": what we say when the database can't take the call right now.
+// The agent redials by itself (and sends its full snapshot again when it does), so nothing is lost.
+export const TRY_AGAIN_LATER = 1013;
 
 // The phone lines. An agent must say hello with its house's secret within 5 seconds,
 // or the line is cut. Every message after that is validated before it touches anything.
@@ -18,9 +22,15 @@ export class AgentsGateway implements OnGatewayConnection {
     private readonly houses: HousesService,
     private readonly registry: AgentRegistry,
     private readonly logs: LogsBroker,
+    private readonly core: Core,
   ) {}
 
   handleConnection(socket: WebSocket) {
+    // Not ready yet (the database hasn't answered since we started): we can't check anybody's secret. Politely refuse.
+    if (!this.core.ready) {
+      socket.close(TRY_AGAIN_LATER, "try again later");
+      return;
+    }
     let houseId: string | null = null;
     const helloTimer = setTimeout(() => socket.close(4000, "no hello"), HELLO_TIMEOUT_MS);
     // Messages are handled one at a time, in arrival order: "starting" must never land after "live".
@@ -32,7 +42,15 @@ export class AgentsGateway implements OnGatewayConnection {
           clearTimeout(helloTimer);
           houseId = id;
         }))
-        .catch((e) => this.log.error(`message from ${houseId ?? "unauthenticated agent"} failed: ${(e as Error).message}`));
+        .catch((e) => {
+          if (isCoreDown(e)) {
+            // The database went away mid-call. One line per outage (Core de-duplicates), and the agent is asked to call back.
+            this.core.reportDown(e);
+            socket.close(TRY_AGAIN_LATER, "try again later");
+            return;
+          }
+          this.log.error(`message from ${houseId ?? "unauthenticated agent"} failed: ${(e as Error).message}`);
+        });
     });
 
     socket.on("close", () => {

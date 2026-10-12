@@ -11,7 +11,10 @@ import { shortRepo } from "../components/lobby/cards";
 import Panel from "../components/lobby/panel/Panel.vue";
 import PanelHead from "../components/lobby/panel/PanelHead.vue";
 import { explain, type State } from "../components/lobby/panel/words";
+import Waiting from "../components/Waiting.vue";
+import { useWhenBack, wentDown } from "../core";
 import { loadMe, postJSON } from "../session";
+import { openStream, type Stream } from "../stream";
 import type { Application } from "../types";
 
 // `embedded`: shown inside the lobby's sheet, which has its own Back and Close. The page then drops its link back
@@ -29,30 +32,52 @@ interface Work {
 }
 const app = ref<(Application & { work?: Work | null }) | null>(null);
 const error = ref("");
+// The core isn't answering (`waiting`: it reloads by itself when the core is back), or the API answered with
+// something unexpected (`failed`: a button to try again).
+const waiting = ref(false);
+const failed = ref(false);
 const actionError = ref("");
-let source: EventSource | null = null;
+let stream: Stream | null = null;
+let loads = 0;
 
-async function open(id: string) {
-  source?.close();
-  app.value = null;
-  error.value = "";
+// `quiet`: a reload behind a knock that's showing (the core came back): it keeps what's on screen.
+async function open(id: string, quiet = false) {
+  const mine = ++loads;
+  if (!quiet) {
+    stream?.close();
+    stream = null;
+    app.value = null;
+    error.value = "";
+    waiting.value = failed.value = false;
+  }
   const res = await fetch(`/api/applications/${encodeURIComponent(id)}`).catch(() => null);
+  if (mine !== loads) return;
   if (!res?.ok) {
-    error.value = res?.status === 401 ? "Log in to see this knock." : "This knock doesn't exist, or it isn't yours to see.";
+    if (quiet && app.value) return;
+    if (res?.status === 401) error.value = "Log in to see this knock.";
+    else if (res?.status === 404 || res?.status === 403) error.value = "This knock doesn't exist, or it isn't yours to see.";
+    else if (await wentDown(res)) waiting.value = true;
+    else failed.value = true;
     return;
   }
+  error.value = "";
+  waiting.value = failed.value = false;
   app.value = await res.json();
-  source = new EventSource(`/api/applications/${encodeURIComponent(id)}/stream`);
-  source.addEventListener("application", (e) => {
-    const next: Application = JSON.parse((e as MessageEvent).data);
-    // Decided: the top bar should now show the house, and your list of open knocks has one fewer.
-    if (next.status !== "open" && app.value?.status === "open") loadMe();
-    app.value = next;
+  // If the stream dies it finds its own way back (stream.ts); it's opened once per knock.
+  stream ??= openStream(`/api/applications/${encodeURIComponent(id)}/stream`, {
+    application: (e) => {
+      const next: Application = JSON.parse(e.data);
+      // Decided: the top bar should now show the house, and your list of open knocks has one fewer.
+      if (next.status !== "open" && app.value?.status === "open") loadMe();
+      app.value = next;
+    },
   });
 }
 
-watch(() => props.id, open, { immediate: true });
-onBeforeUnmount(() => source?.close());
+watch(() => props.id, (id) => open(id), { immediate: true });
+// The core came back: the knock again, quietly if it's showing.
+useWhenBack(() => open(props.id, !!app.value));
+onBeforeUnmount(() => stream?.close());
 
 const mine = computed(() => app.value?.viewer.as === "applicant");
 const who = computed(() => (app.value ? (app.value.applicant.name ?? app.value.applicant.login) : ""));
@@ -138,6 +163,9 @@ async function withdraw() {
       <h2>{{ error }}</h2>
       <RouterLink v-if="!embedded" to="/" class="more">Back to the city <span aria-hidden="true">›</span></RouterLink>
     </div>
+
+    <Waiting v-else-if="waiting" @retry="open(id)" />
+    <Waiting v-else-if="failed" title="That didn't load." line="Something went wrong on our side. Try again in a moment." @retry="open(id)" />
 
     <template v-else-if="app">
       <RouterLink v-if="!embedded" :to="`/houses/${app.house.id}`" class="back"><span aria-hidden="true">‹</span> {{ app.house.name }}</RouterLink>

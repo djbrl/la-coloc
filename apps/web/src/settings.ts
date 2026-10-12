@@ -61,8 +61,9 @@ export const settings = reactive<Settings>(read());
 export const settingsPane = reactive({ open: false, tutorialRequested: 0 });
 
 // What the lobby wants of the page around it, not saved either: `chrome` is the site's top bar, which the tutorial
-// hides until the very end so the screen shows one thing at a time. App.vue reads it.
-export const lobbyUi = reactive({ chrome: true });
+// hides until the very end so the screen shows one thing at a time. App.vue reads it. `inside`: a house's window is
+// docked over the city's right side, so the "can't reach the city" card (CoreStatus.vue) keeps to the left half.
+export const lobbyUi = reactive({ chrome: true, inside: false });
 
 watch(settings, (s) => {
   try {

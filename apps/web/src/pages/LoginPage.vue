@@ -3,6 +3,8 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import UiSteps from "../components/UiSteps.vue";
+import Waiting from "../components/Waiting.vue";
+import { useWhenBack, wentDown } from "../core";
 import { loadMe, postJSON } from "../session";
 
 const route = useRoute();
@@ -19,10 +21,16 @@ const errors: Record<string, string> = {
 };
 const error = computed(() => errors[String(route.query.error ?? "")] ?? "");
 
-onMounted(async () => {
+// The core isn't answering, so what this server offers is unknown (not "nothing"): it asks again by itself.
+const waiting = ref(false);
+async function loadConfig() {
   const res = await fetch("/api/auth/config").catch(() => null);
+  waiting.value = !res?.ok && (await wentDown(res));
+  if (waiting.value) return;
   config.value = res?.ok ? await res.json() : { github: false, dev: false };
-});
+}
+onMounted(loadConfig);
+useWhenBack(loadConfig);
 
 async function devLogin(as: string) {
   message.value = "";
@@ -45,7 +53,8 @@ async function devLogin(as: string) {
 <template>
   <section class="band login">
     <div class="wrap narrow">
-      <p v-if="!config" class="muted center" aria-live="polite">One moment…</p>
+      <Waiting v-if="waiting && !config" @retry="loadConfig" />
+      <p v-else-if="!config" class="muted center" aria-live="polite">One moment…</p>
       <UiSteps v-else :step="step" :total="config.dev ? 2 : 1" center>
         <div v-if="step === 1" class="step">
           <h1>Move into the city.</h1>

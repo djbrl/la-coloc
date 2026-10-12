@@ -4,7 +4,7 @@
 // and hands you the keys. Each has one main action.
 import { onMounted, ref } from "vue";
 
-const props = defineProps<{ step: "welcome" | "city"; busy: boolean }>();
+const props = defineProps<{ step: "welcome" | "city"; busy: boolean; error?: string }>();
 const emit = defineEmits<{ start: []; skip: []; end: [] }>();
 
 // The keyboard lands on the main action, a moment after the card appears.
@@ -24,6 +24,7 @@ function onKey(e: KeyboardEvent) {
         <h2 id="tutorial-welcome-title">Welcome to La Coloc.</h2>
         <p>A city of dev houses, from Dakar to Kigali. Each house is a server a few developers rent together, and part of the rent is paid in code reviews.</p>
         <p class="soft">You'll get a room in a shared server and put a project online in a minute.</p>
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
         <div class="nav">
           <button type="button" class="link quiet" :disabled="busy" @click="emit('skip')">Skip the tutorial</button>
           <button ref="go" type="button" class="primary go" :disabled="busy" @click="emit('start')">Start</button>

@@ -2,37 +2,55 @@
 // The city: a full-screen place to walk around, or (in settings) a plain list of the same houses. The list is the
 // lobby's no-3D twin: one floating card, like the lobby's panels, with the city's name and numbers, a search and a
 // filter, and the houses as rows (components/list/CityRow.vue), each one way into its house's page.
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
 import LoadingScreen from "../components/LoadingScreen.vue";
+import Waiting from "../components/Waiting.vue";
 import Choice, { type Option } from "../components/list/Choice.vue";
 import { cityTotals, keeps, plural, type Show, yoursFirst } from "../components/list/city";
 import CityRow from "../components/list/CityRow.vue";
 import ListCard from "../components/list/ListCard.vue";
+import { core, useWhenBack, wentDown } from "../core";
 import { me, meLoaded } from "../session";
 import { settings } from "../settings";
+import { openStream, type Stream } from "../stream";
 import type { CityHouse } from "../types";
 
 // three.js is big: it only loads when someone opens the lobby, behind the same loading screen.
 const LobbyView = defineAsyncComponent({ loader: () => import("../components/LobbyView.vue"), loadingComponent: LoadingScreen, delay: 0 });
 
 const houses = ref<CityHouse[] | null>(null);
+// Set when the city can't load for a reason that isn't the core being down (the API answered, and said no).
 const error = ref("");
 const show = ref<Show>("all");
 const search = ref("");
-let source: EventSource | null = null;
+let stream: Stream | null = null;
 
-onMounted(async () => {
+// The city, as the API last said it. A failed refresh never empties what's already here.
+async function loadCity() {
   const res = await fetch("/api/city").catch(() => null);
   if (!res?.ok) {
-    error.value = "The city can't be reached right now. Try again in a moment.";
+    if (!houses.value && !(await wentDown(res))) error.value = "The city can't be reached right now. Try again in a moment.";
     return;
   }
+  error.value = "";
   houses.value = (await res.json()).houses;
-  // The API re-sends the city whenever a house changes.
-  source = new EventSource("/api/city/stream");
-  source.addEventListener("city", (e) => (houses.value = JSON.parse((e as MessageEvent).data).houses));
+  // The API re-sends the city whenever a house changes. The stream finds its own way back if it dies (stream.ts).
+  stream ??= openStream("/api/city/stream", { city: (e) => (houses.value = JSON.parse(e.data).houses) });
+}
+
+onMounted(loadCity);
+// The core came back: the city again (and the stream, if it never got started).
+useWhenBack(loadCity);
+onBeforeUnmount(() => stream?.close());
+
+// The lobby shows up as soon as it has something to stand on: the city and who you are, or, when the core is down,
+// an empty street with the "can't be reached" card on top. Once it's up it stays up (a recovery in two steps, the
+// city then you, must not tear down the 3D scene).
+const lobbyUp = ref(false);
+watchEffect(() => {
+  if (!lobbyUp.value && ((houses.value && meLoaded.value) || core.state === "down")) lobbyUp.value = true;
 });
-onBeforeUnmount(() => source?.close());
+const lobbyHouses = computed(() => houses.value ?? []);
 
 const options: Option[] = [
   { key: "all", icon: "house", word: "All" },
@@ -59,12 +77,13 @@ const listLine = computed(() => {
       <div class="card">
         <h1 class="name">The city</h1>
         <p class="line" role="alert">{{ error }}</p>
+        <button type="button" class="primary again" @click="loadCity">Try again</button>
       </div>
     </ListCard>
   </div>
 
   <!-- The lobby waits for "who am I", so you walk in as yourself; logging in or out rebuilds it. -->
-  <LobbyView v-else-if="settings.view === 'lobby' && houses && meLoaded" :key="me?.login ?? 'visitor'" :houses="houses" />
+  <LobbyView v-else-if="settings.view === 'lobby' && lobbyUp" :key="me?.login ?? 'visitor'" :houses="lobbyHouses" />
   <LoadingScreen v-else-if="settings.view === 'lobby'" class="full" />
 
   <div v-else class="list">
@@ -76,9 +95,11 @@ const listLine = computed(() => {
             <template v-if="houses">
               {{ plural(totals.houses, "house", "houses") }} · {{ plural(totals.free, "free room", "free rooms") }} · {{ totals.making }} setting up
             </template>
-            <template v-else>Opening the city…</template>
+            <template v-else-if="core.state !== 'down'">Opening the city…</template>
           </p>
         </header>
+
+        <Waiting v-if="!houses && core.state === 'down'" @retry="loadCity" />
 
         <div class="controls" role="search" aria-label="Find a house">
           <input v-model="search" type="search" placeholder="Search houses, cities, projects, people" aria-label="Search the city" />
@@ -103,6 +124,7 @@ const listLine = computed(() => {
 .head { display: grid; gap: 6px; }
 .name { font-size: 32px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
 .line { font-size: 14px; color: var(--muted); }
+.again { justify-self: start; }
 .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .controls input { min-height: 44px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--fill); font-size: 15px; }
 .controls input:focus { box-shadow: 0 0 0 3px var(--focus); }

@@ -3,6 +3,7 @@
 // to call home. A native <dialog>, like the knock and rent-a-plot steps: it traps focus and closes on Escape.
 // It reads like a game's menu: a short bold title per step, big tiles to pick from, chunky buttons with one main one.
 import { onMounted, ref, watch } from "vue";
+import { DOWN_WRITE, wentDown } from "../../../core";
 import UiSteps from "../../UiSteps.vue";
 import { explain } from "../panel/words";
 import Icon from "./Icon.vue";
@@ -31,6 +32,7 @@ onMounted(() => dialog.value?.showModal());
 
 // Mirrors session.ts's postJSON, but keeps the status code: a 409 means "a key exists" and gets its own button.
 async function rent(renew: boolean) {
+  if (sending.value) return;
   error.value = "";
   keyExists.value = false;
   sending.value = true;
@@ -40,6 +42,12 @@ async function rent(renew: boolean) {
     body: JSON.stringify(renew ? { plan: plan.value, renew: true } : { plan: plan.value }),
   }).catch(() => null);
   sending.value = false;
+  // The core isn't answering: nothing was made, and the size you picked is still picked.
+  const down = await wentDown(res);
+  if (down) {
+    error.value = DOWN_WRITE;
+    return;
+  }
   const data = await res?.json().catch(() => ({}));
   if (!res?.ok) {
     keyExists.value = res?.status === 409;

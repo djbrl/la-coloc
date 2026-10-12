@@ -21,6 +21,7 @@ import { AgentRegistry } from "../agents/agent.registry";
 import { LogsBroker } from "../agents/logs.broker";
 import { AuthService } from "../auth/auth.service";
 import type { HttpRequest } from "../auth/http";
+import { isCoreDown } from "../core/core";
 import { HousesService } from "../houses/houses.service";
 import { RoomDeployer } from "./room-deployer";
 import { RoomsService } from "./rooms.service";
@@ -157,6 +158,7 @@ export class RoomsController {
     try {
       return await this.deployer.deploy({ room, kind, source, requestedBy: requestedBy ?? userId });
     } catch (e) {
+      if (isCoreDown(e)) throw e;
       throw new ConflictException((e as Error).message);
     }
   }
