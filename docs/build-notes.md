@@ -429,7 +429,7 @@ the list view's city and house pages in light and dark; the subagent checked eve
 
 ## 10 10 2026, review fixes: the API side
 
-The adversarial review (`adversarial_review.md`) said the exchange was invisible: ledgers at zero, no reviews as
+The adversarial review (`docs/review-2026-10-10.md`, moved from the repo root on 12 10) said the exchange was invisible: ledgers at zero, no reviews as
 rent, no tontine, no mobile money. Four agents fixed it in parallel; this is the API's part.
 
 | What | Where |
@@ -482,3 +482,30 @@ map. Draw calls in Dakar: 113 at spawn, 142 zoomed out.
 Still open: the tutorial's workshop map (L'Atelier) has no city style yet; the key strip still shows words beside
 its keycaps; the house panel keeps a "Strict" chip next to the sentence that says the same; Kigali's hills and roof
 smoke; French.
+
+## 12 10 2026: the core can go down, and a repo a teammate can start from
+
+Jib stopped Docker on purpose to see what the product does without its database, and asked for a graceful break: the
+player stays in the experience, can retry or wait, and it heals by itself. They also asked for a contributor guide, a
+repo sweep, an install guide and a to-do list, to hand to a teammate starting the next day. Four subagents (API, web,
+docs) on disjoint files, then a real run against the dead database.
+
+| What | Where |
+|---|---|
+| **The API survives without Postgres**: it opens its port first, connects and migrates in the background (1 s growing to 15 s, for ever), and meanwhile every route except `/api/health` answers 503 `{code:"core_down"}`; a database that dies later gives the same 503 and heals with no restart; agents are closed with 1013 and redial; the lobby socket and the late-chores sweep survive a failed query; a lobby race that made ghost players is fixed | `apps/api/src/core/` (`core.ts`, `retry.ts`, `core.guard.ts`, `core-down.filter.ts`, `health.controller.ts`, `streams.ts`, `process-guard.ts`), `packages/db/src/errors.ts` and `index.ts`, gateways |
+| **The site stays playable**: a fetch wrapper recognises "the core is down" (network error, 502/503/504, `core_down`, an empty 500 from the dev proxy); a floating card says so, counts down to the next try (2, 4, 8, 15, then 30 s), has Try now and Hide, then "Back online"; panels show "Waiting for the city…" and reload by themselves; writes return a friendly failure and keep what you typed; open streams reopen when the core returns; no redirect to the login page; the tutorial waits instead of saying it isn't on this server | `apps/web/src/core.ts`, `stream.ts`, `CoreStatus.vue`, `Waiting.vue`, `session.ts`, the panels, `LobbyView.vue`, tutorial |
+| **A repo to start from**: a docs index, `CONTRIBUTING.md`, `TODO.md` (prioritised, sized, with good first tasks), an install and run guide verified from a fresh clone (install, build, 306 tests, licences), PR and issue templates, `.nvmrc`, `.editorconfig`; the old review and the old agent handoff moved into `docs/` | `README.md`, `CONTRIBUTING.md`, `TODO.md`, `docs/README.md`, `docs/dev.md`, `docs/archive/`, `.github/` |
+
+### Verified
+- The built API ran for real against a dead Postgres: `/api/health`, `/api/city`, `/api/me` and `/api/houses/atelier` all
+  answered 503 `core_down` directly and through Vite, one calm log line, the process stayed up. In a headless Chrome the
+  lobby rendered with the card and a countdown, and walking still worked. Scenarios with a stand-in API that fell and
+  came back mid-session (panel, chat draft, stream, tutorial) recovered with no refresh.
+- Recovery against a real Postgres restart was only tested with fake connections and a fake API: try
+  `docker stop coloc-db` and `docker start coloc-db` with the site open.
+- Tests: 417 (db 13, domain 22, protocol 4, agent 13, API 188, web 177). Build and `licences:check` pass.
+- The docs agent ran `npm ci`, `npm run build`, `npm test` and `licences:check` from a fresh clone of the last commit.
+
+### Rough edges
+Listed in [TODO.md](../TODO.md) (D9 and the others). The Vite override is `COLOC_DEV_API`, not `COLOC_API_URL`, which is the caretaker's.
+

@@ -6,7 +6,7 @@ The rules forbid copyleft components (GPL, AGPL, LGPL). Check before every commi
 npm run licences:check
 ```
 
-**State on 08 10 2026:** 307 packages, all permissive: MIT 250 · Apache-2.0 22 · ISC 16 · BSD-3-Clause 15 · BSD-2-Clause 2 · 0BSD 1 · Unlicense 1.
+**State on 12 10 2026** (`npm run licences`, commit `ffce382`): 318 packages, all permissive: MIT 259 · Apache-2.0 23 · ISC 17 · BSD-3-Clause 15 · BSD-2-Clause 2 · 0BSD 1 · Unlicense 1.
 Added since 02 10: Drizzle ORM (Apache-2.0) and drizzle-kit (MIT), node-postgres `pg` (MIT), PGlite (Apache-2.0, tests only).
 Added 09 10: three.js (MIT) for the 3D lobby; smee-client (ISC, development only) to relay GitHub webhooks.
 

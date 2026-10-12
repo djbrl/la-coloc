@@ -8,3 +8,8 @@ dist/
 
 # GitHub App keys for development (written by scripts/github-app.mjs)
 *.pem
+
+# Tool leftovers
+.claude/settings.local.json
+*.log
+coverage/

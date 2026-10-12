@@ -3,6 +3,12 @@
 *02 10 2026, revised the same day around the city. The canonical product explanation, written for a teammate with
 zero context. Stack: [architecture.md](architecture.md) · Plan: [roadmap.md](roadmap.md).*
 
+> **As of 12 10 2026.** This describes the product we are building, as designed on 02 10. Most of it exists; what doesn't is listed here so the
+> text isn't misread. **Not built yet:** team rooms (§4), report and mute, evict and "give notice" (§5, §8), paused rooms for unpaid rent, a per-room
+> database (the "kitchen"), payment *links that move money* (the bill, its split and each person's line are real; paying is a mock, §6), priority
+> reviews for the tontine's turn and its penalty for skipped reviews (§5, §7; the turn is shown and rotates every fortnight), and the Datacloud server. **Built since this was written:** the walkable lobby
+> (the "Later" section at the end happened on 09 10), a tutorial, a list view and a live city. What's left: [TODO.md](../TODO.md).
+
 ## In one paragraph
 La Coloc is **a city of dev houses**. You log in with GitHub and see the city: every house, its rooms, who lives
 there, what they're building, and which rooms are free. You knock on a house with a free room, chat with the
@@ -56,7 +62,7 @@ can also **team up** to build one project together. Devs exchange reviews, skill
 | **Chores** | Code reviews | Each PR gets a flatmate reviewer, assigned on a rotation |
 | **The fridge door** | Notifications | Automatic notes: hogging, skipped reviews, thanks |
 | **Rent** | Monthly bill | Server cost split by measured usage, paid by Wave/Orange Money link |
-| **Guests** | PR previews | A temporary copy of your app for the reviewer to try. Leaves 24h after the PR closes |
+| **Guests** | PR previews | A temporary copy of your app for the reviewer to try. *As built: removed as soon as the PR closes (the plan said 24 hours later)* |
 | **The tontine** | Turn-based focus | Each cycle, one room's project gets priority reviews and launch-week perks |
 | **Teaming up** | A shared project | Two or more flatmates build one project together; it gets a room, all of them deploy to it |
 | **The exchange ledger** | Reviews given / received | On every profile and house page: who helped whom. Your reputation in the city |
@@ -107,7 +113,7 @@ of them individually. The house profile shows the team project, so the city can 
 | Your app eats all its memory | Only **your** room is killed and restarted. Fridge note. Others never notice |
 | Your app crashes in a loop | Room marked **down** on the floor plan, logs on your room's page |
 | A bad deploy | The old version keeps running; the failed build's logs are shown |
-| A reviewer is 24h late | Fridge note. A second skip pushes their tontine turn back |
+| A reviewer is 24h late | Fridge note. *(The tontine penalty for a second skip is not built.)* A review done late is thanked as "late, but done" |
 | Someone runs a crypto miner or hosts illegal content | Chef (or a house vote) **evicts**: room suspended → data export → room removed |
 | Someone is abusive in a channel or thread | Flatmates can report; the chef can mute or evict; coloc can ban from the city |
 | Unpaid rent | Room **paused**, never deleted. Paying unpauses it |

@@ -1,0 +1,17 @@
+# Keeps editors agreeing on the basics. Most editors read this on their own; VS Code needs the "EditorConfig" extension.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Two trailing spaces mean a line break in Markdown.
+[*.md]
+trim_trailing_whitespace = false
+
+[*.sh]
+indent_size = 2

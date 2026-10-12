@@ -7,21 +7,24 @@ the bottom of the next one, not the milestone.*
 **What scores** (annexe 1): relevance to "an African exchange platform built for devs by devs" 25 · technical quality 30 ·
 UX 20 · innovation 15 · public vote 10. **What gates:** top 3 of the peer vote per country, and every member votes.
 
-## Progress (08 10 2026)
-- **Done:** Phase 0's technical part; week 1's backend and web (database, GitHub login code, multi-house API, city
-  endpoint, city + house pages with placeholder art); and ahead of plan from week 2: the doorbell (knock, thread, vote,
-  move in), the house channel, GitHub webhooks with reviewer rotation and chores, and the exchange ledger.
-  Details: [build-notes.md](build-notes.md), night 2.
-- **09 10, Jib's call:** the walkable lobby starts now instead of Q3 2027. First version in three.js with placeholder
-  shapes: houses, your avatar (keys or click), flatmates around their houses, walk up to a door to go in. The list
-  view stays as the text version.
-- **Waiting on the team:** commits, the GitHub App registration, teammates, `coloc.dev`, the art.
-- **09 10: deploy on merge works against real GitHub** (strict and relaxed houses, results commented on the PR).
-- **09 10 (night 3):** the room page (settings, encrypted secrets, logs, restart, redeploy), PR previews, live presence
-  in the lobby (characters, emotes, lamps), the full-screen lobby with a welcome, loading screen and settings, and
-  an Apple-style rework of the other pages.
-- **Still to build:** GitHub's Deployments panel (needs one more App permission), rent a flat (onboarding for a new
-  chef → install command), `install.sh` on a real VPS, bills, tontine turns.
+## Progress (as of 12 10 2026)
+
+> **This file is the original plan from 02 10. The live list of what's left is [TODO.md](../TODO.md).** Below, the plan's milestones against what exists today.
+> Details of each night: [build-notes.md](build-notes.md).
+
+| Plan | State on 12 10 |
+|---|---|
+| Phase 0: rooms with walls, zero-downtime swaps, isolation demo | Done 02 10. CI (build, tests, licence check) since 09 10. ESLint and Prettier: not done |
+| Week 1 milestone: log in, see the city, open a house, deploy into your room | Done by 09 10 (database, GitHub login, city and house pages) |
+| Week 2 milestone: knock, chat, get voted in, PR → reviewer → preview → merge → live | Done and checked locally by 09 10: the doorbell, house channel, GitHub App, rotation, deploy on merge, PR previews, room page and secrets. **Not done:** `install.sh` on a real server, Datacloud, wildcard DNS, HTTPS, GitHub's Deployments panel |
+| Week 3: exchange ledger, tontine turn, bill split, fridge notes, emotes | Done 10 10: ledger, reviews as rent (500 FCFA each), a fortnightly tontine turn, the usage-based bill, mobile-money operators per country (**paying is a mock**), fridge notes, lobby emotes. **Not done:** team rooms, report and mute, payment links that move money |
+| Week 3: hardening (rate limits, room A can't reach room B re-run) | The isolation demo was run on 02 10 and can be repeated any time (`scripts/isolation-demo.sh`); **HTTP rate limits are not done** ([TODO.md](../TODO.md) M8) |
+| Fri 23: seed the city, a landing page that explains it in 30 seconds | Seeded with nine houses and a month of life; the welcome says what La Coloc is. **Real people in real rooms: not yet** |
+| Sat 24 and Sun 25: demo video, final declarations, submit | Not started |
+| Registration, the 40% code, the Datacloud purchase (Thu 22) | Not started: needs Jib |
+
+**Built that wasn't in the plan:** on 09 10 Jib moved the walkable lobby forward from Q3 2027, and it is now the main screen: a 3D city per city with its own look,
+live presence, a tutorial in a workshop house, a list view, a demo reset and a Rent-a-server flow. The "Later (Q3 2027)" section below is therefore history.
 
 ## Phase 0: team & setup (Fri 02 10 → Sun 04 10)
 - ~~Rooms with walls, zero-downtime deploys, isolation demo, live house page~~: done on 02 10 (see [build-notes.md](build-notes.md)).
@@ -76,7 +79,7 @@ Opens a PR → reviewer assigned → preview → approve → merge → live. 3 r
 **Never cut:** the city map, knocking + the doorbell thread, the house channel, reviews on PRs, the isolation demo.
 They're the exchange platform and the proof it's solid.
 
-## Later (Q3 2027): the walkable lobby
+## Later (Q3 2027): the walkable lobby *(history: built early, from 09 10 2026)*
 Avatars walking through the city and into living rooms, fighting-game-lobby style. Same data as the map, new
 renderer (three.js or PixiJS + Colyseus, all MIT). Mostly art and moderation work. If La Coloc wins, its code belongs
 to Systalink (Art. 8), so this would be a fresh build.
