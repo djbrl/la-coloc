@@ -4,35 +4,36 @@
 // one panel row each.
 import type { FridgeNote } from "../types";
 import ListRow from "./lobby/panel/ListRow.vue";
+import { commonWords as w } from "./words";
 
 defineProps<{ notes: FridgeNote[]; compact?: boolean }>();
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 // A note's tone shows as a coloured dot; the words stay readable.
 const dot = { info: "", warning: "warn", danger: "danger", thanks: "live" } as const;
-const toneWord = { info: "Note", warning: "Heads up", danger: "Needs a look", thanks: "Thanks" } as const;
+
 // A note's row leads with what kind of note it is and the room it's about; the note itself goes under, whole.
-const heading = (n: FridgeNote) => (n.room ? `${toneWord[n.tone]} · room ${n.room}` : toneWord[n.tone]);
+const heading = (n: FridgeNote) => (n.room ? w.noteRoom(w.tone[n.tone], n.room) : w.tone[n.tone]);
 </script>
 
 <template>
   <template v-if="compact">
-    <p v-if="!notes.length" class="muted none">No notes yet. Quiet house.</p>
+    <p v-if="!notes.length" class="muted none">{{ w.noNotes }}</p>
     <ul v-else class="plain notes">
       <ListRow v-for="n in notes" :key="n.id" :title="heading(n)">
         <span class="said">{{ n.text }}</span>
         <template #lead><span class="tone" :class="dot[n.tone]" aria-hidden="true"><span class="dot" :class="dot[n.tone]" /></span></template>
         <template #meta>
-          <span v-if="n.count > 1" :aria-label="`${n.count} times`">×{{ n.count }}</span>
+          <span v-if="n.count > 1" :aria-label="w.times(n.count)">×{{ n.count }}</span>
           <time :datetime="n.at">{{ time(n.at) }}</time>
         </template>
       </ListRow>
     </ul>
   </template>
   <div v-else class="fridge">
-    <h2>The fridge door.</h2>
-    <p class="muted intro">Notes the house leaves on its own: hogging, skipped reviews, thanks.</p>
-    <p v-if="!notes.length" class="muted">No notes yet. Quiet house.</p>
+    <h2>{{ w.fridgeTitle }}</h2>
+    <p class="muted intro">{{ w.fridgeIntro }}</p>
+    <p v-if="!notes.length" class="muted">{{ w.noNotes }}</p>
     <ul v-else class="rows">
       <li v-for="n in notes" :key="n.id">
         <span class="dot" :class="dot[n.tone]" aria-hidden="true" />

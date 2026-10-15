@@ -6,8 +6,10 @@
 import { onBeforeUnmount, ref } from "vue";
 import { tryAgain } from "../core";
 import { signalOff } from "./coreIcons";
+import { commonWords as w } from "./words";
 
-withDefaults(defineProps<{ title?: string; line?: string }>(), { title: "Waiting for the city…", line: "It loads again by itself when the city is back." });
+// Without a title or a line, it says the usual wait (words.ts), in the language chosen now.
+const props = defineProps<{ title?: string; line?: string }>();
 const emit = defineEmits<{ retry: [] }>();
 
 // `retry` is asked only when the core is up (so it's the panel's own problem): while the core is down, the button asks
@@ -29,9 +31,9 @@ onBeforeUnmount(() => clearTimeout(timer));
     <span class="icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="signalOff" /></svg>
     </span>
-    <p class="said">{{ title }}</p>
-    <p class="line">{{ line }}</p>
-    <button type="button" class="chunk primary" :disabled="trying" @click="retry">{{ trying ? "Trying…" : "Try again" }}</button>
+    <p class="said">{{ props.title ?? w.waiting }}</p>
+    <p class="line">{{ props.line ?? w.waitingLine }}</p>
+    <button type="button" class="chunk primary" :disabled="trying" @click="retry">{{ trying ? w.trying : w.tryAgain }}</button>
   </div>
 </template>
 

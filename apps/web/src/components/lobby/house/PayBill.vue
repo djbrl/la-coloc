@@ -7,6 +7,7 @@ import { postJSON } from "../../../session";
 import type { BillLine } from "./exchange";
 import Icon from "./Icon.vue";
 import { fcfa } from "./server";
+import { houseWords as w } from "./words";
 
 // `chef`: the one paying is the chef, who pays the landlord rather than themselves.
 const props = defineProps<{ houseId: string; line: BillLine; operators: string[]; reference: string; chef?: boolean }>();
@@ -49,15 +50,15 @@ async function markPaid() {
   sending.value = false;
   if (res.ok) emit("paid");
   // An API from before the bill answers "Cannot POST …": say it plainly instead.
-  else error.value = res.message.startsWith("Cannot POST") ? "This server can't mark payments yet." : res.message;
+  else error.value = res.message.startsWith("Cannot POST") ? w.cantMark : res.message;
 }
 </script>
 
 <template>
   <section class="pay" aria-labelledby="pay-title">
-    <h3 id="pay-title" ref="heading" tabindex="-1">Pay your {{ fcfa(line.due) }}.</h3>
+    <h3 id="pay-title" ref="heading" tabindex="-1">{{ w.payTitle(fcfa(line.due)) }}</h3>
 
-    <div v-if="operators.length > 1" class="ops" role="radiogroup" aria-label="How you pay">
+    <div v-if="operators.length > 1" class="ops" role="radiogroup" :aria-label="w.howYouPay">
       <button
         v-for="(o, i) in operators"
         :key="o"
@@ -75,24 +76,24 @@ async function markPaid() {
 
     <!-- The amount and the reference sit inside the sentence, each with its copy button. -->
     <p class="how">
-      Send
+      {{ w.send }}
       <span class="value">{{ fcfa(line.due) }}</span>
-      <button type="button" class="copy" :aria-label="copied === 'amount' ? 'Amount copied' : 'Copy the amount'" @click="copy('amount')">
+      <button type="button" class="copy" :aria-label="copied === 'amount' ? w.amountCopied : w.copyAmount" @click="copy('amount')">
         <Icon :name="copied === 'amount' ? 'tick' : 'copy'" :size="15" />
       </button>
-      <template v-if="operator"> with {{ operator }}</template> {{ chef ? "to the house's account" : "to the chef" }}, and write
+      <template v-if="operator">{{ w.with(operator) }}</template> {{ chef ? w.toHouse : w.toChef }}{{ w.andWrite }}
       <span class="value mono">{{ reference }}</span>
-      <button type="button" class="copy" :aria-label="copied === 'reference' ? 'Reference copied' : 'Copy the reference'" @click="copy('reference')">
+      <button type="button" class="copy" :aria-label="copied === 'reference' ? w.referenceCopied : w.copyReference" @click="copy('reference')">
         <Icon :name="copied === 'reference' ? 'tick' : 'copy'" :size="15" />
       </button>
-      in its note.
+      {{ w.inItsNote }}
     </p>
-    <p class="mock"><Icon name="info" :size="16" />No money moves yet: this marks your share as paid for the house.</p>
+    <p class="mock"><Icon name="info" :size="16" />{{ w.mock }}</p>
     <p v-if="error" class="error small" role="alert">{{ error }}</p>
 
     <div class="nav">
-      <button type="button" class="back" @click="emit('back')"><span aria-hidden="true">‹</span> Back</button>
-      <button type="button" class="primary done" :disabled="sending" @click="markPaid"><Icon name="tick" :size="18" />{{ sending ? "Marking…" : "Mark as paid" }}</button>
+      <button type="button" class="back" @click="emit('back')"><span aria-hidden="true">‹</span> {{ w.back }}</button>
+      <button type="button" class="primary done" :disabled="sending" @click="markPaid"><Icon name="tick" :size="18" />{{ sending ? w.marking : w.markPaid }}</button>
     </div>
   </section>
 </template>

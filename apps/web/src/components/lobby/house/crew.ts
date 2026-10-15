@@ -3,6 +3,7 @@
 // are easy to test and read the same way everywhere.
 import type { HouseView, Person, Room, Viewer } from "../../../types";
 import { explain } from "../panel/words";
+import { houseWords } from "./words";
 
 // One place in the crew row under the house's name: someone who lives here, someone knocking, or a free room.
 export type Seat =
@@ -56,13 +57,8 @@ export interface Situation {
   freeRooms: string[];
 }
 
-// The few sentences the foot says when there's no button to press. words.ts has the rest.
-export const footLines = {
-  takeRoom: "Take the room at the top of the list to begin.",
-  waitChef: "The chef is renting the server. Rooms open once it's up.",
-  example: "An example house: look around, but its rooms aren't up for grabs.",
-  full: "Every room is taken for now.",
-} as const;
+// The few sentences the foot says when there's no button to press are `houseWords.foot` (house/words.ts), read
+// each time so they're in the language chosen now. panel/words.ts has the rest.
 
 /** Knocking needs a real house with a free room, and you logged in, not living there, with no knock already open. */
 export function canKnock(s: Situation): boolean {
@@ -74,17 +70,17 @@ export function canKnock(s: Situation): boolean {
 export function footFor(s: Situation): Foot {
   const v = s.viewer;
   if (!v) return { kind: "login" };
-  if (s.tutorial && !v.room) return { kind: "say", text: footLines.takeRoom };
+  if (s.tutorial && !v.room) return { kind: "say", text: houseWords.foot.takeRoom };
   if (v.member) {
     if (v.role === "chef" && s.making) return { kind: "rent", waiting: s.keyMade };
-    if (s.making) return { kind: "say", text: footLines.waitChef };
+    if (s.making) return { kind: "say", text: houseWords.foot.waitChef };
     if (v.room) return { kind: "room", room: v.room };
     return { kind: "say", text: explain.house };
   }
   if (v.application) return { kind: "thread", id: v.application };
   if (canKnock(s)) return s.freeRooms.length === 1 ? { kind: "knock", room: s.freeRooms[0] } : { kind: "pick" };
-  if (s.demo) return { kind: "say", text: footLines.example };
-  return { kind: "say", text: footLines.full };
+  if (s.demo) return { kind: "say", text: houseWords.foot.example };
+  return { kind: "say", text: houseWords.foot.full };
 }
 
 // The one button at the end of a room's row. A row never repeats the foot: when the foot already opens your room or

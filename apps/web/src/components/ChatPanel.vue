@@ -7,6 +7,7 @@ import { useWhenBack } from "../core";
 import { postJSON } from "../session";
 import type { Message } from "../types";
 import Avatar from "./Avatar.vue";
+import { commonWords as w } from "./words";
 
 const props = defineProps<{ messages: Message[]; postUrl: string | null; me: string | null; placeholder?: string }>();
 
@@ -37,7 +38,7 @@ async function send() {
   if (sending.value) return;
   error.value = "";
   if (!draft.value.trim()) {
-    error.value = "Write something first.";
+    error.value = w.writeFirst;
     return;
   }
   if (!props.postUrl) return;
@@ -53,8 +54,8 @@ async function send() {
 
 <template>
   <div class="chat">
-    <div ref="list" class="list" role="log" aria-live="polite" tabindex="0" aria-label="Messages">
-      <p v-if="!messages.length" class="empty muted">No messages yet. Say hello.</p>
+    <div ref="list" class="list" role="log" aria-live="polite" tabindex="0" :aria-label="w.messages">
+      <p v-if="!messages.length" class="empty muted">{{ w.noMessages }}</p>
       <template v-for="m in messages" :key="m.id">
         <p v-if="!m.author" class="system">{{ m.body }}</p>
         <div v-else class="msg" :class="{ mine: m.author.login === me }">
@@ -62,7 +63,7 @@ async function send() {
           <div class="body">
             <p class="meta">
               <template v-if="m.author.login !== me">{{ m.author.name ?? m.author.login }} · </template>
-              <span v-else class="sr-only">You · </span>{{ time(m.at) }}
+              <span v-else class="sr-only">{{ w.you }} · </span>{{ time(m.at) }}
             </p>
             <p class="bubble">{{ m.body }}</p>
           </div>
@@ -72,13 +73,13 @@ async function send() {
     <form v-if="postUrl" class="compose" novalidate @submit.prevent="send">
       <input
         v-model="draft"
-        :placeholder="placeholder ?? 'Message the house'"
-        aria-label="Message"
+        :placeholder="placeholder ?? w.messageHouse"
+        :aria-label="w.message"
         maxlength="2000"
         :aria-invalid="!!error"
         @input="error = ''"
       />
-      <button class="primary" :disabled="sending">Send</button>
+      <button class="primary" :disabled="sending">{{ w.send }}</button>
     </form>
     <p v-if="error" class="error small" role="alert">{{ error }}</p>
   </div>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HouseView, Person, Room, Viewer } from "../../../types";
-import { canKnock, crewOf, footFor, footLines, rowAction, type Situation } from "./crew";
+import { canKnock, crewOf, footFor, rowAction, type Situation } from "./crew";
+import { houseWords } from "./words";
 
 const person = (login: string): Person => ({ login, name: login[0].toUpperCase() + login.slice(1), avatarUrl: null });
 const room = (name: string, occupant: Person | null, extra: Partial<Room> = {}): Room => ({
@@ -59,7 +60,7 @@ describe("the foot's one next step", () => {
     const chef = viewer({ member: true, role: "chef", room: "one" });
     expect(footFor(situation({ viewer: chef, making: true }))).toEqual({ kind: "rent", waiting: false });
     expect(footFor(situation({ viewer: chef, making: true, keyMade: true }))).toEqual({ kind: "rent", waiting: true });
-    expect(footFor(situation({ viewer: viewer({ member: true, role: "flatmate", room: "two" }), making: true }))).toEqual({ kind: "say", text: footLines.waitChef });
+    expect(footFor(situation({ viewer: viewer({ member: true, role: "flatmate", room: "two" }), making: true }))).toEqual({ kind: "say", text: houseWords.foot.waitChef });
   });
 
   it("opens a flatmate's room", () => {
@@ -78,9 +79,9 @@ describe("the foot's one next step", () => {
   });
 
   it("says why there's nothing to press", () => {
-    expect(footFor(situation({ demo: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: footLines.example });
-    expect(footFor(situation())).toEqual({ kind: "say", text: footLines.full });
-    expect(footFor(situation({ tutorial: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: footLines.takeRoom });
+    expect(footFor(situation({ demo: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: houseWords.foot.example });
+    expect(footFor(situation())).toEqual({ kind: "say", text: houseWords.foot.full });
+    expect(footFor(situation({ tutorial: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: houseWords.foot.takeRoom });
   });
 });
 

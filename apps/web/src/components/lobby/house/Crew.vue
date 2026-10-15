@@ -6,6 +6,7 @@
 import Avatar from "../../Avatar.vue";
 import type { Seat } from "./crew";
 import Icon from "./Icon.vue";
+import { houseWords as w } from "./words";
 
 defineProps<{ seats: Seat[] }>();
 const emit = defineEmits<{ pick: [seat: Seat] }>();
@@ -14,16 +15,16 @@ const first = (p: { name: string | null; login: string }) => (p.name ?? p.login)
 
 // What a reader hears for each seat: who, what they are here, and what picking them does.
 function said(s: Seat): string {
-  if (s.kind === "free") return `A free room, ${s.room}. Show it`;
+  if (s.kind === "free") return w.seatFree(s.room);
   const name = s.person.name ?? s.person.login;
-  if (s.kind === "knock") return `${name} is knocking on room ${s.room}. Open their knock`;
-  const who = [name, s.chef ? "the chef" : null, s.you ? "you" : null].filter(Boolean).join(", ");
-  return `${who}. Show their room`;
+  if (s.kind === "knock") return w.seatKnock(name, s.room);
+  const who = [name, s.chef ? w.seatChef : null, s.you ? w.seatYou : null].filter(Boolean).join(", ");
+  return w.seatShow(who);
 }
 </script>
 
 <template>
-  <ul class="crew" aria-label="Who lives here">
+  <ul class="crew" :aria-label="w.crew">
     <li v-for="s in seats" :key="s.key">
       <!-- Someone without a room has nothing to show below: their face is just a face. -->
       <span v-if="s.kind === 'person' && !s.room" class="seat" :class="{ you: s.you }">
@@ -32,7 +33,7 @@ function said(s: Seat): string {
           <span v-if="s.chef" class="badge crown" aria-hidden="true"><Icon name="crown" :size="12" /></span>
         </span>
         <span class="name">{{ first(s.person) }}</span>
-        <span class="sr-only">{{ s.chef ? ", the chef" : "" }}{{ s.you ? ", you" : "" }}</span>
+        <span class="sr-only">{{ s.chef ? `, ${w.seatChef}` : "" }}{{ s.you ? `, ${w.seatYou}` : "" }}</span>
       </span>
       <button
         v-else

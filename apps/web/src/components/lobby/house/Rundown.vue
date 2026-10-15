@@ -5,6 +5,7 @@
 // whatever box around it scrolls (the panel's body, say, or nothing at all), measures it, and draws the ring and
 // the bubble over it, keeping the bubble inside the house view. No library: a few rectangles and some arithmetic.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { houseWords as w } from "./words";
 
 const props = defineProps<{
   // The house's name, for the first sentence.
@@ -23,14 +24,12 @@ const steps = computed((): { part: string; text: string; below?: string }[] => [
   {
     part: "header",
     below: "life",
-    text: props.demo
-      ? `This is ${props.name}, an example house, to show how one looks. A house is a server a few devs share.`
-      : `This is ${props.name}, a house: a server a few devs share. The green dot means its server is running.`,
+    text: props.demo ? w.tour.headerExample(props.name) : w.tour.header(props.name),
   },
-  { part: "crew", text: "The people who live here. Each has a room." },
-  { part: "tabs", text: "The rest of the house, one tab each: the group chat, your chores (reviews you owe), the fridge, the bill." },
-  { part: "rooms", text: "Each row is a room: one person's project (a site, an API, a bot), online at its own address." },
-  { part: "foot", text: props.next ? `Your next step is always here. ${props.next}` : "Your next step is always here." },
+  { part: "crew", text: w.tour.crew },
+  { part: "tabs", text: w.tour.tabs },
+  { part: "rooms", text: w.tour.rooms },
+  { part: "foot", text: props.next ? `${w.tour.foot} ${props.next}` : w.tour.foot },
 ]);
 
 // The ring's 4px offset and its 3px line, then 10px of air before the bubble.
@@ -195,7 +194,7 @@ onBeforeUnmount(() => {
       ref="bubble"
       class="bubble"
       role="dialog"
-      aria-label="What's in this window"
+      :aria-label="w.tour.label"
       :style="{ left: `${spot.left}px`, top: `${spot.top}px`, width: `${spot.width}px` }"
       @keydown="onKey"
       @keyup.stop
@@ -205,7 +204,7 @@ onBeforeUnmount(() => {
         <div class="dots" aria-hidden="true">
           <span v-for="i in shown" :key="i" class="d" :class="{ on: i === step }" />
         </div>
-        <button ref="next" type="button" class="primary go" @click="forward">{{ isLast ? "Got it" : "Next" }}</button>
+        <button ref="next" type="button" class="primary go" @click="forward">{{ isLast ? w.tour.gotIt : w.tour.next }}</button>
       </div>
     </div>
   </div>

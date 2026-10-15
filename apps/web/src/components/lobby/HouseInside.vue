@@ -23,6 +23,7 @@ import RentServer from "./house/RentServer.vue";
 import Rundown from "./house/Rundown.vue";
 import { evenSplit, fcfa, type ServerInfo } from "./house/server";
 import { linkedHouse, markTourSeen, toursSeen } from "./house/tours";
+import { houseWords as w } from "./house/words";
 import ListRow from "./panel/ListRow.vue";
 import Panel from "./panel/Panel.vue";
 import PanelHead from "./panel/PanelHead.vue";
@@ -71,7 +72,7 @@ async function load(id: string, quiet = false) {
   if (mine !== loads) return;
   if (!res?.ok) {
     if (quiet && house.value) return;
-    if (res?.status === 404) error.value = "This house doesn't exist.";
+    if (res?.status === 404) error.value = "missing";
     else if (await wentDown(res)) waiting.value = true;
     else failed.value = true;
     return;
@@ -88,9 +89,10 @@ async function load(id: string, quiet = false) {
 watch(() => props.id, (id) => load(id), { immediate: true });
 // The core came back: the house again, quietly if it's showing.
 useWhenBack(() => load(props.id, !!house.value));
+// Read in the getter, so a change of language says it again too.
 watch(
-  () => house.value?.name,
-  (name) => name && emit("label", `Inside ${name}`),
+  () => (house.value?.name ? w.inside(house.value.name) : ""),
+  (label) => label && emit("label", label),
 );
 onBeforeUnmount(() => {
   stream?.close();
@@ -151,11 +153,11 @@ const reviewsText = computed(() => {
 type TabKey = "rooms" | "channel" | "chores" | "fridge" | "bill";
 const tab = ref<TabKey>("rooms");
 const tabs = computed((): Tab[] => [
-  { key: "rooms", icon: "door", word: "Rooms" },
-  { key: "channel", icon: "chat", word: "Channel" },
-  { key: "chores", icon: "check", word: "Chores", badge: myChores.value.length || undefined, alert: myChores.value.some((c) => c.late) },
-  { key: "fridge", icon: "fridge", word: "Fridge", badge: notes.value.length || undefined },
-  { key: "bill", icon: "bill", word: "Bill" },
+  { key: "rooms", icon: "door", word: w.tabs.rooms },
+  { key: "channel", icon: "chat", word: w.tabs.channel },
+  { key: "chores", icon: "check", word: w.tabs.chores, badge: myChores.value.length || undefined, alert: myChores.value.some((c) => c.late) },
+  { key: "fridge", icon: "fridge", word: w.tabs.fridge, badge: notes.value.length || undefined },
+  { key: "bill", icon: "bill", word: w.tabs.bill },
 ]);
 // A house reloaded as someone else (logging out, say) shows only the rooms.
 watch(member, (is) => {
@@ -181,9 +183,9 @@ async function copyLink() {
 // The review rule, in the words the chef's switch uses. Strict: a merge only goes online once a flatmate approves
 // it (the API's GitHub deploys hold it back otherwise).
 const strict = computed(() => !!house.value?.rules.strictReviews);
-const ruleWord = computed(() => (strict.value ? "Strict" : "Relaxed"));
+const ruleWord = computed(() => (strict.value ? w.strictWord : w.relaxedWord));
 const ruleSentence = computed(() =>
-  strict.value ? "Strict reviews: merges go online once a flatmate approves." : "Relaxed reviews: merges go online without waiting for a review.",
+  strict.value ? w.strictSentence : w.relaxedSentence,
 );
 const savingRules = ref(false);
 const rulesNote = ref<Note | null>(null);
@@ -260,14 +262,14 @@ const footButton = computed(() => {
   const f = foot.value;
   switch (f.kind) {
     case "rent":
-      return f.waiting ? { icon: "key" as const, word: "Waiting for the server" } : { icon: "server" as const, word: "Rent the server" };
+      return f.waiting ? { icon: "key" as const, word: w.waitingForServer } : { icon: "server" as const, word: w.rentServer };
     case "room":
-      return { icon: "door" as const, word: "Open my room" };
+      return { icon: "door" as const, word: w.openMyRoom };
     case "knock":
     case "pick":
-      return { icon: "knock" as const, word: "Knock on a free room" };
+      return { icon: "knock" as const, word: w.knockFree };
     case "thread":
-      return { icon: "thread" as const, word: "See your knock" };
+      return { icon: "thread" as const, word: w.seeKnock };
     default:
       return null;
   }
@@ -291,13 +293,13 @@ async function takeRoom() {
 // the sentence. The state's colour is the dot on the face.
 const ledger = (login: string) => house.value?.ledger.find((l) => l.login === login) ?? { given: 0, received: 0 };
 function rowTitle(room: Room): string {
-  if (!room.occupant) return "A free room";
+  if (!room.occupant) return w.freeRoom;
   return room.project ? `${nameOf(room.occupant)} · ${room.project}` : nameOf(room.occupant);
 }
 function rowSub(room: Room): string {
   const h = house.value!;
-  if (!room.occupant) return `Free, with ${room.limits.memoryMb} MB of memory. ${room.ad ?? "Knock to ask for it."}`;
-  const what = room.projectDescription ?? (room.project ? "No description yet." : "No project yet.");
+  if (!room.occupant) return `${w.freeRow(room.limits.memoryMb)} ${room.ad ?? w.knockToAsk}`;
+  const what = room.projectDescription ?? (room.project ? w.noDescription : w.noProject);
   return `${roomLine(room, h.status, h.demo)} ${what}`;
 }
 const actionOf = (room: Room) => rowAction(room, situation.value, foot.value);
@@ -305,7 +307,7 @@ const actionOf = (room: Room) => rowAction(room, situation.value, foot.value);
 // Chores: how long until a review is due, in a word or two.
 const due = (iso: string) => {
   const hours = Math.round((new Date(iso).getTime() - Date.now()) / 3600_000);
-  return hours < 1 ? "due now" : hours < 24 ? `in ${hours}h` : `in ${Math.round(hours / 24)}d`;
+  return hours < 1 ? w.dueNow : hours < 24 ? w.inHours(hours) : w.inDays(Math.round(hours / 24));
 };
 
 // The bill (flatmates only): the month's total, then one line per flatmate, yours first, each said in two
@@ -319,7 +321,7 @@ function personOf(l: Pick<BillLine, "login" | "name">) {
   return house.value?.members.find((m) => m.login === l.login) ?? { login: l.login, name: l.name, avatarUrl: null };
 }
 const lineState = (l: BillLine) =>
-  l.paid ? { tone: "live" as const, word: "Paid" } : l.due > 0 ? { tone: "warn" as const, word: "To pay" } : { tone: "neutral" as const, word: "Nothing to pay" };
+  l.paid ? { tone: "live" as const, word: w.paid } : l.due > 0 ? { tone: "warn" as const, word: w.toPay } : { tone: "neutral" as const, word: w.nothingToPay };
 
 // Paying your share: the foot offers it on the Bill tab, and the tab's body becomes the pay sheet (PayBill).
 const myDue = computed(() => toPay(bill.value, me.value));
@@ -332,7 +334,7 @@ function paid() {
   // The stream brings the paid line too; marking it here saves a visible lag.
   if (h && b) house.value = { ...h, bill: { ...b, lines: b.lines.map((l) => (l.login === me.value ? { ...l, paid: true } : l)) } };
   paying.value = false;
-  paidSaid.value = "Marked as paid.";
+  paidSaid.value = w.markedPaid;
 }
 const payButton = computed(() => member.value && shownTab.value === "bill" && !!myDue.value && !paying.value);
 
@@ -340,16 +342,16 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
 const tourLast = computed((): string | null => {
   switch (foot.value.kind) {
     case "login":
-      return "Log in first, then you can knock.";
+      return w.tour.login;
     case "rent":
-      return "Yours: rent the server.";
+      return w.tour.rent;
     case "room":
-      return "Yours: open your room to put your project online.";
+      return w.tour.room;
     case "knock":
     case "pick":
-      return "Yours: knock on a free room to ask for it.";
+      return w.tour.knock;
     case "thread":
-      return "Yours: see how your knock is going.";
+      return w.tour.thread;
     default:
       return null;
   }
@@ -395,28 +397,28 @@ function rundownEnded() {
 <template>
   <div class="inside-house">
     <div v-if="error" class="empty">
-      <h2>{{ error }}</h2>
-      <p class="muted">Maybe it moved, or the link is off by a letter.</p>
+      <h2>{{ w.missing }}</h2>
+      <p class="muted">{{ w.missingWhy }}</p>
     </div>
 
     <!-- The core isn't answering: a calm wait, not a dead end. It loads by itself when the core is back. -->
     <Waiting v-else-if="waiting" @retry="load(id)" />
-    <Waiting v-else-if="failed" title="That didn't load." line="Something went wrong on our side. Try again in a moment." @retry="load(id)" />
+    <Waiting v-else-if="failed" :title="w.failed" :line="w.failedWhy" @retry="load(id)" />
 
     <Panel
       v-else-if="house"
       :explain="explainLine"
       :body-id="member ? `tabpanel-${shownTab}` : undefined"
       :body-labelledby="member ? `tab-${shownTab}` : undefined"
-      :body-label="member ? undefined : 'Rooms'"
+      :body-label="member ? undefined : w.rooms"
     >
       <template #head>
         <div class="head">
           <div data-tour="header">
             <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
               <template v-if="chef && (making || !house.demo)" #aside>
-                <button v-if="making" type="button" class="chip" :aria-label="copied ? 'Invite link copied' : 'Copy an invite link'" @click="copyLink">
-                  <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? "Copied" : "Invite" }}</span>
+                <button v-if="making" type="button" class="chip" :aria-label="copied ? w.inviteCopied : w.copyInvite" @click="copyLink">
+                  <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? w.copied : w.invite }}</span>
                 </button>
                 <!-- A toggle: pressed is strict. Its name stays "Strict reviews" so the pressed state reads true. -->
                 <button
@@ -424,8 +426,8 @@ function rundownEnded() {
                   type="button"
                   class="chip"
                   :aria-pressed="strict"
-                  aria-label="Strict reviews"
-                  :title="`${ruleSentence} Press to switch.`"
+                  :aria-label="w.strictName"
+                  :title="w.pressToSwitch(ruleSentence)"
                   :disabled="savingRules"
                   @click="switchRules"
                 >
@@ -452,18 +454,18 @@ function rundownEnded() {
 
       <template v-if="member" #tabs>
         <div data-tour="tabs">
-          <PanelTabs v-model="tab" :tabs="tabs" label="Parts of the house" />
+          <PanelTabs v-model="tab" :tabs="tabs" :label="w.parts" />
         </div>
       </template>
 
       <!-- Rooms: one row each, with who lives there, what they build, and whether it's online. -->
       <ul v-if="shownTab === 'rooms'" ref="list" class="plain lines" data-tour="rooms">
-        <ListRow v-if="takeRow" title="A room for you" open>
+        <ListRow v-if="takeRow" :title="w.roomForYou" open>
           <span v-if="takeError" class="sub warn" role="alert">{{ takeError }}</span>
           <span v-else class="sub">{{ explain.room(256, 0.5) }}</span>
           <template #lead><span class="door"><Icon name="plus" :size="20" /></span></template>
           <template #end>
-            <button type="button" class="primary" :disabled="taking" @click="takeRoom"><Icon name="door" :size="16" />Take it</button>
+            <button type="button" class="primary" :disabled="taking" @click="takeRoom"><Icon name="door" :size="16" />{{ w.takeIt }}</button>
           </template>
         </ListRow>
         <ListRow
@@ -488,8 +490,8 @@ function rundownEnded() {
             <!-- Reviews given, only once there are some: a row of zeros says nothing. -->
             <span
               class="given"
-              :title="`${ledger(room.occupant.login).given} reviews given, ${ledger(room.occupant.login).received} received`"
-              :aria-label="`${ledger(room.occupant.login).given} reviews given`"
+              :title="w.given(ledger(room.occupant.login).given, ledger(room.occupant.login).received)"
+              :aria-label="w.givenShort(ledger(room.occupant.login).given)"
             >
               <Icon name="check" :size="14" />{{ ledger(room.occupant.login).given }}
             </span>
@@ -499,10 +501,10 @@ function rundownEnded() {
               v-if="actionOf(room) === 'open'"
               type="button"
               class="primary"
-              :aria-label="`Open your room, ${room.name}`"
+              :aria-label="w.openName(room.name)"
               @click="emit('open', { kind: 'room', houseId: house.id, room: room.name })"
             >
-              <Icon name="door" :size="16" />Open
+              <Icon name="door" :size="16" />{{ w.open }}
             </button>
             <a
               v-else-if="actionOf(room) === 'visit' && room.url"
@@ -510,12 +512,12 @@ function rundownEnded() {
               :href="room.url"
               target="_blank"
               rel="noopener"
-              :aria-label="`Visit ${room.occupant ? nameOf(room.occupant) : room.name}'s project (opens in a new tab)`"
+              :aria-label="w.visitName(room.occupant ? nameOf(room.occupant) : room.name)"
             >
-              Visit<Icon name="external" :size="16" />
+              {{ w.visit }}<Icon name="external" :size="16" />
             </a>
-            <button v-else-if="actionOf(room) === 'knock'" type="button" class="knock" :aria-label="`Knock on room ${room.name}`" @click="knocking = room">
-              <Icon name="knock" :size="16" />Knock
+            <button v-else-if="actionOf(room) === 'knock'" type="button" class="knock" :aria-label="w.knockName(room.name)" @click="knocking = room">
+              <Icon name="knock" :size="16" />{{ w.knock }}
             </button>
           </template>
         </ListRow>
@@ -526,22 +528,22 @@ function rundownEnded() {
       </div>
 
       <template v-else-if="shownTab === 'chores'">
-        <p v-if="!house.chores?.length" class="muted none">No reviews waiting.</p>
+        <p v-if="!house.chores?.length" class="muted none">{{ w.noChores }}</p>
         <ul v-else class="plain lines">
           <ListRow
             v-for="c in house.chores"
             :key="c.id"
             :title="c.prTitle"
-            :sub="`${c.repo}#${c.prNumber}${c.author ? ` · by ${nameOf(c.author)}` : ''} · for ${nameOf(c.assignee)}`"
+            :sub="`${c.repo}#${c.prNumber}${c.author ? w.choreBy(nameOf(c.author)) : ''}${w.choreFor(nameOf(c.assignee))}`"
             :mine="c.assignee.login === viewer?.login"
           >
             <template #lead><Avatar :person="c.assignee" :size="40" decorative /></template>
             <template #meta>
-              <span class="when" :class="{ late: c.late }">{{ c.late ? "Late" : due(c.dueAt) }}</span>
+              <span class="when" :class="{ late: c.late }">{{ c.late ? w.late : due(c.dueAt) }}</span>
             </template>
             <template #end>
-              <a :href="c.prUrl" class="button" target="_blank" rel="noopener" :aria-label="`Review ${c.repo}#${c.prNumber} on GitHub (opens in a new tab)`">
-                Review<Icon name="external" :size="16" />
+              <a :href="c.prUrl" class="button" target="_blank" rel="noopener" :aria-label="w.reviewName(`${c.repo}#${c.prNumber}`)">
+                {{ w.review }}<Icon name="external" :size="16" />
               </a>
             </template>
           </ListRow>
@@ -578,19 +580,19 @@ function rundownEnded() {
         </template>
         <!-- An API without the bill yet: the month's cost split evenly, as an estimate. -->
         <template v-else-if="house.monthlyCostFcfa && share">
-          <p class="cost">{{ fcfa(house.monthlyCostFcfa) }} a month, about {{ fcfa(share) }} a room.</p>
+          <p class="cost">{{ w.perMonth(fcfa(house.monthlyCostFcfa), fcfa(share)) }}</p>
           <ul class="plain lines">
             <ListRow
               v-for="r in lived"
               :key="r.name"
-              :title="viewer?.room === r.name ? `Your share is about ${fcfa(share)}.` : `${nameOf(r.occupant!).split(' ')[0]}'s share is about ${fcfa(share)}.`"
+              :title="viewer?.room === r.name ? w.yourShare(fcfa(share)) : w.theirShare(nameOf(r.occupant!).split(' ')[0], fcfa(share))"
               :mine="viewer?.room === r.name"
             >
               <template #lead><Avatar :person="r.occupant!" :size="40" decorative /></template>
             </ListRow>
           </ul>
         </template>
-        <p v-else class="muted none">{{ chef ? "No server yet. Rent it with the button below." : "No server yet. The chef rents it." }}</p>
+        <p v-else class="muted none">{{ chef ? w.noServerChef : w.noServer }}</p>
         <p class="sr-only" aria-live="polite">{{ paidSaid }}</p>
       </template>
 
@@ -598,9 +600,9 @@ function rundownEnded() {
         <div class="foot" data-tour="foot">
           <!-- On the Bill tab, with your share still to pay, paying it is the next step. While the pay sheet is up,
                its own button is the one to press, so the foot stays empty. -->
-          <button v-if="payButton" type="button" class="primary go" @click="paying = true"><Icon name="bill" :size="20" />Pay your {{ fcfa(myDue!.due) }}</button>
+          <button v-if="payButton" type="button" class="primary go" @click="paying = true"><Icon name="bill" :size="20" />{{ w.pay(fcfa(myDue!.due)) }}</button>
           <template v-else-if="!paying || shownTab !== 'bill'">
-            <RouterLink v-if="foot.kind === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />Log in to knock</RouterLink>
+            <RouterLink v-if="foot.kind === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />{{ w.logInToKnock }}</RouterLink>
             <button v-else-if="footButton" type="button" class="primary go" @click="go"><Icon :name="footButton.icon" :size="20" />{{ footButton.word }}</button>
             <p v-else-if="foot.kind === 'say'" class="say">{{ foot.text }}</p>
           </template>
@@ -608,7 +610,7 @@ function rundownEnded() {
       </template>
     </Panel>
 
-    <p v-else class="muted empty" aria-live="polite">Opening the door…</p>
+    <p v-else class="muted empty" aria-live="polite">{{ w.opening }}</p>
 
     <template v-if="house">
       <!-- The parts it points at carry data-tour="header | crew | tabs | rooms | foot". -->
