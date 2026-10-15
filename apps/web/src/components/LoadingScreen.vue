@@ -51,8 +51,8 @@ onBeforeUnmount(() => clearInterval(timer));
   padding: 16px;
   background:
     radial-gradient(90% 60% at 50% 110%, color-mix(in srgb, var(--accent-fill) 22%, transparent) 0%, transparent 70%),
-    linear-gradient(var(--hairline) 1px, transparent 1px) 0 0 / 32px 32px,
-    linear-gradient(90deg, var(--hairline) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(color-mix(in srgb, var(--text) 5%, transparent) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, color-mix(in srgb, var(--text) 5%, transparent) 1px, transparent 1px) 0 0 / 32px 32px,
     var(--bg);
   color: var(--text);
   transition: opacity 0.6s var(--ease);
