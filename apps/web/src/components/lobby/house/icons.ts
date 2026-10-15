@@ -9,12 +9,18 @@ export const icons = {
   rules: "M12 3l8 3v6c0 4.5-3.5 8-8 9-4.5-1-8-4.5-8-9V6z M9 12l2 2 4-4",
   // A door with a handle: your room, or a free one.
   door: "M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17 M3 21h18 M14.5 12h.01",
-  // A ticked box: chores.
+  // A ticked box: reviews to do.
   check: "M9 11l3 3 8-8 M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9",
   // A speech bubble: the channel.
   chat: "M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z",
   // A fridge, seen from the front.
   fridge: "M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M5 10h14 M9 6v2 M9 13v3",
+  // A push pin: the house's news, the notes it pins on its board.
+  pin: "M9 3h6 M10 3v6l-4 5h12l-4-5V3 M12 14v7",
+  // A heart: a thank-you, good news.
+  heart: "M12 20s-8-4.6-8-10.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15.4 12 20 12 20z",
+  // A stop sign with a bang: something broke (an app crashed, a build failed).
+  alert: "M8.2 3h7.6L21 8.2v7.6L15.8 21H8.2L3 15.8V8.2z M12 8v5 M12 16.5h.01",
   // A receipt with a torn edge: the bill.
   bill: "M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z M9 8h6 M9 12h6",
   // A knuckle on a door: knock.

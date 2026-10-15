@@ -15,7 +15,10 @@ export const houseWords = defineWords(
     inside: (name: string) => `Inside ${name}`,
     rooms: "Rooms",
     parts: "Parts of the house",
-    tabs: { rooms: "Rooms", channel: "Channel", chores: "Chores", fridge: "Fridge", bill: "Bill" },
+    // The tabs' keys are the API's names (chores, fridge); the words are what a newcomer understands.
+    tabs: { rooms: "Rooms", channel: "Channel", chores: "Reviews", fridge: "News", bill: "Bill" },
+    // The Rooms tab's sentence: how many rooms, and how many are free.
+    roomsLine: (rooms: number, free: number) => (free ? `${plural(rooms, "room", "rooms")}, ${free} free.` : `${plural(rooms, "room", "rooms")}, all taken.`),
 
     // The chef's chips in the head.
     inviteCopied: "Invite link copied",
@@ -46,14 +49,27 @@ export const houseWords = defineWords(
     knock: "Knock",
     knockName: (room: string) => `Knock on room ${room}`,
 
-    // Chores: reviews a flatmate owes.
-    noChores: "No reviews waiting.",
-    choreBy: (author: string) => ` · by ${author}`,
-    choreFor: (assignee: string) => ` · for ${assignee}`,
-    late: "Late",
-    dueNow: "due now",
-    inHours: (hours: number) => `in ${hours}h`,
-    inDays: (days: number) => `in ${days}d`,
+    // The Reviews tab (chores.ts): the pull requests the house gave someone to review.
+    reviews: {
+      late: (late: number) =>
+        late === 1
+          ? "1 of your reviews is late. Do it today: late reviews add to your rent."
+          : `${late} of your reviews are late. Do them today: late reviews add to your rent.`,
+      todo: (count: number, credit: string) => `You have ${plural(count, "review", "reviews")} to do. Each one takes ${credit} off your rent.`,
+      othersOnly: (count: number) => `Nothing for you to review. Your flatmates have ${plural(count, "review", "reviews")} to do.`,
+      none: "Nothing for you to review. When a flatmate opens a pull request, the house picks a reviewer and it shows up here.",
+      yours: (author: string, title: string) => `Review ${author}'s “${title}”`,
+      yoursNoAuthor: (title: string) => `Review “${title}”`,
+      theirs: (reviewer: string, author: string, title: string) => `${reviewer} reviews ${author}'s “${title}”`,
+      theirsYourPr: (reviewer: string, title: string) => `${reviewer} reviews your “${title}”`,
+      theirsNoAuthor: (reviewer: string, title: string) => `${reviewer} reviews “${title}”`,
+      dueLate: "Late",
+      dueNow: "Due now",
+      dueHours: (hours: number) => `Due in ${hours}h`,
+      dueDays: (days: number) => `Due in ${plural(days, "day", "days")}`,
+      showOthers: (count: number) => `See the house's other reviews (${count})`,
+      hideOthers: "Hide the house's other reviews",
+    },
     review: "Review",
     reviewName: (pr: string) => `Review ${pr} on GitHub (opens in a new tab)`,
 
@@ -98,7 +114,7 @@ export const houseWords = defineWords(
       headerExample: (name: string) => `This is ${name}, an example house, to show how one looks. A house is a server a few devs share.`,
       header: (name: string) => `This is ${name}, a house: a server a few devs share. The green dot means its server is running.`,
       crew: "The people who live here. Each has a room.",
-      tabs: "The rest of the house, one tab each: the group chat, your chores (reviews you owe), the fridge, the bill.",
+      tabs: "The rest of the house, one tab each: the group chat, the reviews you owe, the house's news, the bill.",
       rooms: "Each row is a room: one person's project (a site, an API, a bot), online at its own address.",
       foot: "Your next step is always here.",
       next: "Next",
@@ -157,7 +173,9 @@ export const houseWords = defineWords(
     inside: (name) => `Dans ${name}`,
     rooms: "Chambres",
     parts: "Les pièces de la maison",
-    tabs: { rooms: "Chambres", channel: "Salon", chores: "Corvées", fridge: "Frigo", bill: "Facture" },
+    tabs: { rooms: "Chambres", channel: "Salon", chores: "Revues", fridge: "Nouvelles", bill: "Facture" },
+    roomsLine: (rooms, free) =>
+      free ? `${pluriel(rooms, "chambre", "chambres")}, ${pluriel(free, "libre", "libres")}.` : `${pluriel(rooms, "chambre", "chambres")}, toutes prises.`,
 
     inviteCopied: "Lien d'invitation copié",
     copyInvite: "Copier un lien d'invitation",
@@ -186,13 +204,26 @@ export const houseWords = defineWords(
     knock: "Frapper",
     knockName: (room) => `Frapper à la chambre ${room}`,
 
-    noChores: "Aucune revue en attente.",
-    choreBy: (author) => ` · de ${author}`,
-    choreFor: (assignee) => ` · pour ${assignee}`,
-    late: "En retard",
-    dueNow: "maintenant",
-    inHours: (hours) => `dans ${hours} h`,
-    inDays: (days) => `dans ${days} j`,
+    reviews: {
+      late: (late) =>
+        late === 1
+          ? "1 de vos revues est en retard. Faites-la aujourd'hui : les revues en retard alourdissent votre loyer."
+          : `${late} de vos revues sont en retard. Faites-les aujourd'hui : les revues en retard alourdissent votre loyer.`,
+      todo: (count, credit) => `Vous avez ${pluriel(count, "revue", "revues")} à faire. Chacune retire ${credit} de votre loyer.`,
+      othersOnly: (count) => `Rien à relire pour vous. Vos colocs ont ${pluriel(count, "revue", "revues")} à faire.`,
+      none: "Rien à relire pour vous. Quand un coloc ouvre une pull request, la maison choisit qui la relit, et elle s'affiche ici.",
+      yours: (author, title) => `Relire « ${title} » de ${author}`,
+      yoursNoAuthor: (title) => `Relire « ${title} »`,
+      theirs: (reviewer, author, title) => `${reviewer} relit « ${title} » de ${author}`,
+      theirsYourPr: (reviewer, title) => `${reviewer} relit votre « ${title} »`,
+      theirsNoAuthor: (reviewer, title) => `${reviewer} relit « ${title} »`,
+      dueLate: "En retard",
+      dueNow: "À rendre maintenant",
+      dueHours: (hours) => `À rendre dans ${hours} h`,
+      dueDays: (days) => `À rendre dans ${pluriel(days, "jour", "jours")}`,
+      showOthers: (count) => `Voir les autres revues de la maison (${count})`,
+      hideOthers: "Masquer les autres revues de la maison",
+    },
     review: "Relire",
     reviewName: (pr) => `Relire ${pr} sur GitHub (s'ouvre dans un nouvel onglet)`,
 
@@ -232,7 +263,7 @@ export const houseWords = defineWords(
       headerExample: (name) => `Voici ${name}, une maison d'exemple, pour montrer à quoi ça ressemble. Une maison, c'est un serveur que quelques devs partagent.`,
       header: (name) => `Voici ${name}, une maison : un serveur que quelques devs partagent. Le point vert veut dire que son serveur tourne.`,
       crew: "Les gens qui habitent ici. Chacun a sa chambre.",
-      tabs: "Le reste de la maison, un onglet chacun : la discussion de groupe, vos corvées (les revues que vous devez), le frigo, la facture.",
+      tabs: "Le reste de la maison, un onglet chacun : la discussion de groupe, les revues que vous devez, les nouvelles de la maison, la facture.",
       rooms: "Chaque ligne est une chambre : le projet d'une personne (un site, une API, un bot), en ligne à sa propre adresse.",
       foot: "Votre prochaine étape est toujours ici.",
       next: "Suivant",

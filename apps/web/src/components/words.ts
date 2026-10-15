@@ -247,13 +247,15 @@ export const commonWords = defineWords(
     messageHouse: "Message the house",
     message: "Message",
     send: "Send",
-    // FridgeDoor.vue: what kind of note, then the note itself (written by the server, in English for now).
-    tone: { info: "Note", warning: "Heads up", danger: "Needs a look", thanks: "Thanks" },
-    noteRoom: (tone: string, room: string) => `${tone} · room ${room}`,
+    // FridgeDoor.vue and lobby/house/notes.ts: the house's news, the notes it pins by itself (the API calls the board
+    // "the fridge"). A note's text is written by the server, in English for now. `tone` is its icon's hidden name.
+    tone: { info: "Note", warning: "Heads up", danger: "Something broke", thanks: "Good news" },
     times: (n: number) => `${n} times`,
-    noNotes: "No notes yet. Quiet house.",
-    fridgeTitle: "The fridge door.",
-    fridgeIntro: "Notes the house leaves on its own: hogging, skipped reviews, thanks.",
+    yesterday: "Yesterday",
+    notesWeek: (n: number) => `${plural(n, "note", "notes")} this week.`,
+    notesOlder: "Nothing new this week.",
+    noNotes: "Nothing pinned yet. The house pins a note when something happens: a project goes online, an app crashes, a review is late.",
+    newsTitle: "The house's news.",
   },
   {
     waiting: "En attente de la ville…",
@@ -267,11 +269,13 @@ export const commonWords = defineWords(
     messageHouse: "Écrire à la maison",
     message: "Message",
     send: "Envoyer",
-    tone: { info: "Note", warning: "Attention", danger: "À regarder", thanks: "Merci" },
-    noteRoom: (tone, room) => `${tone} · chambre ${room}`,
+    tone: { info: "Info", warning: "Attention", danger: "Panne", thanks: "Bonne nouvelle" },
     times: (n) => `${n} fois`,
-    noNotes: "Aucun mot pour l'instant. Maison tranquille.",
-    fridgeTitle: "La porte du frigo.",
-    fridgeIntro: "Les mots que la maison laisse toute seule : abus de ressources, revues manquées, remerciements.",
+    yesterday: "Hier",
+    notesWeek: (n) => `${pluriel(n, "mot", "mots")} cette semaine.`,
+    notesOlder: "Rien de nouveau cette semaine.",
+    noNotes:
+      "Rien d'épinglé pour l'instant. La maison épingle un mot quand il se passe quelque chose : un projet passe en ligne, une app plante, une revue prend du retard.",
+    newsTitle: "Les nouvelles de la maison.",
   },
 );

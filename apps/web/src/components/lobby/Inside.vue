@@ -16,7 +16,15 @@ const props = defineProps<{
   rundown?: boolean;
   // The tutorial's coach is up, with its own main action: a room's page then keeps its own buttons quieter.
   coached?: boolean;
+  // For the house the panel opened on (`start`), handed to its HouseInside: the tab to show (a quest pointing at a
+  // part of the house), and `quiet` to keep its first-visit rundown from starting by itself. A house opened on top
+  // later (from a link) gets neither, so a quest's ask never leaks into another house.
+  tab?: "rooms" | "channel" | "chores" | "fridge" | "bill";
+  quiet?: boolean;
 }>();
+
+// Whether the page on top is the one the panel opened on.
+const atStart = computed(() => topKey.value === placeKey(props.start));
 const emit = defineEmits<{
   change: [top: Place | null];
   close: [];
@@ -189,6 +197,8 @@ function trapTab(e: KeyboardEvent) {
           :key="topKey"
           :id="top.id"
           :rundown="!!rundown && !rundownSeen"
+          :tab="atStart ? tab : undefined"
+          :quiet="atStart && quiet"
           @open="go"
           @label="(l) => (label = l)"
           @rundown-done="rundownEnded"

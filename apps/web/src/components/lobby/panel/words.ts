@@ -20,8 +20,13 @@ export const explain = defineWords(
     knockYours: "The flatmates read your note and vote. A majority lets you in.",
     knockTheirs: "Read their note and what they've built, then vote. A majority lets them in.",
     channel: "The house's group chat.",
-    chores: "Pull requests a flatmate asked you to review.",
-    fridge: "Notes the server pins when something needs a look.",
+    // The Reviews tab (the API's "chores") and the News tab (the API's "fridge"), told behind the panel's "?"
+    // (Explain.vue): what it is and why it matters, in at most three short lines.
+    chores: (credit: string) =>
+      `Your flatmates review your code; you review theirs. When someone opens a pull request on GitHub, the house picks the next reviewer in turn. Each review you do takes ${credit} off your rent.`,
+    fridge: "The house's notice board. It pins a note by itself when something happens in a room, so nobody has to watch the server.",
+    // The round "?" button that shows those lines.
+    whatIsThis: "What is this?",
     bill: "What the server costs a month, split by use. Each review you do takes some off your share.",
     code: "Where the code comes from, and how it starts.",
     secrets: "Passwords and API keys your app reads. Hidden once saved.",
@@ -43,8 +48,10 @@ export const explain = defineWords(
     knockYours: "Les colocs lisent votre mot et votent. La majorité vous fait entrer.",
     knockTheirs: "Lisez son mot et regardez ce qu'on y a construit, puis votez. La majorité décide.",
     channel: "La discussion de groupe de la maison.",
-    chores: "Les pull requests qu'un coloc vous a demandé de relire.",
-    fridge: "Les mots que le serveur épingle quand quelque chose mérite un coup d'œil.",
+    chores: (credit) =>
+      `Vos colocs relisent votre code, vous relisez le leur. Quand quelqu'un ouvre une pull request sur GitHub, la maison choisit le prochain relecteur, à tour de rôle. Chaque revue que vous faites retire ${credit} de votre loyer.`,
+    fridge: "Le tableau d'affichage de la maison. Elle y épingle un mot toute seule quand il se passe quelque chose dans une chambre : personne n'a besoin de surveiller le serveur.",
+    whatIsThis: "C'est quoi ?",
     bill: "Le coût du serveur par mois, partagé selon l'usage. Chaque revue allège votre part.",
     code: "D'où vient le code, et comment il démarre.",
     secrets: "Les mots de passe et clés d'API que lit votre app. Masqués une fois enregistrés.",

@@ -14,10 +14,12 @@ import FridgeDoor from "../FridgeDoor.vue";
 import KnockSteps from "../KnockSteps.vue";
 import UiNote, { loud, type Note } from "../UiNote.vue";
 import Waiting from "../Waiting.vue";
+import { dueOf, dueWords, reviewSummary, reviewTitle, splitReviews } from "./house/chores";
 import { crewOf, footFor, rowAction, type Seat, type Situation } from "./house/crew";
 import Crew from "./house/Crew.vue";
 import { billHead, type BillLine, lineWords, linesYoursFirst, reviewsLine, ruleLine, tontineLine, toPay } from "./house/exchange";
 import Icon from "./house/Icon.vue";
+import { notesSummary } from "./house/notes";
 import PayBill from "./house/PayBill.vue";
 import RentServer from "./house/RentServer.vue";
 import Rundown from "./house/Rundown.vue";
@@ -32,10 +34,19 @@ import StatusDot from "./panel/StatusDot.vue";
 import { explain, houseLine, houseState, roomLine, roomState } from "./panel/words";
 import type { Place } from "./place";
 
+// The house's parts, one tab each. The keys are the API's names: "chores" shows as Reviews, "fridge" as News.
+type TabKey = "rooms" | "channel" | "chores" | "fridge" | "bill";
+
 const props = defineProps<{
   id: string;
   // The tutorial asks for the window's rundown (Rundown.vue). It also stands in for the first-time tour.
   rundown?: boolean;
+  // Open on this tab (flatmates only), and switch to it again whenever it changes: a quest can point at a part of
+  // the house ("look at your reviews") without the player hunting for the tab.
+  tab?: TabKey;
+  // Keep the first-visit rundown from starting by itself, when something else (a quest) is already guiding the
+  // player. The rundown still runs when `rundown` asks for it.
+  quiet?: boolean;
 }>();
 // `view`: the house as it arrives (first fetch, then each push on its stream), for a page that shows more of it.
 const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: []; view: [house: HouseView | null] }>();
@@ -122,7 +133,9 @@ const foot = computed(() => footFor(situation.value));
 const seats = computed(() => (house.value ? crewOf(house.value, viewer.value?.login ?? null) : []));
 
 const nameOf = (p: { name: string | null; login: string }) => p.name ?? p.login;
-const myChores = computed(() => house.value?.chores?.filter((c) => c.assignee.login === viewer.value?.login) ?? []);
+// The house's open reviews (the API's chores), yours apart from the others', most urgent first (chores.ts).
+const reviews = computed(() => splitReviews(house.value?.chores, viewer.value?.login ?? null));
+const myChores = computed(() => reviews.value.mine);
 const notes = computed(() => house.value?.notes ?? []);
 
 // The head's one line, after the state's dot: where the house is and its state in words ("Dakar. Its server is
@@ -150,21 +163,57 @@ const reviewsText = computed(() => {
 });
 
 // The tabs: flatmates only. A visitor sees the rooms and nothing to switch between.
-type TabKey = "rooms" | "channel" | "chores" | "fridge" | "bill";
 const tab = ref<TabKey>("rooms");
 const tabs = computed((): Tab[] => [
   { key: "rooms", icon: "door", word: w.tabs.rooms },
   { key: "channel", icon: "chat", word: w.tabs.channel },
   { key: "chores", icon: "check", word: w.tabs.chores, badge: myChores.value.length || undefined, alert: myChores.value.some((c) => c.late) },
-  { key: "fridge", icon: "fridge", word: w.tabs.fridge, badge: notes.value.length || undefined },
+  { key: "fridge", icon: "pin", word: w.tabs.fridge, badge: notes.value.length || undefined },
   { key: "bill", icon: "bill", word: w.tabs.bill },
 ]);
 // A house reloaded as someone else (logging out, say) shows only the rooms.
 watch(member, (is) => {
   if (!is) tab.value = "rooms";
 });
+// A tab asked for from outside (a quest): taken as soon as the viewer is known to be a flatmate, and again each
+// time the ask changes. The player can still move to another tab afterwards.
+watch(
+  [() => props.tab, member],
+  ([asked, is]) => {
+    if (asked && is) tab.value = asked;
+  },
+  { immediate: true },
+);
 const shownTab = computed((): TabKey => (member.value ? tab.value : "rooms"));
-const explainLine = computed(() => explain[shownTab.value]);
+
+// Each tab opens on one plain sentence about the viewer's situation, with the longer "what is this, why it
+// matters" behind the "?" (Panel shows them through Explain.vue). The chat needs no more than its one line.
+const credit = computed(() => fcfa(house.value?.bill?.reviewCredit ?? 500));
+const intro = computed((): { summary: string | null; explain: string | null } => {
+  const h = house.value;
+  if (!h) return { summary: null, explain: null };
+  switch (shownTab.value) {
+    case "rooms":
+      // In the workshop, a room is waiting for you at the top of the list: "all taken" would say the opposite.
+      if (takeRow.value) return { summary: null, explain: explain.rooms };
+      return { summary: w.roomsLine(h.rooms.length, h.rooms.filter((r) => !r.occupant).length), explain: explain.rooms };
+    case "channel":
+      return { summary: explain.channel, explain: null };
+    case "chores":
+      return { summary: reviewSummary(reviews.value, credit.value), explain: explain.chores(credit.value) };
+    case "fridge":
+      return { summary: notesSummary(notes.value), explain: explain.fridge };
+    case "bill": {
+      // The bill's first sentences are its summary; with no bill and no cost yet, the plain line says what it is.
+      const said = bill.value ? billHead(bill.value) : h.monthlyCostFcfa && share.value ? w.perMonth(fcfa(h.monthlyCostFcfa), fcfa(share.value)) : null;
+      return { summary: said, explain: explain.bill };
+    }
+  }
+});
+
+// The house's other reviews wait behind a button when you have some of your own; with none of yours, they show.
+const othersOpen = ref(false);
+const othersShown = computed(() => !reviews.value.mine.length || othersOpen.value);
 
 // The chef of a house being made can invite people from the head. In any state, the chef also sets the review rule
 // there; everyone reads it in the sentence under the faces.
@@ -304,12 +353,6 @@ function rowSub(room: Room): string {
 }
 const actionOf = (room: Room) => rowAction(room, situation.value, foot.value);
 
-// Chores: how long until a review is due, in a word or two.
-const due = (iso: string) => {
-  const hours = Math.round((new Date(iso).getTime() - Date.now()) / 3600_000);
-  return hours < 1 ? w.dueNow : hours < 24 ? w.inHours(hours) : w.inDays(Math.round(hours / 24));
-};
-
 // The bill (flatmates only): the month's total, then one line per flatmate, yours first, each said in two
 // sentences: what their reviews took off, and what they owe. An API without the bill yet gives the even split.
 const bill = computed(() => house.value?.bill ?? null);
@@ -379,7 +422,8 @@ watch(
 watch(
   () => !!house.value,
   (loaded) => {
-    if (!loaded || rundownOn.value || tutorialAsked || toursSeen().includes("house")) return;
+    // `quiet`: something else is guiding the player right now, so the first-visit rundown waits for another visit.
+    if (!loaded || props.quiet || rundownOn.value || tutorialAsked || toursSeen().includes("house")) return;
     if (props.id === linkedHouse || location.pathname.startsWith("/houses/")) return;
     startRundown();
   },
@@ -407,7 +451,8 @@ function rundownEnded() {
 
     <Panel
       v-else-if="house"
-      :explain="explainLine"
+      :summary="intro.summary"
+      :explain="intro.explain"
       :body-id="member ? `tabpanel-${shownTab}` : undefined"
       :body-labelledby="member ? `tab-${shownTab}` : undefined"
       :body-label="member ? undefined : w.rooms"
@@ -527,19 +572,18 @@ function rundownEnded() {
         <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="viewer.login" />
       </div>
 
+      <!-- Reviews (the API's chores): yours first, each a sentence with when it's due and a link to the pull request
+           on GitHub. The rest of the house's reviews wait behind a quiet button, unless you have none of your own.
+           The summary sentence above the list (Panel) already says what to do, or that there's nothing. -->
       <template v-else-if="shownTab === 'chores'">
-        <p v-if="!house.chores?.length" class="muted none">{{ w.noChores }}</p>
-        <ul v-else class="plain lines">
-          <ListRow
-            v-for="c in house.chores"
-            :key="c.id"
-            :title="c.prTitle"
-            :sub="`${c.repo}#${c.prNumber}${c.author ? w.choreBy(nameOf(c.author)) : ''}${w.choreFor(nameOf(c.assignee))}`"
-            :mine="c.assignee.login === viewer?.login"
-          >
-            <template #lead><Avatar :person="c.assignee" :size="40" decorative /></template>
-            <template #meta>
-              <span class="when" :class="{ late: c.late }">{{ c.late ? w.late : due(c.dueAt) }}</span>
+        <ul v-if="reviews.mine.length" class="plain lines">
+          <ListRow v-for="c in reviews.mine" :key="c.id" :title="reviewTitle(c, me)" mine>
+            <span class="sub">
+              <span class="when" :class="{ late: c.late }">{{ dueWords(dueOf(c)) }}</span> · {{ c.repo }}#{{ c.prNumber }}
+            </span>
+            <template #lead>
+              <Avatar v-if="c.author" :person="c.author" :size="40" decorative />
+              <span v-else class="door"><Icon name="check" :size="20" /></span>
             </template>
             <template #end>
               <a :href="c.prUrl" class="button" target="_blank" rel="noopener" :aria-label="w.reviewName(`${c.repo}#${c.prNumber}`)">
@@ -548,8 +592,27 @@ function rundownEnded() {
             </template>
           </ListRow>
         </ul>
+        <button
+          v-if="reviews.mine.length && reviews.others.length"
+          type="button"
+          class="others-toggle"
+          :aria-expanded="othersOpen"
+          aria-controls="house-other-reviews"
+          @click="othersOpen = !othersOpen"
+        >
+          <Icon name="next" :size="16" class="chev" />{{ othersOpen ? w.reviews.hideOthers : w.reviews.showOthers(reviews.others.length) }}
+        </button>
+        <ul v-if="reviews.others.length" v-show="othersShown" id="house-other-reviews" class="plain lines">
+          <ListRow v-for="c in reviews.others" :key="c.id" :title="reviewTitle(c, me)">
+            <span class="sub">
+              <span class="when" :class="{ late: c.late }">{{ dueWords(dueOf(c)) }}</span> · {{ c.repo }}#{{ c.prNumber }}
+            </span>
+            <template #lead><Avatar :person="c.assignee" :size="40" decorative /></template>
+          </ListRow>
+        </ul>
       </template>
 
+      <!-- News (the API's fridge): the notes the house pinned, one row each. -->
       <FridgeDoor v-else-if="shownTab === 'fridge'" compact :notes="notes" />
 
       <template v-else-if="shownTab === 'bill'">
@@ -563,9 +626,9 @@ function rundownEnded() {
           @paid="paid"
           @back="paying = false"
         />
-        <!-- The month's bill: the total, then a line per flatmate, yours first, in two sentences each. -->
+        <!-- The month's bill: a line per flatmate, yours first, in two sentences each. The total is the tab's
+             summary sentence, above (Panel). -->
         <template v-else-if="bill">
-          <p class="cost">{{ billHead(bill) }}</p>
           <ul class="plain lines">
             <ListRow v-for="l in billLines" :key="l.login" :title="lineWords(l, me).reviews" :mine="l.login === me">
               <span class="sub">{{ lineWords(l, me).owes }}</span>
@@ -578,9 +641,8 @@ function rundownEnded() {
             </ListRow>
           </ul>
         </template>
-        <!-- An API without the bill yet: the month's cost split evenly, as an estimate. -->
+        <!-- An API without the bill yet: the month's cost split evenly, as an estimate (its total is the summary). -->
         <template v-else-if="house.monthlyCostFcfa && share">
-          <p class="cost">{{ w.perMonth(fcfa(house.monthlyCostFcfa), fcfa(share)) }}</p>
           <ul class="plain lines">
             <ListRow
               v-for="r in lived"
@@ -668,9 +730,33 @@ function rundownEnded() {
 .face .on-face { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; box-shadow: 0 0 0 2px var(--surface); animation: none; }
 /* Buttons and links in a row carry an icon beside their word. */
 .lines :deep(.end button), .lines :deep(.end a.button) { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
-.when { color: var(--warn); font-weight: 600; }
+/* When a review is due: in the row's muted words, and in the danger colour once it's late (it costs rent then). */
+.when { font-weight: 600; }
 .when.late { color: var(--danger); }
-.cost { font-size: 15px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+/* "See the house's other reviews (2)": a quiet, full-width key under your own rows, with a chevron that turns down
+   when they're shown. Quieter than a row, so your own reviews stay what the tab is about. */
+.others-toggle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+.others-toggle:hover:not(:disabled) { background: var(--tile); color: var(--text); }
+.chev { transition: transform var(--dur) var(--ease); }
+.others-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .chev { transition: none; }
+}
 
 /* The channel fills the body, so the chat can keep its box and scroll its messages inside it. */
 .chat-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }

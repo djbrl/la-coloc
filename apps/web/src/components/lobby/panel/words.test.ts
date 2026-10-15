@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bare, houseLine, houseState, roomLine, roomState } from "./words";
+import { bare, explain, houseLine, houseState, roomLine, roomState } from "./words";
 
 describe("the panels' words", () => {
   const awa = { login: "awa", name: "Awa", avatarUrl: null };
@@ -31,6 +31,13 @@ describe("the panels' words", () => {
     expect(houseLine({ ...h, agentOnline: false })).toBe("Dakar. Its server is down for now.");
     expect(houseLine({ ...h, demo: true })).toBe("Dakar. An example house, to show how one looks.");
     expect(houseLine({ ...h, status: "making" })).toBe("Dakar. Still being set up.");
+  });
+
+  it("explains the Reviews tab with what a review takes off the rent, in plain words", () => {
+    expect(explain.chores("500 FCFA")).toMatch(/^Your flatmates review your code; you review theirs\./);
+    expect(explain.chores("500 FCFA")).toMatch(/Each review you do takes 500 FCFA off your rent\.$/);
+    // The house's notice board, never "the fridge": a newcomer has no reason to know the joke.
+    expect(explain.fridge).not.toMatch(/fridge/i);
   });
 
   it("writes an address the way people read it", () => {
