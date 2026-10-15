@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BACKOFF, createCore, DOWN_WRITE, HEARTBEAT_MS, isApiUrl, isOutageError, isOutageResponse, TOAST_MS } from "./core";
+import { BACKOFF, createCore, downWords, HEARTBEAT_MS, isApiUrl, isOutageError, isOutageResponse, TOAST_MS } from "./core";
 
 describe("isOutageResponse: what counts as the core being down", () => {
   it("counts a proxy's 502, 503 and 504, whatever they say", () => {
@@ -415,7 +415,7 @@ describe("the fetch wrapper", () => {
     expect(mod.core.state).toBe("down");
   });
 
-  it("DOWN_WRITE is the words the page promised", () => {
-    expect(DOWN_WRITE).toBe("The city isn't answering, so that wasn't sent. Nothing was lost; try again in a moment.");
+  it("downWords.write is the words the page promised", () => {
+    expect(downWords.write).toBe("The city isn't answering, so that wasn't sent. Nothing was lost; try again in a moment.");
   });
 });

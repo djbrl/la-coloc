@@ -5,7 +5,7 @@
 // and takes you to it, instead of letting you write a note only to hear it on the last step.
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { coreDown, DOWN_READ, DOWN_WRITE, wentDown } from "../core";
+import { coreDown, downWords, wentDown } from "../core";
 import { loadMe, me } from "../session";
 import type { Room } from "../types";
 import { knockOn } from "./lobby/cards";
@@ -71,7 +71,7 @@ async function send() {
   const data = res && !down ? await res.json().catch(() => ({})) : {};
   sending.value = false;
   if (down) {
-    error.value = DOWN_WRITE;
+    error.value = downWords.write;
     return;
   }
   if (res?.status === 409 && /already knocked/i.test(String(data.message ?? ""))) {
@@ -106,7 +106,7 @@ async function seeKnock() {
     id = knockOn(me.value?.knocks, props.houseId)?.id ?? "";
   }
   if (id) open(id);
-  else if (coreDown()) error.value = w.tryAgain(DOWN_READ);
+  else if (coreDown()) error.value = w.tryAgain(downWords.read);
   else error.value = w.notFound;
 }
 

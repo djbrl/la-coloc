@@ -12,13 +12,28 @@
 // body from Vite's dev proxy (checked: text/plain, nothing in it), 502/503/504 from a production reverse proxy, and
 // a 503 `{ code: "core_down" }` from the API itself when only its database is gone.
 import { getCurrentInstance, onBeforeUnmount, reactive } from "vue";
+import { defineWords } from "./i18n";
 
 // ---- What counts as an outage ----
 
-/** The answer to the page's own words: a write that wasn't sent because the core isn't answering. */
-export const DOWN_WRITE = "The city isn't answering, so that wasn't sent. Nothing was lost; try again in a moment.";
-/** The same, for something that was only being read. */
-export const DOWN_READ = "The city isn't answering right now.";
+// The page's own words when a request fails, in English and French (i18n.ts): `write` for a write that wasn't sent
+// because the core isn't answering, `read` for something that was only being read, and the two plain failures
+// session.ts gives when the API answered without a message of its own.
+export const downWords = defineWords(
+  "down",
+  {
+    write: "The city isn't answering, so that wasn't sent. Nothing was lost; try again in a moment.",
+    read: "The city isn't answering right now.",
+    failed: "That didn't work.",
+    logInFirst: "Log in first.",
+  },
+  {
+    write: "La ville ne répond pas, donc rien n'est parti. Rien n'est perdu : réessayez dans un instant.",
+    read: "La ville ne répond pas pour l'instant.",
+    failed: "Ça n'a pas marché.",
+    logInFirst: "Connectez-vous d'abord.",
+  },
+);
 
 /** The health probes, in seconds: the first try comes this long after the fall; the last gap repeats. */
 export const BACKOFF = [2, 4, 8, 15, 30];

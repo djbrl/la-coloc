@@ -1,6 +1,6 @@
 // Who's logged in, shared by every page. The session itself is an HttpOnly cookie the page never sees.
 import { ref } from "vue";
-import { DOWN_WRITE, isOutageError, isOutageResponse } from "./core";
+import { downWords, isOutageError, isOutageResponse } from "./core";
 import type { Me, ServerConfig } from "./types";
 
 export const me = ref<Me | null>(null);
@@ -65,10 +65,10 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (err) {
-    return isOutageError(err) ? { ok: false, message: DOWN_WRITE, down: true } : { ok: false, message: "That didn't work." };
+    return isOutageError(err) ? { ok: false, message: downWords.write, down: true } : { ok: false, message: downWords.failed };
   }
   const text = await res.text().catch(() => "");
-  if (!res.ok && isOutageResponse(res.status, text)) return { ok: false, message: DOWN_WRITE, down: true };
+  if (!res.ok && isOutageResponse(res.status, text)) return { ok: false, message: downWords.write, down: true };
   let data: { message?: unknown } = {};
   try {
     data = text.trim() ? JSON.parse(text) : {};
@@ -76,7 +76,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     // Not JSON: the status below says what it can.
   }
   if (res.ok) return { ok: true, data: data as T };
-  const message = typeof data?.message === "string" ? data.message : res.status === 401 ? "Log in first." : "That didn't work.";
+  const message = typeof data?.message === "string" ? data.message : res.status === 401 ? downWords.logInFirst : downWords.failed;
   return { ok: false, message };
 }
 

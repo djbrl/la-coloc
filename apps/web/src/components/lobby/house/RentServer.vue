@@ -3,7 +3,7 @@
 // to call home. A native <dialog>, like the knock and rent-a-plot steps: it traps focus and closes on Escape.
 // It reads like a game's menu: a short bold title per step, big tiles to pick from, chunky buttons with one main one.
 import { onMounted, ref, watch } from "vue";
-import { DOWN_WRITE, wentDown } from "../../../core";
+import { downWords, wentDown } from "../../../core";
 import { joinWords, rentWords as w } from "../../joinWords";
 import UiSteps from "../../UiSteps.vue";
 import { explain } from "../panel/words";
@@ -46,7 +46,7 @@ async function rent(renew: boolean) {
   // The core isn't answering: nothing was made, and the size you picked is still picked.
   const down = await wentDown(res);
   if (down) {
-    error.value = DOWN_WRITE;
+    error.value = downWords.write;
     return;
   }
   const data = await res?.json().catch(() => ({}));

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DOWN_WRITE } from "./core";
+import { downWords } from "./core";
 import { loadMe, logout, me, meLoaded, postJSON, sendJSON } from "./session";
 import type { Me } from "./types";
 
@@ -29,12 +29,12 @@ describe("writes when the core is down", () => {
     it(`postJSON says so in plain words, and doesn't throw: ${name}`, async () => {
       arrange();
       const res = await postJSON("/api/houses/x/messages", { body: "hello" });
-      expect(res).toEqual({ ok: false, message: DOWN_WRITE, down: true });
+      expect(res).toEqual({ ok: false, message: downWords.write, down: true });
     });
     it(`sendJSON says the same: ${name}`, async () => {
       arrange();
       const res = await sendJSON("PATCH", "/api/me", { avatar: "a" });
-      expect(res).toEqual({ ok: false, message: DOWN_WRITE, down: true });
+      expect(res).toEqual({ ok: false, message: downWords.write, down: true });
     });
   }
 
