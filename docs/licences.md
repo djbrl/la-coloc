@@ -29,6 +29,7 @@ project to be free of third-party rights (Art. 6).
 | City Kit (Roads) by Kenney: traffic light, sign, construction cone, barrier, fence | `apps/web/public/lobby/street/` | https://kenney.nl/assets/city-kit-roads | CC0 1.0 (public domain) |
 | Bricolage Grotesque (weights 700, 800; Latin and Latin Extended) by the Bricolage Grotesque Project Authors (Atelier Triay) | `apps/web/src/fonts.css`, from `node_modules/@fontsource/bricolage-grotesque` | https://github.com/ateliertriay/bricolage, via https://fontsource.org | SIL OFL 1.1 |
 | JetBrains Mono (weight 500; Latin and Latin Extended) by JetBrains | `apps/web/src/fonts.css`, from `node_modules/@fontsource/jetbrains-mono` | https://github.com/JetBrains/JetBrainsMono, via https://fontsource.org | SIL OFL 1.1 |
+| The login page's background: a screenshot of our own 3D city (Lomé, by day), 1600×1000 WebP, about 100 KB | `apps/web/public/login-city.webp` | Rendered by the lobby from the Kenney kits above and our code, 15 10 2026 | Ours (made from CC0 assets) |
 
 All are development placeholders until Jib's art. Downloaded 09 and 10 10 2026; licence files kept next to the models.
 Ground textures (grass, asphalt, paving, sidewalk) are drawn in code (`apps/web/src/lobby/textures.ts`).

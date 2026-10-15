@@ -1,5 +1,7 @@
 <script setup lang="ts">
-// Logging in: GitHub first. On a dev server, a quiet second step lets you be anyone.
+// Logging in: GitHub first. On a dev server, a quiet second step lets you be anyone. Behind it, the city itself: a
+// still of the 3D lobby by day (public/login-city.webp, ~100 KB, rendered from our own scene), under a flat card
+// that keeps the words readable in either theme. A still rather than a live render: a phone pays nothing for it.
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import UiSteps from "../components/UiSteps.vue";
@@ -49,7 +51,7 @@ async function devLogin(as: string) {
 
 <template>
   <section class="band login">
-    <div class="wrap narrow">
+    <div class="wrap narrow card">
       <Waiting v-if="waiting && !config" @retry="loadConfig" />
       <p v-else-if="!config" class="muted center" aria-live="polite">{{ w.oneMoment }}</p>
       <UiSteps v-else :step="step" :total="config.dev ? 2 : 1" center>
@@ -95,7 +97,13 @@ async function devLogin(as: string) {
 </template>
 
 <style scoped>
-.login { padding-top: 12vh; min-height: calc(100vh - 48px); }
+.login {
+  padding: 12vh 16px 32px;
+  min-height: calc(100vh - 48px);
+  background: var(--bg) url("/login-city.webp") center / cover no-repeat;
+}
+/* A flat floating card over the city, like the lobby's: no glass, no blur. */
+.card { max-width: 560px; padding: 40px 32px 32px; border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow); }
 .center { text-align: center; }
 .step { display: grid; gap: 20px; justify-items: center; text-align: center; width: 100%; }
 .lede { max-width: 520px; }
@@ -106,5 +114,7 @@ async function devLogin(as: string) {
 .row input { flex: 1; min-width: 0; }
 @media (max-width: 420px) {
   .row { flex-direction: column; }
+  .login { padding-top: 8vh; }
+  .card { padding: 28px 20px 24px; }
 }
 </style>
