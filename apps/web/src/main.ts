@@ -6,6 +6,7 @@ import CityPage from "./pages/CityPage.vue";
 import HousePage from "./pages/HousePage.vue";
 import LoginPage from "./pages/LoginPage.vue";
 import RoomPage from "./pages/RoomPage.vue";
+import { listWords } from "./components/list/words";
 import { installCoreFetch, onRecovered } from "./core";
 // The language (English or French) is chosen before anything draws, and <html lang> follows it (i18n.ts).
 import "./i18n";
@@ -35,11 +36,11 @@ router.afterEach(async (to, from) => {
   if (to.path === from.path && from.matched.length) return;
   const title = (where: string) => (document.title = `${where} · La Coloc`);
   if (to.path === "/") document.title = "La Coloc";
-  else if (to.path === "/login") title("Log in");
-  else if (to.path.startsWith("/applications/")) title("A knock");
+  else if (to.path === "/login") title(listWords.titles.login);
+  else if (to.path.startsWith("/applications/")) title(listWords.titles.knock);
   else if (to.path.startsWith("/houses/")) {
     const { id, room } = to.params as { id?: string; room?: string };
-    title(room ?? "A house");
+    title(room ?? listWords.titles.house);
     const res = await fetch(`/api/houses/${encodeURIComponent(id ?? "")}`).catch(() => null);
     const house: { name: string; city: string } | null = res?.ok ? await res.json() : null;
     // Only if we're still there: a quick click elsewhere wins.

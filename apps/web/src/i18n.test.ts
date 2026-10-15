@@ -8,10 +8,13 @@ import { TIP_TEXT } from "./components/lobby/tutorial/tips";
 import { goingWord } from "./components/lobby/tutorial/tutorial";
 import { tutorialWords } from "./components/lobby/tutorial/words";
 import { cardWords, hudWords } from "./components/lobby/words";
+import { joinWords, rentWords } from "./components/joinWords";
+import { listWords, loginWords } from "./components/list/words";
+import { roomWords } from "./components/room/words";
 import { defineWords, dictionaries, langFrom, language, nbsp, startingLang, type Words } from "./i18n";
 
 // Every dictionary the site has. Importing the modules above registers them; a new one belongs in this list.
-const AREAS = ["explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common", "cards", "hud"];
+const AREAS = ["explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common", "cards", "hud", "join", "rent", "list", "login", "room"];
 
 // Every path to a leaf ("tour.next", "room.live"), with what's there.
 function leaves(words: object, path = ""): Map<string, unknown> {
@@ -76,7 +79,7 @@ describe("the dictionaries", () => {
     expect(nbsp("Revues strictes : un merge ? Oui !")).toBe("Revues strictes\u00a0: un merge\u00a0? Oui\u00a0!");
     expect(nbsp("« Bonjour »")).toBe("«\u00a0Bonjour\u00a0»");
     for (const { name, fr } of dictionaries)
-      for (const [path, value] of leaves(fr)) if (typeof value === "string") expect(value, `${name}.${path}`).not.toMatch(/ [:;!?»]|« /);
+      for (const [path, value] of leaves(fr)) if (typeof value === "string") expect(value, `${name}.${path}`).not.toMatch(/ [:;!?»%]|« /);
     language.lang = "fr";
     expect(houseWords.owes("Awa", false, "1 000 FCFA")).toBe("Awa doit 1 000 FCFA.");
     expect(lobbyWords.cityLine("Dakar", "7 projets en ligne.")).toBe("Dakar\u00a0: 7 projets en ligne.");
@@ -122,6 +125,7 @@ describe("reading words", () => {
     expect(lobbyWords.online(2)).toBe("2 projets en ligne");
     expect(cardWords.rooms(4, 1)).toBe("4 chambres, 1 libre");
     expect(hudWords.loadingTips).toHaveLength(6);
+    for (const words of [joinWords, rentWords, listWords, loginWords, roomWords]) expect(Object.keys(words).length).toBeGreaterThan(0);
   });
 
   it("says the bill and the tontine in French, with French dates", () => {

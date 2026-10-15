@@ -6,9 +6,10 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watchE
 import LoadingScreen from "../components/LoadingScreen.vue";
 import Waiting from "../components/Waiting.vue";
 import Choice, { type Option } from "../components/list/Choice.vue";
-import { cityTotals, keeps, plural, type Show, yoursFirst } from "../components/list/city";
+import { cityTotals, keeps, type Show, yoursFirst } from "../components/list/city";
 import CityRow from "../components/list/CityRow.vue";
 import ListCard from "../components/list/ListCard.vue";
+import { listWords as w } from "../components/list/words";
 import { core, useWhenBack, wentDown } from "../core";
 import { me, meLoaded } from "../session";
 import { settings } from "../settings";
@@ -29,7 +30,7 @@ let stream: Stream | null = null;
 async function loadCity() {
   const res = await fetch("/api/city").catch(() => null);
   if (!res?.ok) {
-    if (!houses.value && !(await wentDown(res))) error.value = "The city can't be reached right now. Try again in a moment.";
+    if (!houses.value && !(await wentDown(res))) error.value = w.cantReach;
     return;
   }
   error.value = "";
@@ -52,11 +53,12 @@ watchEffect(() => {
 });
 const lobbyHouses = computed(() => houses.value ?? []);
 
-const options: Option[] = [
-  { key: "all", icon: "house", word: "All" },
-  { key: "free", icon: "door", word: "Free room" },
-  { key: "making", icon: "server", word: "Setting up" },
-];
+// A computed, so the words follow a change of language.
+const options = computed<Option[]>(() => [
+  { key: "all", icon: "house", word: w.show.all },
+  { key: "free", icon: "door", word: w.show.free },
+  { key: "making", icon: "server", word: w.show.making },
+]);
 
 const mine = computed(() => me.value?.houses.map((h) => h.id) ?? []);
 const totals = computed(() => cityTotals(houses.value ?? []));
@@ -65,9 +67,9 @@ const filtered = computed(() => show.value !== "all" || !!search.value.trim());
 // The line under the controls: what the list holds. It's polite live text, so a search or a filter is heard.
 const listLine = computed(() => {
   if (!houses.value) return "";
-  if (!shown.value.length) return "No house matches that.";
-  if (filtered.value) return `${shown.value.length} of ${plural(totals.value.houses, "house", "houses")}.`;
-  return "Every house in every city. Go into one to see its rooms and its people.";
+  if (!shown.value.length) return w.noMatch;
+  if (filtered.value) return w.someOf(shown.value.length, totals.value.houses);
+  return w.everyHouse;
 });
 </script>
 
@@ -75,9 +77,9 @@ const listLine = computed(() => {
   <div v-if="error" class="list">
     <ListCard>
       <div class="card">
-        <h1 class="name">The city</h1>
+        <h1 class="name">{{ w.city }}</h1>
         <p class="line" role="alert">{{ error }}</p>
-        <button type="button" class="primary again" @click="loadCity">Try again</button>
+        <button type="button" class="primary again" @click="loadCity">{{ w.tryAgain }}</button>
       </div>
     </ListCard>
   </div>
@@ -90,25 +92,25 @@ const listLine = computed(() => {
     <ListCard>
       <div class="card">
         <header class="head">
-          <h1 class="name">The city</h1>
+          <h1 class="name">{{ w.city }}</h1>
           <p class="line">
             <template v-if="houses">
-              {{ plural(totals.houses, "house", "houses") }} · {{ plural(totals.free, "free room", "free rooms") }} · {{ totals.making }} setting up
+              {{ w.houses(totals.houses) }} · {{ w.freeRooms(totals.free) }} · {{ w.settingUp(totals.making) }}
             </template>
-            <template v-else-if="core.state !== 'down'">Opening the city…</template>
+            <template v-else-if="core.state !== 'down'">{{ w.opening }}</template>
           </p>
         </header>
 
         <Waiting v-if="!houses && core.state === 'down'" @retry="loadCity" />
 
-        <div class="controls" role="search" aria-label="Find a house">
-          <input v-model="search" type="search" placeholder="Search houses, cities, projects, people" aria-label="Search the city" />
-          <Choice v-model="show" :options="options" label="Which houses" />
+        <div class="controls" role="search" :aria-label="w.findHouse">
+          <input v-model="search" type="search" :placeholder="w.searchPlaceholder" :aria-label="w.searchLabel" />
+          <Choice v-model="show" :options="options" :label="w.whichHouses" />
         </div>
 
         <p class="explain" aria-live="polite">{{ listLine }}</p>
 
-        <ul v-if="shown.length" class="plain lines" aria-label="Houses">
+        <ul v-if="shown.length" class="plain lines" :aria-label="w.housesLabel">
           <CityRow v-for="h in shown" :key="h.id" :house="h" :mine="mine.includes(h.id)" />
         </ul>
       </div>

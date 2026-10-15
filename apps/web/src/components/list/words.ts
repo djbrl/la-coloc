@@ -1,0 +1,190 @@
+// The list view's own words, in English and French (see i18n.ts): the city page and its rows (CityPage.vue,
+// CityRow.vue, city.ts), a house's page and the cards under its panel (HousePage.vue, HouseMore.vue, house.ts), and
+// the tab titles the router sets (main.ts). The login page has its own small dictionary below. The things themselves
+// (a house, a room, a knock) are explained in lobby/panel/words.ts; these are the sentences only these pages say.
+// The French says "vous", like the rest of the site, and keeps names (houses, rooms, projects, people) as they are.
+import { defineWords, plural, pluriel } from "../../i18n";
+
+export const listWords = defineWords(
+  "list",
+  {
+    // CityPage.vue
+    city: "The city",
+    cantReach: "The city can't be reached right now. Try again in a moment.",
+    tryAgain: "Try again",
+    opening: "Opening the city…",
+    show: { all: "All", free: "Free room", making: "Setting up" },
+    houses: (n: number) => plural(n, "house", "houses"),
+    freeRooms: (n: number) => plural(n, "free room", "free rooms"),
+    settingUp: (n: number) => `${n} setting up`,
+    findHouse: "Find a house",
+    searchPlaceholder: "Search houses, cities, projects, people",
+    searchLabel: "Search the city",
+    whichHouses: "Which houses",
+    housesLabel: "Houses",
+    noMatch: "No house matches that.",
+    someOf: (shown: number, total: number) => `${shown} of ${plural(total, "house", "houses")}.`,
+    everyHouse: "Every house in every city. Go into one to see its rooms and its people.",
+
+    // city.ts: a row's words.
+    rooms: (n: number) => plural(n, "room", "rooms"),
+    signedUp: (rooms: string, n: number) => `${rooms}, ${n} signed up`,
+    someFree: (rooms: string, n: number) => `${rooms}, ${n} free`,
+    allTaken: (rooms: string) => `${rooms}, all taken`,
+    exampleRooms: (line: string) => `An example house: ${line}`,
+    exampleHouse: "An example house, to show how one looks.",
+    whatHouse: "A server a few devs rent together.",
+
+    // CityRow.vue
+    livingHere: (names: string) => `Living here: ${names}.`,
+    goInto: (house: string, mine: boolean) => `Go into ${house}${mine ? ", your house" : ""}`,
+    goIn: "Go in",
+
+    // HousePage.vue
+    backToCity: "Back to the city",
+    cityLink: "City",
+    aHouse: "A house",
+
+    // HouseMore.vue
+    atTheDoor: "At the door",
+    door: "Someone asked for a free room. Read their note, then vote.",
+    knockTitle: (name: string, room: string) => `${name} · room ${room}`,
+    knockedAt: (when: string) => `Knocked ${when}`,
+    votesSoFar: (tally: string) => `${tally} votes so far`,
+    answerName: (name: string) => `Answer ${name}'s knock`,
+    answer: "Answer",
+    atWork: "At work",
+    work: "What each project is using of its room right now.",
+    buildsTitle: "Builds",
+    builds: "Every time a room was built, newest first.",
+    nothingBuilt: "Nothing built yet. Each room's builds land here.",
+    aboutTitle: "About the house",
+    about: "Who runs it, where its projects live, and what it costs.",
+
+    // house.ts
+    address: "Each room's project gets its own address under it.",
+    flatmatesOnly: "The channel, chores, fridge, bill and builds open to the people who live here.",
+    isChef: (name: string) => `${name} is the chef`,
+    rent: (amount: string) => `About ${amount} a room, a month`,
+    reviews: (n: number) => `${plural(n, "review", "reviews")} between flatmates`,
+    reviewsWhy: "Every pull request gets a flatmate, in turn.",
+    restForFlatmates: "The rest is for flatmates",
+    workMeasured: (state: string, mb: number, memoryMb: number, cpu: string) => `${state} Using ${mb} of its ${memoryMb} MB and ${cpu}.`,
+    workUnmeasured: (state: string, memoryMb: number, share: string) => `${state} It has ${memoryMb} MB of memory and ${share}. Nothing measured yet.`,
+    almostNoCpu: "almost no CPU",
+    cpuPercent: (pct: number) => `${pct}% of a CPU`,
+    tally: (yes: number, needed: number) => `${yes} of ${needed} yes`,
+    roomName: (name: string) => `Room ${name}`,
+
+    // main.ts: the tab's title.
+    titles: { login: "Log in", knock: "A knock", house: "A house" },
+  },
+  {
+    city: "La ville",
+    cantReach: "Impossible de joindre la ville pour l'instant. Réessayez dans un moment.",
+    tryAgain: "Réessayer",
+    opening: "Ouverture de la ville…",
+    show: { all: "Toutes", free: "Chambre libre", making: "En préparation" },
+    houses: (n) => pluriel(n, "maison", "maisons"),
+    freeRooms: (n) => pluriel(n, "chambre libre", "chambres libres"),
+    settingUp: (n) => `${n} en préparation`,
+    findHouse: "Trouver une maison",
+    searchPlaceholder: "Maisons, villes, projets, gens",
+    searchLabel: "Chercher dans la ville",
+    whichHouses: "Quelles maisons",
+    housesLabel: "Maisons",
+    noMatch: "Aucune maison ne correspond.",
+    someOf: (shown, total) => `${shown} sur ${pluriel(total, "maison", "maisons")}.`,
+    everyHouse: "Toutes les maisons de toutes les villes. Entrez dans une pour voir ses chambres et ses colocs.",
+
+    rooms: (n) => pluriel(n, "chambre", "chambres"),
+    signedUp: (rooms, n) => `${rooms}, ${pluriel(n, "inscrit", "inscrits")}`,
+    someFree: (rooms, n) => `${rooms}, ${pluriel(n, "libre", "libres")}`,
+    allTaken: (rooms) => `${rooms}, toutes prises`,
+    exampleRooms: (line) => `Une maison d'exemple : ${line}`,
+    exampleHouse: "Une maison d'exemple, pour montrer à quoi ça ressemble.",
+    whatHouse: "Un serveur que quelques devs louent ensemble.",
+
+    livingHere: (names) => `Y habitent : ${names}.`,
+    goInto: (house, mine) => `Entrer dans ${house}${mine ? ", votre maison" : ""}`,
+    goIn: "Entrer",
+
+    backToCity: "Retour à la ville",
+    cityLink: "Ville",
+    aHouse: "Une maison",
+
+    atTheDoor: "À la porte",
+    door: "Quelqu'un demande une chambre libre. Lisez son mot, puis votez.",
+    knockTitle: (name, room) => `${name} · chambre ${room}`,
+    knockedAt: (when) => `A frappé le ${when}`,
+    votesSoFar: (tally) => `${tally} pour l'instant`,
+    answerName: (name) => `Répondre à la demande de ${name}`,
+    answer: "Répondre",
+    atWork: "Au travail",
+    work: "Ce que chaque projet utilise de sa chambre en ce moment.",
+    buildsTitle: "Constructions",
+    builds: "Chaque construction d'une chambre, la plus récente en premier.",
+    nothingBuilt: "Rien de construit pour l'instant. Les constructions de chaque chambre arrivent ici.",
+    aboutTitle: "À propos de la maison",
+    about: "Qui la tient, où vivent ses projets, et ce qu'elle coûte.",
+
+    address: "Le projet de chaque chambre a sa propre adresse en dessous.",
+    flatmatesOnly: "La discussion, les corvées, le frigo, la facture et les constructions sont réservés à ceux qui habitent ici.",
+    isChef: (name) => `${name} est le chef`,
+    rent: (amount) => `Environ ${amount} par chambre et par mois`,
+    reviews: (n) => `${pluriel(n, "revue", "revues")} entre colocs`,
+    reviewsWhy: "Chaque pull request est relue par un coloc, à tour de rôle.",
+    restForFlatmates: "Le reste est pour les colocs",
+    workMeasured: (state, mb, memoryMb, cpu) => `${state} Utilise ${mb} de ses ${memoryMb} Mo et ${cpu}.`,
+    workUnmeasured: (state, memoryMb, share) => `${state} Elle a ${memoryMb} Mo de mémoire et ${share}. Rien de mesuré pour l'instant.`,
+    almostNoCpu: "presque pas de CPU",
+    cpuPercent: (pct) => `${pct} % d'un CPU`,
+    tally: (yes, needed) => `${yes} oui sur ${needed}`,
+    roomName: (name) => `Chambre ${name}`,
+
+    titles: { login: "Connexion", knock: "Une demande", house: "Une maison" },
+  },
+);
+
+// The login page (LoginPage.vue): GitHub first, and on a dev server a second step to be anyone.
+export const loginWords = defineWords(
+  "login",
+  {
+    errors: {
+      state: "That login link expired or came from somewhere else. Try again.",
+      github: "GitHub didn't let us in. Try again.",
+    },
+    enterLogin: "Enter a login first.",
+    oneMoment: "One moment…",
+    moveIn: "Move into the city.",
+    lede: "Your GitHub account is your key. Houses see what you've built before they let you in.",
+    withGithub: "Log in with GitHub",
+    noGithub: "GitHub login isn't set up on this server yet.",
+    useDev: "Use a development login",
+    whoToday: "Who are you today?",
+    devLede: "Only on a dev server. Be anyone from the seeded city, or someone new.",
+    newName: "Or a new name, like fatou",
+    loginName: "Login name",
+    logIn: "Log in",
+    back: "Back",
+  },
+  {
+    errors: {
+      state: "Ce lien de connexion a expiré ou vient d'ailleurs. Réessayez.",
+      github: "GitHub ne nous a pas laissés entrer. Réessayez.",
+    },
+    enterLogin: "Entrez d'abord un identifiant.",
+    oneMoment: "Un instant…",
+    moveIn: "Installez-vous en ville.",
+    lede: "Votre compte GitHub est votre clé. Les maisons voient ce que vous avez construit avant de vous ouvrir.",
+    withGithub: "Se connecter avec GitHub",
+    noGithub: "La connexion GitHub n'est pas encore en place sur ce serveur.",
+    useDev: "Utiliser une connexion de développement",
+    whoToday: "Qui êtes-vous aujourd'hui ?",
+    devLede: "Seulement sur un serveur de dev. Soyez n'importe qui de la ville d'exemple, ou quelqu'un de nouveau.",
+    newName: "Ou un nouveau nom, comme fatou",
+    loginName: "Identifiant",
+    logIn: "Se connecter",
+    back: "Retour",
+  },
+);

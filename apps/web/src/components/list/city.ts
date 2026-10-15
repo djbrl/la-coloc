@@ -1,6 +1,7 @@
 // The list view's city page, worked out from the city's houses alone: which houses a filter and a search keep,
 // what each row says, and the few faces it shows. No DOM here, so the rows read the same way in tests.
 import type { CityHouse, Person } from "../../types";
+import { listWords as w } from "./words";
 
 export type Show = "all" | "free" | "making";
 type House = Pick<CityHouse, "id" | "name" | "city" | "tagline" | "status" | "rooms">;
@@ -38,16 +39,15 @@ export function yoursFirst<T extends Pick<CityHouse, "id">>(houses: T[], mine: s
 
 /** "4 rooms, 1 free"; in a house being set up nobody lives anywhere yet, so it counts who signed up instead. */
 export function roomsLine(h: Pick<CityHouse, "rooms" | "status">): string {
-  const n = h.rooms.length;
-  const rooms = `${n} ${n === 1 ? "room" : "rooms"}`;
-  if (h.status === "making") return `${rooms}, ${livedIn(h).length} signed up`;
+  const rooms = w.rooms(h.rooms.length);
+  if (h.status === "making") return w.signedUp(rooms, livedIn(h).length);
   const free = freeRooms(h).length;
-  return free ? `${rooms}, ${free} free` : `${rooms}, all taken`;
+  return free ? w.someFree(rooms, free) : w.allTaken(rooms);
 }
 
 /** The row's few words about its rooms. An example house says it's one here, once, in words. */
 export function roomsSaid(h: Pick<CityHouse, "rooms" | "status" | "demo">): string {
-  return h.demo ? `An example house: ${roomsLine(h)}` : roomsLine(h);
+  return h.demo ? w.exampleRooms(roomsLine(h)) : roomsLine(h);
 }
 
 /** The row's line under the name: the tagline, else what a free room is looking for, else what the house is. */
@@ -55,7 +55,7 @@ export function rowLine(h: Pick<CityHouse, "tagline" | "rooms" | "demo">): strin
   if (h.tagline) return h.tagline;
   const ad = freeRooms(h).find((r) => r.ad)?.ad;
   if (ad) return ad;
-  return h.demo ? "An example house, to show how one looks." : "A server a few devs rent together.";
+  return h.demo ? w.exampleHouse : w.whatHouse;
 }
 
 /** Up to `max` faces of the people who live there, and how many more there are. */
@@ -70,6 +70,3 @@ export function flag(country: string | null | undefined): string {
   if (!/^[A-Z]{2}$/.test(code)) return "";
   return String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
 }
-
-/** "3 houses", "1 free room": a count and its noun, singular when it's one. */
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;

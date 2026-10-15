@@ -10,6 +10,7 @@ import HouseInside from "../components/lobby/HouseInside.vue";
 import type { Place } from "../components/lobby/place";
 import HouseMore from "../components/list/HouseMore.vue";
 import ListCard from "../components/list/ListCard.vue";
+import { listWords as w } from "../components/list/words";
 import type { HouseView } from "../types";
 
 const props = defineProps<{ id: string }>();
@@ -45,13 +46,13 @@ function open(place: Place) {
 <template>
   <div class="house-page">
     <div class="top">
-      <RouterLink to="/" class="button chunk" aria-label="Back to the city">
+      <RouterLink to="/" class="button chunk" :aria-label="w.backToCity">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-        City
+        {{ w.cityLink }}
       </RouterLink>
     </div>
 
-    <h1 class="sr-only">{{ label || "A house" }}</h1>
+    <h1 class="sr-only">{{ label || w.aHouse }}</h1>
 
     <ListCard>
       <HouseInside :id="id" class="panel" @open="open" @label="(l) => (label = l)" @view="(h) => (house = h)" />

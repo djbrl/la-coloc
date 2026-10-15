@@ -3,14 +3,16 @@
 // it must fit a sheet, as floating cards of rows. Who's at the door and how the vote stands, the rooms at work
 // (and the chef's way into any of them), the builds, and a few facts about the house.
 import { computed } from "vue";
+import { locale } from "../../i18n";
 import type { HouseView } from "../../types";
 import Avatar from "../Avatar.vue";
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
 import RoomCard from "../RoomCard.vue";
 import { deploymentStep, deploymentTitle, firstLine } from "../room/room";
-import { houseFacts, listWords, roomLabel, tallyLine, workRows } from "./house";
+import { houseFacts, roomLabel, tallyLine, workRows } from "./house";
 import ListCard from "./ListCard.vue";
+import { listWords as said } from "./words";
 
 const props = defineProps<{ house: HouseView }>();
 
@@ -22,34 +24,34 @@ const builds = computed(() => props.house.deployments ?? []);
 const facts = computed(() => houseFacts(props.house));
 
 const nameOf = (p: { name: string | null; login: string }) => p.name ?? p.login;
-const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 </script>
 
 <template>
   <!-- Someone knocked: the one thing flatmates should act on first. -->
-  <ListCard v-if="knocks.length" title="At the door" heading-id="door-title" :explain="listWords.door">
+  <ListCard v-if="knocks.length" :title="said.atTheDoor" heading-id="door-title" :explain="said.door">
     <ul class="plain lines">
-      <ListRow v-for="d in knocks" :key="d.id" :title="`${nameOf(d.applicant)} · room ${d.room}`" :sub="`Knocked ${when(d.createdAt)}`" open>
+      <ListRow v-for="d in knocks" :key="d.id" :title="said.knockTitle(nameOf(d.applicant), d.room)" :sub="said.knockedAt(when(d.createdAt))" open>
         <template #lead><Avatar :person="d.applicant" :size="40" decorative /></template>
         <template #meta>
-          <span class="tally" :aria-label="`${tallyLine(d.tally)} votes so far`"><Icon name="check" :size="14" />{{ tallyLine(d.tally) }}</span>
+          <span class="tally" :aria-label="said.votesSoFar(tallyLine(d.tally))"><Icon name="check" :size="14" />{{ tallyLine(d.tally) }}</span>
         </template>
         <template #end>
-          <RouterLink :to="`/applications/${d.id}`" class="button primary act" :aria-label="`Answer ${nameOf(d.applicant)}'s knock`">
-            <Icon name="thread" :size="16" />Answer
+          <RouterLink :to="`/applications/${d.id}`" class="button primary act" :aria-label="said.answerName(nameOf(d.applicant))">
+            <Icon name="thread" :size="16" />{{ said.answer }}
           </RouterLink>
         </template>
       </ListRow>
     </ul>
   </ListCard>
 
-  <ListCard v-if="work.length" title="At work" heading-id="work-title" :explain="listWords.work">
+  <ListCard v-if="work.length" :title="said.atWork" heading-id="work-title" :explain="said.work">
     <ul class="plain lines">
       <RoomCard v-for="w in work" :key="w.room.name" :house-id="house.id" :row="w" :mine="viewer?.room === w.room.name" />
     </ul>
   </ListCard>
 
-  <ListCard v-if="member" title="Builds" heading-id="builds-title" :explain="listWords.builds">
+  <ListCard v-if="member" :title="said.buildsTitle" heading-id="builds-title" :explain="said.builds">
     <ul v-if="builds.length" class="plain lines">
       <ListRow v-for="d in builds" :key="d.id" :title="`${roomLabel(house, d.room)} · ${deploymentTitle(d)}`">
         <template #lead>
@@ -62,10 +64,10 @@ const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric",
         <template #meta><time :datetime="d.updatedAt">{{ when(d.updatedAt) }}</time></template>
       </ListRow>
     </ul>
-    <p v-else class="none">Nothing built yet. Each room's builds land here.</p>
+    <p v-else class="none">{{ said.nothingBuilt }}</p>
   </ListCard>
 
-  <ListCard title="About the house" heading-id="about-title" :explain="listWords.about">
+  <ListCard :title="said.aboutTitle" heading-id="about-title" :explain="said.about">
     <ul class="plain lines">
       <ListRow v-for="f in facts" :key="f.key" :title="f.title" :sub="f.sub" :class="{ mono: f.key === 'address' }">
         <template #lead><span class="mark"><Icon :name="f.icon" :size="18" /></span></template>

@@ -6,16 +6,8 @@ import type { IconName } from "../lobby/house/icons";
 import { evenSplit, fcfa } from "../lobby/house/server";
 import { explain, roomLine } from "../lobby/panel/words";
 import { cpuShare, memoryUse } from "../room/room";
+import { listWords } from "./words";
 
-// Sentences only this page says. words.ts holds the shared ones; these stay here until the lead moves them.
-export const listWords = {
-  work: "What each project is using of its room right now.",
-  builds: "Every time a room was built, newest first.",
-  door: "Someone asked for a free room. Read their note, then vote.",
-  about: "Who runs it, where its projects live, and what it costs.",
-  address: "Each room's project gets its own address under it.",
-  flatmatesOnly: "The channel, chores, fridge, bill and builds open to the people who live here.",
-} as const;
 
 /** The chef can open any lived-in room of a live house to manage it; their own room is already the foot's button. */
 export function chefCanManage(room: Pick<Room, "name" | "occupant" | "demo">, viewer: Viewer | null, status: HouseView["status"]): boolean {
@@ -57,19 +49,19 @@ export function workRows(house: Pick<HouseView, "rooms" | "ledger" | "status" | 
 export function workLine(w: Pick<WorkRow, "memory" | "room">): string {
   const { memoryMb, cpus } = w.room.limits;
   const state = roomLine(w.room);
-  if (!w.memory) return `${state} It has ${memoryMb} MB of memory and ${cpuShare(cpus)}. Nothing measured yet.`;
+  if (!w.memory) return listWords.workUnmeasured(state, memoryMb, cpuShare(cpus));
   const pct = w.room.usage?.cpuPercent ?? 0;
-  const cpu = pct < 1 ? "almost no CPU" : `${Math.round(pct)}% of a CPU`;
-  return `${state} Using ${w.memory.mb} of its ${memoryMb} MB and ${cpu}.`;
+  const cpu = pct < 1 ? listWords.almostNoCpu : listWords.cpuPercent(Math.round(pct));
+  return listWords.workMeasured(state, w.memory.mb, memoryMb, cpu);
 }
 
 /** "2 of 3 yes": a knock's vote so far. */
-export const tallyLine = (t: { yes: number; needed: number }) => `${t.yes} of ${t.needed} yes`;
+export const tallyLine = (t: { yes: number; needed: number }) => listWords.tally(t.yes, t.needed);
 
 /** The room a build was for, as people know it: whoever lives there, else the room's name. */
 export function roomLabel(house: Pick<HouseView, "rooms">, name: string): string {
   const r = house.rooms.find((x) => x.name === name);
-  return r?.occupant ? (r.occupant.name ?? r.occupant.login) : `Room ${name}`;
+  return r?.occupant ? (r.occupant.name ?? r.occupant.login) : listWords.roomName(name);
 }
 
 export interface Fact {
@@ -84,12 +76,12 @@ export interface Fact {
 export function houseFacts(house: Pick<HouseView, "chef" | "domain" | "monthlyCostFcfa" | "rooms" | "ledger" | "status" | "demo" | "viewer">): Fact[] {
   const facts: Fact[] = [];
   const member = !!house.viewer?.member;
-  if (house.chef) facts.push({ key: "chef", icon: "crown", title: `${house.chef.name ?? house.chef.login} is the chef`, sub: explain.chef });
+  if (house.chef) facts.push({ key: "chef", icon: "crown", title: listWords.isChef(house.chef.name ?? house.chef.login), sub: explain.chef });
   if (!house.demo) facts.push({ key: "address", icon: "link", title: `*.${house.domain}`, sub: listWords.address });
   if (!member && house.monthlyCostFcfa)
-    facts.push({ key: "rent", icon: "bill", title: `About ${fcfa(evenSplit(house.monthlyCostFcfa, house.rooms.length))} a room, a month`, sub: explain.bill });
+    facts.push({ key: "rent", icon: "bill", title: listWords.rent(fcfa(evenSplit(house.monthlyCostFcfa, house.rooms.length))), sub: explain.bill });
   const reviews = house.ledger.reduce((n, l) => n + l.given, 0);
-  if (reviews > 0) facts.push({ key: "reviews", icon: "check", title: `${reviews} ${reviews === 1 ? "review" : "reviews"} between flatmates`, sub: "Every pull request gets a flatmate, in turn." });
-  if (!member) facts.push({ key: "flatmates", icon: "lock", title: "The rest is for flatmates", sub: listWords.flatmatesOnly });
+  if (reviews > 0) facts.push({ key: "reviews", icon: "check", title: listWords.reviews(reviews), sub: listWords.reviewsWhy });
+  if (!member) facts.push({ key: "flatmates", icon: "lock", title: listWords.restForFlatmates, sub: listWords.flatmatesOnly });
   return facts;
 }

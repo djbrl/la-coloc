@@ -78,9 +78,9 @@ export function defineWords<T extends object>(name: string, en: T, fr: Words<T>)
   return new Proxy(en, { get: (_target, key) => Reflect.get(language.lang === "fr" ? french : en, key) });
 }
 
-/** French puts a space before : ; ! ? and inside « »; it must never break there, or a line could start with "?". The
+/** French puts a space before : ; ! ? % and inside « »; it must never break there, or a line could start with "?". The
  *  dictionaries are written with plain spaces, readable in the code; this swaps in no-break spaces. */
-export const nbsp = (text: string) => text.replace(/ ([:;!?»])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
+export const nbsp = (text: string) => text.replace(/ ([:;!?»%])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
 
 // The French dictionary with every sentence, and every sentence a function makes, run through nbsp().
 function typeset<T>(words: T): T {

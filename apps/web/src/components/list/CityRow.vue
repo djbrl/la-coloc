@@ -11,6 +11,7 @@ import ListRow from "../lobby/panel/ListRow.vue";
 import StatusDot from "../lobby/panel/StatusDot.vue";
 import { houseState } from "../lobby/panel/words";
 import { faces, flag, roomsSaid, rowLine } from "./city";
+import { listWords as w } from "./words";
 
 const props = defineProps<{ house: CityHouse; mine?: boolean }>();
 
@@ -28,7 +29,7 @@ const names = computed(() => props.house.rooms.filter((r) => r.occupant).map((r)
       <span class="wide">{{ rowLine(house) }}</span><span class="narrow" aria-hidden="true">{{ roomsSaid(house) }}</span>
     </span>
     <!-- What the right side shows, said once for a screen reader whatever the width (the right side hides on a phone). -->
-    <span class="sr-only">{{ state.word }}. {{ roomsSaid(house) }}.<template v-if="names.length"> Living here: {{ names.join(", ") }}.</template></span>
+    <span class="sr-only">{{ state.word }}. {{ roomsSaid(house) }}.<template v-if="names.length"> {{ w.livingHere(names.join(", ")) }}</template></span>
     <template #meta>
       <span class="meta-parts" aria-hidden="true">
         <StatusDot :state="state" />
@@ -40,8 +41,8 @@ const names = computed(() => props.house.rooms.filter((r) => r.occupant).map((r)
       </span>
     </template>
     <template #end>
-      <RouterLink :to="`/houses/${house.id}`" class="button go" :aria-label="`Go into ${house.name}${mine ? ', your house' : ''}`">
-        <Icon name="door" :size="16" /><span class="go-word">Go in</span>
+      <RouterLink :to="`/houses/${house.id}`" class="button go" :aria-label="w.goInto(house.name, !!mine)">
+        <Icon name="door" :size="16" /><span class="go-word">{{ w.goIn }}</span>
       </RouterLink>
     </template>
   </ListRow>
