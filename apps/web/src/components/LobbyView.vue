@@ -1118,32 +1118,36 @@ function cityLine(c: { name: string; houses: number }): string {
 .stage:focus-visible { box-shadow: inset 0 0 0 3px var(--accent-fill); }
 .stage :deep(canvas) { display: block; }
 /* No WebGL: one flat card in the middle says so. */
-.failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
+.failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: var(--r-xl); background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
 /* Everything on top of the city is a flat piece of the site's surface, lifted by a shadow: no glass, no blur. */
-.hud { position: absolute; z-index: 10; color: var(--text); transition: opacity 0.2s var(--ease); }
+.hud { position: absolute; z-index: 10; color: var(--text); transition: opacity var(--dur) var(--ease); }
 /* A house, a room or a knock is open: like a game's pause menu, the HUD around it steps back (who's here, the
    round tools and the minimap, which the panel would half cover), leaving the place and the keys. */
 .paused .hud.top, .paused .hud.tools, .paused .hud.map { opacity: 0; pointer-events: none; }
-.place, .tools button, .emotes button { background: var(--surface); color: var(--text); box-shadow: var(--lift); }
-.place { top: 60px; left: 16px; display: flex; align-items: baseline; gap: 6px; padding: 8px 16px; min-height: 44px; border: 0; border-radius: 980px; cursor: pointer; }
-.place .city { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
-.place .chev { font-size: 20px; color: var(--muted); }
-/* What the city is doing, in a pill at the top; it never catches clicks. */
-.top { top: calc(64px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 980px; background: var(--surface); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
+/* The HUD's pieces are flat keys on the surface: a hairline edge, a small lip under the ones you can press. */
+.place, .tools button, .emotes button { background: var(--surface); color: var(--text); box-shadow: var(--lift), 0 2px 0 var(--line-strong); }
+/* Where you are, as a breadcrumb: a slash in the monospace, then the city's name in the display face. */
+.place { top: 60px; left: 16px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; min-height: 44px; border: 0; border-radius: var(--r-md); cursor: pointer; }
+.place::before { content: "/"; font: 500 16px/1 var(--mono); color: var(--accent); }
+.place .city { font: 800 20px/1.1 var(--display); letter-spacing: -0.02em; }
+.place .chev { font-size: 20px; line-height: 1; color: var(--muted); transition: transform var(--dur-fast) var(--ease); }
+.place:hover .chev { transform: translateX(2px); }
+/* What the city is doing, live, in a strip at the top with a green dot; it never catches clicks. */
+.top { top: calc(64px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
+.top::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
 .top:empty { display: none; }
-.top p { margin: 0; font-size: 15px; }
+.top p { margin: 0; font-size: 14px; font-weight: 500; min-width: 0; }
 .top .narrow { display: none; }
 /* News and tips: one line under the pill, popping in and out; never in the way of a click. */
 .news { top: calc(112px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
-.toast { margin: 0; padding: 8px 16px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); font-size: 15px; line-height: 1.45; text-align: center; }
-.toast .said { font-weight: 600; }
+/* The toast's look is shared (style.css); here only its place. */
 .toast kbd { margin: 0 1px; }
 /* The corner offers, under the place button: a soft accent pill and a small way to say no. */
 .corner { top: calc(116px + var(--core-offset, 0px)); left: 16px; display: grid; gap: 8px; justify-items: start; max-width: min(340px, calc(100vw - 96px)); }
-.chip { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 18px; background: var(--surface); box-shadow: var(--lift); }
-.chip-go { min-height: 40px; padding: 6px 12px; border: 0; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.3; text-align: left; cursor: pointer; }
+.chip { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); }
+.chip-go { min-height: 40px; padding: 6px 12px; border: 0; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.3; text-align: left; cursor: pointer; }
 .chip-go:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: var(--muted); cursor: pointer; }
+.chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-sm); display: grid; place-items: center; background: none; color: var(--muted); cursor: pointer; }
 .chip-x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .tools { top: 60px; right: 16px; display: grid; gap: 8px; }
 /* The "can't reach the city" card (CoreStatus.vue) sits at the top centre. On a screen too narrow to leave it room
@@ -1151,7 +1155,8 @@ function cityLine(c: { name: string; houses: number }): string {
 @media (max-width: 899px) {
   .place, .tools { top: calc(60px + var(--core-offset, 0px)); }
 }
-.tools button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; }
+.tools button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; display: grid; place-items: center; cursor: pointer; }
+.tools button:active:not(:disabled), .emotes button:active:not(:disabled) { transform: translateY(2px); box-shadow: var(--lift); }
 /* The dock stacks the card over the keys; its empty space lets clicks through to the city. */
 .dock { left: 16px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-start; gap: 12px; pointer-events: none; }
 .dock > * { pointer-events: auto; }
@@ -1164,15 +1169,18 @@ function cityLine(c: { name: string; houses: number }): string {
 @media (min-width: 900px) {
   .centre.aside { left: 16px; bottom: max(76px, env(safe-area-inset-bottom)); transform: none; align-items: flex-start; }
 }
-.prompt { display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 22px; border-radius: 980px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); white-space: nowrap; font-size: 17px; max-width: calc(100vw - 32px); }
-.prompt strong { font-weight: 600; }
+/* The interact prompt, like a game's: what's in reach in the display face, and the one action as the orange key. */
+.prompt { display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 18px; border-radius: var(--r-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow); white-space: nowrap; font-size: 16px; max-width: calc(100vw - 32px); animation: prompt-pop var(--dur-slow) var(--ease-pop); }
+.prompt strong { font: 800 18px/1.1 var(--display); letter-spacing: -0.02em; }
+@keyframes prompt-pop {
+  from { transform: scale(0.96); }
+}
 .soft { color: var(--muted); }
-/* The one main action: the accent pill, with the key it answers to. */
-.pill { border: 0; border-radius: 980px; padding: 10px 18px; min-height: 44px; font-size: 17px; font-weight: 500; background: var(--accent-fill); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
-kbd { font: 600 11px/1 var(--font); padding: 3px 5px; border-radius: 5px; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; }
+/* The one main action: the orange key with its lip, and the key it answers to. */
+.pill { border: 0; border-radius: var(--r-md); padding: 8px 14px 8px 16px; min-height: 44px; font: 700 17px/1 var(--display); letter-spacing: -0.01em; background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 var(--lip) 0 var(--accent-lip); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
+.pill:active:not(:disabled) { transform: translateY(calc(var(--lip) - var(--lip-pressed))); box-shadow: 0 var(--lip-pressed) 0 var(--accent-lip); }
 .emotes { display: flex; gap: 8px; }
-.emotes button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%; border: 0; font-size: 20px; cursor: pointer; }
-.emotes button:active { transform: scale(0.94); }
+.emotes button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; font-size: 20px; cursor: pointer; }
 .map { right: 16px; bottom: max(28px, env(safe-area-inset-bottom)); }
 /* Our own hovers, so the site's grey button hover doesn't paint over these. */
 .pill:hover:not(:disabled) { background: var(--accent-fill-hover); }
@@ -1180,23 +1188,24 @@ kbd { font: 600 11px/1 var(--font); padding: 3px 5px; border-radius: 5px; border
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 .scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); }
 /* Find and travel: a floating menu in the middle of the screen, flat and big-cornered, popping in. */
-.sheet { position: absolute; z-index: 50; top: 50%; left: 50%; translate: -50% -50%; width: min(500px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 96px)); padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 14px; border-radius: 28px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
-.sheet h2 { flex: none; margin: 0; padding-right: 48px; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+.sheet { position: absolute; z-index: 50; top: 50%; left: 50%; translate: -50% -50%; width: min(500px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 96px)); padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 14px; border-radius: var(--r-xl); background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.sheet h2 { flex: none; margin: 0; padding-right: 48px; font-size: 28px; line-height: 1.05; }
 /* The round close button in the corner, like the lobby's cards. */
-.sheet .x { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
+.sheet .x { position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
 .sheet .x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
 .sheet .search { flex: none; position: relative; }
 .sheet .search svg { position: absolute; left: 15px; top: 50%; translate: 0 -50%; color: var(--muted); pointer-events: none; }
-.sheet input { width: 100%; min-height: 50px; padding: 10px 16px 10px 46px; border-radius: 14px; border: 1px solid transparent; background: var(--tile); color: inherit; font-size: 17px; }
+.sheet input { width: 100%; min-height: 48px; padding: 10px 16px 10px 46px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--tile); color: inherit; font-size: 17px; }
 .sheet input:focus { border-color: var(--accent-fill); background: var(--surface); }
 /* The rows: the panels' list rows, each one whole button, lit under the pointer and when it holds the focus. */
 .sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0 -6px; padding: 2px 6px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
-.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px 8px 12px; border: 0; border-radius: 14px; background: var(--tile); color: var(--text); font: inherit; line-height: 1.3; text-align: left; cursor: pointer; transition: background-color 0.15s var(--ease), box-shadow 0.2s var(--ease); }
-.sheet .entry:hover:not(:disabled) { background: var(--fill); }
+/* The same look as the panels' ListRow (a surface row with a 1px edge; the orange stripe marks where you are). */
+.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px 8px 12px; border: 0; border-radius: var(--r-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: inherit; line-height: 1.3; text-align: left; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease); }
+.sheet .entry:hover:not(:disabled) { background: var(--tile); }
 .sheet .entry:focus-visible { outline: none; background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.sheet .entry:active { transform: scale(0.99); }
-.sheet .entry.here { box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.sheet .lead { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--surface); color: var(--muted); }
+.sheet .entry:active { transform: translateY(1px); }
+.sheet .entry.here { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--accent-fill); }
+.sheet .lead { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
 .sheet .here .lead { background: var(--accent-fill); color: var(--on-accent); }
 .sheet .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
 .sheet .title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1210,22 +1219,26 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .atlas .entries { max-height: calc(min(700px, 100dvh - 96px) - 110px); }
 .sheet .sub.lines { white-space: normal; }
 .sheet .you { font-weight: 500; color: var(--accent); }
-.rise-enter-active, .rise-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.rise-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
+.rise-leave-active { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .rise-enter-from, .rise-leave-to { opacity: 0; transform: translateY(8px); }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-active, .fade-leave-active { transition: opacity var(--dur) var(--ease); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-.sheet-enter-active { transition: opacity 0.22s var(--ease), transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
-.sheet-leave-active { transition: opacity 0.15s var(--ease), transform 0.15s var(--ease); }
-.sheet-enter-from, .sheet-leave-to { opacity: 0; transform: translateY(10px) scale(0.94); }
+.sheet-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
+.sheet-leave-active { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.sheet-enter-from, .sheet-leave-to { opacity: 0; transform: translateY(10px) scale(0.95); }
 @media (prefers-reduced-motion: reduce) {
   .rise-enter-active, .rise-leave-active, .fade-enter-active, .fade-leave-active, .sheet-enter-active, .sheet-leave-active { transition: none; }
+  .prompt { animation: none; }
+  .pill:active:not(:disabled), .tools button:active:not(:disabled), .emotes button:active:not(:disabled) { transform: none; }
 }
 /* No keyboard, no key hints. */
 @media (hover: none) {
   kbd { display: none; }
 }
 @media (max-width: 520px) {
-  .prompt { gap: 10px; padding-left: 16px; font-size: 15px; max-width: 100%; }
+  .prompt { gap: 10px; padding-left: 14px; font-size: 15px; max-width: 100%; }
+  .prompt strong { font-size: 16px; }
   .prompt .soft { display: none; }
   .prompt > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* The prompt and the emotes move to the left, beside the minimap rather than under it. The coach (lifted)
@@ -1246,7 +1259,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .dock { left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
   .dock .legend, .dock .peek { order: -1; align-self: flex-start; margin: 0 16px 12px; }
   /* Find and travel become a sheet along the bottom edge. */
-  .sheet, .sheet.travel { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 86dvh; border-radius: 24px 24px 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+  .sheet, .sheet.travel { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 86dvh; border-radius: var(--r-xl) var(--r-xl) 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
   /* Where to: the map on top, small, and the cities under it, scrolling. */
   .atlas { grid-template-columns: minmax(0, 1fr); gap: 10px; overflow-y: auto; }
   .atlas .africa { width: auto; height: 30dvh; max-height: none; }

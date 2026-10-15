@@ -53,7 +53,7 @@ watch(
   overflow: auto;
   overscroll-behavior: contain;
   padding: 16px 18px;
-  border-radius: 16px;
+  border-radius: var(--r-lg);
   background: var(--code-bg);
   color: var(--code-text);
   font: 12.5px/1.6 var(--mono);

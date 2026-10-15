@@ -298,12 +298,12 @@ function onKey(e: KeyboardEvent) {
 /* Both are flat pieces of the site's surface: the small one lifted like the rest of the HUD, the big one floating
    like a game's map screen. The map itself stays plain and high in contrast. */
 .small, .big { color: var(--text); background: var(--surface); }
-.small { display: grid; gap: 6px; padding: 8px; border-radius: 18px; box-shadow: var(--lift); }
+.small { display: grid; gap: 6px; padding: 8px; border-radius: var(--r-lg); box-shadow: var(--lift); }
 .holder { position: relative; }
-canvas { display: block; flex: none; border-radius: 10px; cursor: pointer; }
-.small canvas { border-radius: 11px; }
+canvas { display: block; flex: none; border-radius: var(--r-sm); cursor: pointer; }
+.small canvas { border-radius: var(--r-md); }
 .count { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--muted); text-align: center; }
-.tip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); padding: 4px 9px; border-radius: 9px; background: var(--surface); color: var(--text); box-shadow: var(--lift); font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; }
+.tip { position: absolute; transform: translate(-50%, calc(-100% - 8px)); padding: 4px 9px; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--lift); font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; }
 .veil { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: var(--scrim); }
 .big {
   position: relative;
@@ -312,11 +312,11 @@ canvas { display: block; flex: none; border-radius: 10px; cursor: pointer; }
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 22px 24px 24px;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   box-shadow: var(--shadow);
   display: grid;
   gap: 14px;
-  animation: menu-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: menu-pop var(--dur-slow) var(--ease-pop);
 }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
@@ -325,19 +325,19 @@ canvas { display: block; flex: none; border-radius: 10px; cursor: pointer; }
 h2 { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
 .soft { margin: 0; font-size: 14px; color: var(--muted); }
 /* The round close button in the corner, like the lobby's cards. */
-.x { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
+.x { position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
 .x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
 .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
 /* The houses: the panels' rows, the list scrolling inside itself when it's longer than the map is tall. */
 .houses { list-style: none; margin: 0; padding: 2px; flex: 1; min-width: 240px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; line-height: 1.3; }
 .entry { position: relative; cursor: pointer; }
-.badge { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--surface); }
+.badge { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md); background: var(--surface); }
 /* The swatch matches the marker on the map: a sample house has a dashed edge. */
 .swatch { width: 16px; height: 16px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--border); }
 .swatch.sample { box-shadow: none; outline: 2px dashed var(--muted); outline-offset: 2px; }
 /* The row's one button covers the whole row, so a click anywhere on it travels. */
-.houses .go { width: 34px; padding: 0; display: grid; place-items: center; border-radius: 10px; background: none; color: var(--muted); }
-.houses .go::after { content: ""; position: absolute; inset: 0; border-radius: 14px; }
+.houses .go { width: 34px; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); }
+.houses .go::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-md); }
 .entry:hover .go { color: var(--text); }
 .houses .go:hover:not(:disabled) { background: none; }
 .houses .go:focus-visible { outline: none; color: var(--accent); }

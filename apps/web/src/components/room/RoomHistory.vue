@@ -31,9 +31,9 @@ defineProps<{ deployments: RoomManage["deployments"]; github: RoomManage["github
 </template>
 
 <style scoped>
-.mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--fill); color: var(--muted); }
+.mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--fill); color: var(--muted); }
 .mark.live { background: var(--live-soft); color: var(--live); }
 .mark.warn { background: var(--warn-soft); color: var(--warn); }
 .mark.danger { background: var(--danger-soft); color: var(--danger); }
-.empty { padding: 18px 16px; border-radius: 16px; background: var(--tile); font-size: 14px; color: var(--muted); }
+.empty { padding: 18px 16px; border-radius: var(--r-lg); background: var(--tile); font-size: 14px; color: var(--muted); }
 </style>

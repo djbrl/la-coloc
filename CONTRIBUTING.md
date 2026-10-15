@@ -191,7 +191,7 @@ Jib's rules for anything the player sees. The reference is **Apple's design phil
 
 - **Only CC0 or permissive assets, or our own.** Never artwork from ArtStation, Pinterest or rips: it belongs to its artists, and contest Art. 6 requires a project free of third-party rights.
 - **Ask Jib before downloading** anything (name, source, size). Then log it in [docs/licences.md](docs/licences.md) (asset, where it lives, source, licence) and, for lobby models, in [apps/web/public/lobby/README.md](apps/web/public/lobby/README.md). Keep the licence file next to the asset.
-- **Dependencies:** run `npm run licences:check` after adding one. It must print `licences OK: no copyleft`; CI runs it. Allowed: MIT, ISC, Apache-2.0, BSD, 0BSD, CC0, Unlicense, BlueOak, Python-2.0, CC-BY-4.0. Not allowed: GPL, AGPL, LGPL, and anything "non-commercial". Update the summary in [docs/licences.md](docs/licences.md).
+- **Dependencies:** run `npm run licences:check` after adding one. It must print `licences OK: no copyleft`; CI runs it. Allowed: MIT, ISC, Apache-2.0, BSD, 0BSD, CC0, Unlicense, BlueOak, Python-2.0, CC-BY-4.0, and OFL-1.1 for fonts. Not allowed: GPL, AGPL, LGPL, and anything "non-commercial". Update the summary in [docs/licences.md](docs/licences.md).
 - **No brand logos** (Wave, Orange, MTN…): text names and generic colours only.
 - **Traps we already avoided:** Redis (no longer permissive), MySQL, Bun's `--compile`, `sharp`/libvips. See `docs/licences.md`.
 

@@ -80,12 +80,12 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .plain { list-style: none; margin: 0; padding: 0; }
 /* The same tight rows as the house panel's. */
 .lines { display: grid; gap: 4px; align-content: start; line-height: 1.3; }
-.none { padding: 14px 16px; border-radius: 14px; background: var(--tile); font-size: 14px; color: var(--muted); }
+.none { padding: 14px 16px; border-radius: var(--r-md); background: var(--tile); font-size: 14px; color: var(--muted); }
 .tally { display: inline-flex; align-items: center; gap: 4px; color: var(--text); font-weight: 600; }
 /* Buttons and links in a row carry an icon beside their word. */
 .act { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
 /* An icon where a face would be: a rounded square, coloured by how a build went. */
-.mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--fill); color: var(--muted); }
+.mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--fill); color: var(--muted); }
 .mark.live { background: var(--live-soft); color: var(--live); }
 .mark.warn { background: var(--warn-soft); color: var(--warn); }
 .mark.danger { background: var(--danger-soft); color: var(--danger); }

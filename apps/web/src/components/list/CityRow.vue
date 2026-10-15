@@ -59,10 +59,10 @@ const names = computed(() => props.house.rooms.filter((r) => r.occupant).map((r)
 /* Side by side with a little air: overlapped, initials ran into each other ("AN AW MA"). */
 .faces { display: flex; align-items: center; gap: 3px; }
 /* Not ".more": the site has a link style by that name. */
-.extra { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 4px; border-radius: 12px; background: var(--fill); color: var(--muted); font-size: 11px; font-weight: 700; }
+.extra { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 4px; border-radius: var(--r-md); background: var(--fill); color: var(--muted); font-size: 11px; font-weight: 700; }
 .go { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
 /* The button's target covers the whole row: the row is the menu entry. */
-.go::after { content: ""; position: absolute; inset: 0; border-radius: 14px; }
+.go::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-md); }
 .go:focus-visible { outline: none; }
 @media (max-width: 640px) {
   .faces { display: none; }

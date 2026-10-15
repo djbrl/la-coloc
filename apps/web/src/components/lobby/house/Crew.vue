@@ -77,7 +77,7 @@ function said(s: Seat): string {
   width: 60px;
   min-height: 0;
   padding: 0;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   background: none;
   color: var(--text);
   font-size: 12px;

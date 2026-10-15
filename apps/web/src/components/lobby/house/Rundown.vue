@@ -216,7 +216,7 @@ onBeforeUnmount(() => {
 /* The ring sits exactly on the part; the outline draws 4px outside it. */
 .ring {
   position: absolute;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   outline: 3px solid var(--accent);
   outline-offset: 4px;
   transition: left 0.25s var(--ease), top 0.25s var(--ease), width 0.25s var(--ease), height 0.25s var(--ease);
@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 10px;
   padding: 14px 14px 12px 16px;
-  border-radius: 16px;
+  border-radius: var(--r-lg);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--lift);

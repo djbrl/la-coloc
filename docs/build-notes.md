@@ -575,3 +575,60 @@ checked before committing.
   marquée payée."; "Revues strictes / souples"; "Résumé" for the room's Overview tab; "Constructions" for Builds;
   "Petit / Moyen / Grand" server sizes; "le gardien" for the caretaker; "Identifiant" for login name.
 - **Greetings' meanings** in `cityStyle.ts`: Fon "A fɔ́n ganjí à ?" given as « Bien réveillé ? ».
+
+## 15 10 2026, overnight: a UI refresh, between a dev tool and a game (branch `ui-refresh`)
+
+Jib asked for a state-of-the-art look at the crossroads of a developer's dashboard (Vercel, Linear, Supabase, Neon,
+GitHub) and a game (launchers, game sites, web toys), keeping the rules: flat floating cards, no glass or blur, day and
+night, panels that fit, one navigation per panel, ListRow for lists, icons over words, keyboard first. Styles and
+structure only: **no wording changed** (the French translation is on `french-ui`), no behaviour, route, API or 3D change.
+
+**The direction.** One rule: game energy on titles, the main action, toasts and celebrations; dev-tool calm on data,
+lists and settings. Titles and house names in a bold display face (Bricolage Grotesque); anything technical (an address,
+a size, money, a key) in a monospace (JetBrains Mono); body text stays the system face. One saturated signature, a
+wax-print orange (`--accent-fill` `#f2600f`, dark ink on it: 5.8:1), the same in day and night. The primary button is a
+game's key with a solid lip under it that sinks when pressed (no blur); quiet buttons have a grey edge and a small lip.
+Cards, rows and inputs have 1px hairline edges, status dots a soft halo of their colour (amber breathes while building),
+switches are ON/OFF pills with power marks (I and O, nothing to translate). Motion is 120 to 240 ms with a tiny overshoot
+on things that appear; reduced motion turns it off.
+
+| What | Where |
+|---|---|
+| **Tokens**, day and night: surfaces (a warm paper day, a near-black night), text, `--line` and `--line-strong` edges, the orange (`--accent`, `--accent-fill`, `--accent-lip`, `--accent-soft`, `--on-accent`), status with soft tints, `--free` blue for free rooms (the city's free window), a type scale (`--t-*`), radii (`--r-xs` 6 to `--r-xl` 20, `--r-pill`), spacing (`--s-1` to `--s-6`), the lip (`--lip`, `--lip-pressed`), `--quiet-edge`, motion (`--dur-fast`, `--dur`, `--dur-slow`, `--ease`, `--ease-pop`). The classes `tone-night` and `tone-day` give any box that theme's tokens | `apps/web/src/style.css` |
+| **Fonts**, self-hosted from npm, Latin and Latin Extended only (about 22 KB per face and weight; the Extended file loads only for letters outside Latin): Bricolage Grotesque 700 and 800, JetBrains Mono 500. OFL 1.1, now allowed by `licences:check` | `apps/web/src/fonts.css`, `docs/licences.md` |
+| **Shared pieces**: primary and quiet buttons, keycaps (`kbd`), the switch, segmented controls, status pills and dots, the meter, the toast, the city's name flags; the panel kit (Panel's foot under a hairline, PanelTabs, ListRow as a dashboard row with the orange stripe for yours, StatusDot), LobbyCard, the key strip, the house window, the top bar, settings | `style.css`, `components/lobby/panel/`, `LobbyCard.vue`, `KeyLegend.vue`, `Inside.vue`, `App.vue`, `SettingsPane.vue` |
+| **The city's HUD**: the place as a breadcrumb (`/ Dakar ›`), the live line with a green dot, the tools and emotes as keys, the prompt with the orange "Go in" key; the loading screen always dark, with a blueprint grid and a striped bar (closes TODO D6's "light in day mode"); the welcome card and the coach | `LobbyView.vue`, `LoadingScreen.vue`, `tutorial/Welcome.vue`, `tutorial/Coach.vue`, `TouchDash.vue`, `CoreStatus.vue`, `Minimap.vue` |
+| **The screens**: house panel (chips, free door, face dots, bill amount in mono), pay sheet, room overview (dashboard cards, Update as the orange tile), room code rows, renting a server (plans like a cloud provider's table), knock and rent sheets, keys sheet, onboarding; every hard-coded corner mapped to a radius token | `HouseInside.vue`, `HouseCard.vue`, `house/*.vue`, `room/*`, `KnockSteps.vue`, `RentSteps.vue`, `KeysSheet.vue`, `Onboarding.vue`, the list view |
+| **A style guide** at `/styleguide`, development builds only (the route is behind `import.meta.env.DEV`, and the page is absent from a production build): every shared piece in day and night side by side, with made-up data, no API needed | `apps/web/src/pages/StyleGuide.vue`, `main.ts` |
+
+**Mobbin references** (what inspired what):
+- Vercel deployments list and deployment page: status dots with a word, hashes and addresses in a monospace, dense hairline rows → ListRow, StatusDot, `.meta` in mono. [deployments](https://mobbin.com/screens/e9576405-bcef-419a-922a-8fb84b044a54), [deployment](https://mobbin.com/screens/ff81f1e9-25b1-46f9-8448-31fa40a77e4b)
+- Vercel domain page: the breadcrumb top line and hairline-edged cards → the HUD's `/ Dakar ›`, the room's dashboard cards. [domain](https://mobbin.com/screens/ff211943-e1c1-4d25-ab63-c320cb35b9f8)
+- Linear menus with shortcut keys beside each action → the key strip and keycaps. [menu](https://mobbin.com/screens/f71cec1e-a119-485b-9164-969169030e1a)
+- Gumloop and Replit settings: rows on a hairline card, a switch at the end of each → settings rows and the switch. [Gumloop](https://mobbin.com/screens/0c331a3c-1fe8-4f4e-b77f-87e50ec63555), [Replit](https://mobbin.com/screens/cb92d9f4-8e47-4e53-bacf-9b61986de96a)
+- NYT Games (Spelling Bee) and fal: a bold display title with one big action → titles in the display face, one chunky primary per view. [NYT Games](https://mobbin.com/screens/e9f8583e-38f8-40ea-9af8-7f879ee798be), [fal](https://mobbin.com/screens/1cac66e7-f3c2-484e-aa6a-39d005519a1a)
+- Browserbase: a saturated orange on a calm developer page → the wax-print orange as the one signature. [Browserbase](https://mobbin.com/screens/6a3a60c3-4d9c-422e-91c3-c0417f6239d3)
+- Microsoft Copilot's gaming controls card: keys as caps in groups → the keys sheet. [Copilot](https://mobbin.com/screens/87443be7-fcdd-4de0-be4a-4d83ad36a33a)
+
+Screenshots of the style guide (day left, night right): `docs/screenshots/ui-refresh/styleguide-primitives.jpg`,
+`styleguide-card-and-panel.jpg`, `styleguide-coach-welcome-loading.jpg`.
+
+### Verified
+- In the browser (Vite on its own, no API, no Docker touched): the style guide at 1440×900 in both themes; the lobby (the
+  street the site shows while the core is down) in day and night at 1440×900 and 375×812, with the HUD, the key strip, the
+  minimap and settings, which fits at 1280×640 and as a bottom sheet on a phone.
+- `npm test -w @coloc/web` (177), `npm run build` (vue-tsc and Vite) and `npm run licences:check` pass.
+- Not seen for real: the house panel, the bill, the room page and the knock with live data (the API wasn't running). The
+  style guide shows the panel kit with made-up data; look at the real screens with the API before merging.
+
+### How to revert
+It is all on the branch `ui-refresh`, six commits on top of `d452316`. Not merging it is the revert; after a merge,
+`git revert` the commits (or the squash). The fonts commit is separate if only the type should go.
+
+### Rough edges
+- Wording untouched, so some places still say in words what an icon could (D6's key strip words, the "Strict" chip).
+- The find and travel sheets still copy ListRow's look in CSS (now the new look), rather than using ListRow (D6).
+- The 3D scene's own colours (sky, windows) are unchanged: they don't come from the tokens.
+- `.toggle` and `.segmented` are now global classes in `style.css`; a component that uses those names for something
+  else would inherit them (none does today).
+- The orange fill is the same in both themes; the disabled primary in night reads a little brown.

@@ -22,7 +22,7 @@ defineProps<{ title?: string; explain?: string | null; headingId?: string }>();
   gap: 12px;
   min-width: 0;
   padding: 20px var(--gutter) 22px;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   box-shadow: var(--lift), 0 0 0 1px var(--hairline);
   animation: pop-in 0.22s var(--ease);
@@ -39,6 +39,6 @@ defineProps<{ title?: string; explain?: string | null; headingId?: string }>();
   .list-card { animation: none; }
 }
 @media (max-width: 480px) {
-  .list-card { border-radius: 22px; }
+  .list-card { border-radius: var(--r-xl); }
 }
 </style>

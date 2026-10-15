@@ -637,9 +637,10 @@ function rundownEnded() {
 .head { display: grid; gap: 8px; min-width: 0; }
 
 /* The chef's two small things in the head: chunky pills with an icon, like a game's menu buttons. */
-.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; font-size: 14px; font-weight: 600; }
-.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
-.chip:active:not(:disabled) { transform: scale(0.96); }
+.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--quiet-edge); font-size: 14px; font-weight: 600; }
+.chip:hover:not(:disabled) { background: var(--tile); }
+.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-fill), 0 2px 0 var(--accent-fill); }
+.chip:active:not(:disabled) { transform: translateY(1px); }
 /* The exchange under the faces: two quiet sentences, each at most two lines. */
 .life { display: grid; gap: 4px; font-size: 13px; line-height: 1.35; color: var(--muted); }
 .life p { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -657,18 +658,19 @@ function rundownEnded() {
 .lines { display: grid; gap: 4px; align-content: start; line-height: 1.3; }
 .none { padding: 8px 0; }
 /* A free room's door, in an outlined circle where a face would be. */
-.door { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--border); color: var(--accent); }
+.door { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--line-strong); color: var(--free); }
 .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub.warn { color: var(--danger); }
 .given { display: inline-flex; align-items: center; gap: 3px; }
 /* A face with its state's dot on the lower right, like a presence dot in a game's friend list. */
 .face { position: relative; display: inline-grid; }
-.on-face { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; box-shadow: 0 0 0 2px var(--tile); }
+/* Ringed in the row's colour, so the dot reads as a badge on the face (it replaces the dot's own halo). */
+.face .on-face { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; box-shadow: 0 0 0 2px var(--surface); animation: none; }
 /* Buttons and links in a row carry an icon beside their word. */
 .lines :deep(.end button), .lines :deep(.end a.button) { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
 .when { color: var(--warn); font-weight: 600; }
 .when.late { color: var(--danger); }
-.cost { font-size: 15px; line-height: 1.4; }
+.cost { font-size: 15px; line-height: 1.4; font-variant-numeric: tabular-nums; }
 
 /* The channel fills the body, so the chat can keep its box and scroll its messages inside it. */
 .chat-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -676,7 +678,7 @@ function rundownEnded() {
 
 /* The foot: one big button across the width, or the one line that says why there's none. */
 .foot { flex: 1 1 auto; display: flex; align-items: center; min-width: 0; }
-.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; font-size: 17px; font-weight: 700; }
+.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; font-size: 18px; }
 a.go:hover { text-decoration: none; }
 .say { min-height: 48px; display: flex; align-items: center; font-size: 14px; color: var(--muted); }
 @media (max-width: 480px) {

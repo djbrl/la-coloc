@@ -39,7 +39,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 
 <style scoped>
 .waiting { margin: auto; display: grid; justify-items: center; align-content: center; gap: 10px; padding: 28px 16px; text-align: center; max-width: 360px; }
-.icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px; background: var(--fill); color: var(--muted); }
+.icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--fill); color: var(--muted); }
 .said { font-size: 19px; font-weight: 600; line-height: 1.25; }
 .line { font-size: 14px; line-height: 1.4; color: var(--muted); }
 .chunk { margin-top: 6px; min-height: 44px; padding: 0 22px; font-size: 16px; font-weight: 600; }

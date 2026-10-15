@@ -11,6 +11,8 @@ import { installCoreFetch, onRecovered } from "./core";
 // The language (English or French) is chosen before anything draws, and <html lang> follows it (i18n.ts).
 import "./i18n";
 import { loadMe } from "./session";
+// The display face and the monospace, self-hosted (fonts.css says which files and why), then the tokens.
+import "./fonts.css";
 import "./style.css";
 
 // Every same-origin /api request now tells the core store whether the API answered (core.ts), and the card on top of
@@ -25,6 +27,9 @@ const router = createRouter({
     { path: "/houses/:id/rooms/:room", component: RoomPage, props: true },
     { path: "/applications/:id", component: ApplicationPage, props: true },
     { path: "/login", component: LoginPage },
+    // The style guide (every shared piece in day and night, made-up data, no API), in development builds only:
+    // the bundler drops this branch, and the page with it, from a production build.
+    ...(import.meta.env.DEV ? [{ path: "/styleguide", component: () => import("./pages/StyleGuide.vue") }] : []),
   ],
   scrollBehavior: () => ({ top: 0 }),
 });

@@ -97,10 +97,10 @@ async function send() {
 .body { display: grid; gap: 4px; min-width: 0; }
 .mine .body { justify-items: end; }
 .meta { font-size: 12px; color: var(--muted); padding: 0 14px; }
-.bubble { padding: 10px 16px; border-radius: 20px; background: var(--fill); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
+.bubble { padding: 10px 16px; border-radius: var(--r-xl); background: var(--fill); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
 .mine .bubble { background: var(--accent-fill); color: var(--on-accent); }
 .compose { flex: none; display: flex; gap: 10px; }
-.compose input { flex: 1 1 auto; min-width: 0; border-radius: 980px; padding-left: 20px; }
+.compose input { flex: 1 1 auto; min-width: 0; border-radius: var(--r-pill); padding-left: 20px; }
 /* "Send" stays one word on one line, however narrow the panel. */
 .compose button { flex: none; white-space: nowrap; }
 .chat > .error { flex: none; }

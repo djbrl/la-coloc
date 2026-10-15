@@ -95,12 +95,12 @@ const hereLine = computed(() => {
 .where { display: flex; align-items: baseline; gap: 8px; margin-top: -6px; min-width: 0; }
 .where .status-dot { translate: 0 -1px; }
 .rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.rooms li { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 10px; border-radius: 14px; background: var(--tile); font-size: 15px; }
+.rooms li { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 10px; border-radius: var(--r-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); font-size: 15px; }
 .grow { flex: 1; min-width: 0; }
 .grow .line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A free room's door: the same blue as a free window in the city, flat. */
-.door { width: 30px; height: 30px; flex: none; border-radius: 8px; border: 2px solid var(--accent-fill); background: var(--accent-soft); }
-.rooms .knock.big { flex: none; min-height: 36px; padding: 0 14px; border-radius: 10px; font-size: 14px; background: var(--accent-soft); color: var(--accent); }
+.door { width: 30px; height: 30px; flex: none; border-radius: var(--r-sm); border: 2px solid var(--free); background: var(--free-soft); }
+.rooms .knock.big { flex: none; min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 .rooms .knock.big:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-fill); }
 .yours { flex: none; color: var(--warn); font-weight: 600; }
 </style>

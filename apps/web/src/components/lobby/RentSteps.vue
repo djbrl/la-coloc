@@ -148,14 +148,14 @@ function onClick(e: MouseEvent) {
   max-height: calc(100dvh - 32px);
   padding: 0;
   border: none;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.sheet[open] { animation: menu-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.sheet[open] { animation: menu-pop var(--dur-slow) var(--ease-pop); }
 .sheet::backdrop { background: var(--scrim); }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.94); }
@@ -163,35 +163,34 @@ function onClick(e: MouseEvent) {
 .inner { position: relative; padding: 26px 28px 24px; }
 .inner :deep(.steps) { gap: 20px; }
 /* The round close button in the corner, like the lobby's cards. */
-.x { position: absolute; top: 16px; right: 16px; z-index: 1; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
+.x { position: absolute; top: 16px; right: 16px; z-index: 1; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
 .x:hover:not(:disabled) { color: var(--text); }
 .form { display: grid; gap: 14px; }
-.form h2 { padding-right: 44px; font-size: 28px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+.form h2 { padding-right: 44px; font-size: 28px; line-height: 1.05; overflow-wrap: anywhere; }
 .form > p { font-size: 15px; line-height: 1.4; }
 .form > p.small { font-size: 13px; }
 .error { font-size: 14px; }
 /* The field: a big soft well, no hard border until it has the focus. */
-.form input { min-height: 54px; border-color: transparent; border-radius: 14px; background: var(--tile); font-size: 19px; }
+.form input { min-height: 54px; border-color: var(--line); border-radius: var(--r-md); background: var(--tile); font: 700 20px var(--display); letter-spacing: -0.01em; }
 .form input:focus { border-color: var(--accent-fill); background: var(--surface); }
 .form input[aria-invalid="true"] { border-color: var(--danger); }
 
 /* The last look: the house as a tile, the way the street will see it. */
-.preview { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border-radius: 18px; background: var(--tile); }
-.house-ic { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--accent-fill); color: var(--on-accent); }
+.preview { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border-radius: var(--r-lg); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
+.house-ic { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-md); background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 var(--lip) 0 var(--accent-lip); }
 .what { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
-.name { font-size: 20px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.name { font: 800 22px/1.15 var(--display); letter-spacing: -0.02em; overflow-wrap: anywhere; }
 .where { font-size: 14px; color: var(--muted); }
 .tag { margin-top: 6px; font-size: 15px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Chunky buttons, as in a game's menu: the main one in the accent and as wide as it can be, the way back in grey. */
 .nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.nav button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 20px; border-radius: 14px; font-size: 17px; font-weight: 600; white-space: nowrap; }
+.nav button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; white-space: nowrap; }
 .nav .primary { flex: 1 1 auto; font-weight: 700; }
 .nav .second { padding-left: 14px; }
-.nav button:active:not(:disabled) { transform: scale(0.97); }
 @media (max-width: 520px) {
   /* A phone: the card becomes a sheet along the bottom edge. */
-  .sheet { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 24px 24px 0 0; }
+  .sheet { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: var(--r-xl) var(--r-xl) 0 0; }
   .inner { padding: 22px 18px max(18px, env(safe-area-inset-bottom)); }
 }
 /* A short window (a landscape phone, a small laptop): tighter, so every step fits without scrolling. */
@@ -205,6 +204,5 @@ function onClick(e: MouseEvent) {
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet[open] { animation: none; }
-  .nav button:active:not(:disabled) { transform: none; }
 }
 </style>

@@ -157,47 +157,47 @@ onBeforeUnmount(() => clearTimeout(timer));
   display: grid;
   gap: 10px;
   padding: 14px 16px 14px 18px;
-  border-radius: 22px;
+  border-radius: var(--r-lg);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
-  animation: coach-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: coach-pop var(--dur-slow) var(--ease-pop);
 }
 @keyframes coach-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
-/* How far along you are: a short track, filled in the accent colour up to here. */
-.line { height: 4px; margin-right: 2px; border-radius: 2px; background: var(--fill); overflow: hidden; }
-.line span { display: block; height: 100%; border-radius: 2px; background: var(--accent-fill); transition: width 0.3s ease; }
+/* How far along you are: a game's quest bar, a sunken track filled in the orange up to here. */
+.line { height: 6px; margin-right: 2px; border-radius: 3px; background: var(--fill); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
+.line span { display: block; height: 100%; border-radius: 3px; background: var(--accent-fill); transition: width var(--dur-slow) var(--ease-pop); }
 .body { display: grid; gap: 6px; }
-.text { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.35; }
+.text { margin: 0; font: 700 18px/1.3 var(--display); letter-spacing: -0.015em; }
 .sub { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
 .error { color: var(--danger); }
 /* "Open it": a small accent pill inside the sentence, not an underlined link. */
-.open { display: inline-flex; align-items: center; margin-left: 4px; padding: 2px 10px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); font-weight: 700; white-space: nowrap; text-decoration: none; }
+.open { display: inline-flex; align-items: center; margin-left: 4px; padding: 2px 10px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); font-weight: 700; white-space: nowrap; text-decoration: none; }
 .open:hover { background: var(--accent-soft); text-decoration: none; box-shadow: inset 0 0 0 2px var(--accent-fill); }
-/* The room's address, as people read it, in bold. A long one wraps rather than push the card wider. */
-.address { font-weight: 700; overflow-wrap: anywhere; }
-/* The keys of the step, as raised caps. */
+/* The room's address, in the monospace like any address. A long one wraps rather than push the card wider. */
+.address { font: 500 0.88em var(--mono); letter-spacing: 0; overflow-wrap: anywhere; }
+/* The keys of the step, as big raised caps. */
 .caps { margin: 4px 0 0; display: flex; gap: 6px; }
-kbd { display: inline-grid; place-items: center; min-width: 36px; height: 36px; padding: 0 8px; border-radius: 9px; border: 1px solid var(--border); border-bottom-width: 3px; background: var(--surface); color: var(--text); font: 700 14px/1 var(--font); transition: background-color 0.15s, color 0.15s, border-color 0.15s, transform 0.15s; }
+.caps kbd { min-width: 36px; height: 36px; padding: 0 8px; border-radius: var(--r-sm); border-bottom-width: 3px; font-size: 14px; transition: background-color var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast); }
 .nav { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .nav:empty { display: none; }
 /* The way out sits on the left as a quiet grey button; the step's action on the right, in the accent. */
 .nav > .quiet:first-child { margin-right: auto; }
-.quiet { min-height: 40px; padding: 0 14px; border-radius: 12px; background: var(--fill); color: var(--muted); font-size: 14px; font-weight: 600; }
-.quiet:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); text-decoration: none; }
-.go { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border-radius: 13px; font-size: 16px; font-weight: 700; }
+.quiet { min-height: 40px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 14px; font-weight: 600; }
+.quiet:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
+.quiet:active:not(:disabled) { transform: translateY(1px); }
+.go { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; }
 a.go:hover { text-decoration: none; }
-:is(.quiet, .go):active:not(:disabled) { transform: scale(0.97); }
 button:focus-visible, a:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .coach { animation: none; }
   .line span, kbd { transition: none; }
-  :is(.quiet, .go):active:not(:disabled) { transform: none; }
+  .quiet:active:not(:disabled) { transform: none; }
 }
 @media (max-width: 520px) {
-  .coach { padding: 12px 14px; border-radius: 20px; }
-  .text { font-size: 15px; }
+  .coach { padding: 12px 14px; }
+  .text { font-size: 16px; }
 }
 </style>

@@ -128,7 +128,7 @@ const listLine = computed(() => {
 .line { font-size: 14px; color: var(--muted); }
 .again { justify-self: start; }
 .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
-.controls input { min-height: 44px; padding: 10px 16px; border: 0; border-radius: 12px; background: var(--fill); font-size: 15px; }
+.controls input { min-height: 44px; padding: 10px 16px; border: 0; border-radius: var(--r-md); background: var(--fill); font-size: 15px; }
 .controls input:focus { box-shadow: 0 0 0 3px var(--focus); }
 .explain { margin-top: -4px; font-size: 13px; line-height: 1.3; color: var(--muted); }
 .plain { list-style: none; margin: 0; padding: 0; }

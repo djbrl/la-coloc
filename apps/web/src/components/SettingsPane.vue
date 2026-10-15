@@ -322,35 +322,24 @@ async function resetDemo() {
   display: grid;
   align-content: start;
   gap: 14px;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
   outline: none;
 }
-h2 { margin: 0; padding-right: 48px; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+h2 { margin: 0; padding-right: 48px; font-size: 28px; line-height: 1.05; }
 /* The round close button in the corner, like the lobby's cards. */
-.x { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
+.x { position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
 .x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
 
 .options { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; line-height: 1.3; }
 /* A row's sentence may take two lines beside its control rather than lose its end. */
 .options :deep(.title) { white-space: normal; font-weight: 500; }
-.ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--surface); color: var(--muted); }
+.ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
 .flip { cursor: pointer; }
 
-/* A segmented control: the chosen part lifted out on the surface, like the panels' tabs. */
-.segmented { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--fill); }
-.options .segmented button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 8px; background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
-.options .segmented button:hover:not(:disabled) { background: none; color: var(--text); }
-.options .segmented button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14); }
-
-/* A switch: the knob slides right and the track goes green when it's on. */
-.options .toggle { position: relative; flex: none; width: 51px; min-height: 31px; height: 31px; padding: 0; border-radius: 31px; background: var(--fill-hover); transition: background-color 0.2s var(--ease); }
-.options .toggle:hover:not(:disabled) { background: var(--fill-hover); }
-.options .toggle[aria-checked="true"], .options .toggle[aria-checked="true"]:hover:not(:disabled) { background: var(--live); }
-.knob { position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: var(--surface); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); transition: transform 0.2s var(--ease); }
-.toggle[aria-checked="true"] .knob { transform: translateX(20px); }
+/* The segmented controls (.segmented) and the ON/OFF switches (.toggle) are the shared ones in style.css. */
 
 /* Starting over: equal tiles in a row, an icon over a few words, like the lobby cards' menus. */
 .acts { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
@@ -362,53 +351,54 @@ h2 { margin: 0; padding-right: 48px; font-size: 28px; font-weight: 700; line-hei
   gap: 6px;
   min-height: 84px;
   padding: 10px 8px;
-  border-radius: 16px;
-  background: var(--tile);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--quiet-edge);
   color: var(--text);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.25;
   text-align: center;
-  transition: background-color 0.15s var(--ease), transform 0.1s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.act:hover:not(:disabled) { background: var(--fill); }
-.act:active:not(:disabled) { transform: scale(0.97); }
+.act:hover:not(:disabled) { background: var(--tile); }
+.act:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 0 0 1px var(--border), 0 1px 0 var(--line-strong); }
 .act.danger { color: var(--danger); }
 .act.danger:hover:not(:disabled) { background: var(--danger-soft); }
 
 /* The reset's question, in place of the buttons: a red-tinted card, then Keep beside Reset. */
-.confirm { display: grid; gap: 12px; padding: 14px; border-radius: 16px; background: var(--danger-soft); }
+.confirm { display: grid; gap: 12px; padding: 14px; border-radius: var(--r-md); background: var(--danger-soft); }
 .question { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; color: var(--danger); }
 .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.choice button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border-radius: 14px; font-size: 16px; font-weight: 600; }
-.choice button:not(.danger-fill) { background: var(--surface); }
-.danger-fill { background: var(--danger); color: var(--on-accent); }
+.choice button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border-radius: var(--r-md); font-size: 16px; font-weight: 600; }
+.choice button:not(.danger-fill) { background: var(--surface); box-shadow: var(--quiet-edge); }
+.danger-fill { background: var(--danger); color: var(--on-danger); box-shadow: 0 var(--lip) 0 color-mix(in srgb, var(--danger) 60%, #000); }
 .danger-fill:hover:not(:disabled) { background: var(--danger); opacity: 0.9; }
 .error { margin: 0; font-size: 14px; color: var(--danger); }
 
 button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-.pop-enter-active { transition: opacity 0.22s var(--ease), transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
-.pop-leave-active { transition: opacity 0.15s var(--ease), transform 0.15s var(--ease); }
-.pop-enter-from, .pop-leave-to { opacity: 0; transform: translateY(10px) scale(0.94); }
+.pop-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
+.pop-leave-active { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.pop-enter-from, .pop-leave-to { opacity: 0; transform: translateY(10px) scale(0.95); }
 /* A phone: the menu is a sheet along the bottom edge, and the rows keep only what they need. */
 @media (max-width: 520px) {
-  .pane { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 88dvh; border-radius: 24px 24px 0 0; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .pane { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 88dvh; border-radius: var(--r-xl) var(--r-xl) 0 0; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
   .options :deep(.sub) { display: none; }
   .ic { width: 32px; height: 32px; }
   .options :deep(.lead) { width: 32px; }
   .segmented .word { font-size: 13px; }
   /* The looks keep their pictures only, so the row's sentence has room; the words stay for a screen reader. */
   .segmented.icons .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .options .segmented button { padding: 0 9px; }
+  .options .segmented > button { padding: 0 9px; }
 }
 @media (max-height: 640px) {
   .pane { gap: 10px; padding-top: 18px; }
   .act { min-height: 72px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .fade-enter-active, .fade-leave-active, .pop-enter-active, .pop-leave-active, .toggle, .knob, .act { transition: none; }
+  .fade-enter-active, .fade-leave-active, .pop-enter-active, .pop-leave-active, .act { transition: none; }
   .act:active:not(:disabled) { transform: none; }
 }
 </style>

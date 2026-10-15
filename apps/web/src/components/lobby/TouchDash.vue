@@ -111,21 +111,22 @@ const AROUND = 2 * Math.PI * RADIUS;
   place-items: center;
   background: var(--surface);
   color: var(--accent);
-  box-shadow: var(--lift);
+  /* A game pad's button: round, with a lip that sinks when pressed. */
+  box-shadow: var(--lift), 0 3px 0 var(--line-strong);
   cursor: pointer;
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s var(--ease), opacity 0.2s var(--ease);
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), opacity var(--dur) var(--ease);
 }
 @media (max-width: 520px) {
   .touch-dash { right: 12px; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 130px + 14px); }
 }
 .touch-dash > svg { grid-area: 1 / 1; }
-/* A quick squash on the way down, like a game pad's button. */
-.touch-dash:active { transform: scale(0.88); }
+/* Pushed in: it moves down by what its lip loses. */
+.touch-dash:active { transform: translateY(2px); box-shadow: var(--lift), 0 1px 0 var(--line-strong); }
 .touch-dash.cooling { color: var(--muted); }
 .touch-dash:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 

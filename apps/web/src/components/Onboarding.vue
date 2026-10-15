@@ -134,11 +134,11 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
   z-index: 20;
   width: min(560px, calc(100vw - 32px));
   padding: 24px 24px 18px;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   color: var(--text);
   background: var(--surface);
   box-shadow: var(--shadow);
-  animation: menu-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: menu-pop var(--dur-slow) var(--ease-pop);
 }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(12px) scale(0.96); }
@@ -148,14 +148,14 @@ h2 { margin: 0; font-size: 28px; line-height: 1.12; font-weight: 700; letter-spa
 p { margin: 0; font-size: 17px; line-height: 1.5; }
 /* A free room's window, in the colour the city draws it (the same in day and night). */
 .glow { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px 1px 2px; vertical-align: middle; }
-.glow.free { background: #6f9cff; box-shadow: 0 0 10px #6f9cff; }
-.picker { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; padding: 6px; border-radius: 18px; background: var(--tile); }
-.turn { width: 52px; height: 52px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: var(--lift); }
+.glow.free { background: var(--free); box-shadow: 0 0 10px var(--free); }
+.picker { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; padding: 6px; border-radius: var(--r-lg); background: var(--tile); }
+.turn { width: 52px; height: 52px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); }
 .turn:hover:not(:disabled) { background: var(--surface); color: var(--accent); }
-.turn:active:not(:disabled) { transform: scale(0.94); }
+.turn:active:not(:disabled) { transform: translateY(2px); }
 .count { flex: 1; font-size: 17px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
 /* Logging in sits in the sentence's step as a soft accent button: "Start exploring" stays the one main action. */
-.login { justify-self: start; gap: 8px; min-height: 50px; border-radius: 14px; font-weight: 700; background: var(--accent-soft); color: var(--accent); }
+.login { justify-self: start; gap: 8px; min-height: 50px; border-radius: var(--r-md); font-weight: 700; background: var(--accent-soft); color: var(--accent); }
 .login:hover { background: var(--accent-soft); text-decoration: none; box-shadow: inset 0 0 0 2px var(--accent-fill); }
 .error { color: var(--danger); font-size: 15px; }
 .foot { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
@@ -165,9 +165,8 @@ p { margin: 0; font-size: 17px; line-height: 1.5; }
 .dots span.done { background: var(--muted); }
 .dots span.on { width: 22px; background: var(--accent-fill); }
 /* Chunky buttons, as in a game's menu. */
-.foot button { min-height: 50px; padding: 0 20px; border-radius: 14px; font-size: 17px; font-weight: 600; white-space: nowrap; }
+.foot button { min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; white-space: nowrap; }
 .foot .go { min-width: 120px; font-weight: 700; }
-.foot button:active:not(:disabled) { transform: scale(0.97); }
 button:focus-visible, .login:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 .step-enter-active, .step-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .step-enter-from { opacity: 0; transform: translateY(6px); }
@@ -175,10 +174,10 @@ button:focus-visible, .login:focus-visible { outline: 3px solid var(--accent-fil
 @media (prefers-reduced-motion: reduce) {
   .welcome-card { animation: none; }
   .step-enter-active, .step-leave-active, .dots span { transition: none; }
-  .turn:active:not(:disabled), .foot button:active:not(:disabled) { transform: none; }
+  .turn:active:not(:disabled) { transform: none; }
 }
 @media (max-width: 520px) {
-  .welcome-card { padding: 20px 18px 14px; border-radius: 24px; }
+  .welcome-card { padding: 20px 18px 14px; border-radius: var(--r-xl); }
   h2 { font-size: 24px; }
   p { font-size: 16px; }
   .foot button { padding: 0 16px; }
