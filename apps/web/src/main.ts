@@ -7,6 +7,8 @@ import HousePage from "./pages/HousePage.vue";
 import LoginPage from "./pages/LoginPage.vue";
 import RoomPage from "./pages/RoomPage.vue";
 import { installCoreFetch, onRecovered } from "./core";
+// The language (English or French) is chosen before anything draws, and <html lang> follows it (i18n.ts).
+import "./i18n";
 import { loadMe } from "./session";
 import "./style.css";
 

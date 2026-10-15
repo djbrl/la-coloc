@@ -5,9 +5,11 @@
 import { computed, type FunctionalComponent, h, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { config, loadConfig, loadMe, me, postJSON } from "../session";
+import { type Lang, language, setLang } from "../i18n";
 import { settings, settingsPane } from "../settings";
 import Icon from "./lobby/house/Icon.vue";
 import ListRow from "./lobby/panel/ListRow.vue";
+import { settingsWords as w } from "./words";
 
 const route = useRoute();
 const router = useRouter();
@@ -28,6 +30,8 @@ const glyphs = {
   list: "M8 6h12 M8 12h12 M8 18h12 M4 6h.01 M4 12h.01 M4 18h.01",
   // A keyboard: the one-key shortcuts.
   keys: "M3 6h18v12H3z M7 10h.01 M11 10h.01 M15 10h.01 M8 14h8",
+  // A globe: the language.
+  globe: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M3 12h18 M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9 M12 3c-2.5 2.5-3.8 5.5-3.8 9s1.3 6.5 3.8 9",
 };
 const Glyph: FunctionalComponent<{ d: string; size?: number }> = (p) =>
   h(
@@ -36,25 +40,33 @@ const Glyph: FunctionalComponent<{ d: string; size?: number }> = (p) =>
     [h("path", { d: p.d })],
   );
 
+// The choices of each row. Their words are functions, so each is read in the language chosen now (words.ts).
 // The three looks: the site's day or night, or the system's choice.
-const themes: { value: typeof settings.theme; word: string; glyph: string }[] = [
-  { value: "system", word: "Auto", glyph: glyphs.auto },
-  { value: "light", word: "Day", glyph: glyphs.sun },
-  { value: "dark", word: "Night", glyph: glyphs.moon },
+const themes: { value: typeof settings.theme; word: () => string; glyph: string }[] = [
+  { value: "system", word: () => w.auto, glyph: glyphs.auto },
+  { value: "light", word: () => w.day, glyph: glyphs.sun },
+  { value: "dark", word: () => w.night, glyph: glyphs.moon },
 ];
-const views: { value: typeof settings.view; word: string; glyph: string }[] = [
-  { value: "lobby", word: "Walk", glyph: glyphs.walk },
-  { value: "list", word: "List", glyph: glyphs.list },
+const views: { value: typeof settings.view; word: () => string; glyph: string }[] = [
+  { value: "lobby", word: () => w.walk, glyph: glyphs.walk },
+  { value: "list", word: () => w.list, glyph: glyphs.list },
 ];
-const qualities: { value: typeof settings.quality; word: string }[] = [
-  { value: "low", word: "Low" },
-  { value: "high", word: "High" },
+const qualities: { value: typeof settings.quality; word: () => string }[] = [
+  { value: "low", word: () => w.low },
+  { value: "high", word: () => w.high },
+];
+
+// The two languages, each shown as its short code and named in its own language (for a screen reader, and for
+// someone who can't read the language on screen now). i18n.ts remembers the choice and sets <html lang>.
+const languages: { value: Lang; short: string; name: string }[] = [
+  { value: "en", short: "EN", name: "English" },
+  { value: "fr", short: "FR", name: "Français" },
 ];
 
 // Each row's sentence, for what's chosen now: no "City" or "Look" label, just what the setting does.
-const viewSaid = computed(() => (settings.view === "list" ? "See the city as a list." : "Walk the city."));
-const themeSaid = computed(() => ({ system: "Day or night, as your device says.", light: "Always day.", dark: "Always night." })[settings.theme]);
-const qualitySaid = computed(() => (settings.quality === "low" ? "Plain light, to save battery." : "Soft shadows and warm light."));
+const viewSaid = computed(() => (settings.view === "list" ? w.viewList : w.viewWalk));
+const themeSaid = computed(() => ({ system: w.themeAuto, light: w.themeDay, dark: w.themeNight })[settings.theme]);
+const qualitySaid = computed(() => (settings.quality === "low" ? w.qualityLow : w.qualityHigh));
 
 // Left and right (or up and down) move a row's choice, and the focus with it, as in any radio group.
 function arrows<T>(e: KeyboardEvent, values: T[], current: T, set: (v: T) => void) {
@@ -165,16 +177,38 @@ async function resetDemo() {
   </Transition>
   <Transition name="pop">
     <aside v-if="settingsPane.open" ref="panel" class="pane" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
-      <h2 id="settings-title">Settings</h2>
-      <button class="x" aria-label="Close settings (Esc)" @click="close">
+      <h2 id="settings-title">{{ w.title }}</h2>
+      <button class="x" :aria-label="w.close" @click="close">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
       </button>
 
       <ul class="options">
+        <!-- The language first: someone who can't read the rest finds it at the top, with a globe and two codes. -->
+        <ListRow :title="w.languageNow">
+          <template #lead><span class="ic"><Glyph :d="glyphs.globe" /></span></template>
+          <template #end>
+            <div class="segmented" role="radiogroup" :aria-label="w.languageGroup" @keydown="arrows($event, languages.map((l) => l.value), language.lang, setLang)">
+              <button
+                v-for="l in languages"
+                :key="l.value"
+                role="radio"
+                :lang="l.value"
+                :aria-label="l.name"
+                :aria-checked="language.lang === l.value"
+                :tabindex="language.lang === l.value ? 0 : -1"
+                :class="{ on: language.lang === l.value }"
+                @click="setLang(l.value)"
+              >
+                <span class="word">{{ l.short }}</span>
+              </button>
+            </div>
+          </template>
+        </ListRow>
+
         <ListRow :title="viewSaid">
           <template #lead><span class="ic"><Icon name="house" :size="20" /></span></template>
           <template #end>
-            <div class="segmented" role="radiogroup" aria-label="Show the city as" @keydown="arrows($event, views.map((v) => v.value), settings.view, (v) => (settings.view = v))">
+            <div class="segmented" role="radiogroup" :aria-label="w.viewGroup" @keydown="arrows($event, views.map((v) => v.value), settings.view, (v) => (settings.view = v))">
               <button
                 v-for="v in views"
                 :key="v.value"
@@ -184,7 +218,7 @@ async function resetDemo() {
                 :class="{ on: settings.view === v.value }"
                 @click="settings.view = v.value"
               >
-                <Glyph :d="v.glyph" :size="16" /><span class="word">{{ v.word }}</span>
+                <Glyph :d="v.glyph" :size="16" /><span class="word">{{ v.word() }}</span>
               </button>
             </div>
           </template>
@@ -193,7 +227,7 @@ async function resetDemo() {
         <ListRow :title="themeSaid">
           <template #lead><span class="ic"><Glyph :d="glyphs.sun" /></span></template>
           <template #end>
-            <div class="segmented icons" role="radiogroup" aria-label="Looks like" @keydown="arrows($event, themes.map((t) => t.value), settings.theme, (v) => (settings.theme = v))">
+            <div class="segmented icons" role="radiogroup" :aria-label="w.themeGroup" @keydown="arrows($event, themes.map((t) => t.value), settings.theme, (v) => (settings.theme = v))">
               <button
                 v-for="t in themes"
                 :key="t.value"
@@ -203,7 +237,7 @@ async function resetDemo() {
                 :class="{ on: settings.theme === t.value }"
                 @click="settings.theme = t.value"
               >
-                <Glyph :d="t.glyph" :size="16" /><span class="word">{{ t.word }}</span>
+                <Glyph :d="t.glyph" :size="16" /><span class="word">{{ t.word() }}</span>
               </button>
             </div>
           </template>
@@ -212,7 +246,7 @@ async function resetDemo() {
         <ListRow :title="qualitySaid">
           <template #lead><span class="ic"><Icon name="gauge" :size="20" /></span></template>
           <template #end>
-            <div class="segmented" role="radiogroup" aria-label="Graphics" @keydown="arrows($event, qualities.map((q) => q.value), settings.quality, (v) => (settings.quality = v))">
+            <div class="segmented" role="radiogroup" :aria-label="w.qualityGroup" @keydown="arrows($event, qualities.map((q) => q.value), settings.quality, (v) => (settings.quality = v))">
               <button
                 v-for="q in qualities"
                 :key="q.value"
@@ -222,47 +256,47 @@ async function resetDemo() {
                 :class="{ on: settings.quality === q.value }"
                 @click="settings.quality = q.value"
               >
-                <span class="word">{{ q.word }}</span>
+                <span class="word">{{ q.word() }}</span>
               </button>
             </div>
           </template>
         </ListRow>
 
         <!-- A switch row toggles from anywhere on it; the switch itself is what the keyboard reaches. -->
-        <ListRow class="flip" title="Calmer motion: no camera glide, no strolling flatmates." @click="settings.reduceMotion = !settings.reduceMotion">
+        <ListRow class="flip" :title="w.motion" @click="settings.reduceMotion = !settings.reduceMotion">
           <template #lead><span class="ic"><Glyph :d="glyphs.motion" /></span></template>
           <template #end>
-            <button class="toggle" role="switch" aria-label="Calmer motion" :aria-checked="settings.reduceMotion"><span class="knob" aria-hidden="true" /></button>
+            <button class="toggle" role="switch" :aria-label="w.motionName" :aria-checked="settings.reduceMotion"><span class="knob" aria-hidden="true" /></button>
           </template>
         </ListRow>
 
-        <ListRow class="flip" title="Sounds for doors, steps and friends." @click="settings.sound = !settings.sound">
+        <ListRow class="flip" :title="w.sound" @click="settings.sound = !settings.sound">
           <template #lead><span class="ic"><Glyph :d="glyphs.sound" /></span></template>
           <template #end>
-            <button class="toggle" role="switch" aria-label="Sounds" :aria-checked="settings.sound"><span class="knob" aria-hidden="true" /></button>
+            <button class="toggle" role="switch" :aria-label="w.soundName" :aria-checked="settings.sound"><span class="knob" aria-hidden="true" /></button>
           </template>
         </ListRow>
 
-        <ListRow class="flip" title="One-key shortcuts in the city: W A S D to walk, E to use." @click="settings.shortcuts = !settings.shortcuts">
+        <ListRow class="flip" :title="w.shortcuts" @click="settings.shortcuts = !settings.shortcuts">
           <template #lead><span class="ic"><Glyph :d="glyphs.keys" /></span></template>
           <template #end>
-            <button class="toggle" role="switch" aria-label="Keyboard shortcuts" :aria-checked="settings.shortcuts"><span class="knob" aria-hidden="true" /></button>
+            <button class="toggle" role="switch" :aria-label="w.shortcutsName" :aria-checked="settings.shortcuts"><span class="knob" aria-hidden="true" /></button>
           </template>
         </ListRow>
       </ul>
 
       <!-- Starting over: big buttons, an icon over their words. The demo's reset asks once more, in place. -->
       <div v-if="!confirming" class="acts">
-        <button class="act" @click="replayWelcome"><Icon name="people" :size="22" /><span>Watch the welcome again</span></button>
-        <button v-if="me" class="act" :disabled="tutorialBusy" @click="takeTutorialAgain"><Icon name="rocket" :size="22" /><span>Take the tutorial again</span></button>
+        <button class="act" @click="replayWelcome"><Icon name="people" :size="22" /><span>{{ w.welcomeAgain }}</span></button>
+        <button v-if="me" class="act" :disabled="tutorialBusy" @click="takeTutorialAgain"><Icon name="rocket" :size="22" /><span>{{ w.tutorialAgain }}</span></button>
         <!-- Only when the server says the demo may be reset: the whole city goes back to its seed. -->
-        <button v-if="config?.demoReset" ref="resetButton" class="act danger" @click="ask(true)"><Icon name="spin" :size="22" /><span>Reset the demo city</span></button>
+        <button v-if="config?.demoReset" ref="resetButton" class="act danger" @click="ask(true)"><Icon name="spin" :size="22" /><span>{{ w.resetDemo }}</span></button>
       </div>
       <div v-else class="confirm" role="group" aria-labelledby="reset-question">
-        <p id="reset-question" class="question"><Icon name="warn" :size="20" />Everything goes back to the start. Reset?</p>
+        <p id="reset-question" class="question"><Icon name="warn" :size="20" />{{ w.resetQuestion }}</p>
         <div class="choice">
-          <button ref="keepButton" :disabled="resetBusy" @click="ask(false)">Keep</button>
-          <button class="danger-fill" :disabled="resetBusy" @click="resetDemo"><Icon name="spin" :size="18" />Reset</button>
+          <button ref="keepButton" :disabled="resetBusy" @click="ask(false)">{{ w.keep }}</button>
+          <button class="danger-fill" :disabled="resetBusy" @click="resetDemo"><Icon name="spin" :size="18" />{{ w.reset }}</button>
         </div>
       </div>
       <p v-if="tutorialError" class="error" role="alert">{{ tutorialError }}</p>
