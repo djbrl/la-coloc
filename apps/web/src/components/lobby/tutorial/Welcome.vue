@@ -3,6 +3,7 @@
 // that a short tutorial follows; the last, once the real city is built around you, says what the city is for
 // and hands you the keys. Each has one main action.
 import { onMounted, ref } from "vue";
+import { tutorialWords as w } from "./words";
 
 const props = defineProps<{ step: "welcome" | "city"; busy: boolean; error?: string }>();
 const emit = defineEmits<{ start: []; skip: []; end: [] }>();
@@ -21,21 +22,21 @@ function onKey(e: KeyboardEvent) {
   <div class="layer">
     <section class="card" role="dialog" aria-modal="true" aria-labelledby="tutorial-welcome-title" @keydown="onKey">
       <template v-if="props.step === 'welcome'">
-        <h2 id="tutorial-welcome-title">Welcome to La Coloc.</h2>
-        <p>A city of dev houses, from Dakar to Kigali. Each house is a server a few developers rent together, and part of the rent is paid in code reviews.</p>
-        <p class="soft">You'll get a room in a shared server and put a project online in a minute.</p>
+        <h2 id="tutorial-welcome-title">{{ w.welcome }}</h2>
+        <p>{{ w.pitch }}</p>
+        <p class="soft">{{ w.promise }}</p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
         <div class="nav">
-          <button type="button" class="link quiet" :disabled="busy" @click="emit('skip')">Skip the tutorial</button>
-          <button ref="go" type="button" class="primary go" :disabled="busy" @click="emit('start')">Start</button>
+          <button type="button" class="link quiet" :disabled="busy" @click="emit('skip')">{{ w.skip }}</button>
+          <button ref="go" type="button" class="primary go" :disabled="busy" @click="emit('start')">{{ w.start }}</button>
         </div>
       </template>
       <template v-else>
-        <h2 id="tutorial-welcome-title">Welcome to the city.</h2>
-        <p>Every lit window is someone's project. Go into a house to see who lives there and what they build. Knock on a free room, and the house votes.</p>
-        <p class="soft">The city's name, top left, takes you to other cities. The tutorial is in settings.</p>
+        <h2 id="tutorial-welcome-title">{{ w.city }}</h2>
+        <p>{{ w.cityPitch }}</p>
+        <p class="soft">{{ w.cityHint }}</p>
         <div class="nav">
-          <button ref="go" type="button" class="primary go" @click="emit('end')">Let's go</button>
+          <button ref="go" type="button" class="primary go" @click="emit('end')">{{ w.letsGo }}</button>
         </div>
       </template>
     </section>

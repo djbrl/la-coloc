@@ -7,6 +7,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { CHARACTERS } from "../lobby/assets";
 import { me, sendJSON } from "../session";
 import Icon from "./lobby/house/Icon.vue";
+import { welcomeWords as w } from "./words";
 
 const emit = defineEmits<{
   // Zoom on your character while you pick a look.
@@ -77,32 +78,32 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
     <Transition name="step" mode="out-in">
       <div :key="current" class="body">
         <template v-if="current === 'city'">
-          <h2 id="onboarding-title" ref="title" tabindex="-1">A city of dev houses, from Dakar to Kigali.</h2>
-          <p>Each house is a server shared by a few developers. Every lit window is someone's project.</p>
+          <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.cityTitle }}</h2>
+          <p>{{ w.city }}</p>
         </template>
         <template v-else-if="current === 'rent'">
-          <h2 id="onboarding-title" ref="title" tabindex="-1">Rent a server together.</h2>
-          <p>Flatmates split the bill, and pay part of it in code reviews. Review a housemate's pull request, pay a little less.</p>
+          <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.rentTitle }}</h2>
+          <p>{{ w.rent }}</p>
         </template>
         <template v-else-if="current === 'push'">
-          <h2 id="onboarding-title" ref="title" tabindex="-1">Push, and it's online.</h2>
-          <p>Your room runs your project. Merge a pull request and it goes live at its own address, in your room.</p>
+          <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.pushTitle }}</h2>
+          <p>{{ w.push }}</p>
         </template>
         <template v-else-if="current === 'knock'">
-          <h2 id="onboarding-title" ref="title" tabindex="-1">Knock on a free room.</h2>
-          <p>A <span class="glow free" aria-hidden="true" />blue window is free. Knock, say what you build, and the house votes.</p>
-          <RouterLink v-if="!loggedIn" class="button login" to="/login"><Icon name="login" :size="20" />Log in with GitHub</RouterLink>
+          <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.knockTitle }}</h2>
+          <p>{{ w.knockBefore }} <span class="glow free" aria-hidden="true" />{{ w.knockAfter }}</p>
+          <RouterLink v-if="!loggedIn" class="button login" to="/login"><Icon name="login" :size="20" />{{ w.logIn }}</RouterLink>
         </template>
         <template v-else-if="current === 'look'">
-          <h2 id="onboarding-title" ref="title" tabindex="-1">Pick your look.</h2>
-          <p>Everyone in the city sees you this way. You can change it later in settings.</p>
+          <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.lookTitle }}</h2>
+          <p>{{ w.look }}</p>
           <!-- Like a game's character select: arrows either side of the count (the arrow keys work too). -->
           <div class="picker">
-            <button class="turn" aria-label="Previous look" @click="turn(-1)">
+            <button class="turn" :aria-label="w.previousLook" @click="turn(-1)">
               <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
-            <span class="count" aria-live="polite">{{ look + 1 }} of {{ CHARACTERS.length }}</span>
-            <button class="turn" aria-label="Next look" @click="turn(1)">
+            <span class="count" aria-live="polite">{{ w.count(look + 1, CHARACTERS.length) }}</span>
+            <button class="turn" :aria-label="w.nextLook" @click="turn(1)">
               <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </button>
           </div>
@@ -115,9 +116,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
       <div class="dots" aria-hidden="true">
         <span v-for="(s, i) in steps" :key="s" :class="{ on: i === step, done: i < step }" />
       </div>
-      <button v-if="step > 0" class="second" @click="go(step - 1)">Back</button>
-      <button v-else class="second" @click="finish">Skip</button>
-      <button class="primary go" @click="next">{{ step === steps.length - 1 ? "Start exploring" : current === "look" ? "This is me" : "Next" }}</button>
+      <button v-if="step > 0" class="second" @click="go(step - 1)">{{ w.back }}</button>
+      <button v-else class="second" @click="finish">{{ w.skip }}</button>
+      <button class="primary go" @click="next">{{ step === steps.length - 1 ? w.explore : current === "look" ? w.thisIsMe : w.next }}</button>
     </div>
   </div>
 </template>

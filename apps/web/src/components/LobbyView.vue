@@ -12,6 +12,7 @@ import { loading } from "../lobby/assets";
 import { styleFor } from "../lobby/cityStyle";
 import { type Emote, Lobby, type Target } from "../lobby/Lobby";
 import { checkCore, core } from "../core";
+import { language } from "../i18n";
 import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
@@ -23,7 +24,7 @@ import KnockSteps from "./KnockSteps.vue";
 import { localTime } from "./lobby/africa";
 import AfricaMap from "./lobby/AfricaMap.vue";
 import BoardCard from "./lobby/BoardCard.vue";
-import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam, plural, statusLine } from "./lobby/cards";
+import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam, statusLine } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
 import HouseCard from "./lobby/HouseCard.vue";
 import Inside from "./lobby/Inside.vue";
@@ -41,6 +42,7 @@ import { useTutorial } from "./lobby/tutorial/useTutorial";
 import Welcome from "./lobby/tutorial/Welcome.vue";
 import LoadingScreen from "./LoadingScreen.vue";
 import Onboarding from "./Onboarding.vue";
+import { lobbyWords as w } from "./words";
 
 const props = defineProps<{ houses: CityHouse[] }>();
 const route = useRoute();
@@ -142,7 +144,7 @@ function openSheet(which: "find" | "travel") {
     sheet.value = which;
     return;
   }
-  notice.value = "After the tutorial.";
+  notice.value = w.afterTutorial;
   clearTimeout(noticeTimer);
   noticeTimer = window.setTimeout(() => (notice.value = ""), 1800);
 }
@@ -335,7 +337,8 @@ function nextToast() {
 function greet(to: string) {
   const g = styleFor(to).greeting;
   if (!g || g.language === "English") return;
-  say(g.text, { soft: `"${g.meaning}", in ${g.language}.`, ms: 5500 });
+  const fr = language.lang === "fr";
+  say(g.text, { soft: fr ? w.greeting(g.fr.meaning, g.fr.language) : w.greeting(g.meaning, g.language), ms: 5500 });
 }
 
 // The tips seen in this browser. Each one shows once (tutorial/tips.ts).
@@ -536,8 +539,8 @@ function newsFrom(houses: CityHouse[]) {
       const inView = h.city === city.value && !inWorkshop.value;
       if (inView) lobby?.celebrate(h.id);
       if (inView || mine.has(h.id)) {
-        const what = r.project ? `${firstName(r.occupant)}'s ${r.project}` : `${firstName(r.occupant)}'s room in ${h.name}`;
-        say(`${what} is online${inView ? "" : `, in ${h.city}`}.`);
+        const where = inView ? null : h.city;
+        say(r.project ? w.projectOnline(firstName(r.occupant), r.project, where) : w.roomOnline(firstName(r.occupant), h.name, where));
       }
     }
   lastRooms = next;
@@ -738,7 +741,7 @@ watchEffect(() => {
     const h = houseOf(p.houseId);
     const r = h?.rooms.find((x) => x.name === p.room);
     where = h ? `${r?.project ?? p.room}, ${h.name}` : p.room;
-  } else if (p?.kind === "application") where = "A knock";
+  } else if (p?.kind === "application") where = w.aKnock;
   document.title = `${where} · La Coloc`;
 });
 
@@ -823,11 +826,11 @@ const activity = computed(() => {
     }
     reviews += h.openChores ?? 0;
   }
-  const parts = [online ? `${plural(online, "project", "projects")} online` : "no project online yet"];
-  if (building) parts.push(`${building} building`);
-  if (reviews) parts.push(plural(reviews, "review waiting", "reviews waiting"));
+  const parts = [online ? w.online(online) : w.noneOnline];
+  if (building) parts.push(w.building(building));
+  if (reviews) parts.push(w.reviewsWaiting(reviews));
   const line = `${parts.join(", ")}.`;
-  return { city: city.value, line, short: line[0].toUpperCase() + line.slice(1) };
+  return { wide: w.cityLine(city.value, line), short: line[0].toUpperCase() + line.slice(1) };
 });
 
 // The travel menu's rows: each city's houses, who's walking around there right now, and its local time (the clock
@@ -843,22 +846,18 @@ watch(sheet, (s) => {
 onBeforeUnmount(() => clearInterval(clock));
 const litCity = ref<string | null>(null);
 function cityLine(c: { name: string; houses: number }): string {
-  const people = census.value[c.name] ?? 0;
-  const time = localTime(c.name, now.value);
-  const who = people ? `${plural(people, "person", "people")} walking around` : "nobody walking around";
-  return `${plural(c.houses, "house", "houses")}, ${who}${time ? `. It's ${time} there` : ""}.`;
+  return w.cityRow(c.houses, census.value[c.name] ?? 0, localTime(c.name, now.value));
 }
-const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
 </script>
 
 <template>
   <div class="lobby" :class="{ paused: !!place }">
-    <p v-if="failed" class="failed">This browser can't show the city in 3D. Open settings to see it as a list.</p>
+    <p v-if="failed" class="failed">{{ w.noWebgl }}</p>
 
     <template v-if="ready && !failed">
       <!-- Each piece of the screen shows once the tutorial has unlocked it (always, outside the tutorial). The HUD
            comes first in the page, so Tab reaches the skip link, the top bar and these buttons before the city. -->
-      <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? `You're in ${placeName}, the tutorial's workshop` : `You're in ${city}. Travel to another city`" @click="openSheet('travel')">
+      <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? w.inWorkshop(placeName) : w.inCity(city)" @click="openSheet('travel')">
         <span class="city">{{ placeName }}</span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
@@ -867,7 +866,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
       <div class="hud top" aria-live="polite">
         <p v-if="notice">{{ notice }}</p>
         <p v-else-if="activity && shows('here')">
-          <span class="wide">{{ activity.city }}: {{ activity.line }}</span>
+          <span class="wide">{{ activity.wide }}</span>
           <span class="narrow">{{ activity.short }}</span>
         </p>
       </div>
@@ -886,23 +885,23 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
            slow device). -->
       <div v-if="tutorialChip || offerList" class="hud corner">
         <div v-if="tutorialChip" class="chip">
-          <button class="chip-go" @click="enterTutorial">Take the tour: your first project online in a minute</button>
-          <button class="chip-x" aria-label="No thanks" @click="tutorialChip = false"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button>
+          <button class="chip-go" @click="enterTutorial">{{ w.takeTour }}</button>
+          <button class="chip-x" :aria-label="w.noThanks" @click="tutorialChip = false"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button>
         </div>
         <div v-if="offerList" class="chip">
-          <button class="chip-go" @click="seeAsList">The 3D city may be slow here. See it as a list</button>
-          <button class="chip-x" aria-label="Keep the 3D city" @click="settings.listOffered = true"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button>
+          <button class="chip-go" @click="seeAsList">{{ w.slowHere }}</button>
+          <button class="chip-x" :aria-label="w.keep3d" @click="settings.listOffered = true"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button>
         </div>
       </div>
 
       <div v-if="shows('tools')" class="hud tools">
-        <button aria-label="Find a house (F)" @click="openSheet('find')">
+        <button :aria-label="w.find" @click="openSheet('find')">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
         </button>
-        <button aria-label="Turn the view left (Q)" @click="lobby?.rotate(-1)">
+        <button :aria-label="w.turnLeft" @click="lobby?.rotate(-1)">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
-        <button aria-label="Turn the view right (R)" @click="lobby?.rotate(1)">
+        <button :aria-label="w.turnRight" @click="lobby?.rotate(1)">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       </div>
@@ -968,30 +967,30 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
             <template v-if="near.kind === 'house'">
               <span>
                 <strong>{{ near.house.name }}</strong>
-                <span class="soft">{{ freeRooms(near.house).length ? `, ${plural(freeRooms(near.house).length, "room", "rooms")} free` : "" }}</span>
+                <span class="soft">{{ freeRooms(near.house).length ? w.roomsFree(freeRooms(near.house).length) : "" }}</span>
               </span>
-              <button class="pill" @click="lobby?.interact()">Go in <kbd>E</kbd></button>
+              <button class="pill" @click="lobby?.interact()">{{ w.goIn }} <kbd>E</kbd></button>
             </template>
             <template v-else-if="near.kind === 'empty'">
-              <span>An empty {{ lotWord[near.plot.lot] }}.</span>
-              <button class="pill" @click="lobby?.interact()">Have a look <kbd>E</kbd></button>
+              <span>{{ w.emptyLot[near.plot.lot] }}</span>
+              <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>E</kbd></button>
             </template>
             <template v-else-if="near.kind === 'person'">
               <span>
                 <strong>{{ near.name }}</strong>
-                <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : ", visiting" }}</span>
+                <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : w.visiting }}</span>
               </span>
-              <button class="pill" @click="lobby?.interact()">Say hi <kbd>E</kbd></button>
+              <button class="pill" @click="lobby?.interact()">{{ w.sayHi }} <kbd>E</kbd></button>
             </template>
             <template v-else>
-              <span>The chores board<span class="soft">, reviews waiting in {{ city }}</span></span>
-              <button class="pill" @click="lobby?.interact()">Have a look <kbd>E</kbd></button>
+              <span>{{ w.board }}<span class="soft">{{ w.boardWhere(city) }}</span></span>
+              <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>E</kbd></button>
             </template>
           </div>
         </Transition>
         <div v-if="me && !card && !place && shows('emotes')" class="emotes">
-          <button aria-label="Thumbs up (1)" @click="emote('yes')">👍</button>
-          <button aria-label="Thumbs down (2)" @click="emote('no')">👎</button>
+          <button :aria-label="w.thumbsUp" @click="emote('yes')">👍</button>
+          <button :aria-label="w.thumbsDown" @click="emote('no')">👎</button>
         </div>
       </div>
 
@@ -1033,7 +1032,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
       class="stage"
       role="application"
       tabindex="0"
-      :aria-label="`${placeName}, a neighbourhood you can walk around in 3D. W A S D walks, E goes in, the question mark lists every key. The list view in settings shows the same houses as text.`"
+      :aria-label="w.stage(placeName)"
     />
 
     <!-- The inside of a house, over the city. Also reachable from the address bar (`?in=…`), 3D or not. -->
@@ -1056,11 +1055,11 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
     <!-- Find and travel: floating menus in the middle of the screen, a bold title, then one row per house or city,
          like a game's menu entries. The close button comes last, so the first field or row takes the focus. -->
     <Transition name="sheet">
-      <section v-if="sheet === 'find'" ref="sheetEl" class="sheet" role="dialog" aria-modal="true" aria-label="Find a house" @keydown.esc="sheet = ''">
-        <h2>Find a house</h2>
+      <section v-if="sheet === 'find'" ref="sheetEl" class="sheet" role="dialog" aria-modal="true" :aria-label="w.findTitle" @keydown.esc="sheet = ''">
+        <h2>{{ w.findTitle }}</h2>
         <div class="search">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z M15.5 15.5L21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-          <input v-model="query" type="search" placeholder="A house, a city, a stack…" aria-label="Search the city" autofocus />
+          <input v-model="query" type="search" :placeholder="w.searchHint" :aria-label="w.searchName" autofocus />
         </div>
         <ul v-if="found.length" class="entries">
           <li v-for="h in found" :key="h.id">
@@ -1068,18 +1067,18 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
               <span class="lead"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 11l9-8 9 8 M5 9.5V21h14V9.5 M10 21v-6h4v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
               <span class="text">
                 <span class="title">{{ h.name }}</span>
-                <span class="sub">{{ h.city }}. {{ statusLine(h) }}{{ h.demo ? " An example house." : "" }}</span>
+                <span class="sub">{{ h.city }}. {{ statusLine(h) }}{{ h.demo ? w.exampleHouse : "" }}</span>
               </span>
               <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
             </button>
           </li>
         </ul>
-        <p v-else class="none">No house matches that.</p>
-        <button class="x" aria-label="Close (Esc)" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
+        <p v-else class="none">{{ w.noMatch }}</p>
+        <button class="x" :aria-label="w.close" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
       </section>
       <!-- Where to: Africa with a dot per city, and the cities as rows beside it (under it on a phone). -->
-      <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet travel" role="dialog" aria-modal="true" aria-label="Travel to another city" @keydown.esc="sheet = ''">
-        <h2>Where to?</h2>
+      <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet travel" role="dialog" aria-modal="true" :aria-label="w.travelName" @keydown.esc="sheet = ''">
+        <h2>{{ w.whereTo }}</h2>
         <div class="atlas">
           <AfricaMap class="africa" :cities="cities.map((c) => c.name)" :here="city" :lit="litCity" @travel="travel" @hover="(c) => (litCity = c)" />
           <ul class="entries">
@@ -1095,7 +1094,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
                 @blur="litCity = null"
               >
                 <span class="text">
-                  <span class="title">{{ c.name }}<span v-if="c.name === city" class="you">, you're here</span></span>
+                  <span class="title">{{ c.name }}<span v-if="c.name === city" class="you">{{ w.youreHere }}</span></span>
                   <span class="sub lines">{{ cityLine(c) }}</span>
                 </span>
                 <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
@@ -1103,7 +1102,7 @@ const lotWord = { shop: "shop", tower: "tower", trees: "lot" } as const;
             </li>
           </ul>
         </div>
-        <button class="x" aria-label="Close (Esc)" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
+        <button class="x" :aria-label="w.close" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
       </section>
     </Transition>
 

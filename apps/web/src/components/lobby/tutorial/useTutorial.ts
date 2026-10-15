@@ -7,6 +7,7 @@ import { loadMe, postJSON, sendJSON } from "../../../session";
 import { settings } from "../../../settings";
 import type { CityHouse, HouseView, TutorialState } from "../../../types";
 import { isLive, SETUP, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
+import { tutorialWords } from "./words";
 
 // How often the API is asked about the room and GitHub while those steps are on.
 const POLL_MS = 2000;
@@ -44,7 +45,7 @@ export function useTutorial() {
       name: v?.name ?? s?.house.name ?? "L'Atelier",
       city: s?.house.city ?? v?.city ?? "Atelier",
       country: v?.country ?? "",
-      tagline: v?.tagline ?? "A workshop to try things in.",
+      tagline: v?.tagline ?? tutorialWords.workshopTagline,
       status: v?.status ?? "live",
       demo: false,
       agentOnline: s?.house.agentOnline ?? v?.agentOnline ?? false,

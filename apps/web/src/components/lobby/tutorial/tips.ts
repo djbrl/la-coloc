@@ -2,6 +2,7 @@
 // each said once, the first time it would help, in a small line over the city. Using a control before its tip
 // comes counts as knowing it: that tip never shows. Pure, like tutorial.ts: LobbyView says what happened and
 // remembers which tips were seen (in this browser).
+import { defineWords } from "../../../i18n";
 
 export type Tip = "walk" | "dash" | "turn" | "map" | "pick" | "keys";
 
@@ -11,9 +12,10 @@ export type Tip = "walk" | "dash" | "turn" | "map" | "pick" | "keys";
 // - "idle": a quiet moment (nothing open, a while since the last tip): the next of the others, in order.
 export type TipCue = "arrived" | "walking" | "idle";
 
-// What each tip says, on a keyboard and on a touch screen (null: nothing to say there). Words in braces are keys,
-// drawn as key caps.
-export const TIP_TEXT: Record<Tip, { keys: string; touch: string | null }> = {
+// What each tip says, on a keyboard and on a touch screen (null: nothing to say there), in English and French (see
+// i18n.ts). Words in braces are keys, drawn as key caps. The keys are the letters the engine reads, whatever the
+// keyboard's layout; French calls Shift "Maj".
+const TIPS: Record<Tip, { keys: string; touch: string | null }> = {
   walk: { keys: "Click the ground, or use {W} {A} {S} {D}, to walk. {E} goes in at a door.", touch: "Tap the ground to walk there. At a door, tap Go in." },
   dash: { keys: "Tap {Shift} to dash.", touch: "The round arrow button dashes." },
   turn: { keys: "{Q} and {R} turn the view.", touch: "The two round arrows, top right, turn the view." },
@@ -21,6 +23,14 @@ export const TIP_TEXT: Record<Tip, { keys: string; touch: string | null }> = {
   pick: { keys: "{[} and {]} step through what's around you.", touch: null },
   keys: { keys: "{?} lists every key.", touch: null },
 };
+export const TIP_TEXT = defineWords("tips", TIPS, {
+  walk: { keys: "Cliquez sur le sol, ou utilisez {W} {A} {S} {D}, pour marcher. {E} fait entrer par une porte.", touch: "Touchez le sol pour y aller. À une porte, touchez Entrer." },
+  dash: { keys: "Appuyez sur {Maj} pour sprinter.", touch: "Le bouton rond à flèche fait sprinter." },
+  turn: { keys: "{Q} et {R} font tourner la vue.", touch: "Les deux flèches rondes, en haut à droite, font tourner la vue." },
+  map: { keys: "{M} ouvre la grande carte. Cliquez dessus pour aller n'importe où.", touch: "Touchez la carte pour y aller d'un coup." },
+  pick: { keys: "{[} et {]} passent d'une chose à l'autre autour de vous.", touch: null },
+  keys: { keys: "{?} liste toutes les touches.", touch: null },
+});
 
 // The quiet-moment tips, in the order they come.
 const IDLE: Tip[] = ["turn", "map", "pick", "keys"];

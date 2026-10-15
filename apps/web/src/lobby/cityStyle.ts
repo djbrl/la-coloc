@@ -36,7 +36,8 @@ export interface CityStyle {
   tz: string;
   lat: number;
   lon: number;
-  greeting: { text: string; language: string; meaning: string };
+  // The greeting in its own language, with the name of that language and what it means, in English and in French.
+  greeting: { text: string; language: string; meaning: string; fr: { language: string; meaning: string } };
   // Mobile money (or what people pay with), as plain names: never logos.
   operators: string[];
 }
@@ -53,7 +54,7 @@ const DEFAULT: Omit<CityStyle, "city"> = {
   tz: "Africa/Dakar",
   lat: 14.7,
   lon: -17.4,
-  greeting: { text: "Hello", language: "English", meaning: "Hello" },
+  greeting: { text: "Hello", language: "English", meaning: "Hello", fr: { language: "anglais", meaning: "Bonjour" } },
   operators: [],
 };
 
@@ -70,7 +71,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     tz: "Africa/Dakar",
     lat: 14.7,
     lon: -17.45,
-    greeting: { text: "Nanga def ?", language: "Wolof", meaning: "How are you?" },
+    greeting: { text: "Nanga def ?", language: "Wolof", meaning: "How are you?", fr: { language: "wolof", meaning: "Comment ça va ?" } },
     operators: ["Wave", "Orange Money", "Free Money"],
   },
   lomé: {
@@ -85,7 +86,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     tz: "Africa/Lome",
     lat: 6.13,
     lon: 1.22,
-    greeting: { text: "Woezɔ", language: "Ewe", meaning: "Welcome" },
+    greeting: { text: "Woezɔ", language: "Ewe", meaning: "Welcome", fr: { language: "éwé", meaning: "Bienvenue" } },
     operators: ["T-Money", "Flooz"],
   },
   cotonou: {
@@ -99,7 +100,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     tz: "Africa/Lagos",
     lat: 6.37,
     lon: 2.42,
-    greeting: { text: "A fɔ́n ganjí à ?", language: "Fon", meaning: "Did you wake up well?" },
+    greeting: { text: "A fɔ́n ganjí à ?", language: "Fon", meaning: "Did you wake up well?", fr: { language: "fon", meaning: "Bien réveillé ?" } },
     operators: ["MTN MoMo", "Moov Money"],
   },
   abidjan: {
@@ -114,7 +115,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     tz: "Africa/Abidjan",
     lat: 5.35,
     lon: -4.0,
-    greeting: { text: "Akwaba", language: "Baoulé", meaning: "Welcome" },
+    greeting: { text: "Akwaba", language: "Baoulé", meaning: "Welcome", fr: { language: "baoulé", meaning: "Bienvenue" } },
     operators: ["Orange Money", "MTN MoMo", "Moov Money", "Wave"],
   },
   douala: {
@@ -129,7 +130,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     tz: "Africa/Douala",
     lat: 4.05,
     lon: 9.7,
-    greeting: { text: "On dit quoi ?", language: "Camfranglais", meaning: "What's up?" },
+    greeting: { text: "On dit quoi ?", language: "Camfranglais", meaning: "What's up?", fr: { language: "camfranglais", meaning: "Quoi de neuf ?" } },
     operators: ["MTN MoMo", "Orange Money"],
   },
   kigali: {
@@ -144,7 +145,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     tz: "Africa/Kigali",
     lat: -1.95,
     lon: 30.06,
-    greeting: { text: "Muraho", language: "Kinyarwanda", meaning: "Hello" },
+    greeting: { text: "Muraho", language: "Kinyarwanda", meaning: "Hello", fr: { language: "kinyarwanda", meaning: "Bonjour" } },
     operators: ["MTN MoMo", "Airtel Money"],
   },
   tunis: {
@@ -159,7 +160,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     tz: "Africa/Tunis",
     lat: 36.8,
     lon: 10.18,
-    greeting: { text: "Aslema", language: "Tunisian Arabic", meaning: "Hello" },
+    greeting: { text: "Aslema", language: "Tunisian Arabic", meaning: "Hello", fr: { language: "arabe tunisien", meaning: "Bonjour" } },
     operators: ["D17", "Flouci"],
   },
   marrakech: {
@@ -174,7 +175,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     tz: "Africa/Casablanca",
     lat: 31.63,
     lon: -8.0,
-    greeting: { text: "Marhba bik", language: "Darija", meaning: "Welcome" },
+    greeting: { text: "Marhba bik", language: "Darija", meaning: "Welcome", fr: { language: "darija", meaning: "Bienvenue" } },
     operators: ["Card", "Bank transfer"],
   },
 };

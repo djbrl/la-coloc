@@ -3,6 +3,7 @@
 // plain events. useTutorial.ts wraps it for Vue and talks to the API; LobbyView feeds it what happens in the
 // lobby and applies what each step allows; Coach.vue and Welcome.vue show it.
 import type { TutorialState } from "../../../types";
+import { tutorialWords } from "./words";
 
 // The workshop: the tutorial's one house. The same id as WORKSHOP_ID in lobby/tutorialMap.ts.
 export const TUTORIAL_HOUSE = "atelier";
@@ -80,10 +81,10 @@ export const isLive = (s: TutorialState | null) => s?.room?.status === "live";
  * the room may still say "empty". Empty string: nothing is going on.
  */
 export function goingWord(status: string | undefined, pressed: boolean): string {
-  if (status === "queued" || status === "cloning" || (pressed && status === "empty")) return "Fetching the code…";
+  if (status === "queued" || status === "cloning" || (pressed && status === "empty")) return tutorialWords.fetching;
   // "deploying" is what an API without the finer steps says the whole way through.
-  if (status === "building" || status === "deploying") return "Building…";
-  if (status === "starting") return "Starting…";
+  if (status === "building" || status === "deploying") return tutorialWords.building;
+  if (status === "starting") return tutorialWords.starting;
   return "";
 }
 

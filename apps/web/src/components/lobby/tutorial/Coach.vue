@@ -7,6 +7,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { bare, explain } from "../panel/words";
 import { goingWord, isLive, type TutorialMachine } from "./tutorial";
+import { tutorialWords as w } from "./words";
 
 const props = defineProps<{
   machine: TutorialMachine;
@@ -59,90 +60,90 @@ onBeforeUnmount(() => clearTimeout(timer));
 </script>
 
 <template>
-  <div class="coach" role="dialog" aria-label="The tutorial" @keydown="onKey">
+  <div class="coach" role="dialog" :aria-label="w.coach" @keydown="onKey">
     <div class="line" aria-hidden="true"><span :style="{ width: `${Math.round(machine.progress * 100)}%` }" /></div>
 
     <div class="body" aria-live="polite">
       <template v-if="waiting && needsApi && !live">
-        <p class="text">Waiting for the city…</p>
-        <p class="sub">Your place is kept. We'll go on when it's back.</p>
+        <p class="text">{{ w.waiting }}</p>
+        <p class="sub">{{ w.waitingWhy }}</p>
       </template>
 
-      <p v-else-if="missing && (step === 'room' || step === 'run' || step === 'github')" class="text">The tutorial isn't on this server yet.</p>
+      <p v-else-if="missing && (step === 'room' || step === 'run' || step === 'github')" class="text">{{ w.missing }}</p>
 
       <template v-else-if="step === 'walk'">
-        <p v-if="touch" class="text">Tap the ground to walk there.</p>
+        <p v-if="touch" class="text">{{ w.walkTouch }}</p>
         <template v-else>
-          <p class="text">Walk with W A S D, or click the ground.</p>
+          <p class="text">{{ w.walkKeys }}</p>
           <p class="caps"><kbd v-for="c in walkCaps" :key="c">{{ c }}</kbd></p>
         </template>
       </template>
 
-      <p v-else-if="step === 'look'" class="text">That's the workshop. That's where you're going.</p>
+      <p v-else-if="step === 'look'" class="text">{{ w.look }}</p>
 
-      <p v-else-if="step === 'go'" class="text">{{ touch ? "Walk to the workshop and tap Go in at its door." : "Walk to the workshop and press E at its door." }}</p>
+      <p v-else-if="step === 'go'" class="text">{{ touch ? w.goTouch : w.goKeys }}</p>
 
       <template v-else-if="step === 'room'">
-        <p class="text">Take your first room.</p>
-        <p class="sub">It's your share of this house's server, for one project.</p>
+        <p class="text">{{ w.room }}</p>
+        <p class="sub">{{ w.roomWhy }}</p>
       </template>
 
       <!-- Putting the sample online: what a project is, then each step as the room goes, then its address. -->
       <template v-else-if="step === 'run'">
-        <p v-if="live && machine.roomOpened" class="text">Well done.</p>
+        <p v-if="live && machine.roomOpened" class="text">{{ w.wellDone }}</p>
         <p v-else-if="live" class="text">
-          It's online at <span class="address">{{ room?.url ? bare(room.url) : "its address" }}</span>.
-          <a v-if="room?.url" ref="go" class="open" :href="room.url" target="_blank" rel="noopener" @click="emit('opened')" @auxclick="emit('opened')">Open it ›</a>
+          {{ w.onlineAt }} <span class="address">{{ room?.url ? bare(room.url) : w.itsAddress }}</span>{{ w.onlineEnd }}
+          <a v-if="room?.url" ref="go" class="open" :href="room.url" target="_blank" rel="noopener" @click="emit('opened')" @auxclick="emit('opened')">{{ w.openIt }}</a>
         </p>
         <p v-else-if="error" class="text">{{ error }}</p>
-        <p v-else-if="failed" class="text">It didn't go online.</p>
+        <p v-else-if="failed" class="text">{{ w.failed }}</p>
         <template v-else-if="going">
           <p class="text">{{ going }}</p>
           <p class="sub">{{ explain.online }}</p>
         </template>
         <template v-else>
-          <p class="text">A project is an app, with its code in a Git repo.</p>
-          <p class="sub">Here's a ready-made one: a small Hello page.</p>
+          <p class="text">{{ w.project }}</p>
+          <p class="sub">{{ w.sample }}</p>
         </template>
       </template>
 
       <template v-else-if="step === 'github'">
-        <p v-if="machine.linked" class="text">{{ machine.linkedBefore ? "Your GitHub is already linked." : "Linked: your repo is in your room." }}</p>
+        <p v-if="machine.linked" class="text">{{ machine.linkedBefore ? w.linkedBefore : w.linked }}</p>
         <template v-else>
-          <p class="text">Link one of your repos: it moves into your room.</p>
-          <p class="sub">{{ installUrl ? "Each merge goes online; flatmates review pull requests." : "GitHub isn't set up on this server: skip this one." }}</p>
+          <p class="text">{{ w.link }}</p>
+          <p class="sub">{{ installUrl ? w.linkWhy : w.noGithub }}</p>
         </template>
       </template>
 
       <template v-else-if="step === 'done'">
-        <p class="text">{{ room ? `That's it: ${room.name} is your room in ${houseName}.` : "That's it." }}</p>
-        <p v-if="room" class="sub">Open it any time: update it, give it secrets, read its logs.</p>
+        <p class="text">{{ room ? w.done(room.name, houseName) : w.doneShort }}</p>
+        <p v-if="room" class="sub">{{ w.doneWhy }}</p>
       </template>
 
       <p v-if="error && step !== 'run'" class="sub error" role="alert">{{ error }}</p>
     </div>
 
     <div class="nav">
-      <button v-if="step !== 'done'" type="button" class="link quiet" @click="emit('skip')">Skip the tutorial</button>
+      <button v-if="step !== 'done'" type="button" class="link quiet" @click="emit('skip')">{{ w.skip }}</button>
 
-      <button v-if="missing && !waiting && (step === 'room' || step === 'run' || step === 'github')" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('skip')">Leave</button>
-      <button v-else-if="step === 'room'" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('room')">Take a room</button>
+      <button v-if="missing && !waiting && (step === 'room' || step === 'run' || step === 'github')" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('skip')">{{ w.leave }}</button>
+      <button v-else-if="step === 'room'" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('room')">{{ w.takeRoom }}</button>
       <template v-else-if="step === 'run'">
-        <button v-if="live && machine.roomOpened" ref="go" type="button" class="primary go" @click="emit('next')">Next</button>
-        <button v-else-if="!live && (error || failed)" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('run')">Try again</button>
-        <button v-else-if="!live && !going" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('run')">Put it online</button>
+        <button v-if="live && machine.roomOpened" ref="go" type="button" class="primary go" @click="emit('next')">{{ w.next }}</button>
+        <button v-else-if="!live && (error || failed)" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('run')">{{ w.tryAgain }}</button>
+        <button v-else-if="!live && !going" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('run')">{{ w.putOnline }}</button>
       </template>
       <template v-else-if="step === 'github'">
-        <button v-if="machine.linked" ref="go" type="button" class="primary go" @click="emit('next')">Next</button>
+        <button v-if="machine.linked" ref="go" type="button" class="primary go" @click="emit('next')">{{ w.next }}</button>
         <template v-else-if="installUrl">
-          <button type="button" class="link quiet" @click="emit('skipGithub')">Skip for now</button>
-          <a ref="go" class="button primary go" :href="installUrl" target="_blank" rel="noopener">Install on GitHub ›</a>
+          <button type="button" class="link quiet" @click="emit('skipGithub')">{{ w.later }}</button>
+          <a ref="go" class="button primary go" :href="installUrl" target="_blank" rel="noopener">{{ w.install }}</a>
         </template>
-        <button v-else ref="go" type="button" class="primary go" @click="emit('skipGithub')">Skip for now</button>
+        <button v-else ref="go" type="button" class="primary go" @click="emit('skipGithub')">{{ w.later }}</button>
       </template>
       <template v-else-if="step === 'done'">
-        <button v-if="room" type="button" class="link quiet" @click="emit('openRoom')">Open my room</button>
-        <button ref="go" type="button" class="primary go" :disabled="busy" @click="emit('finish')">Into the city</button>
+        <button v-if="room" type="button" class="link quiet" @click="emit('openRoom')">{{ w.openRoom }}</button>
+        <button ref="go" type="button" class="primary go" :disabled="busy" @click="emit('finish')">{{ w.intoCity }}</button>
       </template>
     </div>
   </div>
