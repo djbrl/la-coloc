@@ -9,6 +9,10 @@ npm run licences:check
 **State on 12 10 2026** (`npm run licences`, commit `ffce382`): 318 packages, all permissive: MIT 259 · Apache-2.0 23 · ISC 17 · BSD-3-Clause 15 · BSD-2-Clause 2 · 0BSD 1 · Unlicense 1.
 Added since 02 10: Drizzle ORM (Apache-2.0) and drizzle-kit (MIT), node-postgres `pg` (MIT), PGlite (Apache-2.0, tests only).
 Added 09 10: three.js (MIT) for the 3D lobby; smee-client (ISC, development only) to relay GitHub webhooks.
+Added 15 10 (branch `ui-refresh`): two fonts, self-hosted from npm: `@fontsource/bricolage-grotesque` and `@fontsource/jetbrains-mono`
+(SIL Open Font Licence 1.1). OFL is a font licence, not copyleft for the code: it allows bundling the fonts in any software, commercial
+included, and only forbids selling the fonts alone or reusing their reserved names for a modified font. `OFL-1.1` is now in
+`licences:check`'s allowed list for that reason.
 
 ## Art and assets
 Only assets we made ourselves, or under CC0 / a permissive licence, with the source written down here.
@@ -21,6 +25,8 @@ project to be free of third-party rights (Art. 6).
 | Mini Characters 1.0 by Kenney: 12 animated characters | `apps/web/public/lobby/people/` | https://kenney.nl/assets/mini-characters | CC0 1.0 (public domain) |
 | City Kit (Commercial) 2.1 by Kenney: shops, towers, skyline buildings, parasols | `apps/web/public/lobby/city/` | https://kenney.nl/assets/city-kit-commercial | CC0 1.0 (public domain) |
 | City Kit (Roads) by Kenney: traffic light, sign, construction cone, barrier, fence | `apps/web/public/lobby/street/` | https://kenney.nl/assets/city-kit-roads | CC0 1.0 (public domain) |
+| Bricolage Grotesque (weights 700, 800; Latin and Latin Extended) by the Bricolage Grotesque Project Authors (Atelier Triay) | `apps/web/src/fonts.css`, from `node_modules/@fontsource/bricolage-grotesque` | https://github.com/ateliertriay/bricolage, via https://fontsource.org | SIL OFL 1.1 |
+| JetBrains Mono (weight 500; Latin and Latin Extended) by JetBrains | `apps/web/src/fonts.css`, from `node_modules/@fontsource/jetbrains-mono` | https://github.com/JetBrains/JetBrainsMono, via https://fontsource.org | SIL OFL 1.1 |
 
 All are development placeholders until Jib's art. Downloaded 09 and 10 10 2026; licence files kept next to the models.
 Ground textures (grass, asphalt, paving, sidewalk) are drawn in code (`apps/web/src/lobby/textures.ts`).

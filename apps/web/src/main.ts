@@ -8,6 +8,8 @@ import LoginPage from "./pages/LoginPage.vue";
 import RoomPage from "./pages/RoomPage.vue";
 import { installCoreFetch, onRecovered } from "./core";
 import { loadMe } from "./session";
+// The display face and the monospace, self-hosted (fonts.css says which files and why), then the tokens.
+import "./fonts.css";
 import "./style.css";
 
 // Every same-origin /api request now tells the core store whether the API answered (core.ts), and the card on top of
