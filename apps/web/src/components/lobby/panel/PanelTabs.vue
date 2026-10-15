@@ -56,13 +56,13 @@ function onKey(e: KeyboardEvent, i: number) {
 </template>
 
 <style scoped>
-/* A grey track; the chosen tab lifted out in the surface colour. Icons sit beside their word, so the row stays
-   one line on a 600px panel with six tabs. */
+/* A sunken track; the chosen tab lifted out on the surface with a hairline and a small lip, like a pressed-out key.
+   Icons sit beside their word, so the row stays one line on a 600px panel with six tabs. */
 .panel-tabs {
   display: flex;
   gap: 2px;
   padding: 3px;
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: var(--fill);
   overflow-x: auto;
   scrollbar-width: none;
@@ -75,9 +75,9 @@ function onKey(e: KeyboardEvent, i: number) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: 34px;
   padding: 0 10px;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   font-size: 14px;
@@ -85,7 +85,8 @@ function onKey(e: KeyboardEvent, i: number) {
   white-space: nowrap;
 }
 .tab:hover:not(:disabled) { background: none; color: var(--text); }
-.tab[aria-selected="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--hairline), 0 1px 0 var(--line-strong); }
+.tab[aria-selected="true"] .ic { color: var(--accent); }
 .tab:focus-visible { outline-offset: -2px; }
 .ic { position: relative; display: inline-grid; }
 /* A count sits on the icon's corner: leave it room so it doesn't touch the word. */
@@ -97,15 +98,15 @@ function onKey(e: KeyboardEvent, i: number) {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: var(--accent-fill);
   color: var(--on-accent);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 16px;
+  box-shadow: 0 0 0 2px var(--fill);
+  font: 500 10px/16px var(--mono);
   text-align: center;
 }
-.badge.alert { background: var(--danger); }
+.badge.alert { background: var(--danger); color: var(--on-danger); }
+.tab[aria-selected="true"] .badge { box-shadow: 0 0 0 2px var(--surface); }
 @media (max-width: 480px) {
   .word { display: none; }
   .tab { padding: 0 12px; }

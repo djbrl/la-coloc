@@ -218,14 +218,14 @@ function trapTab(e: KeyboardEvent) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow), 0 0 0 1px var(--hairline);
+  box-shadow: var(--shadow);
   outline: none;
   overflow-wrap: anywhere;
   transform-origin: 70% 50%;
-  animation: pop-in 0.22s var(--ease);
+  animation: pop-in var(--dur-slow) var(--ease-pop);
 }
 /* Back and Close: one slim line, no rule under it, so the page's own head is the first thing you read. */
 .bar {
@@ -236,8 +236,10 @@ function trapTab(e: KeyboardEvent) {
   min-height: 44px;
   padding: 12px 12px 0 calc(var(--gutter) - 6px);
 }
-.back-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 14px 0 8px; font-size: 14px; font-weight: 600; }
-.close { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+/* Both are small square keys with a hairline edge, quiet next to the panel's own main button. */
+.back-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 12px 0 8px; border-radius: var(--r-sm); background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); font-size: 14px; font-weight: 600; }
+.close { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: var(--r-sm); display: grid; place-items: center; background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
+:is(.back-btn, .close):hover:not(:disabled) { background: var(--tile); color: var(--text); }
 /* The page fills what's left. If a window is too short for it, it scrolls here rather than spilling out. */
 .page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
 .page-host > * { flex: 1 1 auto; min-height: 0; }
@@ -257,7 +259,7 @@ function trapTab(e: KeyboardEvent) {
 @media (max-width: 719px) {
   .inside { display: grid; place-items: end stretch; }
   .scrim { background: color-mix(in srgb, var(--scrim) 45%, transparent); animation: fade-in 0.25s var(--ease); }
-  .sheet { position: relative; inset: auto; width: 100%; height: 70dvh; min-height: min(460px, 88dvh); border-radius: 24px 24px 0 0; animation-name: rise-in; }
+  .sheet { position: relative; inset: auto; width: 100%; height: 70dvh; min-height: min(460px, 88dvh); border-radius: var(--r-xl) var(--r-xl) 0 0; animation-name: rise-in; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet, .scrim { animation: none; }

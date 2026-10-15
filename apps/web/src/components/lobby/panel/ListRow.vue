@@ -30,33 +30,40 @@ defineProps<{
 </template>
 
 <style scoped>
+/* A dashboard's row: the surface with a 1px edge, dense. */
 .list-row {
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 56px;
   padding: 8px 12px;
-  border-radius: 14px;
-  background: var(--tile);
-  transition: box-shadow 0.2s var(--ease), background-color 0.15s var(--ease);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: box-shadow var(--dur) var(--ease), background-color var(--dur-fast) var(--ease);
 }
-.list-row.open { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); }
+/* A free room, an empty seat: a dashed outline, nothing inside. */
+.list-row.open { background: none; box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 /* Rows behave like a game menu's entries: the whole row lights under the pointer, and the one holding the keyboard
    focus is the selected entry. */
-.list-row:hover { background: var(--fill); }
-.list-row.open:hover { background: var(--tile); }
-.list-row:focus-within { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.list-row.mine { box-shadow: inset 0 0 0 2px var(--accent-fill); }
+.list-row:hover { background: var(--tile); }
+.list-row:focus-within { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); outline: none; }
+/* Yours: the orange stripe down the left edge, like a pinned entry. */
+.list-row.mine { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--accent-fill); }
+.list-row.mine:focus-within { box-shadow: inset 0 0 0 2px var(--accent-fill), inset 5px 0 0 var(--accent-fill); }
 .list-row.lit { box-shadow: inset 0 0 0 2px var(--accent-fill), 0 0 0 4px var(--focus); }
 .lead { flex: none; width: 40px; display: grid; place-items: center; color: var(--muted); }
 .lead:empty { display: none; }
 .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
 .title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub, .text :deep(.sub) { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.meta { flex: none; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+/* Numbers and times on the right, in the monospace, as a dashboard lines them up. */
+.meta { flex: none; display: flex; align-items: center; gap: 10px; color: var(--muted); font: 500 12px/1.2 var(--mono); letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .end { flex: none; display: flex; align-items: center; gap: 8px; }
 /* Buttons in a row are small pills. */
-.end :deep(button), .end :deep(a.button) { min-height: 34px; padding: 0 14px; font-size: 14px; }
+.end :deep(button), .end :deep(a.button) { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; font-weight: 600; }
+/* A row's main button keeps a shorter lip, to its size. */
+.end :deep(:is(button, a.button).primary) { --lip: 2px; }
 @media (max-width: 480px) {
   .meta { display: none; }
 }

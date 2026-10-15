@@ -16,7 +16,7 @@ defineProps<{ state: State }>();
   gap: 6px;
   height: 24px;
   padding: 0 10px;
-  border-radius: 12px;
+  border-radius: var(--r-pill);
   background: var(--fill);
   color: var(--muted);
   font-size: 12px;
@@ -28,5 +28,5 @@ defineProps<{ state: State }>();
 .live { background: var(--live-soft); color: var(--live); }
 .warn { background: var(--warn-soft); color: var(--warn); }
 .danger { background: var(--danger-soft); color: var(--danger); }
-.free { background: var(--accent-soft); color: var(--accent); }
+.free { background: var(--free-soft); color: var(--free); }
 </style>

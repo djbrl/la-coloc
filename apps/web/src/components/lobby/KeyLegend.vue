@@ -25,16 +25,16 @@ const quick: { key: string; does: string }[] = [
 </template>
 
 <style scoped>
-/* A flat pill on the site's surface, lifted like the rest of the HUD; the words quiet, the keys as small raised caps. */
+/* A game's button hints in a corner, drawn like a dev tool's shortcut bar (Linear's ⌘K): a flat strip on the
+   surface, the keys as caps (style.css), the words small and quiet beside them. */
 .legend, .peek { color: var(--muted); background: var(--surface); box-shadow: var(--lift); }
-.legend { display: flex; align-items: center; gap: 14px; min-height: 40px; padding: 4px 6px 4px 10px; border-radius: 980px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.legend { display: flex; align-items: center; gap: 14px; min-height: 40px; padding: 4px 6px 4px 10px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; white-space: nowrap; }
 .item { display: inline-flex; align-items: center; gap: 6px; }
-.keys { min-height: 28px; padding: 0 10px 0 4px; margin-left: -4px; border: 0; border-radius: 980px; background: var(--fill); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.keys { min-height: 28px; padding: 0 10px 0 4px; margin-left: -4px; border: 0; border-radius: var(--r-sm); background: var(--fill); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
 .keys:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
-kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 6px; border: 1px solid var(--border); border-bottom-width: 2px; background: var(--surface); color: var(--text); font: 700 11px/1 var(--font); }
-.hide { width: 28px; height: 28px; min-height: 0; margin-left: -6px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; background: none; color: inherit; cursor: pointer; }
+.hide { width: 28px; height: 28px; min-height: 0; margin-left: -6px; padding: 0; border: 0; border-radius: var(--r-sm); display: grid; place-items: center; background: none; color: inherit; cursor: pointer; }
 .hide:hover:not(:disabled) { background: var(--fill); color: var(--text); }
-.peek { width: 40px; height: 40px; min-height: 0; padding: 0; border: 0; border-radius: 50%; font-size: 16px; font-weight: 700; color: var(--text); cursor: pointer; }
+.peek { width: 40px; height: 40px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-md); font: 500 16px/1 var(--mono); color: var(--text); cursor: pointer; }
 .peek:hover:not(:disabled) { background: var(--fill); }
 button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 /* No keyboard, no keys to list. */

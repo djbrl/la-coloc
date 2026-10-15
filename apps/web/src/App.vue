@@ -85,7 +85,7 @@ const gear = (() => {
 </template>
 
 <style scoped>
-.skip { position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: 980px; background: var(--accent-fill); color: var(--on-accent); }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: var(--r-md); background: var(--accent-fill); color: var(--on-accent); font-weight: 700; box-shadow: 0 var(--lip) 0 var(--accent-lip); }
 .skip:focus { top: 8px; }
 
 /* A flat bar: the site's surface and a hairline, no blur. Over the lobby it floats at the top edge, the same way. */
@@ -99,17 +99,19 @@ const gear = (() => {
 }
 .bar.float { position: fixed; left: 0; right: 0; }
 .inner { height: 100%; max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.logo { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); white-space: nowrap; }
+/* The name in the display face, after a small orange tile: the mark, until there's a real logo. */
+.logo { display: inline-flex; align-items: center; gap: 8px; font: 800 18px/1 var(--display); letter-spacing: -0.03em; color: var(--text); white-space: nowrap; }
+.logo::before { content: ""; width: 14px; height: 14px; border-radius: 4px; background: var(--accent-fill); box-shadow: 0 2px 0 var(--accent-lip); }
 .logo:hover { text-decoration: none; }
 .side { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.item { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; font-size: 14px; color: var(--text); opacity: 0.88; white-space: nowrap; }
+.item { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; font-size: 14px; font-weight: 500; color: var(--text); opacity: 0.88; white-space: nowrap; }
 .item:hover { opacity: 1; text-decoration: none; }
 .house { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 44px; max-width: 160px; }
 .house.router-link-active { opacity: 1; font-weight: 600; }
 .me { padding: 0 6px; }
-button.item { background: none; border-radius: 980px; }
+button.item { min-height: 36px; background: none; border-radius: var(--r-sm); }
 button.item:hover:not(:disabled) { background: var(--fill); }
-.icon { width: 44px; justify-content: center; padding: 0; }
+.icon { width: 36px; justify-content: center; padding: 0; box-shadow: inset 0 0 0 1px var(--line); }
 
 /* While the core is down, the card under the bar (CoreStatus.vue) takes its place in the page instead of covering it. */
 .flow { min-height: calc(100vh - 48px); padding-top: var(--core-offset, 0px); outline: none; }

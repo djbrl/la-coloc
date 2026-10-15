@@ -1,36 +1,55 @@
-/* La Coloc's look: calm, roomy, type-led. System fonts only, colours as tokens, light and dark. */
-:root {
-  /* Surfaces: white page, a soft grey for alternate bands and tiles. */
-  --bg: #ffffff;
-  --bg-alt: #f5f5f7;
+/*
+ * La Coloc's look: where a developer's dashboard meets a game's menu.
+ *
+ * Two voices, one rule. Data, lists and settings speak like a dev tool: flat cards with hairline edges, dense rows,
+ * status dots, monospace for anything technical (addresses, sizes, money). Titles, the main button, toasts and
+ * celebrations speak like a game: a bold display face, one saturated wax-print orange, a button with a solid "lip"
+ * under it that sinks when you press it, quick motion with a tiny overshoot. No glass, no blur, no heavy shadows.
+ *
+ * Every colour is a token below, for day and for night. Components never write a colour of their own.
+ * Fonts are self-hosted (main.ts imports them from @fontsource): Bricolage Grotesque for titles, JetBrains Mono for
+ * code and numbers, the system's own face for everything else. Both are under the SIL Open Font Licence.
+ */
+:root, .tone-day {
+  /* Surfaces: a warm paper page, white cards on it, soft fills for tracks and quiet buttons. */
+  --bg: #f6f4ef;
+  --bg-alt: #efebe3;
   --surface: #ffffff;
-  --sunken: #f5f5f7;
-  --tile: #f5f5f7;
-  --fill: #e8e8ed;
-  --fill-hover: #dcdce1;
+  --sunken: #f3f0ea;
+  --tile: #f7f5f1;
+  --fill: #ece8e0;
+  --fill-hover: #e2ddd3;
 
-  /* Text and lines. */
-  --text: #1d1d1f;
-  /* Quiet text: 4.5:1 or more even on --fill-hover, so 12–13 px lines stay readable (#6e6e73 was 4.15:1 on --fill). */
-  --muted: #5e5e63;
-  --border: #d2d2d7;
-  --hairline: rgba(0, 0, 0, 0.1);
+  /* Text and lines. --muted keeps 4.5:1 or more even on --fill-hover, so 12–13 px lines stay readable. */
+  --text: #17140f;
+  --muted: #5c574e;
+  --border: #e2ddd3;
+  /* A card's or a row's 1px edge, and the darker one under a quiet button (its lip). */
+  --line: #e8e4dc;
+  --line-strong: #cdc6b8;
+  --hairline: rgba(23, 20, 15, 0.1);
 
-  /* Accent: links use --accent, filled buttons --accent-fill (white text stays readable in both modes). */
-  --accent: #0066cc;
-  --accent-fill: #0071e3;
-  --accent-fill-hover: #0077ed;
-  --accent-soft: #e8f1fc;
-  --on-accent: #ffffff;
-  --focus: rgba(0, 113, 227, 0.6);
+  /* The signature: a wax-print orange. Filled buttons use --accent-fill with dark ink on it (--on-accent), and a
+     darker --accent-lip under them; links and coloured words use --accent, darker so it reads on white. */
+  --accent: #c2410c;
+  --accent-fill: #f2600f;
+  --accent-fill-hover: #ff6d1c;
+  --accent-lip: #a83a05;
+  --accent-soft: #ffeadb;
+  --on-accent: #1a1206;
+  --focus: rgba(242, 96, 15, 0.45);
 
-  /* Status: used as small dots or coloured words, rarely as fills. */
-  --live: #1f7a38;
-  --live-soft: #e3f4e7;
+  /* Status: small dots or coloured words, rarely fills. Green is online, amber is building, red is down. */
+  --live: #15803d;
+  --live-soft: #dcf3e3;
   --warn: #a85100;
   --warn-soft: #fdf0e1;
-  --danger: #d70015;
-  --danger-soft: #fde8ea;
+  --danger: #c81e1e;
+  --danger-soft: #fde8e8;
+  --on-danger: #ffffff;
+  /* A free room: the same blue as a free window in the city (lobby/windows.ts). */
+  --free: #2f62e0;
+  --free-soft: #e5edff;
 
   /* The house drawings (HouseDrawing.vue). */
   --roof: #c4683f;
@@ -38,95 +57,167 @@
   --window-off: #d9d1c4;
 
   /* Logs read best light-on-dark in both modes. */
-  --code-bg: #1d1d1f;
-  --code-text: #f5f5f7;
+  --code-bg: #17140f;
+  --code-text: #f6f4ef;
 
-  --nav-bg: rgba(255, 255, 255, 0.72);
-  --nav-bg-float: rgba(255, 255, 255, 0.5);
-  --scrim: rgba(0, 0, 0, 0.32);
-  /* Two shadows: --shadow lifts a card or a panel, --lift a pill or a small button. */
-  --shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
-  --lift: 0 6px 20px rgba(0, 0, 0, 0.14);
+  --nav-bg: #ffffff;
+  --nav-bg-float: #ffffff;
+  --scrim: rgba(23, 20, 15, 0.36);
+  /* Two shadows, both with a hairline ring so a card has an edge on any background: --shadow floats a card or a
+     panel, --lift a pill or a small button. Short and soft-edged: a card floats, it doesn't glow. */
+  --shadow: 0 0 0 1px var(--hairline), 0 18px 40px -18px rgba(40, 25, 5, 0.38);
+  --lift: 0 0 0 1px var(--hairline), 0 6px 16px -8px rgba(40, 25, 5, 0.35);
+  /* The quiet button's edge: a ring and a 2px lip in the darker line colour. */
+  --quiet-edge: inset 0 0 0 1px var(--border), 0 2px 0 var(--line-strong);
+  color-scheme: light;
+}
 
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+/* Theme-free tokens: type, sizes, corners, motion. */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Titles, house names, the main button, toasts. */
+  --display: "Bricolage Grotesque", var(--font);
+  /* Anything technical: addresses, sizes, money, keys. */
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* The type scale, in px. */
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-md: 15px;
+  --t-lg: 17px;
+  --t-xl: 22px;
+  --t-2xl: 28px;
+  --t-3xl: 40px;
+
+  /* Corners: small for chips and keys, medium for buttons and rows, large for cards. */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* Spacing steps. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+
+  /* The lip under a chunky button, and how much of it is left while pressed. */
+  --lip: 3px;
+  --lip-pressed: 1px;
+
+  /* Motion: snappy. --ease settles; --ease-pop overshoots a hair, for things that appear. */
+  --dur-fast: 120ms;
+  --dur: 160ms;
+  --dur-slow: 240ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-pop: cubic-bezier(0.3, 1.35, 0.5, 1);
+
   --wrap: 980px;
   --gutter: 22px;
-  --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   color-scheme: light dark;
 }
 
 /*
  * Day and night. The light tokens above are the default. The dark ones apply when the settings pane asks for
- * night (App.vue sets data-theme="dark" on <html>), or when the system prefers dark and the pane hasn't asked for
- * day. A media query and an attribute can't share one selector, so the same list appears twice.
+ * night (App.vue sets data-theme="dark" on <html>), when the system prefers dark and the pane hasn't asked for
+ * day, or inside anything with the class "tone-night" (the loading screen, the style guide). A media query and an
+ * attribute can't share one selector, so the same list appears twice.
  */
 :root[data-theme="light"] { color-scheme: light; }
-:root[data-theme="dark"] {
+:root[data-theme="dark"], .tone-night {
   color-scheme: dark;
-  --bg: #000000;
-  --bg-alt: #1d1d1f;
-  --surface: #1d1d1f;
-  --sunken: #1d1d1f;
-  --tile: #2c2c2e;
-  --fill: #333336;
-  --fill-hover: #424245;
-  --text: #f5f5f7;
-  --muted: #a1a1a6;
-  --border: #424245;
-  --hairline: rgba(255, 255, 255, 0.14);
-  --accent: #2997ff;
-  --accent-soft: #0b2a4a;
-  --focus: rgba(41, 151, 255, 0.7);
-  --live: #30d158;
-  --live-soft: #0f2e18;
-  --warn: #ff9f0a;
-  --warn-soft: #3a2709;
-  --danger: #ff6961;
-  --danger-soft: #3d1517;
+  --bg: #0b0b0c;
+  --bg-alt: #121214;
+  --surface: #151517;
+  --sunken: #0f0f11;
+  --tile: #1b1b1e;
+  --fill: #252529;
+  --fill-hover: #2f2f34;
+  --text: #ededee;
+  --muted: #a3a3ab;
+  --border: #2c2c31;
+  --line: #232327;
+  --line-strong: #3b3b42;
+  --hairline: rgba(255, 255, 255, 0.09);
+  --accent: #ff8f4d;
+  --accent-fill: #f2600f;
+  --accent-fill-hover: #ff6d1c;
+  --accent-lip: #8f3204;
+  --accent-soft: #33190a;
+  --on-accent: #1a1206;
+  --focus: rgba(255, 143, 77, 0.55);
+  --live: #3fd17f;
+  --live-soft: #0f2e1b;
+  --warn: #f5b83d;
+  --warn-soft: #33260a;
+  --danger: #ff6b6b;
+  --danger-soft: #3a1414;
+  --on-danger: #1a0606;
+  --free: #6f9cff;
+  --free-soft: #15213d;
   --roof: #a5583a;
   --wall: #3a332b;
   --window-off: #4a4339;
-  --code-bg: #0b0b0c;
-  --nav-bg: rgba(22, 22, 23, 0.8);
-  --nav-bg-float: rgba(22, 22, 23, 0.55);
+  --code-bg: #08080a;
+  --nav-bg: #151517;
+  --nav-bg-float: #151517;
   --scrim: rgba(0, 0, 0, 0.6);
-  --shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-  --lift: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --shadow: 0 0 0 1px var(--hairline), 0 18px 40px -16px rgba(0, 0, 0, 0.8);
+  --lift: 0 0 0 1px var(--hairline), 0 6px 16px -6px rgba(0, 0, 0, 0.7);
+  --quiet-edge: inset 0 0 0 1px var(--border), 0 2px 0 #050506;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #000000;
-    --bg-alt: #1d1d1f;
-    --surface: #1d1d1f;
-    --sunken: #1d1d1f;
-    --tile: #2c2c2e;
-    --fill: #333336;
-    --fill-hover: #424245;
-    --text: #f5f5f7;
-    --muted: #a1a1a6;
-    --border: #424245;
-    --hairline: rgba(255, 255, 255, 0.14);
-    --accent: #2997ff;
-    --accent-soft: #0b2a4a;
-    --focus: rgba(41, 151, 255, 0.7);
-    --live: #30d158;
-    --live-soft: #0f2e18;
-    --warn: #ff9f0a;
-    --warn-soft: #3a2709;
-    --danger: #ff6961;
-    --danger-soft: #3d1517;
+    color-scheme: dark;
+    --bg: #0b0b0c;
+    --bg-alt: #121214;
+    --surface: #151517;
+    --sunken: #0f0f11;
+    --tile: #1b1b1e;
+    --fill: #252529;
+    --fill-hover: #2f2f34;
+    --text: #ededee;
+    --muted: #a3a3ab;
+    --border: #2c2c31;
+    --line: #232327;
+    --line-strong: #3b3b42;
+    --hairline: rgba(255, 255, 255, 0.09);
+    --accent: #ff8f4d;
+    --accent-fill: #f2600f;
+    --accent-fill-hover: #ff6d1c;
+    --accent-lip: #8f3204;
+    --accent-soft: #33190a;
+    --on-accent: #1a1206;
+    --focus: rgba(255, 143, 77, 0.55);
+    --live: #3fd17f;
+    --live-soft: #0f2e1b;
+    --warn: #f5b83d;
+    --warn-soft: #33260a;
+    --danger: #ff6b6b;
+    --danger-soft: #3a1414;
+    --on-danger: #1a0606;
+    --free: #6f9cff;
+    --free-soft: #15213d;
     --roof: #a5583a;
     --wall: #3a332b;
     --window-off: #4a4339;
-    --code-bg: #0b0b0c;
-    --nav-bg: rgba(22, 22, 23, 0.8);
-    --nav-bg-float: rgba(22, 22, 23, 0.55);
+    --code-bg: #08080a;
+    --nav-bg: #151517;
+    --nav-bg-float: #151517;
     --scrim: rgba(0, 0, 0, 0.6);
-    --shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-    --lift: 0 6px 20px rgba(0, 0, 0, 0.5);
+    --shadow: 0 0 0 1px var(--hairline), 0 18px 40px -16px rgba(0, 0, 0, 0.8);
+    --lift: 0 0 0 1px var(--hairline), 0 6px 16px -6px rgba(0, 0, 0, 0.7);
+    --quiet-edge: inset 0 0 0 1px var(--border), 0 2px 0 #050506;
   }
 }
+/* A day subtree inside a night page (the style guide shows both side by side). */
+.tone-day { color-scheme: light; }
+/* A subtree with its own tokens paints its own background and text, so it doesn't show the page's through. */
+.tone-day, .tone-night { color: var(--text); }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -139,18 +230,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Type: big confident headlines, quiet supporting lines. */
-h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.02em; }
-h1 { font-size: clamp(32px, 5vw, 56px); line-height: 1.07; }
-h2 { font-size: clamp(24px, 3.2vw, 32px); line-height: 1.125; }
-h3 { font-size: 19px; line-height: 1.26; letter-spacing: -0.01em; }
+/* Type: titles in the display face, heavy and tight; supporting lines quiet, in the system face. */
+h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 800; letter-spacing: -0.025em; }
+h1 { font-size: clamp(32px, 5vw, 56px); line-height: 1.05; }
+h2 { font-size: clamp(24px, 3.2vw, 32px); line-height: 1.1; }
+h3 { font-size: 19px; line-height: 1.26; font-weight: 700; letter-spacing: -0.015em; }
 p { margin: 0; }
 a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-code { font-family: var(--mono); font-size: 0.88em; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+code { font-family: var(--mono); font-size: 0.86em; }
 .muted { color: var(--muted); }
 .lede { font-size: clamp(19px, 2.2vw, 24px); line-height: 1.33; letter-spacing: -0.015em; }
 .small { font-size: 14px; line-height: 1.43; }
+/* Technical things (an address, a size, a hash) in the monospace; numbers that line up in columns. */
+.mono { font-family: var(--mono); font-size: 0.9em; letter-spacing: 0; }
+.num { font-variant-numeric: tabular-nums; }
 
 /* Layout: a centred column, full-bleed bands separated by whitespace or a soft background shift. */
 .wrap { max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
@@ -167,26 +261,45 @@ code { font-family: var(--mono); font-size: 0.88em; }
 
 /* Lists are rows split by hairlines, not boxes. */
 .rows { list-style: none; margin: 0; padding: 0; }
-.rows > li { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 0; border-bottom: 1px solid var(--hairline); flex-wrap: wrap; }
-.rows > li:first-child { border-top: 1px solid var(--hairline); }
+.rows > li { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.rows > li:first-child { border-top: 1px solid var(--line); }
 .rows .end { margin-left: auto; }
 
-/* Controls. Buttons are pills at least 44px tall; the default is a quiet grey one. */
+/*
+ * Buttons. The default is a quiet one: a soft fill, rounded corners, no edge. The primary one is the game's
+ * button: the orange, dark ink, the display face, and a solid lip under it that sinks when pressed (it moves down
+ * by what the lip loses, so it looks pushed in). One primary per view.
+ */
 button, input, select, textarea { font: inherit; letter-spacing: inherit; color: inherit; }
 button {
   min-height: 44px;
-  padding: 0 22px;
+  padding: 0 20px;
   border: none;
-  border-radius: 980px;
+  border-radius: var(--r-md);
   background: var(--fill);
   color: var(--text);
   font-size: 17px;
   cursor: pointer;
-  transition: background-color 0.15s var(--ease), opacity 0.15s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
 }
 button:hover:not(:disabled) { background: var(--fill-hover); }
-button.primary { background: var(--accent-fill); color: var(--on-accent); }
-button.primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
+button.primary, a.button.primary {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow: 0 var(--lip) 0 var(--accent-lip);
+}
+button.primary:hover:not(:disabled), a.button.primary:hover { background: var(--accent-fill-hover); }
+button.primary:active:not(:disabled), a.button.primary:active {
+  transform: translateY(calc(var(--lip) - var(--lip-pressed)));
+  box-shadow: 0 var(--lip-pressed) 0 var(--accent-lip);
+}
+/* The way back in a step-by-step sheet ("Back", "Not now", "Skip"): a quiet key with a grey edge and a small lip. */
+button.second { background: var(--surface); box-shadow: var(--quiet-edge); }
+button.second:hover:not(:disabled) { background: var(--tile); }
+button.second:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 0 0 1px var(--border), 0 1px 0 var(--line-strong); }
 button:disabled { opacity: 0.42; cursor: default; }
 /* A button that reads like a link: for secondary actions. */
 button.link, .more {
@@ -199,14 +312,13 @@ button.link, .more {
   color: var(--accent);
   border-radius: 0;
   font-size: inherit;
+  box-shadow: none;
 }
-button.link:hover:not(:disabled) { background: none; text-decoration: underline; }
+button.link:hover:not(:disabled) { background: none; text-decoration: underline; text-underline-offset: 3px; }
 button.link.danger { color: var(--danger); }
 /* A link that does a button's job, like "Log in with GitHub". */
-a.button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border-radius: 980px; background: var(--fill); color: var(--text); font-size: 17px; }
-a.button.primary { background: var(--accent-fill); color: var(--on-accent); }
+a.button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 20px; border-radius: var(--r-md); background: var(--fill); color: var(--text); font-size: 17px; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 a.button:hover { background: var(--fill-hover); text-decoration: none; }
-a.button.primary:hover { background: var(--accent-fill-hover); }
 /* "‹ Back to somewhere", above a page's headline. */
 .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin-bottom: 8px; font-size: 14px; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
@@ -217,11 +329,11 @@ input:where(:not([type="checkbox"], [type="radio"], [type="range"])), select, te
   min-height: 48px;
   padding: 12px 16px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: var(--surface);
   color: var(--text);
   font-size: 17px;
-  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 textarea { resize: vertical; line-height: 1.47; }
 select { width: auto; }
@@ -242,22 +354,89 @@ button:focus-visible { outline-offset: 2px; }
 .error { color: var(--danger); }
 .note-line { min-height: 1.47em; }
 
-/* Status: a small dot and a word in a sentence. */
+/* Status: a small dot and a word in a sentence. A dot carries a faint halo of its own colour, like a dashboard's. */
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); vertical-align: 0.1em; margin-right: 6px; flex: none; }
-.dot.on, .dot.live { background: var(--live); }
-.dot.warn, .dot.deploying, .dot.making { background: var(--warn); }
-.dot.danger, .dot.down, .dot.failed { background: var(--danger); }
-.dot.accent, .dot.free { background: var(--accent-fill); }
+.dot.on, .dot.live { background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
+.dot.warn, .dot.deploying, .dot.making { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.dot.danger, .dot.down, .dot.failed { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.dot.accent, .dot.free { background: var(--free); box-shadow: 0 0 0 3px var(--free-soft); }
 .word-live { color: var(--live); }
 .word-warn { color: var(--warn); }
 .word-danger { color: var(--danger); }
 
-/* Pills: kept for the city page; quieter than before. */
-.pill { display: inline-block; font-size: 12px; line-height: 1.5; padding: 2px 10px; border-radius: 980px; background: var(--fill); color: var(--muted); white-space: nowrap; }
+/* Pills: small status chips, as a dashboard tags a deploy. */
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; line-height: 1.5; padding: 1px 9px; border-radius: var(--r-pill); background: var(--fill); color: var(--muted); white-space: nowrap; }
 .pill.live { background: var(--live-soft); color: var(--live); }
-.pill.free { background: var(--accent-soft); color: var(--accent); }
+.pill.free { background: var(--free-soft); color: var(--free); }
 .pill.making, .pill.deploying { background: var(--warn-soft); color: var(--warn); }
 .pill.down, .pill.failed { background: var(--danger-soft); color: var(--danger); }
+
+/* Key caps: a key on a keyboard, raised by a thicker bottom edge, its letter in the monospace. Inside a filled
+   button the cap takes the button's ink instead. */
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  background: var(--surface);
+  color: var(--text);
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0;
+  vertical-align: 0.1em;
+}
+:is(.primary, .pill) kbd { border-color: color-mix(in srgb, currentColor 40%, transparent); background: color-mix(in srgb, currentColor 10%, transparent); color: inherit; }
+
+/* A switch, the game's ON/OFF: a pill track, a knob with a lip, and the power marks (I on, O off) drawn in CSS so
+   no word needs translating. The track goes orange when it's on. */
+button.toggle[role="switch"][aria-checked] {
+  position: relative;
+  flex: none;
+  width: 56px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--r-pill);
+  background: var(--fill-hover);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  transition: background-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+button.toggle[role="switch"][aria-checked]:hover:not(:disabled) { background: var(--fill-hover); box-shadow: inset 0 0 0 1px var(--muted); }
+button.toggle[role="switch"][aria-checked][aria-checked="true"], button.toggle[role="switch"][aria-checked][aria-checked="true"]:hover:not(:disabled) { background: var(--accent-fill); box-shadow: inset 0 0 0 1px var(--accent-lip); }
+/* The power marks, on the side the knob isn't. */
+button.toggle[role="switch"][aria-checked]::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  translate: 0 -50%;
+}
+button.toggle[role="switch"][aria-checked][aria-checked="true"]::before { right: auto; left: 13px; width: 2px; height: 10px; border: 0; border-radius: 1px; background: var(--on-accent); }
+button.toggle[role="switch"][aria-checked] .knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line-strong), 0 2px 0 var(--line-strong);
+  transition: transform var(--dur) var(--ease-pop);
+}
+button.toggle[role="switch"][aria-checked][aria-checked="true"] .knob { transform: translateX(26px); box-shadow: 0 0 0 1px var(--accent-lip), 0 2px 0 var(--accent-lip); }
+
+/* A segmented control: a sunken track, the chosen part lifted on the surface with a hairline. */
+.segmented { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
+.segmented > button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--r-sm); background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+.segmented > button:hover:not(:disabled) { background: none; color: var(--text); }
+.segmented > button:is(.on, [aria-checked="true"]) { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--hairline), 0 1px 0 var(--line-strong); }
 
 /* Accessible names that don't show. */
 .sr-only {
@@ -268,33 +447,43 @@ button:focus-visible { outline-offset: 2px; }
   white-space: nowrap; border: 0;
 }
 
-/* A thin usage meter. */
-.meter { height: 4px; border-radius: 2px; background: var(--fill); overflow: hidden; }
-.meter > .fill { height: 100%; background: var(--live); border-radius: 2px; transition: width 0.4s var(--ease); }
+/* A usage meter, as a dashboard draws one: a thin track, the fill in the state's colour. */
+.meter { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; box-shadow: inset 0 0 0 1px var(--hairline); }
+.meter > .fill { height: 100%; background: var(--live); border-radius: 3px; transition: width 0.4s var(--ease); }
 .meter > .fill.high { background: var(--warn); }
 
+/* News, a greeting, a tip: one line in a flat card, the display face, a stripe of the orange on its left. */
+.toast { margin: 0; padding: 9px 16px 9px 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--shadow), inset 4px 0 0 var(--accent-fill); font-size: 15px; line-height: 1.45; text-align: center; }
+.toast .said { font-family: var(--display); font-weight: 700; letter-spacing: -0.01em; }
+
 /* Motion: short fades between pages, a small slide between steps. */
-.route-enter-active, .route-leave-active { transition: opacity 0.2s var(--ease), transform 0.2s var(--ease); }
+.route-enter-active, .route-leave-active { transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
 .route-enter-from { opacity: 0; transform: translateY(8px); }
 .route-leave-to { opacity: 0; }
 .step-forward-enter-active, .step-forward-leave-active,
-.step-back-enter-active, .step-back-leave-active { transition: opacity 0.18s var(--ease), transform 0.18s var(--ease); }
+.step-back-enter-active, .step-back-leave-active { transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease); }
 .step-forward-enter-from, .step-back-leave-to { opacity: 0; transform: translateX(24px); }
 .step-forward-leave-to, .step-back-enter-from { opacity: 0; transform: translateX(-24px); }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s var(--ease); }
+.fade-enter-active, .fade-leave-active { transition: opacity var(--dur) var(--ease); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  button.primary:active:not(:disabled), a.button.primary:active, button.second:active:not(:disabled) { transform: none; }
 }
 /* The same, when someone turns on "calmer motion" in the settings pane. */
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 
-/* Names floating over the 3D lobby (rendered outside Vue's scoped styles): small flat tags in the site's colours. */
+/* Names floating over the 3D lobby (rendered outside Vue's scoped styles): small flags in the site's colours, a
+   little point under each, like a pin on a map. */
 .lobby-labels { position: absolute; inset: 0; pointer-events: none; }
-.lobby-label { font: 600 13px/1.2 var(--font); color: var(--text); background: var(--surface); padding: 3px 8px; border-radius: 8px; white-space: nowrap; box-shadow: var(--lift); }
-.lobby-label.small { font-size: 11px; font-weight: 500; padding: 1px 6px; }
-.lobby-label.you { background: var(--accent-fill); color: var(--on-accent); }
+.lobby-label { position: relative; font: 700 13px/1.2 var(--display); letter-spacing: -0.01em; color: var(--text); background: var(--surface); padding: 4px 9px; border-radius: var(--r-sm); white-space: nowrap; box-shadow: var(--lift); }
+.lobby-label::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; background: inherit; translate: -50% 0; rotate: 45deg; border-radius: 0 0 2px 0; }
+.lobby-label.small { font: 600 11px/1.2 var(--font); padding: 2px 6px; border-radius: var(--r-xs); }
+.lobby-label.small::after { width: 6px; height: 6px; bottom: -3px; }
+.lobby-label.you { background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 2px 0 var(--accent-lip); }
 /* After a name, their house, on the house's colour (the same as the ring at their feet). Colours are set inline. */
-.lobby-label .home { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; font: 600 9px/14px var(--font); letter-spacing: 0.02em; vertical-align: 1px; }
+.lobby-label .home { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; font: 600 9px/14px var(--font); letter-spacing: 0.02em; vertical-align: 1px; }
 .lobby-label.small .home { margin-left: 4px; padding: 0 5px; font-size: 8px; line-height: 12px; }
+/* A house's name: a bigger flag with the orange as its pole. */
+.lobby-label.house { font-size: 15px; padding: 5px 11px 5px 12px; box-shadow: var(--lift), inset 3px 0 0 var(--accent-fill); }

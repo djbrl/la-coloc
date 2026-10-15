@@ -32,7 +32,7 @@ defineProps<{ explain?: string | null; bodyLabel?: string; bodyId?: string; body
   padding: 4px var(--gutter) 18px;
 }
 .p-head, .p-tabs, .p-explain, .p-foot { flex: none; }
-.p-explain { margin-top: -4px; font-size: 13px; line-height: 1.3; color: var(--muted); }
+.p-explain { margin-top: -4px; font-size: 13px; line-height: 1.35; color: var(--muted); }
 /* The body takes what's left. It scrolls only if what's in it can't fit (a stream, a long list). */
 .p-body {
   /* Positioned, so hidden screen-reader text inside a scrolling list is clipped here instead of stretching the sheet. */
@@ -48,5 +48,6 @@ defineProps<{ explain?: string | null; bodyLabel?: string; bodyId?: string; body
   margin: 0 -6px;
   padding: 2px 6px;
 }
-.p-foot { display: flex; align-items: center; gap: 12px; padding-top: 6px; }
+/* The foot sits under a hairline, like a dashboard card's footer, with the one next step in it. */
+.p-foot { display: flex; align-items: center; gap: 12px; margin: 0 calc(-1 * var(--gutter)); padding: 12px var(--gutter) 0; border-top: 1px solid var(--line); }
 </style>
