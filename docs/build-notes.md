@@ -509,3 +509,69 @@ docs) on disjoint files, then a real run against the dead database.
 ### Rough edges
 Listed in [TODO.md](../TODO.md) (D9 and the others). The Vite override is `COLOC_DEV_API`, not `COLOC_API_URL`, which is the caretaker's.
 
+## 15 10 2026, night: French (M5)
+
+Jib asked for the first-visit path in French overnight (welcome, tutorial, the lobby's top line and news, the house
+panel, the bill, settings, and the switch itself), built so the rest could follow without rework; then as much of
+the rest as time allowed. Branch `french-ui`, not merged. Claude Code did the engine and the first-visit path, and
+three subagents did the room, knock and rent, and list and login screens on disjoint files; everything was read and
+checked before committing.
+
+### How it works (for the jury)
+- **No library.** `apps/web/src/i18n.ts` is about 100 lines. Each area writes its words twice:
+  `defineWords("house", { …English… }, { …French… })`. A word is a string, or a small function for a sentence with
+  numbers or names in it (`owes: (who, you, amount) => …`).
+- **A missing French key does not compile.** The French object's type is computed from the English one (`Words<T>`):
+  a missing key, an extra key or a function with other arguments is a type error, so `npm run build` (vue-tsc) fails.
+  `i18n.test.ts` checks it too at run time (same keys, nothing empty), and that the build-breaking cases really fail.
+- **Switching is live.** `defineWords` returns a proxy that reads `language.lang` (a Vue `reactive`) on every access, so
+  any template or computed that reads a word redraws when the language changes. Lists built once at setup were turned
+  into `computed`s or functions for that reason.
+- **The language** starts from what this browser chose (`localStorage` key `coloc.lang`, wrapped in try/catch), else
+  `navigator.language` (any `fr…` is French, anything else English). `<html lang>` follows it. The switch is the first
+  row of Settings: a globe, a sentence ("The city speaks English." / "La ville parle français."), and EN / FR, each
+  named in its own language for screen readers.
+- **French typography** is automatic: the dictionaries are written with plain spaces, and the French ones get no-break
+  spaces before `: ; ! ? %` and inside « ». Counting follows each language (`plural`: "1 room", `pluriel`: "0 chambre").
+  Dates use Intl in the chosen locale ("1er novembre"); amounts keep the existing FCFA format ("12 000 FCFA").
+- **Where the words are:** `components/lobby/panel/words.ts` (the shared vocabulary: house, room, knock, states),
+  `lobby/house/words.ts` (house panel, bill, tontine, paying), `lobby/tutorial/words.ts` and `tips.ts`,
+  `components/words.ts` (welcome, settings, lobby HUD, chat, fridge, waiting), `lobby/words.ts` (cards, top bar,
+  loading, keys, minimap, outage card), `room/words.ts`, `joinWords.ts` (knock, rent), `list/words.ts` (list view,
+  login), `core.ts` (`downWords`), and each city's greeting meaning in `lobby/cityStyle.ts` (a typed `fr` part).
+- **The French says "vous"** throughout, in plain words: maison, chambre, colocs, frapper (a knock is "une demande"),
+  revue de code (relire), mettre en ligne, construction, merge, dépôt, corvées, frigo, facture, salon (the group chat).
+
+### Verified
+- Tests 426 (web 186, with the new `i18n.test.ts`), `npm run build` (vue-tsc) and `licences:check` pass.
+- In a browser against a throwaway stand-in API (the real one and Postgres were not running, and were not started), at
+  1280×640: the welcome, the tutorial's first steps, settings (fits, 597 of 608 px with the demo reset showing), the
+  top line and tips, the find menu, a house card, and every tab of the house panel. Each panel tab and the pay sheet
+  measured the same height in French as in English, after shortening two French tab lines and the pay sheet's note.
+  The welcome card on a 375 px phone: "Passer le tutoriel" takes two lines inside its usual button height.
+- Not seen on screen: the room window, the knock and rent dialogs and the list's house page (no stand-in for their
+  routes); they are type-checked and tested only.
+
+### Still English
+- **Sentences the API writes**, shown as they come: error messages (`res.message`, every controller), the fridge notes
+  (`apps/api/src/houses/fridge.ts`, stored as text, and the rules note in `houses.service.ts`), the system lines in a
+  knock's thread (`doorbell/doorbell.service.ts`), deploy step details, the PR comments on GitHub, and the seeded city
+  (taglines, project descriptions, chat). Translating them cleanly means sending a kind plus parameters instead of
+  text: a separate API change.
+- `index.html`'s title and share description (static, read by link previews).
+- The walk keys are the letters W A S D, read by `e.key`: on a French AZERTY keyboard they sit apart. Reading
+  `e.code` (Z Q S D on AZERTY) is a behaviour change for the engine, not a translation; noted in TODO.
+
+### Words for a native speaker to check
+- **Register and anglicisms:** "vous" everywhere; "merge" / "mergez" kept (vs "fusion"); "revue de code" / "relire" for
+  review; "logs"; "PR" invariable; "sprint" for dash; "Salon" for the group-chat tab; "Corvées" for chores.
+- **Knocks:** a knock is "une demande" ("Voir ma demande", "Demande envoyée"); "Déjà frappé"; "Emménagé"; "Faire
+  entrer"; "Il faut 3 oui pour entrer".
+- **Gendered words** that assume masculine or a fixed noun: "Prêt à frapper ?", "Prêt à lancer ?", "vous en êtes le
+  chef", "Le chef a ouvert la maison"; "Elle a 256 Mo…" (elle = la chambre); "il n'y a que vous en balade".
+- **Phrasings:** "Une ville de maisons de devs"; "Bienvenue à La Coloc" (vs "dans"); "@awa · vit à Keur Dev, Dakar";
+  "Ouverte à qui met des projets en ligne" (for "Open to anyone who ships"); "la maison se mobilise pour Prix Marché,
+  le projet de Moussa"; "La caisse commune de la maison"; "Pas d'argent réel pour l'instant : votre part est juste
+  marquée payée."; "Revues strictes / souples"; "Résumé" for the room's Overview tab; "Constructions" for Builds;
+  "Petit / Moyen / Grand" server sizes; "le gardien" for the caretaker; "Identifiant" for login name.
+- **Greetings' meanings** in `cityStyle.ts`: Fon "A fɔ́n ganjí à ?" given as « Bien réveillé ? ».
