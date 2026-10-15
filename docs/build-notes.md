@@ -752,3 +752,29 @@ GitHub's page for the installation. With nothing installed, the card offers "Ope
 without GitHub is told to log in with GitHub. The webhook no longer fills a workshop room with every installed repo:
 it takes one at most, and the picker decides. Limit: an install on an organisation isn't listed; its webhook still
 links it. Tests in `tutorial/tutorial.test.ts` and `github/github.test.ts`.
+
+### 15 Oct 2026, evening: Jib's review of the city, the house window, login and the HUD
+
+Seven fixes from Jib trying the branch (Claude Code; the minimap was a subagent's, on its own files, read before
+committing).
+
+| Ask | What changed | Where |
+|---|---|---|
+| The city is always daytime | The engine pins the light to 11:00 local (lamps off, windows unlit) whatever the city's clock or the site's theme; the dev `setHour` still overrides. The HUD keeps its own day/night theme | `lobby/Lobby.ts` (`CITY_HOUR`), `LobbyView.vue` backdrop |
+| The house card, from outside | No review counts on rooms (the list view's room rows keep them for flatmates only); no "Dakar. Its server is running." (the dot beside the name, with its hidden name; words only when wrong, `houseTrouble`); no "4 rooms, 1 free."; a room's line drops "Online."; the tontine and the month's reviews show to flatmates only. The street card follows | `HouseInside.vue`, `HouseCard.vue`, `panel/PanelHead.vue`, `panel/words.ts`, `RoomCard.vue` |
+| Login page | A still of the city by day (Lomé, 100 KB WebP, ours) behind a flat card; a still, not a live render, so phones pay nothing | `pages/LoginPage.vue`, `public/login-city.webp` |
+| "Where to?" | No orange stripe, no ", you're here" (the map's dot, and `aria-current`); each city is icon chips: people walking, houses, projects online (real houses only), local time in the monospace, each with a hidden name | `LobbyView.vue`, `lobby/cityStats.ts` (tested) |
+| Minimap | Drawn in the city's day grounds: streets with dashes, sidewalks, parasol dots, park, sea; houses as little house shapes in their colour; you as a yellow arrow facing your way with a view cone; a solid frame with a compass; two icon chips (live here, out walking) under it | `Minimap.vue`, `minimap.ts` (tested), `minimapWords.ts` |
+| Emotes | The thumbs up/down buttons, the 1 and 2 keys and their keys-sheet line are gone; a person card's wave and others' emotes stay | `LobbyView.vue`, `Lobby.ts`, `KeysSheet.vue` |
+| Top chip | Silent while all is well; shows "Dakar: Sacré-Cœur's server is down." (red dot) or "1 build failed." (amber) for real houses. The core being down has its own banner already | `LobbyView.vue`, `lobby/cityStats.ts` |
+
+**Verified** with headless Chrome against the running dev server (no server, API or Docker touched): the house window
+logged out at 1440×900 (light) and 375×812 (dark, French); the flatmate view logged in as Jib in the app's browser (the
+tontine line still there, the dot beside the name); a demo house logged in; "Where to?" at 1440 light and dark and 375;
+the city by day in Marrakech, Dakar, Lomé and Kigali; the login page at 1440 light and 375 dark; the minimap small and
+big, Dakar light and Lomé dark, and 375. `npm run build`, `npm test -w @coloc/web` and `npm run licences:check` pass.
+
+**Rough edges.** The top chip's alert was only seen in tests (every real house was up). A logged-in non-flatmate on a
+real house wasn't seen (the only real house is Jib's). The tutorial's "emotes" HUD piece is now unused but left in the
+step machine. On a phone the travel sheet still scrolls its list, as before. Example houses' rows still say "An example
+project." on each row.
