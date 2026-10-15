@@ -92,7 +92,7 @@ describe("the demo reset", () => {
 
     // The agents removed every room that's gone, and only those; the new house's agent was hung up.
     expect(sent.map((s) => `${s.house}/${(s.cmd as { room: string }).room}`).sort()).toEqual(
-      ["atelier/tuto-fatou", "medina-lab/fatou", "medina-lab/room-2", "medina-lab/room-3", "medina-lab/room-4"].sort(),
+      ["atelier/fatou-home", "medina-lab/fatou", "medina-lab/room-2", "medina-lab/room-3", "medina-lab/room-4"].sort(),
     );
     expect(hungUp).toEqual(["medina-lab"]);
     expect(changed).toEqual(expect.arrayContaining(["medina-lab", "atelier", "sacre-coeur"]));

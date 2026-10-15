@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { chores, type Db, repos, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createHmac, createVerify, generateKeyPairSync } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { HousesService } from "../houses/houses.service";
@@ -153,7 +153,11 @@ describe("installing the App during the tutorial", () => {
     sender,
     repositories: names.map((n, i) => ({ id: id * 100 + i, full_name: n })),
   });
-  const roomOf = async (repoId: number) => (await db.select().from(repos).where(eq(repos.githubId, repoId)))[0]?.room;
+  // "house/room": Jib's workshop room and their real room are both called "jib", so the house tells them apart.
+  const roomOf = async (repoId: number) => {
+    const [r] = await db.select().from(repos).where(eq(repos.githubId, repoId));
+    return r && `${r.houseId}/${r.room}`;
+  };
 
   beforeAll(async () => {
     db = await testDb();
@@ -164,13 +168,13 @@ describe("installing the App during the tutorial", () => {
     await db.update(users).set({ githubId: jib.id }).where(eq(users.login, "jib"));
     // Jib lives in a real house, and is halfway through the tutorial: a second room, in the workshop.
     const [u] = await db.select().from(users).where(eq(users.login, "jib"));
-    await db.insert(rooms).values({ houseId: "atelier", name: "tuto-jib", occupantId: u.id, memoryMb: 256, cpus: 0.5, status: "empty" });
+    await db.insert(rooms).values({ houseId: "atelier", name: "jib", occupantId: u.id, memoryMb: 256, cpus: 0.5, status: "empty" });
     svc = new ChoresService(db, new HousesService(db), null);
   });
 
   it("links the first repo to the workshop room, though the installer lives in two rooms", async () => {
     expect(await svc.handle("installation", install(1, ["jib/hello", "jib/other"]))).toBe("linked 1");
-    expect(await roomOf(100)).toBe("tuto-jib");
+    expect(await roomOf(100)).toBe("atelier/jib");
     expect(await roomOf(101)).toBeUndefined();
   });
 
@@ -178,13 +182,13 @@ describe("installing the App during the tutorial", () => {
     await svc.handle("installation", install(1, ["jib/hello"]));
     expect(await svc.handle("installation", install(2, ["jib/again"]))).toBe("installer doesn't live in exactly one room");
     expect(await roomOf(200)).toBeUndefined();
-    expect(await roomOf(100)).toBe("tuto-jib");
+    expect(await roomOf(100)).toBe("atelier/jib");
   });
 
   it("works for repos added to an installation too", async () => {
     const added: GhEvent = { action: "added", installation: { id: 3 }, sender: jib, repositories_added: [{ id: 300, full_name: "jib/added" }] };
     expect(await svc.handle("installation_repositories", added)).toBe("linked 1");
-    expect(await roomOf(300)).toBe("tuto-jib");
+    expect(await roomOf(300)).toBe("atelier/jib");
   });
 
   it("follows the usual rule once the tutorial is done", async () => {
@@ -207,7 +211,7 @@ describe("installing the App during the tutorial", () => {
   });
 
   it("links to the real room when the installer left the workshop room and lives in just one", async () => {
-    await db.delete(rooms).where(eq(rooms.name, "tuto-jib"));
+    await db.delete(rooms).where(and(eq(rooms.houseId, "atelier"), eq(rooms.name, "jib")));
     expect(await svc.handle("installation", install(1, ["jib/hello"]))).toBe("linked 1");
     expect((await db.select().from(repos))[0].houseId).toBe("sacre-coeur");
   });

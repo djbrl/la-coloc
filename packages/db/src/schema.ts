@@ -29,6 +29,9 @@ export const users = pgTable("users", {
   // When they finished the tutorial (walk into the workshop, take a room, put a sample online, link GitHub).
   // Null: not done yet, or they chose to take it again.
   tutorialDoneAt: timestamp("tutorial_done_at", { withTimezone: true }),
+  // How far they got in "Your first home", the tutorial's quest: the furthest chapter reached ("arrive" … "house"),
+  // so coming back the next day picks up where they left off, on any device. Null: not started yet.
+  tutorialChapter: text("tutorial_chapter"),
   createdAt: createdAt(),
 });
 

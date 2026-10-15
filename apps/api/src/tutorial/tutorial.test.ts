@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { type Db, memberships, repos, rooms, users } from "@coloc/db";
+import { type Db, fridgeNotes, memberships, repos, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import type { ApiToAgent, DeployCommand } from "@coloc/protocol";
 import { HttpException } from "@nestjs/common";
@@ -9,6 +9,7 @@ import type { AgentRegistry } from "../agents/agent.registry";
 import { loadAuthConfig } from "../auth/auth.config";
 import { AuthController } from "../auth/auth.controller";
 import { AuthService, SESSION_COOKIE } from "../auth/auth.service";
+import type { GithubAppClient } from "../github/github.client";
 import { MembershipsService } from "../auth/memberships.service";
 import { CityController } from "../houses/houses.controller";
 import { HousesService } from "../houses/houses.service";
@@ -16,7 +17,7 @@ import { RoomDeployer } from "../rooms/room-deployer";
 import { RoomsService } from "../rooms/rooms.service";
 import { seedCity } from "../seed/city";
 import { TutorialController } from "./tutorial.controller";
-import { TutorialService, tutorialRoomName } from "./tutorial.service";
+import { CHAPTERS, TutorialService, tutorialRoomName } from "./tutorial.service";
 
 let db: Db;
 let sent: ApiToAgent[];
@@ -43,7 +44,8 @@ beforeEach(async () => {
     db,
     houses,
     new RoomsService(db, houses, null),
-    new RoomDeployer(db, houses, agents, null, null),
+    // A stand-in for GitHub: a token and a default branch, so a linked repo can be deployed without the network.
+    new RoomDeployer(db, houses, agents, null, { installationToken: async () => "t0ken", defaultBranch: async () => "trunk" } as unknown as GithubAppClient),
     agents,
     { appId: "1", privateKey: "k", webhookSecret: "w", slug: "la-coloc-dev" },
     sample,
@@ -73,7 +75,8 @@ describe("the tutorial's state", () => {
       house: { id: "atelier", name: "L'Atelier", city: "Dakar", agentOnline: true },
       room: null,
       sample,
-      github: { installUrl: "https://github.com/apps/la-coloc-dev/installations/new", linked: false },
+      github: { installUrl: "https://github.com/apps/la-coloc-dev/installations/new", linked: false, repo: null },
+      chapter: null,
       done: false,
     });
   });
@@ -86,11 +89,11 @@ describe("the tutorial's state", () => {
 describe("taking a room in the workshop", () => {
   it("gives the newcomer a room and a place as a flatmate, and the same room when asked again", async () => {
     const first = response();
-    expect(await tutorial.room(req, first)).toEqual({ room: { name: "tuto-fatou", status: "empty", url: null } });
+    expect(await tutorial.room(req, first)).toEqual({ room: { name: "fatou", status: "empty", url: null } });
     expect(first.code).toBe(201);
 
     const again = response();
-    expect(await tutorial.room(req, again)).toEqual({ room: { name: "tuto-fatou", status: "empty", url: null } });
+    expect(await tutorial.room(req, again)).toEqual({ room: { name: "fatou", status: "empty", url: null } });
     expect(again.code).toBe(200);
 
     // One new room, next to the workshop's example rooms; it's a real one.
@@ -102,13 +105,14 @@ describe("taking a room in the workshop", () => {
     const ms = await db.select().from(memberships).where(and(eq(memberships.houseId, "atelier"), eq(memberships.userId, fatou.id)));
     expect(ms.map((m) => m.role)).toEqual(["flatmate"]);
 
-    expect((await tutorial.state(req)).room).toEqual({ name: "tuto-fatou", status: "empty", url: null });
+    expect((await tutorial.state(req)).room).toEqual({ name: "fatou", status: "empty", url: null, why: null });
   });
 
   it("doesn't take an example room for the newcomer's, even when they log in as one of the learners", async () => {
-    // A dev login as "babacar" is the seeded learner, who lives in an example room: they still get a tuto- room.
+    // A dev login as "babacar" is the seeded learner, who lives in an example room called "babacar": they still get
+    // a room of their own, and the name being taken, it's "babacar-home".
     const asBabacar = await loggedIn("babacar");
-    expect(await tutorial.room(asBabacar, response())).toEqual({ room: { name: "tuto-babacar", status: "empty", url: null } });
+    expect(await tutorial.room(asBabacar, response())).toEqual({ room: { name: "babacar-home", status: "empty", url: null } });
     expect((await tutorial.state(req)).room).toBeNull();
     // Taking it again removes that room only: Babacar still lives in the example room, as a flatmate.
     await tutorial.reset(asBabacar);
@@ -117,15 +121,43 @@ describe("taking a room in the workshop", () => {
     expect(await db.select().from(memberships).where(and(eq(memberships.houseId, "atelier"), eq(memberships.userId, (await user("babacar")).id)))).toHaveLength(1);
   });
 
-  it("keeps room names valid, whatever the login", () => {
-    expect(tutorialRoomName("Djbrl")).toBe("tuto-djbrl");
-    expect(tutorialRoomName("a-very-long-login-that-goes-on-and-on")).toMatch(/^[a-z][a-z0-9-]{1,30}$/);
+  it("names the room after the login, and keeps it a valid room name whatever the login", () => {
+    expect(tutorialRoomName("Djbrl")).toBe("djbrl");
+    expect(tutorialRoomName("Aïssatou-Ba")).toBe("aissatou-ba");
+    // Too long, starting with a digit, one letter, or looking like a preview's address: "home-" in front.
+    for (const login of ["a-very-long-login-that-goes-on-and-on-and-on", "42", "a", "preview-jib", "-"]) {
+      const name = tutorialRoomName(login);
+      expect(name).toMatch(/^[a-z][a-z0-9-]{1,30}$/);
+      expect(name).not.toMatch(/^preview-|-$/);
+    }
+    expect(tutorialRoomName("42")).toBe("home-42");
+    expect(tutorialRoomName("preview-jib")).toBe("home-preview-jib");
+  });
+
+  it("gives the second of two same-looking logins another room name", async () => {
+    await tutorial.room(await loggedIn("Fatou"), response());
+    expect(await tutorial.room(req, response())).toEqual({ room: { name: "fatou-home", status: "empty", url: null } });
+    expect(await tutorial.room(await loggedIn("FATOU"), response())).toEqual({ room: { name: "fatou-2", status: "empty", url: null } });
+  });
+
+  it("never reuses a room name from another house: a caretaker names Docker networks after the room alone", async () => {
+    // Jib lives in Sacré-Cœur's room "jib"; the workshop may run on the same machine.
+    expect(await tutorial.room(await loggedIn("jib"), response())).toEqual({ room: { name: "jib-home", status: "empty", url: null } });
+  });
+
+  it("pins a welcome on the workshop's fridge when the room is new, and only then", async () => {
+    await tutorial.room(req, response());
+    await tutorial.room(req, response());
+    const notes = await db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, "atelier"));
+    const welcome = notes.filter((n) => n.text.includes("Welcome home"));
+    expect(welcome).toHaveLength(1);
+    expect(welcome[0]).toMatchObject({ tone: "thanks", room: "fatou", text: "fatou moved in. Welcome home!", count: 1 });
   });
 
   it("says when the GitHub repo is linked", async () => {
     await tutorial.room(req, response());
-    await db.insert(repos).values({ githubId: 7, fullName: "fatou/hello", houseId: "atelier", room: "tuto-fatou", installationId: 1 });
-    expect((await tutorial.state(req)).github.linked).toBe(true);
+    await db.insert(repos).values({ githubId: 7, fullName: "fatou/hello", houseId: "atelier", room: "fatou", installationId: 1 });
+    expect((await tutorial.state(req)).github).toMatchObject({ linked: true, repo: "fatou/hello" });
   });
 });
 
@@ -136,7 +168,8 @@ describe("when GitHub counts as linked", () => {
     const fatou = await user("fatou");
     await db.insert(rooms).values({ houseId: "sacre-coeur", name: "fatou-real", occupantId: fatou.id, memoryMb: 256, cpus: 0.5 });
     await db.insert(repos).values({ githubId: 8, fullName: "fatou/real", houseId: "sacre-coeur", room: "fatou-real", installationId: 1 });
-    expect((await tutorial.state(req)).github.linked).toBe(true);
+    // Linked, but not to the workshop room: the coach has no repo there to name.
+    expect((await tutorial.state(req)).github).toMatchObject({ linked: true, repo: null });
   });
 
   it("doesn't count someone else's repo", async () => {
@@ -147,13 +180,79 @@ describe("when GitHub counts as linked", () => {
 });
 
 describe("putting the sample online", () => {
+  const deployed = () => sent.filter((c) => c.type === "deploy") as DeployCommand[];
+  const fatouRoom = async () => (await db.select().from(rooms).where(and(eq(rooms.houseId, "atelier"), eq(rooms.name, "fatou"))))[0];
+  const linkRepo = () => db.insert(repos).values({ githubId: 7, fullName: "fatou/portfolio", houseId: "atelier", room: "fatou", installationId: 1 });
+
   it("deploys the sample into the newcomer's room", async () => {
     await tutorial.room(req, response());
     const { id } = await tutorial.deploy(req);
-    const cmd = sent.find((c) => c.type === "deploy") as DeployCommand;
-    expect(cmd).toMatchObject({ deployId: id, room: "tuto-fatou", repo: sample.repo, ref: "main", path: "examples/hello" });
-    const [r] = await db.select().from(rooms).where(and(eq(rooms.houseId, "atelier"), eq(rooms.name, "tuto-fatou")));
-    expect(r).toMatchObject({ source: sample.repo, buildPath: "examples/hello", branch: null, status: "deploying", project: "Hello" });
+    expect(deployed()[0]).toMatchObject({ deployId: id, room: "fatou", repo: sample.repo, ref: "main", path: "examples/hello" });
+    expect(await fatouRoom()).toMatchObject({ source: sample.repo, buildPath: "examples/hello", branch: null, status: "deploying", project: "Hello" });
+  });
+
+  it("deploys the starter when asked, even with a repo linked, and leaves the room set up for that repo", async () => {
+    await tutorial.room(req, response());
+    await linkRepo();
+    await tutorial.deploy(req, { source: "starter" });
+    expect(deployed()[0]).toMatchObject({ room: "fatou", repo: sample.repo, ref: "main", path: "examples/hello" });
+    // The starter's folder went with that deploy only: the repo's next merge still builds from its root.
+    expect((await fatouRoom()).buildPath).toBe(".");
+  });
+
+  it("deploys the linked repo from its root, named after the repo", async () => {
+    await tutorial.room(req, response());
+    await tutorial.deploy(req, { source: "starter" });
+    await linkRepo();
+    await tutorial.deploy(req, { source: "github" });
+    expect(deployed()[1]).toMatchObject({ room: "fatou", repo: "https://x-access-token:t0ken@github.com/fatou/portfolio.git", ref: "trunk", path: "." });
+    // The starter's name and line gave way to the repo's name.
+    expect(await fatouRoom()).toMatchObject({ buildPath: ".", project: "portfolio", projectDescription: null });
+  });
+
+  it("keeps a project name the newcomer chose when their repo goes online", async () => {
+    await tutorial.room(req, response());
+    await db.update(rooms).set({ project: "Kër Bot", projectDescription: "Mine." }).where(eq(rooms.name, "fatou"));
+    await linkRepo();
+    await tutorial.deploy(req, { source: "github" });
+    expect(await fatouRoom()).toMatchObject({ project: "Kër Bot", projectDescription: "Mine." });
+  });
+
+  it("deploys the linked repo by default once there is one, from its root", async () => {
+    await tutorial.room(req, response());
+    await linkRepo();
+    await tutorial.deploy(req);
+    expect(deployed()[0]).toMatchObject({ repo: "https://x-access-token:t0ken@github.com/fatou/portfolio.git", path: "." });
+  });
+
+  it("answers 409 when asked for the GitHub repo before one is linked", async () => {
+    await tutorial.room(req, response());
+    const e = await tutorial.deploy(req, { source: "github" }).catch((x) => x);
+    expect(status(e)).toBe(409);
+    expect(e.message).toBe("Link a repo on GitHub first.");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("answers 400 for a source it doesn't know", async () => {
+    await tutorial.room(req, response());
+    expect(status(await tutorial.deploy(req, { source: "gitlab" }).catch((x) => x))).toBe(400);
+  });
+
+  it("says why the last deploy failed, in one line, and forgets it once a deploy goes well", async () => {
+    await tutorial.room(req, response());
+    const first = await tutorial.deploy(req);
+    await houses.recordDeployStatus("atelier", {
+      type: "deploy_status",
+      deployId: first.id,
+      room: "fatou",
+      status: "failed",
+      detail: "\nthe build failed: npm ERR! missing script: start\nstep 4/7\n",
+    });
+    expect((await tutorial.state(req)).room).toMatchObject({ status: "failed", why: "the build failed: npm ERR! missing script: start" });
+    const second = await tutorial.deploy(req);
+    expect((await tutorial.state(req)).room!.why).toBeNull();
+    await houses.recordDeployStatus("atelier", { type: "deploy_status", deployId: second.id, room: "fatou", status: "live", url: "http://fatou.atelier.coloc.localhost" });
+    expect((await tutorial.state(req)).room!.why).toBeNull();
   });
 
   it("says which step the deployment is at while it goes, so the coach can follow it", async () => {
@@ -161,11 +260,11 @@ describe("putting the sample online", () => {
     const { id } = await tutorial.deploy(req);
     expect((await tutorial.state(req)).room!.status).toBe("queued");
     for (const step of ["cloning", "building", "starting"] as const) {
-      await houses.recordDeployStatus("atelier", { type: "deploy_status", deployId: id, room: "tuto-fatou", status: step });
+      await houses.recordDeployStatus("atelier", { type: "deploy_status", deployId: id, room: "fatou", status: step });
       expect((await tutorial.state(req)).room!.status).toBe(step);
     }
-    await houses.recordDeployStatus("atelier", { type: "deploy_status", deployId: id, room: "tuto-fatou", status: "live", url: "http://tuto-fatou.atelier.coloc.localhost" });
-    expect((await tutorial.state(req)).room).toEqual({ name: "tuto-fatou", status: "live", url: "http://tuto-fatou.atelier.coloc.localhost" });
+    await houses.recordDeployStatus("atelier", { type: "deploy_status", deployId: id, room: "fatou", status: "live", url: "http://fatou.atelier.coloc.localhost" });
+    expect((await tutorial.state(req)).room).toEqual({ name: "fatou", status: "live", url: "http://fatou.atelier.coloc.localhost", why: null });
   });
 
   it("answers 409 when the workshop's server is offline", async () => {
@@ -182,14 +281,46 @@ describe("putting the sample online", () => {
   });
 });
 
+describe("the quest's chapters", () => {
+  it("starts at none, moves forward, and never goes back", async () => {
+    expect((await tutorial.state(req)).chapter).toBeNull();
+    expect(await tutorial.progress(req, { chapter: "keys" })).toEqual({ chapter: "keys" });
+    expect((await tutorial.state(req)).chapter).toBe("keys");
+    // An older chapter (a lagging tab, a replay) keeps the furthest one.
+    expect(await tutorial.progress(req, { chapter: "find" })).toEqual({ chapter: "keys" });
+    expect(await tutorial.progress(req, { chapter: "keys" })).toEqual({ chapter: "keys" });
+    expect(await tutorial.progress(req, { chapter: "house" })).toEqual({ chapter: "house" });
+    expect((await tutorial.state(req)).chapter).toBe("house");
+  });
+
+  it("knows the eight chapters, in order", () => {
+    expect(CHAPTERS).toEqual(["arrive", "find", "keys", "project", "launch", "open", "share", "house"]);
+  });
+
+  it("answers 400 for a chapter it doesn't know, and 401 when logged out", async () => {
+    for (const body of [{ chapter: "attic" }, {}, null, { chapter: 3 }]) {
+      const e = await tutorial.progress(req, body).catch((x) => x);
+      expect(status(e)).toBe(400);
+      expect(e.message).toBe("Pick one of the tutorial's chapters.");
+    }
+    expect(status(await tutorial.progress({ headers: {} }, { chapter: "find" }).catch((x) => x))).toBe(401);
+  });
+
+  it("is each person's own", async () => {
+    await tutorial.progress(req, { chapter: "share" });
+    expect((await tutorial.state(await loggedIn("moussa"))).chapter).toBeNull();
+  });
+});
+
 describe("taking the tutorial again", () => {
-  it("removes the room and the flatmate's place, and clears done", async () => {
+  it("removes the room and the flatmate's place, and clears done and the chapter", async () => {
     await tutorial.room(req, response());
     await me.updateMe(req, { tutorialDone: true });
+    await tutorial.progress(req, { chapter: "open" });
     expect((await tutorial.state(req)).done).toBe(true);
 
     expect(await tutorial.reset(req)).toEqual({ ok: true });
-    expect(sent).toEqual([{ type: "remove_room", room: "tuto-fatou" }]);
+    expect(sent).toEqual([{ type: "remove_room", room: "fatou" }]);
     // Only the newcomer's room and place go: the host and the learners stay, in their example rooms.
     const left = await db.select().from(rooms).where(eq(rooms.houseId, "atelier"));
     expect(left.map((r) => [r.name, r.demo, r.status]).sort()).toEqual([
@@ -206,6 +337,9 @@ describe("taking the tutorial again", () => {
     const state = await tutorial.state(req);
     expect(state.room).toBeNull();
     expect(state.done).toBe(false);
+    expect(state.chapter).toBeNull();
+    // The welcome note went with the room.
+    expect((await db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, "atelier"))).some((n) => n.room === "fatou")).toBe(false);
   });
 });
 

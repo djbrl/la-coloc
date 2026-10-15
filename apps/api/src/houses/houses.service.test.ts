@@ -49,7 +49,7 @@ describe("HousesService", () => {
 
   it("leaves the workshop's example rooms alone: the agent never reports them", async () => {
     const fatou = (await db.insert((await import("@coloc/db")).users).values({ login: "fatou" }).returning())[0];
-    await db.insert(roomRows).values({ houseId: "atelier", name: "tuto-fatou", occupantId: fatou.id, memoryMb: 256, cpus: 0.5, status: "live", url: "http://x" });
+    await db.insert(roomRows).values({ houseId: "atelier", name: "fatou", occupantId: fatou.id, memoryMb: 256, cpus: 0.5, status: "live", url: "http://x" });
     await svc.applySnapshot("atelier", { type: "rooms_snapshot", rooms: [] });
     const rooms = Object.fromEntries((await svc.view("atelier"))!.rooms.map((r) => [r.name, [r.status, r.url, r.demo]]));
     expect(rooms).toEqual({
@@ -58,7 +58,7 @@ describe("HousesService", () => {
       coumba: ["live", null, true],
       lamine: ["live", null, true],
       ndeye: ["live", null, true],
-      "tuto-fatou": ["empty", null, false],
+      fatou: ["empty", null, false],
     });
   });
 

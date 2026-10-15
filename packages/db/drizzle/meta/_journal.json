@@ -85,6 +85,13 @@
       "when": 1791616727052,
       "tag": "0011_github_repos",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792045484454,
+      "tag": "0012_tutorial_chapter",
+      "breakpoints": true
     }
   ]
 }

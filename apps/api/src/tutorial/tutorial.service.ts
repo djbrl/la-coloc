@@ -1,6 +1,8 @@
-// The tutorial, server side. A newcomer walks into the workshop (a real house flagged `tutorial`, run by its own
-// agent), takes a room there, puts a sample project online in it, and links the GitHub App. Taking the tutorial
-// again removes that room, so the next run starts from nothing.
+// The tutorial, server side: the quest "Your first home". A newcomer walks into the workshop (a real house flagged
+// `tutorial`, run by its own agent), takes a room there, puts the starter page online in it, links the GitHub App
+// and shares their address. The web side tells the story in chapters; this file keeps the facts (the room, its
+// deploys, the linked repo, the furthest chapter reached). Taking the tutorial again removes that room, so the next
+// run starts from nothing.
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Db, deployments, fridgeNotes, houses, memberships, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
 import { and, asc, eq } from "drizzle-orm";
@@ -11,7 +13,7 @@ import { DB } from "../db/db.module";
 import type { GithubAppConfig } from "../github/github.config";
 import { GITHUB_CONFIG } from "../github/github.controller";
 import { HousesService, slugify } from "../houses/houses.service";
-import { RoomDeployer } from "../rooms/room-deployer";
+import { RoomDeployer, type Source } from "../rooms/room-deployer";
 import { RoomsService } from "../rooms/rooms.service";
 
 export const TUTORIAL_SAMPLE = Symbol("TUTORIAL_SAMPLE");
@@ -32,11 +34,28 @@ export function loadTutorialSample(env = process.env): TutorialSample {
   };
 }
 
-// The newcomer's room: "tuto-" and their login ("Djbrl" → "tuto-djbrl"), cut so it stays a valid room name
-// (at most 31 characters).
+// The quest's chapters, in order. The web side tells each one; the API only remembers the furthest reached.
+export const CHAPTERS = ["arrive", "find", "keys", "project", "launch", "open", "share", "house"] as const;
+export type Chapter = (typeof CHAPTERS)[number];
+
+// Where the tutorial's project comes from: the ready-made starter page, or the repo the newcomer linked on GitHub.
+export type DeploySource = "starter" | "github";
+
+// The newcomer's room is named after them ("Djbrl" → "djbrl"), so their address reads djbrl.atelier.coloc.dev.
+// A room name must be 2 to 31 lowercase letters, digits and dashes, starting with a letter (packages/protocol), and
+// "preview-…" is how previews are addressed (apps/agent/src/room-spec.ts). A login that breaks a rule ("42", "a",
+// "preview-x") gets "home-" in front, which always fits.
+const ROOM_NAME = /^[a-z][a-z0-9-]{1,30}$/;
 export function tutorialRoomName(login: string): string {
-  const slug = slugify(login).slice(0, 26).replace(/-+$/, "");
-  return `tuto-${slug || "room"}`;
+  const slug = slugify(login).slice(0, 31).replace(/-+$/, "");
+  if (ROOM_NAME.test(slug) && !slug.startsWith("preview-")) return slug;
+  return `home-${slug.slice(0, 26)}`.replace(/-+$/, "");
+}
+
+// A failed deploy's detail can be a whole build log; the coach shows one sentence.
+function firstLine(text: string | null): string | null {
+  const line = text?.split("\n").find((l) => l.trim())?.trim();
+  return line || null;
 }
 
 type Room = typeof rooms.$inferSelect;
@@ -63,17 +82,32 @@ export class TutorialService {
     const house = await this.workshop();
     const room = await this.roomOf(house.id, user.id);
     const linked = await this.hasLinkedRepo(user.id);
+    const repo = room ? await this.repoOf(room) : undefined;
     return {
       house: { id: house.id, name: house.name, city: house.city, agentOnline: this.agents.isOnline(house.id) },
-      room: room ? { ...roomView(room), status: await this.finerStatus(room) } : null,
+      room: room ? { ...roomView(room), status: await this.finerStatus(room), why: await this.whyFailed(room) } : null,
       sample: this.sample,
       github: {
         // Installing the App on a repo moves that repo into the installer's room (see ChoresService).
         installUrl: this.github?.slug ? `https://github.com/apps/${this.github.slug}/installations/new` : null,
         linked,
+        // The repo in the workshop room itself, so the coach can name it ("djbrl/portfolio is in your room").
+        repo: repo?.fullName ?? null,
       },
+      chapter: await this.chapterOf(user.id),
       done: !!user.tutorialDoneAt,
     };
+  }
+
+  /**
+   * Remembers how far the newcomer got. Only ever forward: opening an old chapter again (or a second tab that
+   * lags behind) must not lose their place. Answers the chapter now stored.
+   */
+  async progress(user: User, chapter: Chapter): Promise<{ chapter: Chapter }> {
+    const stored = await this.chapterOf(user.id);
+    if (stored && CHAPTERS.indexOf(stored) >= CHAPTERS.indexOf(chapter)) return { chapter: stored };
+    await this.db.update(users).set({ tutorialChapter: chapter }).where(eq(users.id, user.id));
+    return { chapter };
   }
 
   /**
@@ -85,11 +119,15 @@ export class TutorialService {
     let room = await this.roomOf(house.id, user.id);
     const created = !room;
     if (!room) {
-      // Two logins can make the same name ("Jib" and "jib"): the second one gets "-2", and so on.
+      // The name must be free in every house, not just this one: a caretaker names a room's Docker network after the
+      // room alone (apps/agent/src/room-spec.ts `roomNetwork`), and the workshop may share its machine with another
+      // house. Jib, who lives in Sacré-Cœur's room "jib", gets "jib-home"; two logins that make the same name
+      // ("Jib" and "jib") get "-2", "-3"… after that.
       const base = tutorialRoomName(user.login);
-      const taken = new Set((await this.db.select({ name: rooms.name }).from(rooms).where(eq(rooms.houseId, house.id))).map((r) => r.name));
-      let name = base;
-      for (let n = 2; taken.has(name); n++) name = `${base.slice(0, 28)}-${n}`;
+      const taken = new Set((await this.db.select({ name: rooms.name }).from(rooms)).map((r) => r.name));
+      const stem = base.slice(0, 26).replace(/-+$/, "");
+      let name = taken.has(base) && !taken.has(`${stem}-home`) ? `${stem}-home` : base;
+      for (let n = 2; taken.has(name); n++) name = `${base.slice(0, 28).replace(/-+$/, "")}-${n}`;
       [room] = await this.db
         .insert(rooms)
         .values({ houseId: house.id, name, occupantId: user.id, memoryMb: 256, cpus: 0.5, status: "empty" })
@@ -99,31 +137,61 @@ export class TutorialService {
       .insert(memberships)
       .values({ houseId: house.id, userId: user.id, role: "flatmate", tontinePosition: 0 })
       .onConflictDoNothing();
-    if (created) this.houses.changes.next(house.id);
+    // The house greets them on its fridge, where the other flatmates read the news. (It also tells the live
+    // streams the house changed.)
+    if (created) await this.houses.note(house.id, { tone: "thanks", room: room.name, text: `${user.name ?? user.login} moved in. Welcome home!` });
     return { created, room: roomView(room) };
   }
 
   /**
-   * Puts the sample project online in the newcomer's room, the same way the room page does: save it as the
-   * room's code, then deploy. Once they've linked a GitHub repo, the room builds that instead (RoomDeployer.source).
+   * Puts a project online in the newcomer's room, the same way the room page does: save the room's settings,
+   * then deploy. `from` picks what: "starter" is the ready-made page (examples/hello), "github" the repo they
+   * linked. Without it, the linked repo if there is one, else the starter.
    */
-  async deploy(user: User): Promise<{ id: string }> {
+  async deploy(user: User, from?: DeploySource): Promise<{ id: string }> {
     const house = await this.workshop();
     const room = await this.roomOf(house.id, user.id);
     if (!room) throw new NotFoundException("Take a room in the workshop first.");
     if (!this.agents.isOnline(house.id)) throw new ConflictException("The workshop's server is offline.");
-    // The sample gets a name and a line, so the room reads as a project on the house view (unless you named it).
-    await this.rooms.updateSettings(house.id, room.name, user.id, {
-      source: this.sample.repo,
-      buildPath: this.sample.path,
-      branch: null,
-      project: room.project ?? SAMPLE_PROJECT.name,
-      projectDescription: room.projectDescription ?? SAMPLE_PROJECT.description,
-    });
-    const { room: ready } = await this.rooms.manageable(house.id, room.name, user.id);
+    const repo = await this.repoOf(room);
+    const pick = from ?? (repo ? "github" : "starter");
+    if (pick === "github" && !repo) throw new ConflictException("Link a repo on GitHub first.");
+
+    if (pick === "github") {
+      // Their own repo builds from its root: the starter's folder (examples/hello) means nothing in it. It takes
+      // the repo's name as the project's, unless they named the room's project themselves.
+      const sampleNamed = room.project === SAMPLE_PROJECT.name && room.projectDescription === SAMPLE_PROJECT.description;
+      const named = !!room.project && !sampleNamed;
+      await this.rooms.updateSettings(house.id, room.name, user.id, {
+        buildPath: ".",
+        project: named ? room.project : repo!.fullName.split("/").pop()!,
+        projectDescription: named ? room.projectDescription : null,
+      });
+    } else if (!repo) {
+      // The starter becomes the room's code, with a name and a line, so the room reads as a project on the house
+      // view (unless they named it).
+      await this.rooms.updateSettings(house.id, room.name, user.id, {
+        source: this.sample.repo,
+        buildPath: this.sample.path,
+        branch: null,
+        project: room.project ?? SAMPLE_PROJECT.name,
+        projectDescription: room.projectDescription ?? SAMPLE_PROJECT.description,
+      });
+    }
+    const { room: saved } = await this.rooms.manageable(house.id, room.name, user.id);
     try {
-      const source = await this.deployer.source(ready);
-      if (!source) throw new Error("This room has no code yet.");
+      let source: Source | null;
+      let ready = saved;
+      if (pick === "starter") {
+        // Straight from the sample's repo, even with a GitHub repo linked: RoomDeployer.source would pick that one.
+        // The starter's folder goes with this deploy only, so the room's settings stay right for their repo's next
+        // merge.
+        source = { url: this.sample.repo, ref: "main" };
+        ready = { ...saved, buildPath: this.sample.path };
+      } else {
+        source = await this.deployer.source(saved);
+        if (!source?.github) throw new Error("This server can't reach GitHub right now. Try again in a minute.");
+      }
       const d = await this.deployer.deploy({ room: ready, kind: "prod", source, requestedBy: user.id });
       return { id: d.id };
     } catch (e) {
@@ -165,7 +233,7 @@ export class TutorialService {
         .delete(memberships)
         .where(and(eq(memberships.houseId, house.id), eq(memberships.userId, user.id), eq(memberships.role, "flatmate")));
     }
-    await this.db.update(users).set({ tutorialDoneAt: null }).where(eq(users.id, user.id));
+    await this.db.update(users).set({ tutorialDoneAt: null, tutorialChapter: null }).where(eq(users.id, user.id));
     this.houses.changes.next(house.id);
     return { ok: true };
   }
@@ -179,6 +247,29 @@ export class TutorialService {
       .from(deployments)
       .where(and(eq(deployments.id, room.lastDeployId), eq(deployments.houseId, room.houseId)));
     return d && ["queued", "cloning", "building", "starting"].includes(d.status) ? d.status : room.status;
+  }
+
+  // Why the room's last deploy failed, in one line (the agent's detail: "the build failed: …"). Null when it didn't.
+  private async whyFailed(room: Room): Promise<string | null> {
+    if (!room.lastDeployId) return null;
+    const [d] = await this.db
+      .select({ status: deployments.status, detail: deployments.detail })
+      .from(deployments)
+      .where(and(eq(deployments.id, room.lastDeployId), eq(deployments.houseId, room.houseId)));
+    return d?.status === "failed" ? firstLine(d.detail) : null;
+  }
+
+  // The GitHub repo linked to this room, if any.
+  private async repoOf(room: Room) {
+    const [repo] = await this.db.select().from(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name))).limit(1);
+    return repo;
+  }
+
+  // The furthest chapter stored. Read fresh, not from the session's user: another tab may have moved it on.
+  private async chapterOf(userId: string): Promise<Chapter | null> {
+    const [u] = await this.db.select({ chapter: users.tutorialChapter }).from(users).where(eq(users.id, userId));
+    const chapter = u?.chapter;
+    return chapter && (CHAPTERS as readonly string[]).includes(chapter) ? (chapter as Chapter) : null;
   }
 
   // The workshop: the first house flagged `tutorial` (the seed makes one, L'Atelier).
