@@ -737,11 +737,18 @@ context variables the API already sets (`COLOC_ROOM`, `COLOC_HOUSE`, `COLOC_CITY
 - New French to check: the chapters ("Trouver un toit", "Prendre les clés", "Le lancer", "Le montrer"), "Votre premier
   chez-vous", "Bienvenue chez vous", "À vous de jouer" (starter page), "Nouvelles" for News, "Revues".
 
-### 15 Oct 2026: the GitHub step no longer waits for ever on a lost webhook
+### 15 Oct 2026: chapter 4 lets you pick which repo to bring
 
-Trying the quest for real, the install event never reached the API: in development it comes through the smee relay,
-which wasn't running. Now, while a newcomer is on chapter 4 with nothing linked, `GET /api/tutorial` (polled every
-2 s by the coach) also asks GitHub directly, at most every 10 s per person: the App's installation on their own
-account (`GET /users/{login}/installation`) and the repos it covers. Repos nobody has yet are linked exactly as the
-webhook would (`ChoresService.catchUp`, then the same `linkRepos`). Limit: an install on an organisation isn't seen
-this way; the webhook still covers it. Tests in `github/github.test.ts`.
+Trying the quest for real showed two problems: the install event never reached the API (in development it comes
+through the smee relay, which wasn't running), and once it did, every repo the newcomer had installed the App on (48)
+was poured into their workshop room, so the coach named whichever came first.
+
+Now "My own, from GitHub" opens a picker in the coach: `GET /api/tutorial/repos` asks GitHub directly (the App's
+installation on the person's own account, then its repos; at most every 5 s per person) and lists them, the most
+recently pushed first, five at a time with a search box (arrow keys and Enter work). Picking one calls
+`POST /api/tutorial/repo`, which makes it the only repo in their workshop room (it refuses a repo they didn't allow,
+or one already in someone else's room). "Change" on the next card brings the picker back; "Allow more repos" opens
+GitHub's page for the installation. With nothing installed, the card offers "Open GitHub" as before; someone logged in
+without GitHub is told to log in with GitHub. The webhook no longer fills a workshop room with every installed repo:
+it takes one at most, and the picker decides. Limit: an install on an organisation isn't listed; its webhook still
+links it. Tests in `tutorial/tutorial.test.ts` and `github/github.test.ts`.

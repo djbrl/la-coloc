@@ -24,6 +24,8 @@ export const questIcons = {
   back: "M15 6l-6 6 6 6",
   people: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M3 20c.6-3.4 3-5.5 6-5.5s5.4 2.1 6 5.5 M16 4.3a3.5 3.5 0 0 1 0 6.4 M17.5 14.7c1.8.7 3.1 2.6 3.5 5.3",
   reviews: "M9 11l3 3 8-8 M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9",
+  search: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z M15.5 15.5L20 20",
+  lock: "M6 11h12v9H6z M8.5 11V8a3.5 3.5 0 0 1 7 0v3",
   news: "M9 3h6 M10 3v6l-4 5h12l-4-5V3 M12 14v7",
 } as const;
 export type QuestIconName = keyof typeof questIcons;

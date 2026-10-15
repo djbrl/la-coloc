@@ -3,14 +3,15 @@
 // and shares their address. The web side tells the story in chapters; this file keeps the facts (the room, its
 // deploys, the linked repo, the furthest chapter reached). Taking the tutorial again removes that room, so the next
 // run starts from nothing.
-import { ConflictException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { type Db, deployments, fridgeNotes, houses, memberships, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
 import { and, asc, eq } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
 import type { User } from "../auth/auth.service";
 import { isCoreDown } from "../core/core";
 import { DB } from "../db/db.module";
-import { ChoresService } from "../github/chores.service";
+import { GITHUB_CLIENT } from "../github/chores.service";
+import type { GithubAppClient, GhRepoInfo } from "../github/github.client";
 import type { GithubAppConfig } from "../github/github.config";
 import { GITHUB_CONFIG } from "../github/github.controller";
 import { HousesService, slugify } from "../houses/houses.service";
@@ -76,20 +77,74 @@ export class TutorialService {
     private readonly agents: AgentRegistry,
     @Inject(GITHUB_CONFIG) private readonly github: GithubAppConfig | null,
     @Inject(TUTORIAL_SAMPLE) private readonly sample: TutorialSample,
-    // Asks GitHub directly when the install event hasn't arrived. Left out in tests that don't need GitHub.
-    @Optional() private readonly chores?: ChoresService,
+    // Talks to GitHub for the repo picker. Null when the App isn't configured; left out in tests that don't need it.
+    @Optional() @Inject(GITHUB_CLIENT) private readonly client?: GithubAppClient | null,
   ) {}
 
   private readonly log = new Logger("tutorial");
-  // When each newcomer last had GitHub asked, so the coach's 2-second poll asks it at most every 10 seconds.
-  private readonly askedAt = new Map<string, number>();
+  // What GitHub last said about each newcomer's repos, so the coach's 2-second poll asks it at most every 5 seconds.
+  private readonly seen = new Map<string, { at: number; installation: number | null; repos: GhRepoInfo[] }>();
+
+  /**
+   * The repos the newcomer let the App see (its installation on their own account), the most recently pushed first,
+   * and the one in their workshop room. Asked straight from GitHub, so a lost install event doesn't matter.
+   * `reason` says why the list is empty: GitHub isn't set up here, they didn't log in with GitHub, or nothing is
+   * installed yet.
+   */
+  async repoChoices(user: User) {
+    if (!this.client) return { repos: [], chosen: null, reason: "off" as const };
+    if (!user.githubId) return { repos: [], chosen: null, reason: "no-github" as const };
+    const { installation, repos: list } = await this.installed(user);
+    const house = await this.workshop();
+    const room = await this.roomOf(house.id, user.id);
+    const chosen = room ? ((await this.repoOf(room))?.githubId ?? null) : null;
+    const repos = list
+      .map((r) => ({ id: r.id, fullName: r.full_name, description: r.description, language: r.language, private: r.private, pushedAt: r.pushed_at }))
+      .sort((a, b) => (b.pushedAt ?? "").localeCompare(a.pushedAt ?? ""));
+    return { repos, chosen, reason: installation ? null : ("not-installed" as const) };
+  }
+
+  /** Puts the repo they picked in their workshop room: that one, and only that one. */
+  async pickRepo(user: User, githubId: number) {
+    const house = await this.workshop();
+    const room = await this.roomOf(house.id, user.id);
+    if (!room) throw new NotFoundException("Take a room first.");
+    if (!this.client || !user.githubId) throw new ConflictException("Log in with GitHub to bring your own project.");
+    const { installation, repos: list } = await this.installed(user, true);
+    const repo = list.find((r) => r.id === githubId);
+    if (!installation || !repo) throw new NotFoundException("La Coloc can't see that repo. Allow it on GitHub first.");
+    const [elsewhere] = await this.db.select().from(repos).where(eq(repos.githubId, githubId));
+    if (elsewhere && (elsewhere.houseId !== room.houseId || elsewhere.room !== room.name)) {
+      throw new ConflictException(`${repo.full_name} already lives in another room.`);
+    }
+    await this.db.transaction(async (tx) => {
+      await tx.delete(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name)));
+      await tx.insert(repos).values({ githubId, fullName: repo.full_name, houseId: room.houseId, room: room.name, installationId: installation });
+    });
+    await this.houses.note(room.houseId, { tone: "info", room: room.name, text: `${user.name ?? user.login} moved ${repo.full_name} into their room.` });
+    return { repo: repo.full_name };
+  }
+
+  // The App's installation on their account and its repos, from GitHub at most every 5 seconds (always when `fresh`).
+  private async installed(user: User, fresh = false) {
+    const cached = this.seen.get(user.id);
+    if (!fresh && cached && Date.now() - cached.at < 5_000) return cached;
+    try {
+      const installation = await this.client!.userInstallation(user.login);
+      const got = { at: Date.now(), installation, repos: installation ? await this.client!.installationRepos(installation) : [] };
+      this.seen.set(user.id, got);
+      return got;
+    } catch (e) {
+      this.log.warn(`couldn't ask GitHub about ${user.login}'s repos: ${(e as Error).message}`);
+      throw new ServiceUnavailableException("GitHub isn't answering. Try again in a minute.");
+    }
+  }
 
   /** Where the newcomer is in the tutorial. */
   async state(user: User) {
     const house = await this.workshop();
     const room = await this.roomOf(house.id, user.id);
-    let linked = await this.hasLinkedRepo(user.id);
-    if (!linked && room && !user.tutorialDoneAt && (await this.chapterOf(user.id)) === "project") linked = await this.askGithub(user);
+    const linked = await this.hasLinkedRepo(user.id);
     const repo = room ? await this.repoOf(room) : undefined;
     return {
       house: { id: house.id, name: house.name, city: house.city, agentOnline: this.agents.isOnline(house.id) },
@@ -265,21 +320,6 @@ export class TutorialService {
       .from(deployments)
       .where(and(eq(deployments.id, room.lastDeployId), eq(deployments.houseId, room.houseId)));
     return d?.status === "failed" ? firstLine(d.detail) : null;
-  }
-
-  // The install event may never come (a lost webhook): ask GitHub what they installed. True once a repo is linked.
-  private async askGithub(user: User): Promise<boolean> {
-    const now = Date.now();
-    if (!this.chores || now - (this.askedAt.get(user.id) ?? 0) < 10_000) return false;
-    this.askedAt.set(user.id, now);
-    try {
-      const said = await this.chores.catchUp(user);
-      if (said.startsWith("linked")) this.log.log(`${user.login}: the install event never came; GitHub says ${said}`);
-    } catch (e) {
-      if (isCoreDown(e)) throw e;
-      this.log.warn(`couldn't ask GitHub about ${user.login}'s install: ${(e as Error).message}`);
-    }
-    return this.hasLinkedRepo(user.id);
   }
 
   // The GitHub repo linked to this room, if any.

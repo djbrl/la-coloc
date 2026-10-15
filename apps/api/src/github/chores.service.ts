@@ -94,7 +94,10 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
     const [u] = await this.db.select().from(users).where(eq(users.githubId, p.sender.id));
     if (!u) return "installer isn't a coloc user";
     const theirRooms = await this.db.select().from(rooms).where(eq(rooms.occupantId, u.id));
-    const onlyRoom = theirRooms.length === 1 ? theirRooms[0] : undefined;
+    // A workshop room holds one repo, the one picked in the tutorial: it never takes "every repo you installed".
+    const workshops = await this.db.select({ id: houses.id }).from(houses).where(eq(houses.tutorial, true));
+    const single = theirRooms.length === 1 ? theirRooms[0] : undefined;
+    const onlyRoom = single && !workshops.some((h) => h.id === single.houseId) ? single : undefined;
     const tutorialRoom = await this.freeTutorialRoom(u, theirRooms);
     if (!onlyRoom && !tutorialRoom) return "installer doesn't live in exactly one room";
 
@@ -113,22 +116,6 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       await this.houses.note(room.houseId, { tone: "info", room: room.name, text: `${u.name ?? u.login} moved ${names.join(", ")} into their room.` });
     }
     return `linked ${[...moved.values()].flat().length}`;
-  }
-
-  /**
-   * The webhook's backup: asks GitHub which repos this person installed the App on, and links the new ones as if the
-   * install event had arrived. For when that event got lost (in development, a relay that wasn't running). Only
-   * looks at the App's installation on their own account, not on an organisation's.
-   */
-  async catchUp(user: { githubId: number | null; login: string }): Promise<string> {
-    if (!this.github || !user.githubId) return "nothing to ask";
-    const installation = await this.github.userInstallation(user.login);
-    if (!installation) return "not installed";
-    const all = await this.github.installationRepos(installation);
-    const known = new Set((await this.db.select({ id: repos.githubId }).from(repos)).map((r) => r.id));
-    const fresh = all.filter((r) => !known.has(r.id));
-    if (!fresh.length) return "nothing new";
-    return this.linkRepos({ installation: { id: installation }, sender: { id: user.githubId, login: user.login }, repositories: fresh });
   }
 
   /** The workshop room of someone mid-tutorial, if it has no repo yet. Otherwise undefined. */

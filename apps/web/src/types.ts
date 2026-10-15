@@ -245,6 +245,23 @@ export interface TutorialState {
   chapter?: string | null;
 }
 
+// GET /api/tutorial/repos: the repos someone let the App see on GitHub, the most recently pushed first, and the one
+// in their workshop room. `reason` says why the list is empty: GitHub isn't set up on this server ("off"), they
+// didn't log in with GitHub ("no-github"), or they haven't installed the App yet ("not-installed").
+export interface RepoChoice {
+  id: number;
+  fullName: string;
+  description: string | null;
+  language: string | null;
+  private: boolean;
+  pushedAt: string | null;
+}
+export interface RepoChoices {
+  repos: RepoChoice[];
+  chosen: number | null;
+  reason: "off" | "no-github" | "not-installed" | null;
+}
+
 // What the server offers: GET /api/auth/config. Only the part the settings pane needs.
 export interface ServerConfig {
   // Whether "Reset the demo city" is allowed on this server.

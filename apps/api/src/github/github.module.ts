@@ -13,6 +13,5 @@ import { GithubController } from "./github.controller";
     ChoresService,
     DeploysService,
   ],
-  exports: [ChoresService],
 })
 export class GithubModule {}

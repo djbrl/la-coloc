@@ -5,7 +5,7 @@ import { computed, reactive, ref, watch } from "vue";
 import { core, useWhenBack } from "../../../core";
 import { loadMe, postJSON, sendJSON } from "../../../session";
 import { settings } from "../../../settings";
-import type { CityHouse, HouseView, TutorialState } from "../../../types";
+import type { CityHouse, HouseView, RepoChoices, TutorialState } from "../../../types";
 import { BUILDING, CHAPTER_OF, chapterIndex, isLive, SETUP, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
 import { tutorialWords } from "./words";
 
@@ -23,6 +23,8 @@ export function useTutorial() {
   const missing = ref(false);
   const busy = ref(false);
   const error = ref("");
+  // The repos you let La Coloc see on GitHub, for chapter 4's picker. Null until asked.
+  const choices = ref<RepoChoices | null>(null);
   // The API's first word has arrived (the welcome card waits for it to offer "Continue").
   const loaded = ref(false);
   let timer = 0;
@@ -81,6 +83,7 @@ export function useTutorial() {
     const next: TutorialState = await res.json();
     machine.send({ type: "state", state: next });
     loaded.value = true;
+    if (machine.step === "project" && machine.github !== "none") await loadRepos();
     const key = next.room ? `${next.room.name}:${next.room.status}` : "";
     if (key !== roomKey || !view.value) {
       roomKey = key;
@@ -88,10 +91,40 @@ export function useTutorial() {
     }
   }
 
+  // Asked straight from GitHub by the API (at most every 5 seconds), so a lost install event doesn't matter.
+  async function loadRepos() {
+    const res = await fetch("/api/tutorial/repos").catch(() => null);
+    if (res?.ok) choices.value = await res.json();
+  }
+
+  // Brings the repo you picked into your room (it replaces any other), then the coach offers to put it online.
+  async function pickRepo(id: number) {
+    if (busy.value) return;
+    busy.value = true;
+    error.value = "";
+    const res = await postJSON("/api/tutorial/repo", { id });
+    busy.value = false;
+    if (!res.ok) {
+      error.value = res.message;
+      return;
+    }
+    await refresh();
+    await loadRepos();
+  }
+
+  // Choosing "My own, from GitHub" (or going back to it) asks for the list right away, not at the next beat.
+  watch(
+    () => machine.github,
+    (stage) => {
+      if (machine.step === "project" && stage !== "none") void loadRepos();
+    },
+  );
+
   function start() {
     view.value = null;
     missing.value = false;
     loaded.value = false;
+    choices.value = null;
     busy.value = false;
     error.value = "";
     roomKey = "";
@@ -192,7 +225,7 @@ export function useTutorial() {
     machine.stop();
   }
 
-  return { machine, house, view, live, missing, waiting, loaded, busy, error, touch, start, stop, finish, takeRoom, deploy, refresh, dispose };
+  return { machine, house, view, live, missing, waiting, loaded, busy, error, touch, choices, start, stop, finish, takeRoom, deploy, pickRepo, refresh, dispose };
 }
 
 export type Tutorial = ReturnType<typeof useTutorial>;

@@ -17,6 +17,16 @@ export function appJwt(cfg: Pick<GithubAppConfig, "appId" | "privateKey">, now =
   return `${header}.${payload}.${base64url(signature)}`;
 }
 
+/** What GitHub says about a repo, as much as the picker shows. */
+export interface GhRepoInfo {
+  id: number;
+  full_name: string;
+  description: string | null;
+  language: string | null;
+  private: boolean;
+  pushed_at: string | null;
+}
+
 export class GithubAppClient {
   // Swappable in tests.
   fetch: typeof globalThis.fetch = (...args) => globalThis.fetch(...args);
@@ -54,11 +64,11 @@ export class GithubAppClient {
   }
 
   /** The repos an installation covers (the first hundred: plenty for a newcomer). */
-  async installationRepos(installationId: number): Promise<{ id: number; full_name: string }[]> {
+  async installationRepos(installationId: number): Promise<GhRepoInfo[]> {
     const token = await this.installationToken(installationId);
     const res = await this.fetch(`${API}/installation/repositories?per_page=100`, { headers: this.headers(`token ${token}`) });
     if (!res.ok) throw new Error(`couldn't list the installation's repos (${res.status})`);
-    return ((await res.json()) as { repositories: { id: number; full_name: string }[] }).repositories;
+    return ((await res.json()) as { repositories: GhRepoInfo[] }).repositories;
   }
 
   async comment(installationId: number, repo: string, issue: number, text: string): Promise<void> {

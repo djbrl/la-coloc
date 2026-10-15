@@ -10,6 +10,9 @@ const ProgressBody = z.object({ chapter: z.enum(CHAPTERS, { message: "Pick one o
 // POST /tutorial/deploy: what to put online. Leave it out for "their repo if linked, else the starter".
 const DeployBody = z.object({ source: z.enum(["starter", "github"], { message: "Pick the starter or your GitHub repo." }).optional() });
 
+// POST /tutorial/repo: the GitHub repo to bring into the room, by GitHub's id.
+const RepoBody = z.object({ id: z.number({ message: "Pick one of your repos." }).int().positive() });
+
 function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, body: unknown): T {
   const r = schema.safeParse(body ?? {});
   if (!r.success) throw new BadRequestException(r.error.issues[0]?.message ?? "invalid request");
@@ -55,6 +58,20 @@ export class TutorialController {
   async progress(@Req() req: HttpRequest, @Body() body: unknown) {
     const user = await this.user(req);
     return this.tutorial.progress(user, parse(ProgressBody, body).chapter);
+  }
+
+  // The repos they let La Coloc see on GitHub, to pick the one to bring.
+  @Get("repos")
+  async repos(@Req() req: HttpRequest) {
+    return this.tutorial.repoChoices(await this.user(req));
+  }
+
+  // Bring that repo into their workshop room (it replaces any other).
+  @Post("repo")
+  @HttpCode(200)
+  async repo(@Req() req: HttpRequest, @Body() body: unknown) {
+    const user = await this.user(req);
+    return this.tutorial.pickRepo(user, parse(RepoBody, body).id);
   }
 
   // Put a project online in that room: the starter page or their GitHub repo. Answers with the deployment's id, to

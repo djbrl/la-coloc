@@ -8,9 +8,11 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { bare, explain } from "../panel/words";
 import LaunchCard from "./LaunchCard.vue";
 import QuestIcon, { type QuestIconName } from "./QuestIcon.vue";
+import RepoPicker from "./RepoPicker.vue";
 import ShareCard from "./ShareCard.vue";
 import { CHAPTERS, HOUSE_CARDS, isLive, type TutorialMachine } from "./tutorial";
 import { tutorialWords as w } from "./words";
+import type { RepoChoices } from "../../../types";
 
 const props = defineProps<{
   machine: TutorialMachine;
@@ -24,11 +26,14 @@ const props = defineProps<{
   source: "starter" | "github";
   // What a review takes off the rent, already written as money ("500 FCFA").
   credit: string;
+  // The repos you let La Coloc see on GitHub (chapter 4's picker); null until asked.
+  choices?: RepoChoices | null;
 }>();
 const emit = defineEmits<{
   room: [];
   run: [source: "starter" | "github"];
   github: [];
+  pick: [id: number];
   back: [];
   opened: [];
   shared: [];
@@ -53,6 +58,12 @@ const live = computed(() => isLive(state.value));
 const installUrl = computed(() => state.value?.github.installUrl ?? null);
 const repo = computed(() => state.value?.github.repo ?? null);
 const url = computed(() => room.value?.url ?? null);
+// Chapter 4 with GitHub: the picker shows once GitHub has answered with repos, or when "Change" is pressed.
+const repos = computed(() => props.choices?.repos ?? []);
+const changing = ref(false);
+const picking = computed(() => step.value === "project" && repos.value.length > 0 && (props.machine.github === "waiting" || changing.value));
+const needsLogin = computed(() => props.choices?.reason === "no-github");
+watch(repo, () => (changing.value = false));
 
 // Chapter 8's cards: an icon and a title each, and one sentence.
 const houseCard = computed(() => HOUSE_CARDS[props.machine.card]);
@@ -120,6 +131,13 @@ onBeforeUnmount(() => clearTimeout(timer));
       </template>
 
       <!-- 4 · Bring a project: two big tiles, or the GitHub path one step at a time. -->
+      <template v-else-if="picking">
+        <p class="text">{{ w.pickTitle }}</p>
+        <RepoPicker :repos="repos" :chosen="choices?.chosen ?? null" :busy="busy" @pick="(id) => emit('pick', id)" />
+      </template>
+      <template v-else-if="step === 'project' && machine.github === 'waiting' && needsLogin">
+        <p class="text">{{ w.pickLogin }}</p>
+      </template>
       <template v-else-if="step === 'project' && machine.github === 'waiting'">
         <p class="text">{{ w.waitingGithub }}</p>
         <p class="sub dots" aria-hidden="true"><span /><span /><span /></p>
@@ -136,11 +154,10 @@ onBeforeUnmount(() => clearTimeout(timer));
             <span class="tile-icon"><QuestIcon name="page" :size="24" /></span>
             <span class="tile-text"><span class="tile-title">{{ w.starter }}</span><span class="tile-sub">{{ w.starterWhy }}</span></span>
           </button>
-          <a v-if="installUrl" class="tile" :href="installUrl" target="_blank" rel="noopener" @click="emit('github')" @auxclick="emit('github')">
+          <button v-if="installUrl" type="button" class="tile" :disabled="busy || waiting" @click="emit('github')">
             <span class="tile-icon"><QuestIcon name="repo" :size="24" /></span>
-            <span class="tile-text"><span class="tile-title">{{ w.own }} <QuestIcon name="open" :size="14" /></span><span class="tile-sub">{{ w.ownWhy }}</span></span>
-            <span class="sr-only">{{ w.opensInTab }}</span>
-          </a>
+            <span class="tile-text"><span class="tile-title">{{ w.own }}</span><span class="tile-sub">{{ w.ownWhy }}</span></span>
+          </button>
           <div v-else class="tile off" aria-disabled="true">
             <span class="tile-icon"><QuestIcon name="repo" :size="24" /></span>
             <span class="tile-text"><span class="tile-title">{{ w.own }}</span><span class="tile-sub">{{ w.ownOff }}</span></span>
@@ -192,12 +209,19 @@ onBeforeUnmount(() => clearTimeout(timer));
     <div class="nav">
       <button v-if="missing && !waiting && needsApi" ref="go" type="button" class="primary go" :disabled="busy" @click="emit('stop')">{{ w.leave }}</button>
       <button v-else-if="step === 'room'" ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('room')">{{ w.takeRoom }}</button>
+      <template v-else-if="picking">
+        <button v-if="changing" type="button" class="quiet" @click="changing = false"><QuestIcon name="back" :size="16" />{{ w.back }}</button>
+        <button v-else type="button" class="quiet" @click="emit('back')"><QuestIcon name="back" :size="16" />{{ w.back }}</button>
+        <a v-if="installUrl" class="button quiet" :href="installUrl" target="_blank" rel="noopener">{{ w.pickAllow }} <QuestIcon name="open" :size="16" /><span class="sr-only">{{ w.opensInTab }}</span></a>
+      </template>
       <template v-else-if="step === 'project' && machine.github === 'waiting'">
         <button type="button" class="quiet" @click="emit('back')"><QuestIcon name="back" :size="16" />{{ w.back }}</button>
-        <a v-if="installUrl" ref="go" class="button primary go" :href="installUrl" target="_blank" rel="noopener">{{ w.openGithub }} <QuestIcon name="open" :size="16" /></a>
+        <a v-if="needsLogin" ref="go" class="button primary go" href="/login">{{ w.pickLoginGo }}</a>
+        <a v-else-if="installUrl" ref="go" class="button primary go" :href="installUrl" target="_blank" rel="noopener">{{ w.openGithub }} <QuestIcon name="open" :size="16" /></a>
       </template>
       <template v-else-if="step === 'project' && machine.github === 'linked'">
-        <button type="button" class="quiet" :disabled="busy || waiting" @click="emit('run', 'starter')">{{ w.useStarter }}</button>
+        <button v-if="repos.length > 1" type="button" class="quiet" :disabled="busy || waiting" @click="changing = true">{{ w.pickChange }}</button>
+        <button v-else type="button" class="quiet" :disabled="busy || waiting" @click="emit('run', 'starter')">{{ w.useStarter }}</button>
         <button ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('run', 'github')">{{ w.putOnline }}</button>
       </template>
       <a

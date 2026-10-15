@@ -376,3 +376,69 @@ describe("the city", () => {
 async function user(login: string) {
   return (await db.query.users.findFirst({ where: eq(users.login, login) }))!;
 }
+
+describe("picking which GitHub repo to bring", () => {
+  // What GitHub knows: Fatou installed the App on her account (installation 9) and allowed three repos.
+  let installation: number | null;
+  const allowed = [
+    { id: 301, full_name: "fatou/old", description: null, language: "C", private: false, pushed_at: "2024-01-01T00:00:00Z" },
+    { id: 302, full_name: "fatou/portfolio", description: "My site", language: "HTML", private: false, pushed_at: "2026-10-01T00:00:00Z" },
+    { id: 303, full_name: "fatou/api", description: null, language: "TypeScript", private: true, pushed_at: "2026-05-01T00:00:00Z" },
+  ];
+  let picker: TutorialController;
+
+  beforeEach(async () => {
+    installation = 9;
+    const agents = { isOnline: () => true, send: () => {} } as unknown as AgentRegistry;
+    const client = {
+      userInstallation: async (login: string) => (login === "fatou" ? installation : null),
+      installationRepos: async () => allowed,
+    } as unknown as GithubAppClient;
+    const service = new TutorialService(
+      db,
+      houses,
+      new RoomsService(db, houses, null),
+      new RoomDeployer(db, houses, agents, null, client),
+      agents,
+      { appId: "1", privateKey: "k", webhookSecret: "w", slug: "la-coloc-dev" },
+      sample,
+      client,
+    );
+    picker = new TutorialController(service, auth);
+    await db.update(users).set({ githubId: 77 }).where(eq(users.login, "fatou"));
+  });
+
+  it("lists the repos she allowed, the most recently pushed first", async () => {
+    const got = await picker.repos(req);
+    expect(got.reason).toBeNull();
+    expect(got.repos.map((r) => r.fullName)).toEqual(["fatou/portfolio", "fatou/api", "fatou/old"]);
+    expect(got.repos[1]).toMatchObject({ id: 303, language: "TypeScript", private: true });
+    expect(got.chosen).toBeNull();
+  });
+
+  it("says why the list is empty: not installed, no GitHub login, or no App on this server", async () => {
+    installation = null;
+    expect(await picker.repos(req)).toMatchObject({ repos: [], reason: "not-installed" });
+    expect(await picker.repos(await loggedIn("someone-new"))).toMatchObject({ repos: [], reason: "no-github" });
+    expect(await tutorial.repos(req)).toMatchObject({ repos: [], reason: "off" });
+  });
+
+  it("puts the picked repo in her room, and only that one, then swaps it for another", async () => {
+    await picker.room(req, response());
+    expect(await picker.repo(req, { id: 302 })).toEqual({ repo: "fatou/portfolio" });
+    expect((await picker.state(req)).github).toMatchObject({ linked: true, repo: "fatou/portfolio" });
+    expect(await picker.repo(req, { id: 303 })).toEqual({ repo: "fatou/api" });
+    const inRoom = await db.select().from(repos).where(and(eq(repos.houseId, "atelier"), eq(repos.room, "fatou")));
+    expect(inRoom.map((r) => [r.fullName, r.installationId])).toEqual([["fatou/api", 9]]);
+    expect((await picker.repos(req)).chosen).toBe(303);
+  });
+
+  it("refuses a repo she didn't allow, one in someone else's room, or a pick before taking a room", async () => {
+    await expect(picker.repo(req, { id: 302 })).rejects.toSatisfy((e) => status(e) === 404);
+    await picker.room(req, response());
+    await expect(picker.repo(req, { id: 999 })).rejects.toSatisfy((e) => status(e) === 404);
+    await db.insert(repos).values({ githubId: 301, fullName: "fatou/old", houseId: "sacre-coeur", room: "awa", installationId: 9 });
+    await expect(picker.repo(req, { id: 301 })).rejects.toSatisfy((e) => status(e) === 409);
+    await expect(picker.repo(req, { id: "x" })).rejects.toSatisfy((e) => status(e) === 400);
+  });
+});
