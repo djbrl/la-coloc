@@ -51,33 +51,34 @@ function onKey(e: KeyboardEvent) {
   display: grid;
   gap: 12px;
   padding: 28px 28px 22px;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
-  animation: menu-pop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: menu-pop var(--dur-slow) var(--ease-pop);
 }
 @keyframes menu-pop {
-  from { opacity: 0; transform: translateY(12px) scale(0.94); }
+  from { opacity: 0; transform: translateY(12px) scale(0.95); }
 }
-h2 { margin: 0; font-size: 32px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; }
+h2 { margin: 0; font-size: 40px; line-height: 1; letter-spacing: -0.035em; }
 p { margin: 0; font-size: 17px; line-height: 1.5; }
 .soft { color: var(--muted); }
 .nav { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 /* The way out on the left, a quiet grey button; the main action as wide as the rest of the line, in the accent. */
 .nav > .quiet:first-child { margin-right: auto; }
-.quiet { min-height: 52px; padding: 0 18px; border-radius: 14px; background: var(--fill); color: var(--muted); font-size: 15px; font-weight: 600; }
-.quiet:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); text-decoration: none; }
-.go { flex: 1 1 auto; min-height: 52px; padding: 0 24px; border-radius: 14px; font-size: 17px; font-weight: 700; }
-:is(.quiet, .go):active:not(:disabled) { transform: scale(0.97); }
+/* The way out: a quiet key with a grey edge. The main action: the orange key (style.css gives it its lip). */
+.quiet { min-height: 52px; padding: 0 18px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 15px; font-weight: 600; }
+.quiet:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
+.quiet:active:not(:disabled) { transform: translateY(1px); }
+.go { flex: 1 1 auto; min-height: 52px; padding: 0 24px; border-radius: var(--r-md); font-size: 19px; }
 button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 @media (max-width: 520px) {
-  .card { padding: 22px 20px 18px; border-radius: 24px; }
-  h2 { font-size: 26px; }
+  .card { padding: 22px 20px 18px; }
+  h2 { font-size: 30px; }
   p { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .card { animation: none; }
-  :is(.quiet, .go):active:not(:disabled) { transform: none; }
+  .quiet:active:not(:disabled) { transform: none; }
 }
 </style>
