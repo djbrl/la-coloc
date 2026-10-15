@@ -5,6 +5,7 @@
 // The dots are HTML laid over the drawing by percentages, so they stay round and thumb-sized at any width.
 import { computed } from "vue";
 import { CITY_SPOTS, MADAGASCAR, MAINLAND, MAP_SIZE, outlinePath, project } from "./africa";
+import { hudWords as w } from "./words";
 
 const props = defineProps<{
   // The cities to show (only those we can place get a dot).
@@ -53,7 +54,7 @@ const dots = computed(() =>
       class="dot"
       :class="{ here: d.city === here, lit: d.city === lit }"
       :style="{ left: `${d.left}%`, top: `${d.top}%` }"
-      :aria-label="d.city === here ? `${d.city}, where you are` : `Travel to ${d.city}`"
+      :aria-label="d.city === here ? w.whereYouAre(d.city) : w.travelTo(d.city)"
       tabindex="-1"
       @click="emit('travel', d.city)"
       @pointerenter="emit('hover', d.city)"

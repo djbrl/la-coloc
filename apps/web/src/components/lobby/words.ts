@@ -185,6 +185,9 @@ export const hudWords = defineWords(
     aKnock: "A knock",
     aRoom: "A room",
     back: "Back",
+    // AfricaMap.vue: each city's dot.
+    whereYouAre: (city: string) => `${city}, where you are`,
+    travelTo: (city: string) => `Travel to ${city}`,
   },
   {
     skip: "Aller au contenu",
@@ -255,5 +258,7 @@ export const hudWords = defineWords(
     aKnock: "Une demande",
     aRoom: "Une chambre",
     back: "Retour",
+    whereYouAre: (city) => `${city}, où vous êtes`,
+    travelTo: (city) => `Aller à ${city}`,
   },
 );
