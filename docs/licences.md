@@ -13,6 +13,8 @@ Added 15 10 (branch `ui-refresh`): two fonts, self-hosted from npm: `@fontsource
 (SIL Open Font Licence 1.1). OFL is a font licence, not copyleft for the code: it allows bundling the fonts in any software, commercial
 included, and only forbids selling the fonts alone or reusing their reserved names for a modified font. `OFL-1.1` is now in
 `licences:check`'s allowed list for that reason.
+Added 15 10 (branch `first-home`): `uqr` 0.1.3 (MIT, no dependencies; by Anthony Fu, from Project Nayuki's QR code generator, also MIT),
+in the web app, to draw the QR code of a newcomer's address in the quest's "Show it off" card (`tutorial/share.ts`).
 
 ## Art and assets
 Only assets we made ourselves, or under CC0 / a permissive licence, with the source written down here.

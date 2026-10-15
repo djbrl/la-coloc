@@ -16,6 +16,7 @@ import StatusDot from "../components/lobby/panel/StatusDot.vue";
 import StatusPill from "../components/lobby/panel/StatusPill.vue";
 import type { State } from "../components/lobby/panel/words";
 import Coach from "../components/lobby/tutorial/Coach.vue";
+import QuestTracker from "../components/lobby/tutorial/QuestTracker.vue";
 import { TutorialMachine } from "../components/lobby/tutorial/tutorial";
 import Welcome from "../components/lobby/tutorial/Welcome.vue";
 import Avatar from "../components/Avatar.vue";
@@ -75,15 +76,23 @@ const house: CityHouse = {
   tontine: null,
 };
 
-// Two coaches: the walk step (its keys as caps) and a project just put online (its address in the monospace).
-function coachAt(step: "walk" | "run"): TutorialMachine {
+// The quest's coach at a few of its steps: walking (its keys as caps), choosing a project (two tiles), the launch
+// (its track, mid-build), opening it (the address in the monospace) and sharing it (the postcard and its QR).
+function coachAt(step: "walk" | "project" | "launch" | "open" | "share", status = "live"): TutorialMachine {
   const m = new TutorialMachine();
   m.active = true;
   m.step = step;
-  if (step === "run") m.state = { house: { id: "atelier", name: "L'Atelier", city: "Dakar", agentOnline: true }, room: { name: "awa", status: "live", url: "https://awa.atelier.coloc.dev" }, sample: { repo: "", path: "" }, github: { installUrl: null, linked: false }, done: false };
+  m.stamps = ["arrive", "find", "keys"];
+  m.state = {
+    house: { id: "atelier", name: "L'Atelier", city: "Dakar", agentOnline: true },
+    room: { name: "awa", status, url: "https://awa.atelier.coloc.dev" },
+    sample: { repo: "", path: "" },
+    github: { installUrl: "https://github.com/apps/la-coloc-dev/installations/new", linked: false },
+    done: false,
+  };
   return m;
 }
-const coaches = { walk: coachAt("walk"), run: coachAt("run") };
+const coaches = { walk: coachAt("walk"), project: coachAt("project", "empty"), launch: coachAt("launch", "building"), open: coachAt("open"), share: coachAt("share") };
 const noop = () => {};
 const iconNames = Object.keys(icons) as IconName[];
 const pressed = ref("");
@@ -206,8 +215,8 @@ const pressed = ref("");
 
         <h2 class="sec">Coach</h2>
         <div class="stack">
-          <Coach :machine="coaches.walk" :missing="false" :busy="false" error="" :ran="false" />
-          <Coach :machine="coaches.run" :missing="false" :busy="false" error="" :ran="true" />
+          <QuestTracker :stamps="coaches.project.stamps" current="project" />
+          <Coach v-for="(c, key) in coaches" :key="key" :machine="c" :missing="false" :busy="false" error="" source="starter" credit="500 FCFA" />
         </div>
 
         <h2 class="sec">Welcome</h2>

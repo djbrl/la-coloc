@@ -1,12 +1,18 @@
 <script setup lang="ts">
-// The tutorial's two welcome cards, centred on an otherwise empty screen: the first says what La Coloc is and
-// that a short tutorial follows; the last, once the real city is built around you, says what the city is for
-// and hands you the keys. Each has one main action.
+// The quest's two welcome cards, centred on an otherwise empty screen: the first says what La Coloc is and what
+// the next five minutes give you (or, for someone coming back, where they were, with "Continue"); the last, once
+// the real city is built around you, says what the city is for. Each has one main action.
 import { onMounted, ref } from "vue";
 import { tutorialWords as w } from "./words";
 
-const props = defineProps<{ step: "welcome" | "city"; busy: boolean; error?: string }>();
-const emit = defineEmits<{ start: []; skip: []; end: [] }>();
+const props = defineProps<{
+  step: "welcome" | "city";
+  busy: boolean;
+  error?: string;
+  // Coming back: the chapter you'd reached (its number and name), to continue from there.
+  resume?: { n: number; name: string } | null;
+}>();
+const emit = defineEmits<{ start: []; resume: []; skip: []; end: [] }>();
 
 // The keyboard lands on the main action, a moment after the card appears.
 const go = ref<HTMLButtonElement | null>(null);
@@ -21,7 +27,18 @@ function onKey(e: KeyboardEvent) {
 <template>
   <div class="layer">
     <section class="card" role="dialog" aria-modal="true" aria-labelledby="tutorial-welcome-title" @keydown="onKey">
-      <template v-if="props.step === 'welcome'">
+      <template v-if="props.step === 'welcome' && resume">
+        <p class="kicker">{{ w.quest }}</p>
+        <h2 id="tutorial-welcome-title">{{ w.welcomeBack }}</h2>
+        <p>{{ w.resumeAt(resume.n, resume.name) }}</p>
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
+        <div class="nav">
+          <button type="button" class="link quiet" :disabled="busy" @click="emit('start')">{{ w.fromStart }}</button>
+          <button ref="go" type="button" class="primary go" :disabled="busy" @click="emit('resume')">{{ w.continue }}</button>
+        </div>
+      </template>
+      <template v-else-if="props.step === 'welcome'">
+        <p class="kicker">{{ w.quest }}</p>
         <h2 id="tutorial-welcome-title">{{ w.welcome }}</h2>
         <p>{{ w.pitch }}</p>
         <p class="soft">{{ w.promise }}</p>
@@ -61,6 +78,8 @@ function onKey(e: KeyboardEvent) {
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(12px) scale(0.95); }
 }
+.kicker { margin: 0 0 -4px; font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.error { color: var(--danger); font-size: 15px; }
 h2 { margin: 0; font-size: 40px; line-height: 1; letter-spacing: -0.035em; }
 p { margin: 0; font-size: 17px; line-height: 1.5; }
 .soft { color: var(--muted); }

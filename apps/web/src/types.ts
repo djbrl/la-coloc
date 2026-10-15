@@ -234,10 +234,15 @@ export interface TutorialState {
   house: { id: string; name: string; city: string; agentOnline: boolean };
   // The room's status is a RoomStatus, plus whatever finer steps the API reports while a deploy runs
   // ("building", "starting").
-  room: { name: string; status: RoomStatus | string; url: string | null } | null;
+  // `why`: when its last build failed, the first line of the reason (an older API leaves it out).
+  room: { name: string; status: RoomStatus | string; url: string | null; why?: string | null } | null;
   sample: { repo: string; path: string };
-  github: { installUrl: string | null; linked: boolean };
+  // `repo`: the GitHub repo linked to the workshop room ("awa/portfolio"), if any.
+  github: { installUrl: string | null; linked: boolean; repo?: string | null };
   done: boolean;
+  // The furthest chapter of the quest this person reached ("arrive" … "house"), so it can pick up where they left
+  // it. Null before the first; an older API leaves it out.
+  chapter?: string | null;
 }
 
 // What the server offers: GET /api/auth/config. Only the part the settings pane needs.

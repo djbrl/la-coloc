@@ -4,8 +4,9 @@
 // empty plot or chores board you picked, the inside of a house (its page, an application, a room) opened over the
 // city so you never leave it, a minimap you can travel from, the keys in the corner, short news and tips at the
 // top, and sheets to find a house or travel to another city on a map of Africa. The first time someone logged in
-// arrives, the tutorial takes the city's place: one street with a workshop at the end, a coach at the bottom, and
-// the screen empty but for what the step has unlocked; the city comes back, behind a last welcome, when it ends.
+// arrives, the quest "Your first home" takes the city's place: one street with a house at the end, a beacon at its
+// door, a tracker of eight chapters at the top, a coach at the bottom, and the screen empty but for what the step
+// has unlocked; the city comes back, behind a last welcome, when it ends.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { loading } from "../lobby/assets";
@@ -35,11 +36,16 @@ import TouchDash from "./lobby/TouchDash.vue";
 import PersonCard from "./lobby/PersonCard.vue";
 import { type Place, placeKey } from "./lobby/place";
 import RentSteps from "./lobby/RentSteps.vue";
+import { fcfa } from "./lobby/house/server";
 import Coach from "./lobby/tutorial/Coach.vue";
+import HomeCard from "./lobby/tutorial/HomeCard.vue";
+import KeysCard from "./lobby/tutorial/KeysCard.vue";
+import QuestTracker from "./lobby/tutorial/QuestTracker.vue";
 import { nextTip, type Tip, TIP_TEXT, type TipCue, tipParts } from "./lobby/tutorial/tips";
-import { FREE, type Piece, PIECES, SETUP, STEPS, TUTORIAL_HOUSE } from "./lobby/tutorial/tutorial";
+import { CHAPTERS, FREE, HOUSE_CARDS, type Piece, PIECES, SETUP, STEPS, TUTORIAL_HOUSE } from "./lobby/tutorial/tutorial";
 import { useTutorial } from "./lobby/tutorial/useTutorial";
 import Welcome from "./lobby/tutorial/Welcome.vue";
+import { tutorialWords as qw } from "./lobby/tutorial/words";
 import LoadingScreen from "./LoadingScreen.vue";
 import Onboarding from "./Onboarding.vue";
 import { lobbyWords as w } from "./words";
@@ -144,9 +150,7 @@ function openSheet(which: "find" | "travel") {
     sheet.value = which;
     return;
   }
-  notice.value = w.afterTutorial;
-  clearTimeout(noticeTimer);
-  noticeTimer = window.setTimeout(() => (notice.value = ""), 1800);
+  say(w.afterTutorial, { ms: 2200 });
 }
 
 // Puts you at a house's door, facing it (the engine snaps, no walk), travelling to its city first if it's in
@@ -164,56 +168,62 @@ function arriveFor(p: Place | null) {
   lobby?.arriveAt(id);
 }
 
-// ---- The tutorial ----
+// ---- The quest: "Your first home" ----
 
-// Its step machine (tutorial.ts) and the API calls around it (useTutorial.ts); the coach shows the step.
+// Its step machine (tutorial.ts) and the API calls around it (useTutorial.ts); the coach and the big cards show it.
 const tutorial = useTutorial();
 const t = tutorial.machine;
-// In the workshop: the tutorial is on and the city hasn't come back yet (its last step is in the real city).
+// In the workshop: the quest is on and the city hasn't come back yet (its last step is in the real city).
 const inWorkshop = computed(() => t.active && t.step !== "city");
-// The houses on screen: the workshop during the tutorial, else this city's.
+// The houses on screen: the workshop during the quest, else this city's.
 const shown = computed(() => (inWorkshop.value ? [tutorial.house.value] : here.value));
 // What the place button says: the workshop's name, or the city's.
 const placeName = computed(() => (inWorkshop.value ? tutorial.house.value.name : city.value));
 // In the workshop nothing can be picked (no cards, no going in) until the step that sends you to its door.
 const picking = computed(() => !inWorkshop.value || STEPS.indexOf(t.step) >= STEPS.indexOf("go"));
-// Travel and find are off during the tutorial; pressing them shows this line for a moment.
-const notice = ref("");
-let noticeTimer = 0;
-// Opened on a shared link by someone the tutorial is for: it didn't start, and this corner button offers it.
+// Opened on a shared link by someone the quest is for: it didn't start, and this corner button offers it.
 const tutorialChip = ref(false);
+// The steps shown as a card in the middle of the screen, which hold the keyboard themselves.
+const centred = computed(() => t.active && ["welcome", "keys", "home", "city"].includes(t.step));
 
-// The visitors' welcome (Onboarding.vue), for visitors and anyone the tutorial isn't for (an API without it leaves
-// `tutorialDone` out). Someone logged in who hasn't done the tutorial gets the tutorial instead. A place opened
+// The visitors' welcome (Onboarding.vue), for visitors and anyone the quest isn't for (an API without it leaves
+// `tutorialDone` out). Someone logged in who hasn't done the quest gets the quest instead. A place opened
 // from a link comes first: the welcome waits until it's closed.
 const welcoming = computed(() => meLoaded.value && !settings.welcomed && !t.active && me.value?.tutorialDone !== false && !place.value);
 
-// What's on screen besides the city itself. In the tutorial, only what the step has unlocked, starting from
+// What's on screen besides the city itself. In the quest, only what the step has unlocked, starting from
 // nothing; outside it, everything (the keys, the map and the prompt wait for the welcome to end).
 const reveal = computed<Set<Piece>>(() => {
   if (t.active) return new Set(SETUP[t.step].reveal);
-  if (welcoming.value) return new Set(PIECES.filter((p) => p !== "keys" && p !== "map" && p !== "prompt"));
-  return new Set(PIECES);
+  if (welcoming.value) return new Set(PIECES.filter((p) => p !== "keys" && p !== "map" && p !== "prompt" && p !== "quest"));
+  return new Set(PIECES.filter((p) => p !== "quest"));
 });
 const shows = (piece: Piece) => reveal.value.has(piece);
-// The site's top bar is a piece like the others: App.vue hides it while the tutorial says so.
+// The site's top bar is a piece like the others: App.vue hides it while the quest says so.
 watchEffect(() => (lobbyUi.chrome = shows("chrome")));
 // A house's window docked on the right: the "can't reach the city" card keeps to the left half (CoreStatus.vue).
 watchEffect(() => (lobbyUi.inside = !!place.value));
 
-// The engine lets you do what the step allows; outside the tutorial, everything.
+// The engine lets you do what the step allows; outside the quest, everything.
 function applyControls() {
   lobby?.setControls(t.active ? SETUP[t.step].controls : FREE);
 }
 watch(() => [t.active, t.step], applyControls);
 
-// Where the workshop stands on the tutorial's map, for the camera to show it.
+// Chapter 2's goal: a beacon at the workshop's door, and its pin on the map, while you're looking for it.
+const goal = computed(() => (inWorkshop.value && SETUP[t.step].beacon ? TUTORIAL_HOUSE : null));
+watch(goal, (id) => lobby?.setBeacon(id));
+
+// Where the workshop stands on the quest's map, for the camera to show it: its door, else its plot.
 function workshopSpot(): { x: number; z: number } | null {
+  const door = lobby?.houseSpot(TUTORIAL_HOUSE);
+  if (door) return door;
   const plot = neighbourhood.value?.plots.find((p) => p.lot.kind === "house" && p.lot.houseId === TUTORIAL_HOUSE);
   return plot ? { x: plot.x, z: plot.z } : null;
 }
 
-// The "look" step: the camera goes to the workshop, holds a moment, and comes back to you; then the next step.
+// The "look" step: the camera goes to the beacon at the workshop's door, holds a moment, and comes back to you;
+// then you walk there.
 watch(
   () => t.active && t.step === "look",
   async (looking) => {
@@ -224,7 +234,7 @@ watch(
   },
 );
 
-// The tutorial takes the city's place: everything open closes, the workshop's street is built, and presence moves
+// The quest takes the city's place: everything open closes, the workshop's street is built, and presence moves
 // to a place of your own so nobody else walks in. From the welcome card on, the step machine decides what you see.
 function enterTutorial() {
   if (!lobby || !me.value || inWorkshop.value) return;
@@ -250,6 +260,7 @@ function leaveWorkshop() {
   card.value = null;
   bigMap.value = false;
   keysOpen.value = false;
+  lobby?.setBeacon(null);
   others.value = new Set();
   lobby?.clearRemotes();
   build();
@@ -260,7 +271,7 @@ watch(inWorkshop, (now, before) => {
   if (before && !now) leaveWorkshop();
 });
 
-// The city's welcome card said "Let's go": the tutorial is over, and the keyboard goes back to the city. Walking
+// The city's welcome card said "Let's go": the quest is over, and the keyboard goes back to the city. Walking
 // was its first lesson, so that tip is never needed.
 function endTutorial() {
   t.send({ type: "end" });
@@ -268,20 +279,23 @@ function endTutorial() {
   host.value?.focus({ preventScroll: true });
 }
 
-// "Start" on the first card: the keyboard goes to the city, where the walking happens.
-function startTutorial() {
-  t.send({ type: "start" });
+// "Start" on the first card: the keyboard goes to the city, where the walking happens. "Continue" jumps to the
+// chapter you'd reached; from the keys on, you're put back at the workshop's door.
+function startTutorial(resume = false) {
+  t.send({ type: "start", resume });
+  if (STEPS.indexOf(t.step) >= STEPS.indexOf("keys")) lobby?.arriveAt(TUTORIAL_HOUSE);
   host.value?.focus({ preventScroll: true });
 }
-
-// The "done" step's "Open my room": your workshop room, inside.
-function openMyRoom() {
-  const room = t.state?.room;
-  if (room) goInside({ kind: "room", houseId: TUTORIAL_HOUSE, room: room.name });
-}
+// The welcome card for someone coming back: the chapter they'd reached, to continue from there.
+const resumeAt = computed(() => {
+  const c = t.saved;
+  return t.canResume && c ? { n: CHAPTERS.indexOf(c) + 1, name: qw.chapters[c] } : null;
+});
+// The welcome card waits for the API's first word, so it doesn't change under you when "Continue" arrives.
+const welcomeReady = computed(() => tutorial.loaded.value || tutorial.missing.value || tutorial.waiting.value);
 
 // It starts on its own, once the lobby is up, for someone logged in who hasn't done it (an API without the
-// tutorial leaves `tutorialDone` out, and then nothing starts). Opened on a shared link, it waits in a corner
+// quest leaves `tutorialDone` out, and then nothing starts). Opened on a shared link, it waits in a corner
 // instead, so the link isn't lost. Settings can ask for it again.
 watch(
   [ready, () => me.value?.tutorialDone],
@@ -293,15 +307,66 @@ watch(
   { immediate: true },
 );
 watch(() => settingsPane.tutorialRequested, enterTutorial);
-// The workshop changes as you take a room and it goes live: its windows follow, and going live is celebrated.
+// The workshop changes as you take a room and it goes live: its windows follow.
 watch(tutorial.house, () => {
   if (inWorkshop.value) build();
 });
-watch(tutorial.live, (live) => {
-  if (live && inWorkshop.value) lobby?.celebrate(TUTORIAL_HOUSE);
-});
 
-// An outside link was clicked inside a house's window: if it's your live room, the "run" step counts it as opened.
+// Each finished chapter is stamped on the tracker, with a thump and a line of news.
+watch(
+  () => t.stamps.length,
+  (n, before) => {
+    if (!t.active || n <= (before ?? 0) || t.step === "welcome") return;
+    play("stamp");
+    // "Welcome home" is its own celebration, in the middle of the screen: no line of news over it.
+    if (t.step !== "home") say(qw.stamped(n), { ms: 2600 });
+  },
+);
+
+// Chapter 3: the room is yours. The window closes so you see the house, and the keys jingle on their card.
+// Chapter 8: the house's window opens again, on the tab each card talks about; "Welcome home" closes it.
+const questTab = computed(() => {
+  if (!inWorkshop.value || t.step !== "house") return undefined;
+  return ({ flatmates: "rooms", reviews: "chores", news: "fridge" } as const)[HOUSE_CARDS[t.card]];
+});
+watch(
+  () => (t.active ? t.step : null),
+  (step) => {
+    if (step === "keys") {
+      if (place.value) closeInside();
+      window.setTimeout(() => play("keys"), 250);
+    } else if (step === "house" && place.value?.kind !== "house") {
+      goInside({ kind: "house", id: TUTORIAL_HOUSE });
+    } else if (step === "home" && place.value) closeInside();
+  },
+);
+
+// Chapter 5: it went live. Fireworks over the house (its window lights up with the house's next word), then, a
+// moment later, the next chapter: your address.
+let launchedTimer = 0;
+watch(
+  () => t.launched,
+  (launched) => {
+    clearTimeout(launchedTimer);
+    if (!launched || !inWorkshop.value) return;
+    lobby?.celebrate(TUTORIAL_HOUSE);
+    launchedTimer = window.setTimeout(() => t.send({ type: "next" }), 2400);
+  },
+);
+onBeforeUnmount(() => clearTimeout(launchedTimer));
+
+// Chapters 4 and 5: where the project comes from, so "Try again" launches the same thing.
+const source = ref<"starter" | "github">("starter");
+function run(from: "starter" | "github") {
+  source.value = from;
+  void tutorial.deploy(from);
+}
+// Chapter 8: what a review takes off the rent, from the workshop's bill (500 FCFA when it has none).
+const credit = computed(() => fcfa(tutorial.view.value?.bill?.reviewCredit ?? 500));
+// "Welcome home": your first name.
+const myFirstName = computed(() => me.value?.name?.trim().split(/\s+/)[0] || me.value?.login || null);
+
+// An outside link was clicked inside a house's window: if it's your live room, chapter 6 counts it as opened.
 function insideLink(url: string) {
   const mine = t.state?.room?.url;
   const bare = (u: string) => u.replace(/\/+$/, "");
@@ -578,7 +643,6 @@ onBeforeUnmount(() => {
   lobbyUi.chrome = true;
   lobbyUi.inside = false;
   document.title = "La Coloc";
-  clearTimeout(noticeTimer);
   clearTimeout(toastTimer);
   clearInterval(idleTimer);
   loading.onProgress = () => undefined;
@@ -770,7 +834,7 @@ function onKey(e: KeyboardEvent) {
   // A knock or rent dialog, or the Inside sheet, handles its own keys (Escape closes it), and the welcomes (the
   // visitors' one, and the tutorial's cards at either end) have their own too.
   if (knock.value || rent.value || place.value || !ready.value || failed.value || welcoming.value) return;
-  if (t.active && (t.step === "welcome" || t.step === "city")) return;
+  if (centred.value) return;
   if (e.key === "Escape") {
     if (bigMap.value) bigMap.value = false;
     else if (keysOpen.value) keysOpen.value = false;
@@ -862,10 +926,14 @@ function cityLine(c: { name: string; houses: number }): string {
         <span class="chev" aria-hidden="true">›</span>
       </button>
 
-      <!-- Top centre: what the city is doing right now (and, for a moment, a word from the tutorial). -->
-      <div class="hud top" aria-live="polite">
-        <p v-if="notice">{{ notice }}</p>
-        <p v-else-if="activity && shows('here')">
+      <!-- Top centre, during the quest: its tracker, eight stamps and the chapter you're in. -->
+      <div v-if="inWorkshop && shows('quest') && t.step !== 'home'" class="hud quest">
+        <QuestTracker :stamps="t.stamps" :current="t.chapter" />
+      </div>
+
+      <!-- Top centre, in the city: what the city is doing right now. -->
+      <div v-if="!inWorkshop" class="hud top" aria-live="polite">
+        <p v-if="activity && shows('here')">
           <span class="wide">{{ activity.wide }}</span>
           <span class="narrow">{{ activity.short }}</span>
         </p>
@@ -894,7 +962,7 @@ function cityLine(c: { name: string; houses: number }): string {
         </div>
       </div>
 
-      <div v-if="shows('tools')" class="hud tools">
+      <div v-if="shows('tools')" class="hud tools" :class="{ questing: inWorkshop }">
         <button :aria-label="w.find" @click="openSheet('find')">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
         </button>
@@ -941,26 +1009,29 @@ function cityLine(c: { name: string; houses: number }): string {
         <KeyLegend v-if="shows('keys')" :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" />
       </div>
 
-      <!-- Bottom centre: the coach during the tutorial, what's in reach (or highlighted with [ and ]) while no card
-           is open, and the emotes. The coach must stay usable over a house's window, so the column lifts above it;
-           on a wide screen, where the window docks on the right, the column moves out of its way. -->
+      <!-- Bottom centre: the quest's coach, what's in reach (or highlighted with [ and ]) while no card is open, and
+           the emotes. The coach must stay usable over a house's window, so the column lifts above it; on a wide
+           screen, where the window docks on the right, the column moves out of its way. -->
       <div class="hud centre" :class="{ lifted: inWorkshop, aside: inWorkshop && !!place }">
         <Coach
-          v-if="inWorkshop && t.step !== 'welcome' && t.step !== 'rundown'"
+          v-if="inWorkshop && !centred"
+          :key="t.step"
           :machine="t"
           :missing="tutorial.missing.value"
           :waiting="tutorial.waiting.value"
           :busy="tutorial.busy.value"
           :error="tutorial.error.value"
-          :ran="tutorial.ran.value"
+          :source="source"
+          :credit="credit"
           @room="tutorial.takeRoom"
-          @run="tutorial.deploy"
+          @run="run"
+          @github="t.send({ type: 'github' })"
+          @back="t.send({ type: 'back' })"
           @opened="t.send({ type: 'opened' })"
+          @shared="t.send({ type: 'shared' })"
+          @later="t.send({ type: 'skip' })"
           @next="t.send({ type: 'next' })"
-          @skip-github="t.send({ type: 'skipGithub' })"
-          @open-room="openMyRoom"
-          @finish="tutorial.finish"
-          @skip="tutorial.finish"
+          @stop="tutorial.finish"
         />
         <Transition name="rise">
           <div v-if="near && shows('prompt') && !card && !place" class="prompt" role="status">
@@ -995,14 +1066,41 @@ function cityLine(c: { name: string; houses: number }): string {
       </div>
 
       <!-- Bottom right: the neighbourhood from above. Click it to travel; M opens it big. -->
-      <div v-if="neighbourhood && shows('map')" class="hud map" :class="{ covered: !!card }">
-        <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" @travel="fastTravel" />
+      <div v-if="neighbourhood && shows('map')" class="hud map" :class="{ covered: !!card, questing: inWorkshop, finding: !!goal }">
+        <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" @travel="fastTravel" />
       </div>
       <!-- Phones have no Shift: a round dash button above the minimap, there whenever the round tools are. -->
       <TouchDash v-if="shows('tools') && !place && !card" @dash="lobby?.dash()" />
 
-      <!-- The tutorial's two welcome cards: before the first step, and in the real city after the last. -->
-      <Welcome v-if="t.active && (t.step === 'welcome' || t.step === 'city')" :key="t.step" :step="t.step === 'city' ? 'city' : 'welcome'" :busy="tutorial.busy.value" :error="tutorial.error.value" @start="startTutorial" @skip="tutorial.finish" @end="endTutorial" />
+      <!-- The quest's cards in the middle of the screen: the welcome (or "welcome back"), the keys to your room,
+           "Welcome home", and the city's own welcome after it. -->
+      <Welcome
+        v-if="t.active && ((t.step === 'welcome' && welcomeReady) || t.step === 'city')"
+        :key="t.step"
+        :step="t.step === 'city' ? 'city' : 'welcome'"
+        :busy="tutorial.busy.value"
+        :error="tutorial.error.value"
+        :resume="resumeAt"
+        @start="startTutorial(false)"
+        @resume="startTutorial(true)"
+        @skip="tutorial.finish"
+        @end="endTutorial"
+      />
+      <KeysCard
+        v-if="inWorkshop && t.step === 'keys' && t.state?.room"
+        :room="t.state.room.name"
+        :house="t.state.house.name"
+        @next="t.send({ type: 'next' })"
+      />
+      <HomeCard
+        v-if="inWorkshop && t.step === 'home'"
+        :first="myFirstName"
+        :room="t.state?.room?.name ?? null"
+        :url="t.state?.room?.url ?? null"
+        :busy="tutorial.busy.value"
+        :error="tutorial.error.value"
+        @finish="tutorial.finish"
+      />
 
       <Onboarding v-if="welcoming" @focus="(on) => lobby?.focusOnPlayer(on)" @character="(c) => lobby?.setCharacter(c)" @done="settings.welcomed = true" />
 
@@ -1018,7 +1116,7 @@ function cityLine(c: { name: string; houses: number }): string {
       <RentSteps v-if="rent" :city="rent.city" :plot="rent.plot" @built="built" @close="rent = null" />
 
       <Transition name="fade">
-        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" large @travel="fastTravel" @close="bigMap = false" />
+        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" large @travel="fastTravel" @close="bigMap = false" />
       </Transition>
       <Transition name="fade">
         <KeysSheet v-if="keysOpen" @close="keysOpen = false" />
@@ -1036,16 +1134,17 @@ function cityLine(c: { name: string; houses: number }): string {
     />
 
     <!-- The inside of a house, over the city. Also reachable from the address bar (`?in=…`), 3D or not. -->
-    <!-- In the tutorial's rundown step, the window first walks you through itself, then says so. -->
+    <!-- During the quest the window keeps its own first-visit tour to itself (the quest explains the house one card
+         at a time) and, in chapter 8, shows the tab the card talks about. -->
     <Inside
       v-if="place"
       :key="placeKey(place)"
       :start="place"
-      :rundown="t.active && t.step === 'rundown'"
-      :coached="inWorkshop && t.step !== 'welcome' && t.step !== 'rundown'"
+      :quiet="inWorkshop"
+      :tab="questTab"
+      :coached="inWorkshop && !centred"
       @change="insideChanged"
       @close="closeInside"
-      @rundown-done="t.send({ type: 'rundownDone' })"
       @link="insideLink"
     />
 
@@ -1138,6 +1237,8 @@ function cityLine(c: { name: string; houses: number }): string {
 .top:empty { display: none; }
 .top p { margin: 0; font-size: 14px; font-weight: 500; min-width: 0; }
 .top .narrow { display: none; }
+/* The quest's tracker takes the pill's place, at the top centre. */
+.quest { top: calc(64px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); }
 /* News and tips: one line under the pill, popping in and out; never in the way of a click. */
 .news { top: calc(112px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
 /* The toast's look is shared (style.css); here only its place. */
@@ -1250,9 +1351,17 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .top .wide { display: none; }
   .top .narrow { display: inline; }
   .news { top: calc(156px + var(--core-offset, 0px)); }
+  /* The tracker steps down under the place and the tools, like the pill does. */
+  .quest { top: calc(112px + var(--core-offset, 0px)); }
   .toast { font-size: 14px; }
   .corner { top: calc(200px + var(--core-offset, 0px)); }
   .map { right: 12px; }
+  /* In the quest the coach takes the bottom of a phone's screen: the map moves to the top right, under the
+     tracker, while it points at the house you're looking for, and steps aside after that. */
+  .map.questing { display: none; }
+  /* The quest's tracker needs the phone's width; turning the view can wait for the city. */
+  .tools.questing { display: none; }
+  .map.questing.finding { display: block; top: calc(160px + var(--core-offset, 0px)); bottom: auto; }
   /* A card is a sheet along the bottom edge here: the map would hide under it. */
   .map.covered { display: none; }
   /* Cards become a sheet along the bottom edge; the keys, if a narrow window still shows them, sit above it. */

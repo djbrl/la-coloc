@@ -55,6 +55,10 @@
   --roof: #c4683f;
   --wall: #f3e3cf;
   --window-off: #d9d1c4;
+  /* A lit window (your room, online) and a palm's leaves, for the quest's drawings (tutorial/HouseArt.vue). */
+  --window-lit: #ffc94d;
+  --leaf: #3e8a4a;
+  --sky-dot: #f2b33d;
 
   /* Logs read best light-on-dark in both modes. */
   --code-bg: #17140f;
@@ -162,6 +166,9 @@
   --roof: #a5583a;
   --wall: #3a332b;
   --window-off: #4a4339;
+  --window-lit: #ffcf5c;
+  --leaf: #2f6e3a;
+  --sky-dot: #e8e2d0;
   --code-bg: #08080a;
   --nav-bg: #151517;
   --nav-bg-float: #151517;
@@ -205,6 +212,9 @@
     --roof: #a5583a;
     --wall: #3a332b;
     --window-off: #4a4339;
+    --window-lit: #ffcf5c;
+    --leaf: #2f6e3a;
+    --sky-dot: #e8e2d0;
     --code-bg: #08080a;
     --nav-bg: #151517;
     --nav-bg-float: #151517;

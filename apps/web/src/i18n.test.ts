@@ -5,7 +5,7 @@ import { fcfa } from "./components/lobby/house/server";
 import { houseWords } from "./components/lobby/house/words";
 import { explain, houseLine, roomLine } from "./components/lobby/panel/words";
 import { TIP_TEXT } from "./components/lobby/tutorial/tips";
-import { goingWord } from "./components/lobby/tutorial/tutorial";
+
 import { tutorialWords } from "./components/lobby/tutorial/words";
 import { cardWords, hudWords } from "./components/lobby/words";
 import { joinWords, rentWords } from "./components/joinWords";
@@ -120,7 +120,8 @@ describe("reading words", () => {
     expect(explain.room(256, 0.5)).toBe("Votre part du serveur de la maison\u00a0: 256 Mo de mémoire et 0,5 CPU, pour un projet.");
     expect(roomLine({ status: "failed", occupant: { login: "awa", name: "Awa", avatarUrl: null } })).toBe("Sa dernière construction a échoué.");
     expect(houseLine({ city: "Dakar", status: "live", agentOnline: true, demo: false })).toBe("Dakar. Son serveur tourne.");
-    expect(goingWord("building", true)).toBe("Construction…");
+    expect(tutorialWords.stages.build).toBe("Construction");
+    expect(tutorialWords.chapters.keys).toBe("Prendre les clés");
     expect(TIP_TEXT.dash.keys).toBe("Appuyez sur {Maj} pour sprinter.");
     expect(lobbyWords.online(0)).toBe("0 projet en ligne");
     expect(lobbyWords.online(2)).toBe("2 projets en ligne");
