@@ -167,6 +167,8 @@ export const hudWords = defineWords(
     onlyYouOut: "only you out walking",
     out: (n: number) => `${n} out walking`,
     liveHere: (n: number, out: string) => `${n} ${n === 1 ? "lives" : "live"} here, ${out}`,
+    // The quest pin on the map: where the tutorial wants you to go.
+    yourGoal: (house: string) => `Your goal: ${house}.`,
     // CoreStatus.vue: the city can't be reached.
     tryingNow: "Trying now…",
     tryingIn: (seconds: number) => `Trying again in ${seconds}s…`,
@@ -243,6 +245,7 @@ export const hudWords = defineWords(
     onlyYouOut: "il n'y a que vous en balade",
     out: (n) => `${n} en balade`,
     liveHere: (n, out) => `${n} ${n <= 1 ? "habite" : "habitent"} ici, ${out}`,
+    yourGoal: (house) => `Votre objectif : ${house}.`,
     tryingNow: "On essaie…",
     tryingIn: (seconds) => `Nouvel essai dans ${seconds} s…`,
     tryingAgain: "Nouvel essai…",

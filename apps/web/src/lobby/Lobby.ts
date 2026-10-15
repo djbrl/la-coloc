@@ -19,6 +19,7 @@ import type { CityHouse } from "../types";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
 import { type CityStyle, styleFor } from "./cityStyle";
 import { daylightAt, lightingFor } from "./daylight";
+import { Beacon } from "./beacon";
 import { Fireworks } from "./fireworks";
 import { liveKey, liveState } from "./live";
 import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff } from "./models";
@@ -230,6 +231,10 @@ export class Lobby {
   // Pins the city's local hour (a dev tool: `lobby.setHour(22)`), or null for the real time.
   private hourOverride: number | null = null;
   private fireworks = new Fireworks();
+  // The tutorial's quest marker at a house's door (`setBeacon`), and which house. It lives in the scene, not the town,
+  // so a rebuild keeps it and clicks go through it; each frame it finds its house again (see `step`).
+  private beacon: Beacon | null = null;
+  private beaconHouse: string | null = null;
   // Whether you've clicked or tapped the stage: from then on, keys pressed with nothing focused are for walking (R6).
   private stageTouched = false;
   // Single-character keyboard shortcuts on (see `setShortcuts`).
@@ -666,6 +671,28 @@ export class Lobby {
   }
 
   /**
+   * A quest marker at a house's door: a glowing ring, a column of light, a diamond above (beacon.ts). Null takes it
+   * away. A house that isn't built yet gets it as soon as it is.
+   */
+  setBeacon(houseId: string | null) {
+    this.beaconHouse = houseId;
+    if (!houseId) {
+      this.beacon?.dispose();
+      this.beacon = null;
+    } else if (!this.beacon) {
+      this.beacon = new Beacon();
+      this.beacon.object.visible = false;
+      this.scene.add(this.beacon.object);
+    }
+  }
+
+  /** Where a house's door is (where you'd walk to), or null if it isn't in this neighbourhood (yet). */
+  houseSpot(houseId: string): { x: number; z: number } | null {
+    const p = this.placed.find((x) => x.house.id === houseId);
+    return p ? { x: p.door.x, z: p.door.z } : null;
+  }
+
+  /**
    * The city's live state, without rebuilding anything: each house's windows (one per room), the crane while a build
    * runs, the power (a real house whose caretaker is offline goes dark, with a sputter, and comes back with a clunk),
    * the visitor at the door while a knock is open, and the board's pins. `setNeighbourhood` calls it too.
@@ -861,6 +888,7 @@ export class Lobby {
     window.removeEventListener("keydown", this.keydown);
     window.removeEventListener("keyup", this.keyup);
     this.fireworks.dispose();
+    this.setBeacon(null);
     for (const p of this.placed) p.face.dispose();
     this.renderer.domElement.removeEventListener("pointerdown", this.touchStage);
     this.renderer.domElement.removeEventListener("pointerdown", this.click);
@@ -1959,6 +1987,13 @@ export class Lobby {
     for (const p of this.placed) p.face.tick(time, calm);
     this.props?.tick(time, calm);
     this.fireworks.tick(dt);
+    if (this.beacon) {
+      // It follows the door (a model loading late moves it), and hides while its house isn't built.
+      const p = this.placed.find((x) => x.house.id === this.beaconHouse);
+      this.beacon.object.visible = !!p;
+      if (p) this.beacon.place(p.door.x, p.door.z);
+      this.beacon.update(time, calm);
+    }
     this.daylight();
 
     // Zoom eases towards the wheel's choice (or the onboarding's close-up, or the close-up beside a window).

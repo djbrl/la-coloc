@@ -63,6 +63,21 @@ describe("sounds", () => {
     expect(made.oscillators).toBe(2);
   });
 
+  it("play the quest's sounds: a stamp, the keys and a stage tick", async () => {
+    const { FakeContext, made } = fakeAudio();
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }), AudioContext: FakeContext });
+    const { play, settings } = await load();
+    settings.sound = true;
+    play("stamp");
+    expect(made.oscillators).toBe(3);
+    expect(made.noises).toBe(1);
+    play("keys");
+    expect(made.oscillators).toBe(9);
+    expect(made.noises).toBe(7);
+    play("tick");
+    expect(made.oscillators).toBe(10);
+  });
+
   it("do nothing when sounds are off in settings", async () => {
     const { FakeContext, made } = fakeAudio();
     vi.stubGlobal("window", { matchMedia: () => ({ matches: false }), AudioContext: FakeContext });

@@ -14,7 +14,10 @@ export type Sound =
   | "dash"
   | "celebrate"
   | "sputter"
-  | "clunk";
+  | "clunk"
+  | "stamp"
+  | "keys"
+  | "tick";
 
 // Everything a sound needs to be built: the audio context, the master volume, and a bit of noise to reuse.
 interface Audio {
@@ -183,6 +186,28 @@ const recipes: Record<Sound, (a: Audio, t: number) => void> = {
     puff(a, t, 0.06, 500, 0.5);
     tone(a, t, 0.12, 160, 0.3, { to: 90, dull: 1200 });
   },
+
+  // A chapter of the quest is done: a soft rubber stamp coming down (a muffled thump), then a bright little
+  // two-note ding, the second higher, as a reward. Half a second in all.
+  stamp: (a, t) => {
+    puff(a, t, 0.07, 220, 0.4, "lowpass");
+    tone(a, t, 0.1, 150, 0.28, { to: 85, dull: 700 });
+    tone(a, t + 0.13, 0.25, G5, 0.15, { dull: 3500 });
+    tone(a, t + 0.23, 0.35, G5 * 2, 0.13, { dull: 4000 });
+  },
+
+  // The keys to your room: small metal keys jingling, a handful of very short high notes, each with a tick of
+  // bright noise, at slightly random moments and pitches, so no two jingles are the same.
+  keys: (a, t) => {
+    for (let i = 0; i < 6; i++) {
+      const at = t + i * 0.07 + Math.random() * 0.03;
+      tone(a, at, 0.06 + Math.random() * 0.05, 2600 + Math.random() * 2200, 0.06, { type: "triangle", dull: 7000 });
+      puff(a, at, 0.025, 6000 + Math.random() * 2000, 0.12);
+    }
+  },
+
+  // The launch moved on to its next stage: a light blip that rises, quieter and shorter than "build".
+  tick: (a, t) => tone(a, t, 0.09, A5, 0.1, { type: "triangle", to: B5 * 1.2, dull: 3000 }),
 };
 
 // How soon the same sound may play again, in milliseconds. Footsteps are slower than the rest.

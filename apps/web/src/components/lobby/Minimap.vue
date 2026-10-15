@@ -1,9 +1,9 @@
 <script setup lang="ts">
 // The neighbourhood from above, north up, on a small flat panel: a muted ground with the blocks on it (the market
 // and the park in their own tints), a round marker per house in its colour, a dot per person in their house's
-// colour, and you as a ring. Nothing else: the map is there to see where you are, who's around, and to click a
-// block to go there. With `large` it fills the middle of the screen (the M key), every house named next to its
-// marker, and the houses listed beside it as a game menu's entries (the panels' rows) that travel to their door.
+// colour, and you as a ring. Nothing else, except an orange pin on the tutorial's goal (`goal`): the map is there to
+// see where you are, who's around, and to click a block to go there. With `large` it fills the middle of the screen
+// (the M key), every house named next to its marker, and the houses listed beside it as a game menu's entries (the panels' rows) that travel to their door.
 // Drawn on a canvas, only when something moved, in the site's own colours so it follows day and night.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { colorFor } from "../../lobby/models";
@@ -28,6 +28,8 @@ const props = defineProps<{
   // as the travel menu counts it, not the flatmates drawn standing by their doors.
   online: number;
   large?: boolean;
+  // A house the tutorial wants you to walk to: an orange pin over it, with a halo (static with calm motion).
+  goal?: string | null;
 }>();
 const emit = defineEmits<{ travel: [x: number, z: number]; close: [] }>();
 
@@ -40,6 +42,8 @@ const size = ref(pickSize());
 
 // Marker sizes, small map / big map, in CSS pixels across.
 const HOUSE = { small: 9, big: 16 };
+// The goal's pin: the radius of its round head, and how tall it stands from its tip (on the house) to its top.
+const PIN = { small: { head: 5, tall: 15 }, big: { head: 8, tall: 24 } };
 const PERSON = { small: 5, big: 9 };
 const YOU = { small: 12, big: 18 };
 // The two fixed colours: markers get a white edge, and you a dark one, so they read on any ground.
@@ -83,6 +87,23 @@ const housesOnMap = computed(() => {
   }
   // Real houses first, then the samples, each by name.
   return out.sort((a, b) => Number(a.house.demo) - Number(b.house.demo) || a.house.name.localeCompare(b.house.name));
+});
+
+// The goal house, if it's in this neighbourhood: where its pin goes.
+const goalOnMap = computed(() => (props.goal ? (housesOnMap.value.find((p) => p.house.id === props.goal) ?? null) : null));
+
+// The halo is a page element over the canvas (it animates in CSS; the canvas only redraws when something moved).
+const goalHalo = computed(() => {
+  const g = goalOnMap.value;
+  if (!g) return null;
+  const { toX, toY } = frame();
+  return { left: `${toX(g.x)}px`, top: `${toY(g.z)}px`, width: `${(props.large ? HOUSE.big : HOUSE.small) * 2.4}px` };
+});
+
+// What the canvas says to a screen reader: the city and its people, then the goal when there is one.
+const mapLabel = computed(() => {
+  const base = said.mapLine(props.neighbourhood.city, peopleLine.value.toLowerCase());
+  return goalOnMap.value ? `${base} ${said.yourGoal(goalOnMap.value.house.name)}` : base;
 });
 
 // "Sacré-Cœur, 3 rooms free" / "Bè Kpota, full".
@@ -182,21 +203,46 @@ function draw() {
   }
 
   const s = props.state;
-  if (!s) return;
+  if (s) {
+    // People: a small dot in their house's colour; grey when they're just visiting.
+    for (const p of s.people) {
+      const home = props.residents.get(p.login);
+      marker(p.x, p.z, big ? PERSON.big : PERSON.small, home ? css(colorFor(home.houseId)) : muted, WHITE, 1.5);
+    }
 
-  // People: a small dot in their house's colour; grey when they're just visiting.
-  for (const p of s.people) {
-    const home = props.residents.get(p.login);
-    marker(p.x, p.z, big ? PERSON.big : PERSON.small, home ? css(colorFor(home.houseId)) : muted, WHITE, 1.5);
+    // You: a white ring with a dark edge, and a dot in the middle.
+    const across = big ? YOU.big : YOU.small;
+    marker(s.you.x, s.you.z, across, WHITE, DARK, 2);
+    ctx.beginPath();
+    ctx.arc(toX(s.you.x), toY(s.you.z), across / 6, 0, Math.PI * 2);
+    ctx.fillStyle = DARK;
+    ctx.fill();
   }
 
-  // You: a white ring with a dark edge, and a dot in the middle.
-  const across = big ? YOU.big : YOU.small;
-  marker(s.you.x, s.you.z, across, WHITE, DARK, 2);
-  ctx.beginPath();
-  ctx.arc(toX(s.you.x), toY(s.you.z), across / 6, 0, Math.PI * 2);
-  ctx.fillStyle = DARK;
-  ctx.fill();
+  // The goal, last so nothing covers it: a map pin standing on its house, orange with a white edge and a white dot.
+  const goal = goalOnMap.value;
+  if (goal) {
+    const { head, tall } = big ? PIN.big : PIN.small;
+    const x = toX(goal.x);
+    const tip = toY(goal.z);
+    const centre = tip - tall + head;
+    // The head's round top, then two straight sides down to the tip, where they meet the circle's tangents.
+    const spread = Math.acos(head / (tall - head));
+    ctx.beginPath();
+    ctx.moveTo(x, tip);
+    ctx.arc(x, centre, head, Math.PI / 2 + spread, Math.PI / 2 - spread);
+    ctx.closePath();
+    ctx.fillStyle = token("--accent-fill");
+    ctx.fill();
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = WHITE;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, centre, head * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = WHITE;
+    ctx.fill();
+  }
 }
 
 // ---- The mouse: a name on hover (small map), travel on click ----
@@ -235,7 +281,7 @@ onMounted(() => {
 onBeforeUnmount(() => window.removeEventListener("resize", resize));
 
 // Redraw when the engine speaks, the city changes or the look switches between day and night, never every frame.
-watch(() => [props.state, props.neighbourhood, props.houses, props.residents, size.value, settings.theme], draw, { flush: "post" });
+watch(() => [props.state, props.neighbourhood, props.houses, props.residents, size.value, settings.theme, props.goal], draw, { flush: "post" });
 
 // Enter presses the focused button, and must not also reach the lobby, which would read it as E.
 function onKey(e: KeyboardEvent) {
@@ -255,13 +301,10 @@ function onKey(e: KeyboardEvent) {
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
       </button>
       <div class="row">
-        <canvas
-          ref="canvas"
-          role="img"
-          :aria-label="said.mapLine(neighbourhood.city, peopleLine.toLowerCase())"
-          :style="{ width: `${size.w}px`, height: `${size.h}px` }"
-          @click="onClick"
-        />
+        <div class="holder">
+          <canvas ref="canvas" role="img" :aria-label="mapLabel" :style="{ width: `${size.w}px`, height: `${size.h}px` }" @click="onClick" />
+          <span v-if="goalHalo" class="halo" :class="{ calm: settings.reduceMotion }" :style="goalHalo" aria-hidden="true" />
+        </div>
         <!-- Each house is a menu entry: the whole row travels to its door; its one button is what the keyboard reaches. -->
         <ul class="houses" :style="{ maxHeight: `${size.h}px` }">
           <ListRow v-for="p in housesOnMap" :key="p.house.id" class="entry" :title="p.house.name" :sub="sub(p.house)">
@@ -282,12 +325,13 @@ function onKey(e: KeyboardEvent) {
       <canvas
         ref="canvas"
         role="img"
-        :aria-label="said.mapLine(neighbourhood.city, peopleLine.toLowerCase())"
+        :aria-label="mapLabel"
         :style="{ width: `${size.w}px`, height: `${size.h}px` }"
         @mousemove="onMove"
         @mouseleave="hover = null"
         @click="onClick"
       />
+      <span v-if="goalHalo" class="halo" :class="{ calm: settings.reduceMotion }" :style="goalHalo" aria-hidden="true" />
       <span v-if="hover" class="tip" :style="{ left: `${hover.x}px`, top: `${hover.y}px` }" aria-hidden="true">{{ hover.name }}</span>
     </div>
     <p class="count">{{ peopleLine }}</p>
@@ -299,7 +343,24 @@ function onKey(e: KeyboardEvent) {
    like a game's map screen. The map itself stays plain and high in contrast. */
 .small, .big { color: var(--text); background: var(--surface); }
 .small { display: grid; gap: 6px; padding: 8px; border-radius: var(--r-lg); box-shadow: var(--lift); }
-.holder { position: relative; }
+.holder { position: relative; flex: none; }
+/* The goal's halo: a soft orange ring around its house, under the pin, swelling and fading like a sonar ping.
+   Still and faint with calm motion. It never takes a click: the canvas below does. */
+.halo {
+  position: absolute;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--accent-fill) 30%, transparent);
+  box-shadow: 0 0 0 2px var(--accent-fill);
+  pointer-events: none;
+  animation: ping 1.6s var(--ease) infinite;
+}
+.halo.calm { animation: none; opacity: 0.6; }
+@keyframes ping {
+  from { opacity: 0.9; transform: translate(-50%, -50%) scale(0.6); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+}
 canvas { display: block; flex: none; border-radius: var(--r-sm); cursor: pointer; }
 .small canvas { border-radius: var(--r-md); }
 .count { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.3; color: var(--muted); text-align: center; }
@@ -343,6 +404,7 @@ h2 { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spac
 .houses .go:focus-visible { outline: none; color: var(--accent); }
 button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
-  .big { animation: none; }
+  .big, .halo { animation: none; }
+  .halo { opacity: 0.6; }
 }
 </style>
