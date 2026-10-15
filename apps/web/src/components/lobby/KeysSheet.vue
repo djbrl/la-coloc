@@ -3,7 +3,8 @@
 // grouped by what they're for, each key cap on the left and what it does on the right. "?" opens it, Escape or
 // Close shuts it; the lobby puts focus back on the stage afterwards. Nothing shows on a touch screen, where there
 // are no keys.
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { hudWords as w } from "./words";
 
 const emit = defineEmits<{ close: [] }>();
 const closeButton = ref<HTMLButtonElement | null>(null);
@@ -15,40 +16,41 @@ interface Control {
   does: string;
   or?: boolean;
 }
-const groups: { name: string; rows: Control[] }[] = [
+// Computed, so the words follow the language chosen now (words.ts).
+const groups = computed((): { name: string; rows: Control[] }[] => [
   {
-    name: "Move",
+    name: w.move,
     rows: [
-      { keys: ["W", "A", "S", "D"], does: "walk" },
-      { keys: ["Shift"], does: "dash" },
-      { keys: ["Q", "R"], does: "turn the view", or: true },
+      { keys: ["W", "A", "S", "D"], does: w.walk },
+      { keys: [w.shiftKey], does: w.dash },
+      { keys: ["Q", "R"], does: w.turn, or: true },
     ],
   },
   {
-    name: "Act",
+    name: w.act,
     rows: [
-      { keys: ["E"], does: "use, open" },
-      { keys: ["]"], does: "next thing" },
-      { keys: ["["], does: "previous thing" },
-      { keys: ["1", "2"], does: "react", or: true },
+      { keys: ["E"], does: w.useOpen },
+      { keys: ["]"], does: w.nextThing },
+      { keys: ["["], does: w.previousThing },
+      { keys: ["1", "2"], does: w.react, or: true },
     ],
   },
   {
-    name: "Go",
+    name: w.go,
     rows: [
-      { keys: ["F"], does: "find a house" },
-      { keys: ["T"], does: "travel to another city" },
-      { keys: ["M"], does: "the map" },
+      { keys: ["F"], does: w.findHouse },
+      { keys: ["T"], does: w.travel },
+      { keys: ["M"], does: w.theMap },
     ],
   },
   {
-    name: "Menus",
+    name: w.menus,
     rows: [
-      { keys: ["Esc"], does: "close" },
-      { keys: ["?"], does: "this list" },
+      { keys: [w.escKey], does: w.closeKey },
+      { keys: ["?"], does: w.thisList },
     ],
   },
-];
+]);
 
 // A moment later, not at once: the "?" key press that opened us must not land in here.
 onMounted(() => setTimeout(() => closeButton.value?.focus({ preventScroll: true }), 0));
@@ -62,8 +64,8 @@ function onKey(e: KeyboardEvent) {
 <template>
   <!-- The veil dims the city; a click on it (not on the panel) closes. -->
   <div class="veil" @click.self="emit('close')">
-    <section class="keys" role="dialog" aria-modal="true" aria-label="The keys" @keydown.esc.stop="emit('close')" @keydown="onKey">
-      <h2>The keys</h2>
+    <section class="keys" role="dialog" aria-modal="true" :aria-label="w.theKeys" @keydown.esc.stop="emit('close')" @keydown="onKey">
+      <h2>{{ w.theKeys }}</h2>
       <div class="groups">
         <section v-for="g in groups" :key="g.name" class="group" :aria-label="g.name">
           <h3>{{ g.name }}</h3>
@@ -80,7 +82,7 @@ function onKey(e: KeyboardEvent) {
           </ul>
         </section>
       </div>
-      <button ref="closeButton" class="close" @click="emit('close')">Close<kbd aria-hidden="true">Esc</kbd></button>
+      <button ref="closeButton" class="close" @click="emit('close')">{{ w.close }}<kbd aria-hidden="true">{{ w.escKey }}</kbd></button>
     </section>
   </div>
 </template>

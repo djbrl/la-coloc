@@ -2,26 +2,30 @@
 // The keys you reach for most, on one line in the bottom-left corner: E use, ] next, Shift dash, M map, and a
 // "? keys" button for the full list. The little × folds it to a "?" button. The keys are drawn as small key caps,
 // like a game's button hints in a corner. Nothing shows on a touch screen, where there are no keys.
+import { computed } from "vue";
+import { hudWords as w } from "./words";
+
 defineProps<{ open: boolean }>();
 const emit = defineEmits<{ toggle: []; keys: [] }>();
 
-const quick: { key: string; does: string }[] = [
-  { key: "E", does: "use" },
-  { key: "]", does: "next" },
-  { key: "Shift", does: "dash" },
-  { key: "M", does: "map" },
-];
+// Computed, so the words (and the name French gives Shift) follow the language chosen now (words.ts).
+const quick = computed((): { key: string; does: string }[] => [
+  { key: "E", does: w.use },
+  { key: "]", does: w.next },
+  { key: w.shiftKey, does: w.dash },
+  { key: "M", does: w.map },
+]);
 </script>
 
 <template>
-  <div v-if="open" class="legend" role="region" aria-label="The keys">
+  <div v-if="open" class="legend" role="region" :aria-label="w.theKeys">
     <span v-for="k in quick" :key="k.key" class="item"><kbd>{{ k.key }}</kbd> {{ k.does }}</span>
-    <button class="item keys" aria-label="Every key (?)" @click="emit('keys')"><kbd>?</kbd> keys</button>
-    <button class="hide" aria-label="Fold the keys away" @click="emit('toggle')">
+    <button class="item keys" :aria-label="w.everyKey" @click="emit('keys')"><kbd>?</kbd> {{ w.keys }}</button>
+    <button class="hide" :aria-label="w.foldKeys" @click="emit('toggle')">
       <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
     </button>
   </div>
-  <button v-else class="peek" aria-label="Show the keys" @click="emit('toggle')">?</button>
+  <button v-else class="peek" :aria-label="w.showKeys" @click="emit('toggle')">?</button>
 </template>
 
 <style scoped>

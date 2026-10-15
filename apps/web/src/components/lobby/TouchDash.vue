@@ -4,6 +4,7 @@
 // whether it may) and shows the breather before the next one as a ring that fills back up. Screens with a
 // pointer that hovers (a mouse, a trackpad) never see it.
 import { onBeforeUnmount, onMounted, ref } from "vue";
+import { hudWords as w } from "./words";
 
 const emit = defineEmits<{ dash: [] }>();
 
@@ -66,7 +67,7 @@ const AROUND = 2 * Math.PI * RADIUS;
     type="button"
     class="touch-dash"
     :class="{ cooling }"
-    aria-label="Dash"
+    :aria-label="w.dashName"
     :style="{ '--ready-after': `${READY_AFTER_MS}ms` }"
     @pointerdown="down"
     @pointercancel="pressedByPointer = false"

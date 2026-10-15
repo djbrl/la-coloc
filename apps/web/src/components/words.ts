@@ -3,11 +3,7 @@
 // (LobbyView.vue), and the small shared pieces (Waiting.vue, ChatPanel.vue, FridgeDoor.vue). The panels' own words
 // are in lobby/panel/words.ts, lobby/house/words.ts and lobby/tutorial/words.ts.
 // The French says "vous" throughout, and keeps proper names (cities, houses, people, projects) as they are.
-import { defineWords } from "../i18n";
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-// French counts 0 and 1 as singular: "0 maison", "1 maison", "2 maisons".
-const pluriel = (n: number, one: string, many: string) => `${n} ${n <= 1 ? one : many}`;
+import { defineWords, plural, pluriel } from "../i18n";
 
 // The visitors' welcome: one idea per step, then picking your look.
 export const welcomeWords = defineWords(

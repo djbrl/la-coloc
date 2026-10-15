@@ -14,6 +14,7 @@ import type { CityHouse } from "../../types";
 import { type Home, type MapState, statusLine } from "./cards";
 import Icon from "./house/Icon.vue";
 import ListRow from "./panel/ListRow.vue";
+import { hudWords as said } from "./words";
 
 const props = defineProps<{
   neighbourhood: Neighbourhood;
@@ -87,15 +88,15 @@ const housesOnMap = computed(() => {
 // "Sacré-Cœur, 3 rooms free" / "Bè Kpota, full".
 const line = (h: CityHouse) => `${h.name}, ${statusLine(h).replace(/\.$/, "").toLowerCase()}`;
 // Under a house's name in the list: whether it has room, and, in a sentence, whether it's only an example.
-const sub = (h: CityHouse) => (h.demo ? `${statusLine(h)} An example house.` : statusLine(h));
+const sub = (h: CityHouse) => (h.demo ? `${statusLine(h)} ${said.exampleHouse}` : statusLine(h));
 
 // "7 live here, 2 out walking", under the small map, so a glance (or a screen reader) gets the gist without the
 // dots. Two different counts, said as two: the flatmates of this neighbourhood's houses (the dots by the doors
 // stand in for them), and who is actually online and walking around, you included.
 const peopleLine = computed(() => {
   const live = props.houses.reduce((n, h) => n + h.rooms.filter((r) => r.occupant).length, 0);
-  const out = props.online === 0 ? "nobody else out walking" : props.online === 1 && me.value ? "only you out walking" : `${props.online} out walking`;
-  return `${live} ${live === 1 ? "lives" : "live"} here, ${out}`;
+  const out = props.online === 0 ? said.nobodyOut : props.online === 1 && me.value ? said.onlyYouOut : said.out(props.online);
+  return said.liveHere(live, out);
 });
 
 // ---- World to canvas and back: a uniform scale, with a margin, centred ----
@@ -245,19 +246,19 @@ function onKey(e: KeyboardEvent) {
 <template>
   <!-- Big: a scrim dims the city, and a click on it (not on the panel) closes. -->
   <div v-if="large" class="veil" @click.self="emit('close')">
-    <section class="big" role="dialog" aria-modal="true" :aria-label="`Map of ${neighbourhood.city}`" @keydown.esc.stop="emit('close')" @keydown="onKey">
+    <section class="big" role="dialog" aria-modal="true" :aria-label="said.mapOf(neighbourhood.city)" @keydown.esc.stop="emit('close')" @keydown="onKey">
       <div class="head">
         <h2>{{ neighbourhood.city }}</h2>
-        <p class="soft">Click a block to go there, or pick a house.</p>
+        <p class="soft">{{ said.mapHint }}</p>
       </div>
-      <button class="x" aria-label="Close the map (Esc)" @click="emit('close')">
+      <button class="x" :aria-label="said.closeMap" @click="emit('close')">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
       </button>
       <div class="row">
         <canvas
           ref="canvas"
           role="img"
-          :aria-label="`Map of ${neighbourhood.city}: ${peopleLine.toLowerCase()}. Click a block to go there.`"
+          :aria-label="said.mapLine(neighbourhood.city, peopleLine.toLowerCase())"
           :style="{ width: `${size.w}px`, height: `${size.h}px` }"
           @click="onClick"
         />
@@ -281,7 +282,7 @@ function onKey(e: KeyboardEvent) {
       <canvas
         ref="canvas"
         role="img"
-        :aria-label="`Map of ${neighbourhood.city}: ${peopleLine.toLowerCase()}. Click a block to go there.`"
+        :aria-label="said.mapLine(neighbourhood.city, peopleLine.toLowerCase())"
         :style="{ width: `${size.w}px`, height: `${size.h}px` }"
         @mousemove="onMove"
         @mouseleave="hover = null"

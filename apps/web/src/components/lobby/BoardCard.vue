@@ -6,8 +6,8 @@
 import { computed } from "vue";
 import type { CityHouse } from "../../types";
 import Icon from "./house/Icon.vue";
-import { plural } from "./cards";
 import LobbyCard from "./LobbyCard.vue";
+import { cardWords as w } from "./words";
 
 const props = defineProps<{ city: string; houses: CityHouse[] }>();
 const emit = defineEmits<{ open: [houseId: string]; close: [] }>();
@@ -22,18 +22,18 @@ const waiting = computed(() =>
 /** "2 reviews waiting, 1 late." */
 function line(h: CityHouse): string {
   const late = h.lateChores ?? 0;
-  return `${plural(h.openChores ?? 0, "review", "reviews")} waiting${late ? `, ${late} late` : ""}.`;
+  return w.boardLine(h.openChores ?? 0, late);
 }
 </script>
 
 <template>
-  <LobbyCard :label="`The chores board of ${city}`">
-    <h2>The chores board</h2>
-    <button class="x" aria-label="Close (Esc)" @click="emit('close')">
+  <LobbyCard :label="w.boardLabel(city)">
+    <h2>{{ w.board }}</h2>
+    <button class="x" :aria-label="w.close" @click="emit('close')">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
     </button>
-    <p v-if="waiting.length" class="soft">Code reviews waiting in {{ city }}, house by house. Each one a flatmate does takes a little off their rent.</p>
-    <p v-else class="soft">No reviews waiting in {{ city }} right now. Each one a flatmate does takes a little off their rent.</p>
+    <p v-if="waiting.length" class="soft">{{ w.boardWaiting(city) }}</p>
+    <p v-else class="soft">{{ w.boardNone(city) }}</p>
 
     <ul v-if="waiting.length" class="pins">
       <li v-for="h in waiting" :key="h.id">

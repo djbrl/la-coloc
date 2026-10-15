@@ -9,6 +9,7 @@ import { type CityRoom, freeRooms, type Home, homeLine, knockOn, roomOf, sentenc
 import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { roomLine, roomState } from "./panel/words";
+import { cardWords as w } from "./words";
 
 const props = defineProps<{
   login: string;
@@ -49,15 +50,15 @@ function ask() {
 </script>
 
 <template>
-  <LobbyCard :label="`${name}, someone in the city`">
+  <LobbyCard :label="w.personLabel(name)">
     <h2>{{ name }}</h2>
-    <button class="x" aria-label="Close (Esc)" @click="emit('close')">
+    <button class="x" :aria-label="w.close" @click="emit('close')">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
     </button>
     <p class="soft small who">
       <template v-if="where">{{ where }}</template>
-      <template v-else>@{{ login }} · Just visiting. No house yet.</template>
-      <template v-if="isMe"> · That's you.</template>
+      <template v-else>{{ w.visiting(login) }}</template>
+      <template v-if="isMe">{{ w.thatsYou }}</template>
     </p>
 
     <!-- What they build: the project's name, its state, and a line from them about it. -->
@@ -65,23 +66,23 @@ function ask() {
       <span class="ic" aria-hidden="true"><Icon name="box" :size="20" /></span>
       <div class="what">
         <p class="name">
-          <strong>{{ project ?? `Room ${home.room}` }}</strong>
+          <strong>{{ project ?? w.room(home.room) }}</strong>
           <StatusDot v-if="state && project" :state="state" />
         </p>
-        <p v-if="!project" class="soft small desc">Nothing online in this room yet.</p>
+        <p v-if="!project" class="soft small desc">{{ w.nothingOnline }}</p>
         <p v-else class="soft small desc">{{ stateWords }}{{ room?.projectDescription ? ` ${sentence(room.projectDescription)}` : "" }}</p>
       </div>
     </div>
 
     <template v-if="choosing && house">
-      <p class="soft small">Which room would you knock on?</p>
+      <p class="soft small">{{ w.whichRoom }}</p>
       <ul class="rooms">
         <li v-for="r in free" :key="r.name">
           <button class="big pick" @click="emit('knock', house.id, r)">
             <Icon name="door" :size="20" />
             <span class="pick-text">
-              <span>Room {{ r.name }}</span>
-              <span class="soft small">{{ r.ad ? sentence(r.ad) : "Open to anyone who ships." }}</span>
+              <span>{{ w.room(r.name) }}</span>
+              <span class="soft small">{{ r.ad ? sentence(r.ad) : w.openToAll }}</span>
             </span>
           </button>
         </li>
@@ -89,12 +90,12 @@ function ask() {
     </template>
 
     <div class="menu">
-      <button v-if="knock" class="big primary" @click="emit('thread', knock.id)"><Icon name="thread" :size="20" /> See your knock</button>
-      <button v-else-if="canAsk && !choosing" class="big primary" @click="ask"><Icon name="knock" :size="20" /> Ask to join</button>
-      <RouterLink v-else-if="askLogin" to="/login" class="big primary"><Icon name="login" :size="20" /> Log in to ask</RouterLink>
+      <button v-if="knock" class="big primary" @click="emit('thread', knock.id)"><Icon name="thread" :size="20" /> {{ w.seeKnock }}</button>
+      <button v-else-if="canAsk && !choosing" class="big primary" @click="ask"><Icon name="knock" :size="20" /> {{ w.askToJoin }}</button>
+      <RouterLink v-else-if="askLogin" to="/login" class="big primary"><Icon name="login" :size="20" /> {{ w.logInToAsk }}</RouterLink>
       <div v-if="(home && !isMe) || (!isMe && me)" class="tiles">
         <button v-if="home && !isMe" class="big tile" @click="emit('see', home.houseId)">
-          <Icon name="house" :size="22" /><span>House<span class="sr-only">: see {{ home.houseName }}</span></span>
+          <Icon name="house" :size="22" /><span>{{ w.house }}<span class="sr-only">{{ w.seeHouse(home.houseName) }}</span></span>
         </button>
         <button v-if="!isMe && me" class="big tile" @click="emit('wave')">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -107,7 +108,7 @@ function ask() {
               stroke-linejoin="round"
             />
           </svg>
-          <span>Say hi</span>
+          <span>{{ w.sayHi }}</span>
         </button>
       </div>
     </div>

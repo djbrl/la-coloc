@@ -6,6 +6,7 @@ import CoreStatus from "./components/CoreStatus.vue";
 import SettingsPane from "./components/SettingsPane.vue";
 import { logout, me, meLoaded } from "./session";
 import { lobbyUi, settings, settingsPane } from "./settings";
+import { hudWords as w } from "./components/lobby/words";
 
 const route = useRoute();
 const router = useRouter();
@@ -45,10 +46,10 @@ const gear = (() => {
 </script>
 
 <template>
-  <a class="skip" href="#main">Skip to content</a>
+  <a class="skip" href="#main">{{ w.skip }}</a>
   <!-- The lobby can ask for the bar to go (the tutorial does, until its last step). -->
   <header v-show="lobbyUi.chrome" class="bar" :class="{ float: fullscreen }">
-    <nav class="inner" aria-label="Main">
+    <nav class="inner" :aria-label="w.main">
       <RouterLink to="/" class="logo">La Coloc</RouterLink>
       <div class="side">
         <template v-if="meLoaded">
@@ -56,13 +57,13 @@ const gear = (() => {
             <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item house">{{ h.name }}</RouterLink>
             <span class="item me">
               <Avatar :person="me" :size="26" decorative />
-              <span class="sr-only">Logged in as {{ me.login }}</span>
+              <span class="sr-only">{{ w.loggedInAs(me.login) }}</span>
             </span>
-            <button class="item text" @click="leave">Log out</button>
+            <button class="item text" @click="leave">{{ w.logOut }}</button>
           </template>
-          <RouterLink v-else to="/login" class="item">Log in</RouterLink>
+          <RouterLink v-else to="/login" class="item">{{ w.logIn }}</RouterLink>
         </template>
-        <button class="item icon" aria-label="Settings" :aria-expanded="settingsPane.open" @click="settingsPane.open = true">
+        <button class="item icon" :aria-label="w.settings" :aria-expanded="settingsPane.open" @click="settingsPane.open = true">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="gear" fill="currentColor" fill-rule="evenodd" /></svg>
         </button>
       </div>

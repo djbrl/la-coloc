@@ -2,11 +2,7 @@
 // the faces under its name (Crew.vue), the window's rundown (Rundown.vue), the bill and the tontine (exchange.ts)
 // and paying a share (PayBill.vue). The things themselves (a house, a room, a knock) are named in panel/words.ts.
 // The French says "vous", like the rest of the site, and keeps names (houses, rooms, projects, people) as they are.
-import { defineWords } from "../../../i18n";
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-// French counts 0 and 1 as singular: "0 revue", "1 revue", "2 revues".
-const pluriel = (n: number, one: string, many: string) => `${n} ${n <= 1 ? one : many}`;
+import { defineWords, plural, pluriel } from "../../../i18n";
 
 export const houseWords = defineWords(
   "house",

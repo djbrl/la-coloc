@@ -49,6 +49,11 @@ export function setLang(lang: Lang) {
 /** The locale for dates and numbers (Intl): French as written in France and West Africa, English as in Britain. */
 export const locale = (lang: Lang = language.lang) => (lang === "fr" ? "fr-FR" : "en-GB");
 
+/** "1 room", "2 rooms": English counts only 1 as singular. For the English dictionaries. */
+export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** "0 chambre", "1 chambre", "2 chambres": French counts 0 and 1 as singular. For the French dictionaries. */
+export const pluriel = (n: number, one: string, many: string) => `${n} ${n <= 1 ? one : many}`;
+
 /** "0.5" or "0,5": a number as the current language writes it. */
 export const num = (n: number) => new Intl.NumberFormat(locale()).format(n);
 

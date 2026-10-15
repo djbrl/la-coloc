@@ -8,6 +8,7 @@ import ApplicationPage from "../../pages/ApplicationPage.vue";
 import HouseInside from "./HouseInside.vue";
 import RoomPage from "../../pages/RoomPage.vue";
 import { type Place, placeFromPath, placeKey } from "./place";
+import { hudWords as w } from "./words";
 
 const props = defineProps<{
   start: Place;
@@ -88,7 +89,7 @@ watch(topKey, async (now) => {
 
 const fallback = computed(() => {
   const t = top.value;
-  return !t ? "" : t.kind === "house" ? "Inside a house" : t.kind === "application" ? "A knock" : "A room";
+  return !t ? "" : t.kind === "house" ? w.insideHouse : t.kind === "application" ? w.aKnock : w.aRoom;
 });
 
 // Links stay inside. A click on any site link in the sheet is caught before RouterLink sees it: house, room and
@@ -172,10 +173,10 @@ function trapTab(e: KeyboardEvent) {
       <div class="bar">
         <button v-if="stack.length > 1" type="button" class="back-btn" @click="back">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-          Back
+          {{ w.back }}
         </button>
         <span v-else />
-        <button type="button" class="close" aria-label="Close" @click="closeAll">
+        <button type="button" class="close" :aria-label="w.close" @click="closeAll">
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
         </button>
       </div>

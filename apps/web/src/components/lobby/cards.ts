@@ -2,6 +2,7 @@
 import type { Resident } from "../../lobby/Lobby";
 import type { CityHouse, Me } from "../../types";
 import type { Place } from "./place";
+import { cardWords as w } from "./words";
 
 // A room as the city lists it (fewer fields than the house page's Room).
 export type CityRoom = CityHouse["rooms"][number];
@@ -17,9 +18,9 @@ export const freeRooms = (h: CityHouse): CityRoom[] => h.rooms.filter((r) => !r.
 
 /** "Still finding its flatmates." / "2 rooms free." / "Full." */
 export function statusLine(h: CityHouse): string {
-  if (h.status === "making") return "Still finding its flatmates.";
+  if (h.status === "making") return w.stillFinding;
   const n = freeRooms(h).length;
-  return n ? `${plural(n, "room", "rooms")} free.` : "Full.";
+  return n ? w.roomsFree(n) : w.full;
 }
 
 /** Ends a phrase with a full stop, unless it already has one. */
@@ -28,20 +29,20 @@ export const sentence = (s: string) => (/[.!?…]$/.test(s.trim()) ? s.trim() : 
 /** "Fatou", "Fatou and Moussa", "Fatou, Moussa and Awa". */
 export function listNames(names: string[]): string {
   if (names.length <= 1) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${names.slice(0, -1).join(", ")} ${w.and} ${names[names.length - 1]}`;
 }
 
 /** "4 rooms, 1 free" / "4 rooms, full" / "1 room, free": how big a house is, and whether there's space. */
 export function roomsLine(h: Pick<CityHouse, "rooms">): string {
   const total = h.rooms.length;
   const free = h.rooms.filter((r) => !r.occupant).length;
-  if (total === 1) return `1 room, ${free ? "free" : "taken"}`;
-  return `${plural(total, "room", "rooms")}, ${free ? `${free} free` : "full"}`;
+  if (total === 1) return w.oneRoom(free > 0);
+  return w.rooms(total, free);
 }
 
 /** "@moussa · lives in Sacré-Cœur, Dakar", or null for someone just visiting (the card says so in words). */
 export function homeLine(login: string, home: Pick<Home, "houseName" | "city"> | null): string | null {
-  return home ? `@${login} · lives in ${home.houseName}, ${home.city}` : null;
+  return home ? w.livesIn(login, home.houseName, home.city) : null;
 }
 
 /** Someone's room in their house, as the city lists it: where their project's name, words and state live. */

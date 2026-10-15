@@ -10,6 +10,7 @@ import { type CityRoom, knockOn, listNames, nameOf, roomsLine, sentence } from "
 import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { explain, houseLine, houseState } from "./panel/words";
+import { cardWords as w } from "./words";
 
 const props = defineProps<{
   house: CityHouse;
@@ -40,20 +41,20 @@ const what = computed(() => (props.house.tagline ? sentence(props.house.tagline)
 const hereLine = computed(() => {
   const names = props.house.rooms.filter((r) => r.occupant && props.others.has(r.occupant.login)).map((r) => nameOf(r.occupant!));
   if (!names.length) return "";
-  return `${listNames(names)} ${names.length === 1 ? "is" : "are"} here right now.`;
+  return w.hereNow(listNames(names), names.length > 1);
 });
 </script>
 
 <template>
-  <LobbyCard :label="`${house.name}, a house in ${house.city}`">
+  <LobbyCard :label="w.houseLabel(house.name, house.city)">
     <h2>{{ house.name }}</h2>
-    <button class="x" aria-label="Close (Esc)" @click="emit('close')">
+    <button class="x" :aria-label="w.close" @click="emit('close')">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
     </button>
     <p class="where small"><StatusDot :state="state" /><span class="soft">{{ where }}</span></p>
     <p class="what">{{ what }}</p>
-    <p v-if="house.demo && !mine" class="soft small">Nobody's in to answer the door.</p>
-    <p v-if="mine" class="soft small">This is your house.</p>
+    <p v-if="house.demo && !mine" class="soft small">{{ w.nobodyIn }}</p>
+    <p v-if="mine" class="soft small">{{ w.yourHouse }}</p>
     <p v-else-if="hereLine" class="soft small">{{ hereLine }}</p>
 
     <ul class="rooms">
@@ -62,29 +63,29 @@ const hereLine = computed(() => {
           <Avatar :person="room.occupant" :size="30" decorative />
           <span class="grow">
             <strong>{{ nameOf(room.occupant) }}</strong>
-            <span class="soft small line">{{ room.project ? `Builds ${room.project}` : `Room ${room.name}` }}</span>
+            <span class="soft small line">{{ room.project ? w.builds(room.project) : w.room(room.name) }}</span>
           </span>
         </template>
         <template v-else>
           <span class="door" aria-hidden="true" />
           <span class="grow">
-            <strong>Free</strong><span class="soft">, {{ room.name }}</span>
-            <span class="soft small line">{{ room.ad ? sentence(room.ad) : "Open to anyone who ships." }}</span>
+            <strong>{{ w.free }}</strong><span class="soft">, {{ room.name }}</span>
+            <span class="soft small line">{{ room.ad ? sentence(room.ad) : w.openToAll }}</span>
           </span>
-          <button v-if="canKnock" class="big knock" :aria-label="`Knock on room ${room.name}`" @click="emit('knock', room)">Knock</button>
-          <span v-else-if="knock?.room === room.name" class="yours small">Knocked</span>
+          <button v-if="canKnock" class="big knock" :aria-label="w.knockName(room.name)" @click="emit('knock', room)">{{ w.knock }}</button>
+          <span v-else-if="knock?.room === room.name" class="yours small">{{ w.knocked }}</span>
         </template>
       </li>
     </ul>
 
     <div class="menu">
       <button class="big primary" @click="emit('enter')">
-        <Icon name="door" :size="20" /> Go in <kbd v-if="near" aria-hidden="true">E</kbd>
+        <Icon name="door" :size="20" /> {{ w.goIn }} <kbd v-if="near" aria-hidden="true">E</kbd>
       </button>
       <div v-if="knock || !near || (free.length && !me && !house.demo)" class="tiles">
-        <button v-if="knock" class="big tile" @click="emit('thread', knock.id)"><Icon name="thread" :size="22" /><span>Your knock</span></button>
-        <RouterLink v-else-if="free.length && !me && !house.demo" to="/login" class="big tile"><Icon name="login" :size="22" /><span>Log in to knock</span></RouterLink>
-        <button v-if="!near" class="big tile" @click="emit('walk')"><Icon name="next" :size="22" /><span>Walk there</span></button>
+        <button v-if="knock" class="big tile" @click="emit('thread', knock.id)"><Icon name="thread" :size="22" /><span>{{ w.yourKnock }}</span></button>
+        <RouterLink v-else-if="free.length && !me && !house.demo" to="/login" class="big tile"><Icon name="login" :size="22" /><span>{{ w.logInToKnock }}</span></RouterLink>
+        <button v-if="!near" class="big tile" @click="emit('walk')"><Icon name="next" :size="22" /><span>{{ w.walkThere }}</span></button>
       </div>
     </div>
   </LobbyCard>

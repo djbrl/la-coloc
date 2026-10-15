@@ -2,24 +2,19 @@
 // The city's loading screen, like a game's: the name in bold, what it is in one line (the one moment we're sure
 // to be read), a chunky progress bar, and one fact at a time on a small floating card. In the site's colours, so
 // it follows day and night.
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { hudWords as w } from "./lobby/words";
 
 const props = withDefaults(defineProps<{ progress?: number | null; leaving?: boolean }>(), { progress: null, leaving: false });
 
-const TIPS = [
-  "Each house is one server, shared by the developers who live in it.",
-  "Every lit window is someone's project. Blue ones are free rooms.",
-  "Knock on a free room. If the house votes yes, you move in.",
-  "Rent is split by what each room actually uses.",
-  "Part of the rent is paid in code reviews.",
-  "Merge a pull request and your room puts it online.",
-];
+// One fact at a time, in the language chosen now (lobby/words.ts).
+const facts = computed(() => w.loadingTips);
 const tip = ref(0);
 let timer: number | undefined;
 
 onMounted(() => {
-  tip.value = Math.floor(Math.random() * TIPS.length);
-  timer = window.setInterval(() => (tip.value = (tip.value + 1) % TIPS.length), 3200);
+  tip.value = Math.floor(Math.random() * facts.value.length);
+  timer = window.setInterval(() => (tip.value = (tip.value + 1) % facts.value.length), 3200);
 });
 onBeforeUnmount(() => clearInterval(timer));
 </script>
@@ -28,12 +23,12 @@ onBeforeUnmount(() => clearInterval(timer));
   <div class="loading" :class="{ leaving: props.leaving }" role="status" aria-live="polite">
     <div class="center">
       <p class="name">La Coloc</p>
-      <p class="pitch">A city of dev houses, from Dakar to Kigali.</p>
-      <div class="track" :aria-label="props.progress === null ? 'Loading' : `Loading, ${Math.round(props.progress * 100)} percent`">
+      <p class="pitch">{{ w.pitch }}</p>
+      <div class="track" :aria-label="props.progress === null ? w.loading : w.loadingPercent(Math.round(props.progress * 100))">
         <div class="bar" :class="{ unknown: props.progress === null }" :style="props.progress === null ? {} : { width: `${Math.max(4, props.progress * 100)}%` }" />
       </div>
       <Transition name="tip" mode="out-in">
-        <p :key="tip" class="tip">{{ TIPS[tip] }}</p>
+        <p :key="tip" class="tip">{{ facts[tip] }}</p>
       </Transition>
     </div>
   </div>

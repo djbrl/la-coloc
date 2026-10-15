@@ -13,6 +13,7 @@ import { core, retryNow } from "../core";
 import { lobbyUi } from "../settings";
 import { signalOff } from "./coreIcons";
 import Icon from "./lobby/house/Icon.vue";
+import { hudWords as w } from "./lobby/words";
 
 const folded = ref(false);
 // A new fall always opens the card again, even if the last one was hidden.
@@ -26,13 +27,13 @@ const back = computed(() => core.state === "up" && core.recovered);
 const shown = computed(() => down.value || back.value);
 
 const countdown = computed(() => {
-  if (core.probing) return "Trying now…";
-  if (core.retryIn > 0) return `Trying again in ${core.retryIn}s…`;
-  return "Trying again…";
+  if (core.probing) return w.tryingNow;
+  if (core.retryIn > 0) return w.tryingIn(core.retryIn);
+  return w.tryingAgain;
 });
 
 // What a screen reader hears when the card appears; it doesn't change while it counts down.
-const said = computed(() => (back.value ? "Back online." : "The city can't be reached. Your rooms keep running. We'll reconnect on our own."));
+const said = computed(() => (back.value ? `${w.backOnline}.` : `${w.downTitle}. ${w.downLine}`));
 
 // The lobby's HUD at the top makes room for the card (its CSS reads --core-offset), so nothing is hidden under it.
 const root = ref<HTMLElement | null>(null);
@@ -64,14 +65,14 @@ onBeforeUnmount(() => {
         <!-- Back online, for a moment. -->
         <div v-if="back" class="row">
           <span class="tile live" aria-hidden="true"><Icon name="tick" :size="22" /></span>
-          <p class="title">Back online</p>
+          <p class="title">{{ w.backOnline }}</p>
         </div>
 
         <!-- Folded: a small pill that opens it again. -->
         <button v-else-if="folded" type="button" class="fold" @click="folded = false">
           <span class="sign" aria-hidden="true" />
-          Offline · retrying
-          <span class="sr-only">. Show details.</span>
+          {{ w.offline }}
+          <span class="sr-only">{{ w.showDetails }}</span>
         </button>
 
         <div v-else class="full">
@@ -79,14 +80,14 @@ onBeforeUnmount(() => {
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="signalOff" /></svg>
           </span>
           <div class="words">
-            <p class="title" aria-hidden="true">The city can't be reached</p>
-            <p class="line" aria-hidden="true">Your rooms keep running. We'll reconnect on our own.</p>
+            <p class="title" aria-hidden="true">{{ w.downTitle }}</p>
+            <p class="line" aria-hidden="true">{{ w.downLine }}</p>
             <div class="act">
-              <button type="button" class="primary" :disabled="core.probing" @click="retryNow()">Try now</button>
+              <button type="button" class="primary" :disabled="core.probing" @click="retryNow()">{{ w.tryNow }}</button>
               <span class="count" aria-hidden="true">{{ countdown }}</span>
             </div>
           </div>
-          <button type="button" class="hide" aria-label="Hide" title="Hide" @click="folded = true">
+          <button type="button" class="hide" :aria-label="w.hide" :title="w.hide" @click="folded = true">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
         </div>

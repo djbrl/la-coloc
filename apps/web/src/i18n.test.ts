@@ -7,10 +7,11 @@ import { explain, houseLine, roomLine } from "./components/lobby/panel/words";
 import { TIP_TEXT } from "./components/lobby/tutorial/tips";
 import { goingWord } from "./components/lobby/tutorial/tutorial";
 import { tutorialWords } from "./components/lobby/tutorial/words";
+import { cardWords, hudWords } from "./components/lobby/words";
 import { defineWords, dictionaries, langFrom, language, nbsp, startingLang, type Words } from "./i18n";
 
 // Every dictionary the site has. Importing the modules above registers them; a new one belongs in this list.
-const AREAS = ["explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common"];
+const AREAS = ["explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common", "cards", "hud"];
 
 // Every path to a leaf ("tour.next", "room.live"), with what's there.
 function leaves(words: object, path = ""): Map<string, unknown> {
@@ -119,6 +120,8 @@ describe("reading words", () => {
     expect(TIP_TEXT.dash.keys).toBe("Appuyez sur {Maj} pour sprinter.");
     expect(lobbyWords.online(0)).toBe("0 projet en ligne");
     expect(lobbyWords.online(2)).toBe("2 projets en ligne");
+    expect(cardWords.rooms(4, 1)).toBe("4 chambres, 1 libre");
+    expect(hudWords.loadingTips).toHaveLength(6);
   });
 
   it("says the bill and the tontine in French, with French dates", () => {
