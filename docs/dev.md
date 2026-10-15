@@ -206,8 +206,9 @@ Go to `http://localhost:5173/login` and choose "Use a development login". Pick `
 `awa`, `moussa` or `koffi`, or type any new name to be a stranger. Each login is a separate person: use a private
 window to be two people at once.
 
-- A new person gets the **tutorial**: walk to the workshop, take a room, put the sample online (this is what the workshop's caretaker is for),
-  open it at `http://tuto-<login>.atelier.coloc.localhost:8000`. Retake it from the lobby's settings.
+- A new person gets the **quest "Your first home"**: follow the light to the workshop, take a room, put the starter page online (this is
+  what the workshop's caretaker is for), open it at `http://<login>.atelier.coloc.localhost:8000` (`<login>-home` when that room name is
+  already used in another house, as for `jib`), share it, meet the house. Retake it from the lobby's settings.
 - The **settings** (the gear in the top bar) hold the day / night switch, the list view, the tutorial retake and, for admins such as
   `jib`, the demo reset.
 - To knock on a free room: log in as someone new, walk to Sacré-Cœur's `room-4` and knock. A majority of the flatmates decides, so
@@ -225,7 +226,7 @@ it lists the site, the API, every house and its rooms, and the tools. The short 
 | The list view's pages | http://localhost:5173/houses/sacre-coeur |
 | The API | http://127.0.0.1:4100/api (`/api/city`, `/api/houses/sacre-coeur`) |
 | A room, through Traefik | http://jib.coloc.localhost:8000 (the project in room `jib`) |
-| A workshop room | http://tuto-\<your login\>.atelier.coloc.localhost:8000 |
+| A workshop room | http://\<your login\>.atelier.coloc.localhost:8000 (or \<your login\>-home) |
 | The GitHub App setup page | http://localhost:4101 (`npm run dev:github-app`, only while it runs) |
 | Postgres | `postgres://coloc:coloc-dev-only@127.0.0.1:5433/coloc` |
 

@@ -59,8 +59,8 @@ can also **team up** to build one project together. Devs exchange reviews, skill
 | **A room** | Your hosting space | Docker container(s) on a private network, with fixed RAM/CPU caps and a subdomain |
 | **The front door** | Your public link | Traefik proxy: `jib.sacre-coeur.coloc.dev`, automatic HTTPS |
 | **The kitchen** | Shared database | One Postgres; each room gets its own database and password, no access to others |
-| **Chores** | Code reviews | Each PR gets a flatmate reviewer, assigned on a rotation |
-| **The fridge door** | Notifications | Automatic notes: hogging, skipped reviews, thanks |
+| **Chores** (shown as **Reviews** in the app, since 15 10) | Code reviews | Each PR gets a flatmate reviewer, assigned on a rotation. Each review done takes 500 FCFA off the reviewer's rent |
+| **The fridge door** (shown as **News** in the app, since 15 10) | Notifications | Automatic notes pinned on the house's notice board: a new version online, hogging, skipped reviews, thanks, someone moving in |
 | **Rent** | Monthly bill | Server cost split by measured usage, paid by Wave/Orange Money link |
 | **Guests** | PR previews | A temporary copy of your app for the reviewer to try. *As built: removed as soon as the PR closes (the plan said 24 hours later)* |
 | **The tontine** | Turn-based focus | Each cycle, one room's project gets priority reviews and launch-week perks |
@@ -68,6 +68,14 @@ can also **team up** to build one project together. Devs exchange reviews, skill
 | **The exchange ledger** | Reviews given / received | On every profile and house page: who helped whom. Your reputation in the city |
 
 ## The lifecycle
+
+### The first visit: "Your first home" (built 15 10)
+Before the city, a newcomer plays a short quest in eight chapters, on a street of its own: **arrive** (walk),
+**find a home** (follow a light to L'Atelier, the newcomers' house), **get the keys** (a free room there is theirs, named after
+them), **bring a project** (a ready-made "I just moved in" page in one press, or one of their own repos linked from GitHub),
+**launch it** (fetching → building → starting → live, with a crane and fireworks), **open it** (their address), **show it off**
+(copy, WhatsApp, a QR code) and **meet the house** (flatmates, reviews, news). It ends on "Welcome home", then the city.
+Their workshop room stays theirs; a real house comes later, by knocking. Details: [build-notes](build-notes.md).
 
 ### 0. Finding a house
 1. You log in with GitHub. Your profile is built from it: repos, languages, what you've shipped.

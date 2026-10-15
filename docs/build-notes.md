@@ -632,3 +632,107 @@ It is all on the branch `ui-refresh`, six commits on top of `d452316`. Not mergi
 - `.toggle` and `.segmented` are now global classes in `style.css`; a component that uses those names for something
   else would inherit them (none does today).
 - The orange fill is the same in both themes; the disabled primary in night reads a little brown.
+
+## 15 → 16 10 2026, overnight: "Your first home", the first visit as a quest (branch `first-home`)
+
+Jib's ask: gamify getting your first server running; make GitHub, deploy and "your URL" fun and dumb easy, one step at a
+time, ending with the project live and shared; make the deployed page look like something; simplify the fridge and the
+chores. Built on `ui-refresh-fr` (French and the new look). Claude Code led and wrote the quest; three subagents did the API
+and the starter page, the house panel, and the engine (beacon, minimap pin, sounds), on disjoint files; a fourth wrote a
+throwaway stand-in API for the browser checks (not committed). Every diff was read before committing.
+
+### The quest, as a player meets it
+A tracker at the top holds eight stamps on a string; the chapter you're in breathes, a finished one is stamped in the
+orange with a thump and a line of news ("Chapter 3 done. Well done!"). Each chapter is one card at the bottom, and moves
+on by itself when the game sees it done.
+
+| # | Chapter | What you see and do | Detected by |
+|---|---|---|---|
+| 1 | Arrive | The welcome card ("In five minutes: your own room, your project online, and a link to show your friends."), then walk | a walk key, a click or a tap |
+| 2 | Find a home | The camera flies to an orange **beacon** at L'Atelier's door (a ring, a column of light, a diamond) and back; the minimap pins it; walk there, press E; the window opens; take the free room | going in; the API saying the room is yours |
+| 3 | Get the keys | The window closes; a card drops a **key** on a ring with your room's name on its tag; the keys jingle. "Move in" | one press (a ceremony) |
+| 4 | Bring a project | Two tiles: **A ready-made page** (one press) or **My own, from GitHub** (opens the App's install page, where GitHub lists your repos; the card waits, then says "you/repo is linked" and offers "Put it online") | the API accepting the deploy; the API seeing the repo linked |
+| 5 | Launch it | The crane on the house; a track of four stages in plain words (fetching your code → building → starting → live) with a tick for each, a clock, a striped bar; "It's live!", fireworks, your window lights up. A failure shows the build's own first line, "Try again", and (from GitHub) "Use the ready-made page" | the room's status from the API |
+| 6 | Open it | Your address, big, in the monospace; one big "Open it" | the click on it (or on your room's link in the house's window) |
+| 7 | Show it off | A **postcard**: your house drawn with your window lit, "From L'Atelier, Dakar", your address, a **QR code** to scan with your phone (desktop only), "Copy the link", "WhatsApp" (a `wa.me` link with the message ready) and "Share…" (the phone's share sheet where there is one); "Later" | copy, WhatsApp or share |
+| 8 | Meet the house | The house's window opens on the tab each card is about, one idea per card: your flatmates; reviews ("Your flatmates review your code; you review theirs. Each review takes 500 FCFA off your rent."); news ("…your move is on it", the house's own welcome note) | Next (it's reading) |
+| — | Welcome home | Your house drawn big, "Welcome home, Jib.", all eight stamps, your address, what's next; "Into the city" marks the quest done | |
+
+**Resumable:** the API keeps the furthest chapter (`users.tutorial_chapter`). Coming back, the first card says "Welcome back.
+You were at chapter 5: Launch it." with **Continue** (and "From the start"). Continue starts that chapter again from what it
+needs: a failed launch goes back to choosing the project, a live one goes to its address, a lost room goes back to the door.
+From chapter 3 on you're put straight at the workshop's door. **Skippable:** "Not now" on the first card, a × on every card
+(the quest is in settings). One thing at a time: the screen starts empty; the tracker comes with chapter 2, the map and the
+door prompt only while you look for the house, the rest of the HUD once you have a room (on a phone the round tools wait
+for the city, and the map moves under the tracker while it points the way).
+
+### The house panel, simplified (for everyone, not just the quest)
+- The tabs say **Reviews** (was Chores) and **News** (was Fridge); the API keeps `chores` and `fridge`.
+- Each tab opens on **one sentence about you**: "You have 1 review to do. Each one takes 500 FCFA off your rent." / "1 of your
+  reviews is late…" / "Nothing for you to review…" / "3 notes this week." / the bill's total. A round **?** unfolds what the
+  part is and why it matters (`panel/Explain.vue`, a disclosure button), so the simple version comes first.
+- Reviews read as sentences, yours first ("Review Aïssatou's “Add a photo of Gorée”", "Due in 5h · repo#4"); the house's other
+  reviews wait behind "See the house's other reviews (1)".
+- News rows show the note itself (two lines), with an icon by kind (heart, warning, alert, info) and "14:02", "Yesterday" or
+  a date.
+
+### The starter page (`examples/hello/server.js`)
+"Nanga def, Jib! I just moved in. Room jib of L'Atelier, Dakar." with its own address (from the Host header), a hand-drawn
+house in inline SVG (baobab, wax-print band, your window lit, your room on the door plaque; sun by day, moon and stars by
+night), a "Make it yours" card, and "Made in La Coloc" with when it started and the container. English or French by the
+browser's language. Still one file and no dependency, built by the same Dockerfile; still JSON for curl. It reads the room
+context variables the API already sets (`COLOC_ROOM`, `COLOC_HOUSE`, `COLOC_CITY`, `COLOC_NAME`…).
+
+### Where it is
+| What | Where |
+|---|---|
+| The step machine: chapters, steps, what each step reveals and allows, the stamps, resuming, the launch's stages (pure, tests) | `apps/web/src/components/lobby/tutorial/tutorial.ts`, `tutorial.test.ts` |
+| Talking to the API (poll while a step waits, take a room, deploy the starter or the repo, save the chapter, finish) | `tutorial/useTutorial.ts` |
+| The cards: coach, tracker, keys, launch, share (postcard, QR), Welcome home, the welcome / welcome back, the drawing, the icons | `tutorial/Coach.vue`, `QuestTracker.vue`, `KeysCard.vue`, `LaunchCard.vue`, `ShareCard.vue`, `HomeCard.vue`, `Welcome.vue`, `HouseArt.vue`, `QuestIcon.vue` |
+| WhatsApp link and the QR code as one SVG path (`uqr`, MIT) | `tutorial/share.ts` |
+| Words, English and French | `tutorial/words.ts` |
+| Wiring into the lobby (beacon, map pin, camera, closing and opening the window, fireworks, sounds, phone layout) | `components/LobbyView.vue` |
+| Beacon, `houseSpot`, minimap `goal`, sounds `stamp`, `keys`, `tick` | `lobby/beacon.ts`, `lobby/Lobby.ts`, `components/lobby/Minimap.vue`, `lobby/sound.ts` |
+| House panel: summary + "?", Reviews and News | `panel/Explain.vue`, `panel/Panel.vue`, `HouseInside.vue`, `house/chores.ts`, `house/notes.ts`, `FridgeDoor.vue` |
+| API: chapter (migration `0012_tutorial_chapter`), `POST /api/tutorial/progress`, `deploy { source }`, `room.why`, `github.repo`, room named after you, the welcome note | `apps/api/src/tutorial/*`, `packages/db` |
+
+### How to explain it to the jury
+- **The quest is a state machine with no I/O.** `TutorialMachine.send(event)` moves between steps; LobbyView only reports what
+  happened (a key, a click, the API's latest word) and applies what the step allows (`SETUP[step]`: controls, HUD pieces,
+  polling, beacon). That's why it has 30 plain tests and no browser in them.
+- **Detected, not clicked:** the API is polled every 2 s while a step waits on it (room, project, launch, address); the
+  launch's stage is the deployment's own step (`cloning`, `building`, `starting`) that the caretaker already reports.
+- **The API remembers only facts** (the room, its deploys, the linked repo) plus one number: the furthest chapter. The story
+  is the web's.
+- **Room names are unique across houses on purpose:** a caretaker names a room's Docker network after the room alone, and the
+  workshop may share a machine with another house; so Jib, who has room "jib" in Sacré-Cœur, gets "jib-home".
+
+### Verified
+- `npm run build` (vue-tsc and Vite), `npm test` (472: db 13, domain 22, protocol 4, agent 13, API 202, web 218) and
+  `npm run licences:check` pass.
+- **In a browser**, headless Chrome against the throwaway stand-in API (Docker, Postgres and the real API were not touched),
+  the whole quest end to end: 1280×720 day in English (starter path), 1280×720 night in French, 375×812 night in French
+  (GitHub path, with the link simulated), a failed first build then "Welcome back" → Continue, and the city after it.
+  Screenshots in `docs/screenshots/first-home/`. The starter page at 1280 and 375, day and night, English and French.
+- **Not seen for real:** a build by a real caretaker (Docker), a real GitHub App install, the welcome note and the progress
+  column on a real Postgres (both tested on PGlite), the house panel at 1280×640 with a long list and the "?" open, real
+  touch on a phone (the headless phone was a narrow window with a mouse), and the sounds by ear.
+
+### Try it with the real stack
+1. Merge or check out `first-home`, `npm ci`, `npm run build:packages`, start the API (it migrates on start: one new column).
+2. The quest deploys the starter from `COLOC_TUTORIAL_REPO` at `examples/hello`, on `main`. Locally that's `file://$PWD`
+   ([dev.md](dev.md)): **the new starter page only shows once this branch is on the clone's `main`** (or point
+   `COLOC_TUTORIAL_REPO` at a clone whose `main` has it). On the real server the repo must be public (TODO M7).
+3. Run the workshop's caretaker (dev.md, terminal 4), log in as a new name (or Settings → take the quest again), play it.
+4. GitHub path: with the dev App configured, "My own, from GitHub" opens its install page; pick one repo. The first repo goes
+   to the workshop room (`ChoresService.linkRepos`), then "Put it online" builds it from its root.
+
+### Rough edges
+- The QR can't tell us it was scanned, so sharing is detected only from copy, WhatsApp or the share sheet ("Later" is fine).
+- On a phone, chapter 8's card sits over the lower half of the house's sheet; the tab and its sentence stay visible.
+- The house's welcome note is written by the API, in English, like the other fridge notes.
+- GitHub: if the installer picks several repos, only the first goes to the workshop room (unchanged rule).
+- The quest's house is still called L'Atelier ("the workshop"); renaming it is a seed change if Jib wants a homier name.
+- The 3D house name tag can sit just above the tracker when the camera frames the house.
+- New French to check: the chapters ("Trouver un toit", "Prendre les clés", "Le lancer", "Le montrer"), "Votre premier
+  chez-vous", "Bienvenue chez vous", "À vous de jouer" (starter page), "Nouvelles" for News, "Revues".
