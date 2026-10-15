@@ -140,12 +140,10 @@ export const lobbyWords = defineWords(
     inWorkshop: (place: string) => `You're in ${place}, the tutorial's workshop`,
     inCity: (city: string) => `You're in ${city}. Travel to another city`,
     afterTutorial: "After the tutorial.",
-    // The top line: "Dakar: 7 projects online, 1 building, 2 reviews waiting."
-    online: (n: number) => `${plural(n, "project", "projects")} online`,
-    noneOnline: "no project online yet",
-    building: (n: number) => `${n} building`,
-    reviewsWaiting: (n: number) => plural(n, "review waiting", "reviews waiting"),
+    // The top chip, only when something needs attention: "Dakar: Sacré-Cœur's server is down."
     cityLine: (city: string, line: string) => `${city}: ${line}`,
+    alertDown: (houses: string[]) => (houses.length === 1 ? `${houses[0]}'s server is down.` : `${houses.length} servers are down: ${houses.join(", ")}.`),
+    alertFailed: (n: number) => `${plural(n, "build", "builds")} failed.`,
     // The news: a project went online.
     projectOnline: (first: string, project: string, city: string | null) => `${first}'s ${project} is online${city ? `, in ${city}` : ""}.`,
     roomOnline: (first: string, house: string, city: string | null) => `${first}'s room in ${house} is online${city ? `, in ${city}` : ""}.`,
@@ -166,8 +164,6 @@ export const lobbyWords = defineWords(
     sayHi: "Say hi",
     board: "The chores board",
     boardWhere: (city: string) => `, reviews waiting in ${city}`,
-    thumbsUp: "Thumbs up (1)",
-    thumbsDown: "Thumbs down (2)",
     stage: (place: string) =>
       `${place}, a neighbourhood you can walk around in 3D. W A S D walks, E goes in, the question mark lists every key. The list view in settings shows the same houses as text.`,
     findTitle: "Find a house",
@@ -178,9 +174,11 @@ export const lobbyWords = defineWords(
     close: "Close (Esc)",
     travelName: "Travel to another city",
     whereTo: "Where to?",
-    youreHere: ", you're here",
-    cityRow: (houses: number, people: number, time: string) =>
-      `${plural(houses, "house", "houses")}, ${people ? `${plural(people, "person", "people")} walking around` : "nobody walking around"}${time ? `. It's ${time} there` : ""}.`,
+    // A city's stats in the travel menu, as icon chips; these are their hidden names.
+    walking: (n: number) => `${plural(n, "person", "people")} walking around`,
+    houses: (n: number) => plural(n, "house", "houses"),
+    online: (n: number) => `${plural(n, "project", "projects")} online`,
+    timeThere: (time: string) => `It's ${time} there`,
     aKnock: "A knock",
   },
   {
@@ -188,11 +186,9 @@ export const lobbyWords = defineWords(
     inWorkshop: (place) => `Vous êtes à ${place}, l'atelier du tutoriel`,
     inCity: (city) => `Vous êtes à ${city}. Aller dans une autre ville`,
     afterTutorial: "Après le tutoriel.",
-    online: (n) => `${pluriel(n, "projet", "projets")} en ligne`,
-    noneOnline: "aucun projet en ligne pour l'instant",
-    building: (n) => `${n} en construction`,
-    reviewsWaiting: (n) => pluriel(n, "revue en attente", "revues en attente"),
     cityLine: (city, line) => `${city} : ${line}`,
+    alertDown: (houses) => (houses.length === 1 ? `Le serveur de ${houses[0]} est arrêté.` : `${houses.length} serveurs sont arrêtés : ${houses.join(", ")}.`),
+    alertFailed: (n) => `${pluriel(n, "construction a échoué", "constructions ont échoué")}.`,
     projectOnline: (first, project, city) => `${project}, le projet de ${first}, est en ligne${city ? `, à ${city}` : ""}.`,
     roomOnline: (first, house, city) => `La chambre de ${first} dans ${house} est en ligne${city ? `, à ${city}` : ""}.`,
     greeting: (meaning, language) => `« ${meaning} », en ${language}.`,
@@ -211,8 +207,6 @@ export const lobbyWords = defineWords(
     sayHi: "Dire bonjour",
     board: "Le tableau des corvées",
     boardWhere: (city) => `, revues en attente à ${city}`,
-    thumbsUp: "Pouce levé (1)",
-    thumbsDown: "Pouce baissé (2)",
     stage: (place) =>
       `${place}, un quartier où se promener en 3D. W A S D pour marcher, E pour entrer, le point d'interrogation liste toutes les touches. La vue en liste, dans les réglages, montre les mêmes maisons en texte.`,
     findTitle: "Trouver une maison",
@@ -223,9 +217,10 @@ export const lobbyWords = defineWords(
     close: "Fermer (Échap)",
     travelName: "Aller dans une autre ville",
     whereTo: "On va où ?",
-    youreHere: ", vous êtes ici",
-    cityRow: (houses, people, time) =>
-      `${pluriel(houses, "maison", "maisons")}, ${people ? `${pluriel(people, "personne", "personnes")} en balade` : "personne en balade"}${time ? `. Il est ${time} là-bas` : ""}.`,
+    walking: (n) => `${pluriel(n, "personne", "personnes")} en balade`,
+    houses: (n) => pluriel(n, "maison", "maisons"),
+    online: (n) => `${pluriel(n, "projet", "projets")} en ligne`,
+    timeThere: (time) => `Il est ${time} là-bas`,
     aKnock: "Une demande",
   },
 );

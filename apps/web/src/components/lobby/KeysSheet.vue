@@ -32,7 +32,6 @@ const groups = computed((): { name: string; rows: Control[] }[] => [
       { keys: ["E"], does: w.useOpen },
       { keys: ["]"], does: w.nextThing },
       { keys: ["["], does: w.previousThing },
-      { keys: ["1", "2"], does: w.react, or: true },
     ],
   },
   {

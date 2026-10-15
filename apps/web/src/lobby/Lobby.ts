@@ -728,7 +728,7 @@ export class Lobby {
 
   /**
    * Single-character keyboard shortcuts on or off (the "Keyboard shortcuts" setting, R6 / WCAG 2.1.4). Off: W A S D,
-   * E, Q, R, 1, 2, [ and ] do nothing; the arrow keys, Enter, Shift (dash) and Escape still work.
+   * E, Q, R, [ and ] do nothing; the arrow keys, Enter, Shift (dash) and Escape still work.
    */
   setShortcuts(on: boolean) {
     this.shortcuts = on;
@@ -1700,7 +1700,7 @@ export class Lobby {
     if (t?.closest?.('[aria-modal="true"], dialog')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
-    // Single-character shortcuts switched off in settings (WCAG 2.1.4): W A S D, E, Q, R, 1, 2, [ and ] do nothing.
+    // Single-character shortcuts switched off in settings (WCAG 2.1.4): W A S D, E, Q, R, [ and ] do nothing.
     // The arrows, Enter, Shift and Escape still work.
     if (!this.shortcuts && k.length === 1) return;
     const walk = WALK_KEYS.get(k);
@@ -1723,8 +1723,6 @@ export class Lobby {
     if (k === "e" || k === "enter") this.interact();
     if (k === "q") this.turnView(-1, !e.repeat);
     if (k === "r") this.turnView(1, !e.repeat);
-    if (k === "1") this.emote("yes");
-    if (k === "2") this.emote("no");
   };
 
   private keyup = (e: KeyboardEvent) => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The full-screen lobby, one neighbourhood (city) at a time, and everything that sits on top of it: loading, the
-// welcome, the prompt for whatever is in reach, emotes, the city's live activity, a card for the house, person,
+// welcome, the prompt for whatever is in reach, the city's live activity, a card for the house, person,
 // empty plot or chores board you picked, the inside of a house (its page, an application, a room) opened over the
 // city so you never leave it, a minimap you can travel from, the keys in the corner, short news and tips at the
 // top, and sheets to find a house or travel to another city on a map of Africa. The first time someone logged in
@@ -23,6 +23,8 @@ import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
 import type { CityHouse } from "../types";
 import KnockSteps from "./KnockSteps.vue";
 import { localTime } from "./lobby/africa";
+import { cityAlert, cityStats } from "./lobby/cityStats";
+import Icon from "./lobby/house/Icon.vue";
 import AfricaMap from "./lobby/AfricaMap.vue";
 import BoardCard from "./lobby/BoardCard.vue";
 import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam, statusLine } from "./lobby/cards";
@@ -809,7 +811,7 @@ watchEffect(() => {
   document.title = `${where} · La Coloc`;
 });
 
-// ---- Sheets, keys, emotes ----
+// ---- Sheets, keys, the wave ----
 
 // A sheet takes focus on its first control; closing it puts focus back on the stage.
 watch(sheet, async (now) => {
@@ -825,7 +827,7 @@ watch([bigMap, keysOpen], ([map, keys], [mapBefore, keysBefore]) => {
   if ((!map && mapBefore) || (!keys && keysBefore)) host.value?.focus({ preventScroll: true });
 });
 
-// The lobby's own keys (walking, E, Q, R, 1, 2, [ ], Shift) live in the engine. These are the ones around it.
+// The lobby's own keys (walking, E, Q, R, [ ], Shift) live in the engine. These are the ones around it.
 // Escape closes what's open wherever the focus is; the letters only work while the city has the keys.
 function onKey(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
@@ -874,27 +876,17 @@ const found = computed(() => {
   return props.houses.filter((h) => [h.name, h.city, h.tagline, ...h.rooms.flatMap((r) => [r.project, r.ad, r.occupant?.login])].join(" ").toLowerCase().includes(q));
 });
 
-// The top pill: what this city is doing right now, from the city stream. "Dakar: 7 projects online, 1 building,
-// 2 reviews waiting." Under 520px the city's name (already top left) is left out, so it fits on one line.
+// The top chip: only when something in this city needs attention (a real house's server down, a failed build;
+// cityStats.ts), said in one line: "Dakar: Sacré-Cœur's server is down." While all is well it says nothing (Jib,
+// 15 10). Under 520px the city's name (already top left) is left out, so it fits on one line.
 const activity = computed(() => {
   if (inWorkshop.value) return null;
-  // The city couldn't be loaded (the core is down): an empty street isn't news, so the pill says nothing.
+  // The city couldn't be loaded (the core is down): the core's own banner says so.
   if (core.state === "down" && !props.houses.length) return null;
-  let online = 0;
-  let building = 0;
-  let reviews = 0;
-  for (const h of here.value) {
-    for (const r of h.rooms) {
-      if (r.occupant && r.status === "live") online++;
-      if (r.building) building++;
-    }
-    reviews += h.openChores ?? 0;
-  }
-  const parts = [online ? w.online(online) : w.noneOnline];
-  if (building) parts.push(w.building(building));
-  if (reviews) parts.push(w.reviewsWaiting(reviews));
-  const line = `${parts.join(", ")}.`;
-  return { wide: w.cityLine(city.value, line), short: line[0].toUpperCase() + line.slice(1) };
+  const alert = cityAlert(here.value);
+  if (!alert) return null;
+  const line = alert.kind === "down" ? w.alertDown(alert.houses) : w.alertFailed(alert.rooms);
+  return { wide: w.cityLine(city.value, line), short: line, tone: alert.kind === "down" ? "danger" : "warn" };
 });
 
 // The travel menu's rows: each city's houses, who's walking around there right now, and its local time (the clock
@@ -909,8 +901,11 @@ watch(sheet, (s) => {
 });
 onBeforeUnmount(() => clearInterval(clock));
 const litCity = ref<string | null>(null);
-function cityLine(c: { name: string; houses: number }): string {
-  return w.cityRow(c.houses, census.value[c.name] ?? 0, localTime(c.name, now.value));
+// Each city's stats as chips: who's walking around, its houses, its projects online, and its local time.
+const statsByCity = computed(() => cityStats(props.houses));
+function statsOf(name: string) {
+  const s = statsByCity.value.get(name) ?? { houses: 0, online: 0 };
+  return { walking: census.value[name] ?? 0, houses: s.houses, online: s.online, time: localTime(name, now.value) };
 }
 </script>
 
@@ -931,8 +926,8 @@ function cityLine(c: { name: string; houses: number }): string {
         <QuestTracker :stamps="t.stamps" :current="t.chapter" />
       </div>
 
-      <!-- Top centre, in the city: what the city is doing right now. -->
-      <div v-if="!inWorkshop" class="hud top" aria-live="polite">
+      <!-- Top centre, in the city: what needs attention there, if anything. -->
+      <div v-if="!inWorkshop" class="hud top" :class="activity?.tone" aria-live="polite">
         <p v-if="activity && shows('here')">
           <span class="wide">{{ activity.wide }}</span>
           <span class="narrow">{{ activity.short }}</span>
@@ -1009,8 +1004,8 @@ function cityLine(c: { name: string; houses: number }): string {
         <KeyLegend v-if="shows('keys')" :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" />
       </div>
 
-      <!-- Bottom centre: the quest's coach, what's in reach (or highlighted with [ and ]) while no card is open, and
-           the emotes. The coach must stay usable over a house's window, so the column lifts above it; on a wide
+      <!-- Bottom centre: the quest's coach, what's in reach (or highlighted with [ and ]) while no card is open. The
+           HUD's thumbs up and down are gone (Jib, 15 10); waving still happens from a person's card. The coach must stay usable over a house's window, so the column lifts above it; on a wide
            screen, where the window docks on the right, the column moves out of its way. -->
       <div class="hud centre" :class="{ lifted: inWorkshop, aside: inWorkshop && !!place }">
         <Coach
@@ -1061,10 +1056,6 @@ function cityLine(c: { name: string; houses: number }): string {
             </template>
           </div>
         </Transition>
-        <div v-if="me && !card && !place && shows('emotes')" class="emotes">
-          <button :aria-label="w.thumbsUp" @click="emote('yes')">👍</button>
-          <button :aria-label="w.thumbsDown" @click="emote('no')">👎</button>
-        </div>
       </div>
 
       <!-- Bottom right: the neighbourhood from above. Click it to travel; M opens it big. -->
@@ -1186,7 +1177,6 @@ function cityLine(c: { name: string; houses: number }): string {
             <li v-for="c in cities" :key="c.name">
               <button
                 class="entry"
-                :class="{ here: c.name === city }"
                 :aria-current="c.name === city ? 'location' : undefined"
                 @click="travel(c.name)"
                 @pointerenter="litCity = c.name"
@@ -1195,8 +1185,14 @@ function cityLine(c: { name: string; houses: number }): string {
                 @blur="litCity = null"
               >
                 <span class="text">
-                  <span class="title">{{ c.name }}<span v-if="c.name === city" class="you">{{ w.youreHere }}</span></span>
-                  <span class="sub lines">{{ cityLine(c) }}</span>
+                  <span class="title">{{ c.name }}</span>
+                  <!-- Icon chips, each with its hidden name; the numbers in the monospace, calm like a dashboard. -->
+                  <span class="stats">
+                    <span class="stat" :class="{ zero: !statsOf(c.name).walking }" role="img" :aria-label="w.walking(statsOf(c.name).walking)"><Icon name="people" :size="14" />{{ statsOf(c.name).walking }}</span>
+                    <span class="stat" role="img" :aria-label="w.houses(statsOf(c.name).houses)"><Icon name="house" :size="14" />{{ statsOf(c.name).houses }}</span>
+                    <span class="stat" :class="{ zero: !statsOf(c.name).online }" role="img" :aria-label="w.online(statsOf(c.name).online)"><Icon name="rocket" :size="14" />{{ statsOf(c.name).online }}</span>
+                    <span v-if="statsOf(c.name).time" class="stat" role="img" :aria-label="w.timeThere(statsOf(c.name).time)"><Icon name="clock" :size="14" />{{ statsOf(c.name).time }}</span>
+                  </span>
                 </span>
                 <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
               </button>
@@ -1227,16 +1223,18 @@ function cityLine(c: { name: string; houses: number }): string {
    round tools and the minimap, which the panel would half cover), leaving the place and the keys. */
 .paused .hud.top, .paused .hud.tools, .paused .hud.map { opacity: 0; pointer-events: none; }
 /* The HUD's pieces are flat keys on the surface: a hairline edge, a small lip under the ones you can press. */
-.place, .tools button, .emotes button { background: var(--surface); color: var(--text); box-shadow: var(--lift), 0 2px 0 var(--line-strong); }
+.place, .tools button { background: var(--surface); color: var(--text); box-shadow: var(--lift), 0 2px 0 var(--line-strong); }
 /* Where you are, as a breadcrumb: a slash in the monospace, then the city's name in the display face. */
 .place { top: 60px; left: 16px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; min-height: 44px; border: 0; border-radius: var(--r-md); cursor: pointer; }
 .place::before { content: "/"; font: 500 16px/1 var(--mono); color: var(--accent); }
 .place .city { font: 800 20px/1.1 var(--display); letter-spacing: -0.02em; }
 .place .chev { font-size: 20px; line-height: 1; color: var(--muted); transition: transform var(--dur-fast) var(--ease); }
 .place:hover .chev { transform: translateX(2px); }
-/* What the city is doing, live, in a strip at the top with a green dot; it never catches clicks. */
+/* What needs attention in this city, in a strip at the top with its dot (red: a server down, amber: a failed build);
+   absent while all is well. It never catches clicks. */
 .top { top: calc(64px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
-.top::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
+.top::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.top.danger::before { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
 .top:empty { display: none; }
 .top p { margin: 0; font-size: 14px; font-weight: 500; min-width: 0; }
 .top .narrow { display: none; }
@@ -1260,11 +1258,11 @@ function cityLine(c: { name: string; houses: number }): string {
   .place, .tools { top: calc(60px + var(--core-offset, 0px)); }
 }
 .tools button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; display: grid; place-items: center; cursor: pointer; }
-.tools button:active:not(:disabled), .emotes button:active:not(:disabled) { transform: translateY(2px); box-shadow: var(--lift); }
+.tools button:active:not(:disabled) { transform: translateY(2px); box-shadow: var(--lift); }
 /* The dock stacks the card over the keys; its empty space lets clicks through to the city. */
 .dock { left: 16px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-start; gap: 12px; pointer-events: none; }
 .dock > * { pointer-events: auto; }
-/* The middle column: the prompt above, the emotes under it; the gaps let clicks through. */
+/* The middle column: the coach or the prompt; the gaps let clicks through. */
 .centre { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .centre > * { pointer-events: auto; }
 /* During the tutorial the column sits above a house's inside (60), so the coach's buttons stay in reach. */
@@ -1283,12 +1281,10 @@ function cityLine(c: { name: string; houses: number }): string {
 /* The one main action: the orange key with its lip, and the key it answers to. */
 .pill { border: 0; border-radius: var(--r-md); padding: 8px 14px 8px 16px; min-height: 44px; font: 700 17px/1 var(--display); letter-spacing: -0.01em; background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 var(--lip) 0 var(--accent-lip); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
 .pill:active:not(:disabled) { transform: translateY(calc(var(--lip) - var(--lip-pressed))); box-shadow: 0 var(--lip-pressed) 0 var(--accent-lip); }
-.emotes { display: flex; gap: 8px; }
-.emotes button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; font-size: 20px; cursor: pointer; }
 .map { right: 16px; bottom: max(28px, env(safe-area-inset-bottom)); }
 /* Our own hovers, so the site's grey button hover doesn't paint over these. */
 .pill:hover:not(:disabled) { background: var(--accent-fill-hover); }
-.place:hover:not(:disabled), .tools button:hover:not(:disabled), .emotes button:hover:not(:disabled) { background: var(--fill); }
+.place:hover:not(:disabled), .tools button:hover:not(:disabled) { background: var(--fill); }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 .scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); }
 /* Find and travel: a floating menu in the middle of the screen, flat and big-cornered, popping in. */
@@ -1303,14 +1299,12 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .sheet input:focus { border-color: var(--accent-fill); background: var(--surface); }
 /* The rows: the panels' list rows, each one whole button, lit under the pointer and when it holds the focus. */
 .sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0 -6px; padding: 2px 6px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
-/* The same look as the panels' ListRow (a surface row with a 1px edge; the orange stripe marks where you are). */
+/* The same look as the panels' ListRow (a surface row with a 1px edge). Where you are is the orange dot on the map. */
 .sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px 8px 12px; border: 0; border-radius: var(--r-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: inherit; line-height: 1.3; text-align: left; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease); }
 .sheet .entry:hover:not(:disabled) { background: var(--tile); }
 .sheet .entry:focus-visible { outline: none; background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
 .sheet .entry:active { transform: translateY(1px); }
-.sheet .entry.here { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--accent-fill); }
 .sheet .lead { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
-.sheet .here .lead { background: var(--accent-fill); color: var(--on-accent); }
 .sheet .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
 .sheet .title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1321,8 +1315,10 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .atlas { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 18px; align-items: start; }
 .atlas .africa { max-height: calc(min(700px, 100dvh - 96px) - 110px); max-width: 100%; justify-self: center; }
 .atlas .entries { max-height: calc(min(700px, 100dvh - 96px) - 110px); }
-.sheet .sub.lines { white-space: normal; }
-.sheet .you { font-weight: 500; color: var(--accent); }
+/* A city's stats: small icon chips, the numbers in the monospace; a zero steps back. */
+.sheet .stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; color: var(--muted); }
+.sheet .stat { display: inline-flex; align-items: center; gap: 4px; font: 500 12.5px/1.2 var(--mono); }
+.sheet .stat.zero { opacity: 0.55; }
 .rise-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .rise-leave-active { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .rise-enter-from, .rise-leave-to { opacity: 0; transform: translateY(8px); }
@@ -1334,7 +1330,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 @media (prefers-reduced-motion: reduce) {
   .rise-enter-active, .rise-leave-active, .fade-enter-active, .fade-leave-active, .sheet-enter-active, .sheet-leave-active { transition: none; }
   .prompt { animation: none; }
-  .pill:active:not(:disabled), .tools button:active:not(:disabled), .emotes button:active:not(:disabled) { transform: none; }
+  .pill:active:not(:disabled), .tools button:active:not(:disabled) { transform: none; }
 }
 /* No keyboard, no key hints. */
 @media (hover: none) {
@@ -1345,7 +1341,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .prompt strong { font-size: 16px; }
   .prompt .soft { display: none; }
   .prompt > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  /* The prompt and the emotes move to the left, beside the minimap rather than under it. The coach (lifted)
+  /* The prompt moves to the left, beside the minimap rather than under it. The coach (lifted)
      keeps the middle. */
   .centre:not(.lifted) { left: 16px; transform: none; align-items: flex-start; max-width: calc(100vw - 180px); }
   /* One line: the city's name is already top left, and anything longer ends in "…". */

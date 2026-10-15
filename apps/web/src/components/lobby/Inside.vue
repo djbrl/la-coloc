@@ -129,7 +129,7 @@ function reportOutsideLink(e: MouseEvent) {
   if ((a.protocol === "http:" || a.protocol === "https:") && a.origin !== location.origin) emit("link", a.href);
 }
 
-// The sheet keeps its keys to itself: the lobby listens on the window (W A S D, E, Tab, Q, R, 1, 2) and must
+// The sheet keeps its keys to itself: the lobby listens on the window (W A S D, E, Tab, Q, R) and must
 // not hear a key meant for a page. Escape goes back a page, or closes. Tab stays within the sheet.
 function onKey(e: KeyboardEvent) {
   e.stopPropagation();
