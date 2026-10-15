@@ -5,6 +5,7 @@ import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
 import type { RoomManage } from "../../types";
 import { deploymentStep, deploymentTitle, firstLine } from "./room";
+import { roomWords as w } from "./words";
 
 defineProps<{ deployments: RoomManage["deployments"]; github: RoomManage["github"]; when: (iso: string) => string }>();
 </script>
@@ -18,15 +19,15 @@ defineProps<{ deployments: RoomManage["deployments"]; github: RoomManage["github
       <span class="sub">
         <span :class="`word-${deploymentStep(d.status).tone}`">{{ deploymentStep(d.status).word }}</span>
         <template v-if="d.prNumber && github">
-          · from
-          <a :href="`${github.url}/pull/${d.prNumber}`" target="_blank" rel="noopener">#{{ d.prNumber }}<span class="sr-only"> (opens in a new tab)</span></a>
+          · {{ w.fromPr }}
+          <a :href="`${github.url}/pull/${d.prNumber}`" target="_blank" rel="noopener">#{{ d.prNumber }}<span class="sr-only">{{ w.newTab }}</span></a>
         </template>
         <template v-if="d.status === 'failed' && firstLine(d.detail)"> · {{ firstLine(d.detail) }}</template>
       </span>
       <template #meta><time :datetime="d.createdAt">{{ when(d.createdAt) }}</time></template>
     </ListRow>
   </ul>
-  <p v-else class="empty">Nothing built yet. Put it online from the Overview, and every build lands here.</p>
+  <p v-else class="empty">{{ w.nothingBuilt }}</p>
 </template>
 
 <style scoped>

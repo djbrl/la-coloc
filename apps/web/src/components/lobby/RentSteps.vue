@@ -6,6 +6,7 @@ import { onMounted, ref } from "vue";
 import { play } from "../../lobby/sound";
 import { postJSON } from "../../session";
 import UiSteps from "../UiSteps.vue";
+import { joinWords, rentWords as w } from "../joinWords";
 import Icon from "./house/Icon.vue";
 
 const props = defineProps<{ city: string; plot: string }>();
@@ -24,11 +25,11 @@ function next() {
   error.value = "";
   const n = name.value.trim();
   if (step.value === 1 && (n.length < 2 || n.length > 40)) {
-    error.value = "Give it a name, two to forty letters.";
+    error.value = w.nameLength;
     return;
   }
   if (step.value === 2 && tagline.value.trim().length > 120) {
-    error.value = "Keep it under 120 letters.";
+    error.value = w.taglineLength;
     return;
   }
   step.value++;
@@ -66,16 +67,16 @@ function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <dialog ref="dialog" class="sheet" aria-label="Start a coloc on this plot" @close="emit('close')" @click="onClick">
+  <dialog ref="dialog" class="sheet" :aria-label="w.startLabel" @close="emit('close')" @click="onClick">
     <div class="inner">
-      <button type="button" class="x" aria-label="Cancel (Esc)" @click="dialog?.close()">
+      <button type="button" class="x" :aria-label="joinWords.cancel" @click="dialog?.close()">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
       </button>
 
       <UiSteps :step="step" :total="3">
         <form v-if="step === 1" class="form" novalidate @submit.prevent="next">
-          <h2>Name the house</h2>
-          <p class="muted">The name on the door, and on the map of {{ city }}.</p>
+          <h2>{{ w.nameTitle }}</h2>
+          <p class="muted">{{ w.nameWhy(city) }}</p>
           <input
             v-model="name"
             autofocus
@@ -83,56 +84,56 @@ function onClick(e: MouseEvent) {
             type="text"
             maxlength="40"
             autocomplete="off"
-            placeholder="Sacré-Cœur"
-            aria-label="The house's name"
+            :placeholder="w.namePlaceholder"
+            :aria-label="w.nameLabel"
             :aria-invalid="!!error"
             :aria-describedby="error ? 'rent-error' : undefined"
             @input="error = ''"
           />
           <p v-if="error" id="rent-error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <button class="primary">Next<Icon name="next" :size="20" /></button>
+            <button class="primary">{{ joinWords.next }}<Icon name="next" :size="20" /></button>
           </div>
         </form>
 
         <form v-else-if="step === 2" class="form" novalidate @submit.prevent="next">
-          <h2>What's it about?</h2>
-          <p class="muted">One line for the street: who you are, what you build. You can skip this.</p>
+          <h2>{{ w.aboutTitle }}</h2>
+          <p class="muted">{{ w.aboutWhy }}</p>
           <input
             v-model="tagline"
             data-autofocus
             type="text"
             maxlength="120"
             autocomplete="off"
-            placeholder="Three devs, one server, a lot of coffee"
-            aria-label="What the house is about"
+            :placeholder="w.aboutPlaceholder"
+            :aria-label="w.aboutLabel"
             :aria-invalid="!!error"
             :aria-describedby="error ? 'rent-error' : undefined"
             @input="error = ''"
           />
           <p v-if="error" id="rent-error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <button type="button" class="second" @click="back"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>Back</button>
-            <button class="primary">{{ tagline.trim() ? "Next" : "Skip" }}<Icon name="next" :size="20" /></button>
+            <button type="button" class="second" @click="back"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ joinWords.back }}</button>
+            <button class="primary">{{ tagline.trim() ? joinWords.next : joinWords.skip }}<Icon name="next" :size="20" /></button>
           </div>
         </form>
 
         <form v-else class="form" @submit.prevent="start">
-          <h2>Ready to start?</h2>
+          <h2>{{ w.readyTitle }}</h2>
           <!-- The house as the street will see it: its name, where it is, its line. -->
           <div class="preview">
             <span class="house-ic" aria-hidden="true"><Icon name="house" :size="24" /></span>
             <span class="what">
               <strong class="name">{{ name.trim() }}</strong>
-              <span class="where">{{ city }} · you're its chef</span>
+              <span class="where">{{ city }} · {{ w.youreChef }}</span>
               <span v-if="tagline.trim()" class="tag">{{ tagline.trim() }}</span>
             </span>
           </div>
-          <p class="muted small">It appears in the city right away, still finding its flatmates. Renting its server is a later step.</p>
+          <p class="muted small">{{ w.readyWhy }}</p>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <button type="button" class="second" @click="back"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>Back</button>
-            <button class="primary" :disabled="sending"><Icon name="house" :size="20" />{{ sending ? "Starting…" : "Start" }}</button>
+            <button type="button" class="second" @click="back"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ joinWords.back }}</button>
+            <button class="primary" :disabled="sending"><Icon name="house" :size="20" />{{ sending ? w.starting : w.start }}</button>
           </div>
         </form>
       </UiSteps>

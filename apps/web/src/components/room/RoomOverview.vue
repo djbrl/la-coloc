@@ -11,6 +11,7 @@ import UiNote, { type Note } from "../UiNote.vue";
 import UiSteps from "../UiSteps.vue";
 import type { RoomManage } from "../../types";
 import { canRestart, memoryUse, projectTitle, roomSentence, type SettingsForm, updateTile } from "./room";
+import { roomWords as w } from "./words";
 
 const props = defineProps<{
   data: RoomManage;
@@ -75,32 +76,32 @@ async function finish() {
       <div class="what">
         <p class="name" :class="{ unset: !data.settings.project && !workshop }">{{ projectTitle(data.settings, workshop) }}</p>
         <p class="about" :class="{ unset: !data.settings.projectDescription }">
-          {{ data.settings.projectDescription || "No line about it yet. People see it on the house page and in the city." }}
+          {{ data.settings.projectDescription || w.noLine }}
         </p>
       </div>
-      <button ref="editButton" type="button" class="chunk small" aria-label="Edit the project's name and description" @click="startEdit">
-        <Icon name="edit" :size="16" /> Edit
+      <button ref="editButton" type="button" class="chunk small" :aria-label="w.editProject" @click="startEdit">
+        <Icon name="edit" :size="16" /> {{ w.edit }}
       </button>
     </div>
     <div v-else class="flow">
       <UiSteps :step="step" :total="2" focus-on-mount>
         <form v-if="step === 1" novalidate @submit.prevent="step = 2">
-          <h3>Name it.</h3>
-          <p class="hint">The name people see on the house page and in the city.</p>
-          <input v-model="form.project" data-autofocus maxlength="60" placeholder="Project name" aria-label="Project name" />
+          <h3>{{ w.nameIt }}</h3>
+          <p class="hint">{{ w.nameHint }}</p>
+          <input v-model="form.project" data-autofocus maxlength="60" :placeholder="w.projectName" :aria-label="w.projectName" />
           <div class="flow-nav">
-            <button type="button" class="chunk" @click="cancel">Cancel</button>
-            <button class="primary next">Next</button>
+            <button type="button" class="chunk" @click="cancel">{{ w.cancel }}</button>
+            <button class="primary next">{{ w.next }}</button>
           </div>
         </form>
         <form v-else novalidate @submit.prevent="finish">
-          <h3>Describe it in one sentence.</h3>
-          <p class="hint">What it does, for someone passing by.</p>
-          <input v-model="form.projectDescription" data-autofocus maxlength="200" placeholder="What it does, in one sentence" aria-label="What it does" />
+          <h3>{{ w.describeIt }}</h3>
+          <p class="hint">{{ w.describeHint }}</p>
+          <input v-model="form.projectDescription" data-autofocus maxlength="200" :placeholder="w.describePlaceholder" :aria-label="w.describeName" />
           <UiNote :note="formNote?.error ? formNote : null" />
           <div class="flow-nav">
-            <button type="button" class="chunk" @click="step = 1"><span aria-hidden="true">‹</span> Back</button>
-            <button class="primary next" :disabled="saving">{{ saving ? "Saving…" : "Save" }}</button>
+            <button type="button" class="chunk" @click="step = 1"><span aria-hidden="true">‹</span> {{ w.back }}</button>
+            <button class="primary next" :disabled="saving">{{ saving ? w.saving : w.save }}</button>
           </div>
         </form>
       </UiSteps>
@@ -109,7 +110,7 @@ async function finish() {
     <!-- How it's doing, in one sentence: the dot is its state's colour, the meter its memory. -->
     <div class="doing">
       <p aria-live="polite"><StatusDot :state="state" class="dot-here" />{{ said }}</p>
-      <div v-if="memory" class="meter" role="img" :aria-label="`${memory.pct}% of its memory in use`">
+      <div v-if="memory" class="meter" role="img" :aria-label="w.memoryUsed(memory.pct)">
         <div class="fill" :class="{ high: memory.pct >= 80 }" :style="{ width: memory.pct + '%' }" />
       </div>
     </div>
@@ -119,16 +120,16 @@ async function finish() {
     <div v-if="!step" class="acts">
       <button type="button" class="act" :class="{ go: !coached }" :disabled="action !== '' || !serverUp" @click="emit('run', 'redeploy')">
         <span class="ic"><Icon :name="tile.icon" :size="22" /></span>
-        <span class="verb">{{ action === "redeploy" ? "Starting…" : tile.verb }}</span>
+        <span class="verb">{{ action === "redeploy" ? w.starting : tile.verb }}</span>
         <span class="hint">{{ tile.hint }}</span>
       </button>
       <button type="button" class="act" :disabled="action !== '' || !serverUp || !restartable" @click="emit('run', 'restart')">
         <span class="ic"><Icon name="power" :size="22" /></span>
-        <span class="verb">{{ action === "restart" ? "Restarting…" : "Restart" }}</span>
-        <span class="hint">{{ restartable ? explain.restart : "Nothing runs yet, so there's nothing to restart." }}</span>
+        <span class="verb">{{ action === "restart" ? w.restarting : w.restart }}</span>
+        <span class="hint">{{ restartable ? explain.restart : w.nothingToRestart }}</span>
       </button>
     </div>
-    <p v-if="!serverUp && !step" class="down"><Icon name="warn" :size="16" /> The house's server is down, so nothing can go online right now.</p>
+    <p v-if="!serverUp && !step" class="down"><Icon name="warn" :size="16" /> {{ w.serverDown }}</p>
     <UiNote :note="actionNote" />
     <UiNote v-if="!step" :note="formNote" />
   </div>

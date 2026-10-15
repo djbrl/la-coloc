@@ -6,6 +6,7 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import Avatar from "../components/Avatar.vue";
 import ChatPanel from "../components/ChatPanel.vue";
+import { joinWords as said } from "../components/joinWords";
 import Icon from "../components/lobby/house/Icon.vue";
 import { shortRepo } from "../components/lobby/cards";
 import Panel from "../components/lobby/panel/Panel.vue";
@@ -54,8 +55,8 @@ async function open(id: string, quiet = false) {
   if (mine !== loads) return;
   if (!res?.ok) {
     if (quiet && app.value) return;
-    if (res?.status === 401) error.value = "Log in to see this knock.";
-    else if (res?.status === 404 || res?.status === 403) error.value = "This knock doesn't exist, or it isn't yours to see.";
+    if (res?.status === 401) error.value = said.logInToSee;
+    else if (res?.status === 404 || res?.status === 403) error.value = said.noSuchKnock;
     else if (await wentDown(res)) waiting.value = true;
     else failed.value = true;
     return;
@@ -85,7 +86,7 @@ const who = computed(() => (app.value ? (app.value.applicant.name ?? app.value.a
 const title = computed(() => {
   const a = app.value;
   if (!a) return "";
-  return mine.value ? `Your knock on ${a.house.name}` : `${who.value} knocked`;
+  return mine.value ? said.yourKnockOn(a.house.name) : said.knocked(who.value);
 });
 watch(title, (t) => t && emit("label", t), { immediate: true });
 
@@ -94,22 +95,20 @@ const state = computed<State | null>(() => {
   if (!a) return null;
   return {
     // The dot's colour, and its hidden name; the line says the state in words.
-    open: { tone: "warn", word: "Waiting for votes" },
-    admitted: { tone: "live", word: "Moved in" },
-    declined: { tone: "neutral", word: "Declined" },
-    withdrawn: { tone: "neutral", word: "Withdrawn" },
+    open: { tone: "warn", word: said.state.open },
+    admitted: { tone: "live", word: said.state.admitted },
+    declined: { tone: "neutral", word: said.state.declined },
+    withdrawn: { tone: "neutral", word: said.state.withdrawn },
   }[a.status] as State;
 });
 
 // The head's line, after the state's dot: the state in words, then who asked for what, where. A room's slug says
 // nothing to people, so it's "a free room" while the knock is open and "a room" after.
-const stateSaid: Record<Application["status"], string> = { open: "Waiting for votes.", admitted: "Moved in.", declined: "Declined.", withdrawn: "Withdrawn." };
 const line = computed(() => {
   const a = app.value;
   if (!a) return "";
-  const room = a.status === "open" ? "a free room" : "a room";
-  const who = mine.value ? "You" : `@${a.applicant.login}`;
-  return `${stateSaid[a.status]} ${who} asked for ${room} in ${a.house.name}, ${a.house.city}.`;
+  const who = mine.value ? said.you : `@${a.applicant.login}`;
+  return said.askedFor(said.stateSaid[a.status], who, mine.value, a.status === "open", a.house.name, a.house.city);
 });
 const explainLine = computed(() => (mine.value ? explain.knockYours : explain.knockTheirs));
 
@@ -118,29 +117,29 @@ const work = computed(() => app.value?.work ?? null);
 const reviewsSaid = computed(() => {
   const w = work.value;
   if (!w) return "";
-  const subject = mine.value ? "You" : (app.value!.applicant.name ?? app.value!.applicant.login).split(" ")[0];
-  if (!w.given && !w.received) return mine.value ? "You haven't traded reviews here yet." : `${subject} hasn't traded reviews here yet.`;
-  return `${subject} reviewed ${w.given} ${w.given === 1 ? "PR" : "PRs"} and got ${w.received} ${w.received === 1 ? "review" : "reviews"}.`;
+  const subject = mine.value ? said.you : (app.value!.applicant.name ?? app.value!.applicant.login).split(" ")[0];
+  if (!w.given && !w.received) return said.noReviews(subject, mine.value);
+  return said.reviewsTraded(subject, mine.value, w.given, w.received);
 });
 
 // The vote in a few words, beside the seats. Screen readers hear the long version on the seats.
 const count = computed(() => {
   const a = app.value;
   if (!a) return "";
-  if (a.status === "open") return `${a.tally.yes} of ${a.tally.needed} yes votes`;
-  if (a.status === "admitted") return mine.value ? "You're in. Welcome home." : `${who.value} moved in.`;
-  if (a.status === "declined") return "The house said no, or the room went to someone else.";
-  return mine.value ? "You withdrew this knock." : "They withdrew this knock.";
+  if (a.status === "open") return said.yesOf(a.tally.yes, a.tally.needed);
+  if (a.status === "admitted") return mine.value ? said.youreIn : said.movedIn(who.value);
+  if (a.status === "declined") return said.saidNo;
+  return mine.value ? said.youWithdrew : said.theyWithdrew;
 });
 const seatsLabel = computed(() => {
   const a = app.value;
   if (!a) return "";
-  return `${a.tally.yes} yes and ${a.tally.no} no from ${a.tally.flatmates} flatmates. ${a.tally.needed} yes votes let ${mine.value ? "you" : "them"} in.`;
+  return said.seats(a.tally.yes, a.tally.no, a.tally.flatmates, a.tally.needed, mine.value);
 });
 // What you said, for a flatmate who voted: the pressed button shows it too, this says you can still change it.
 const yourVote = computed(() => {
   const v = app.value?.viewer.vote;
-  return v === null || v === undefined ? "" : `You said ${v ? "yes" : "no"}. You can change it until it's decided.`;
+  return v === null || v === undefined ? "" : said.yourVote(v);
 });
 
 async function vote(yes: boolean) {
@@ -161,20 +160,20 @@ async function withdraw() {
   <div class="application-page" :class="embedded ? 'embedded' : 'alone'">
     <div v-if="error" class="state">
       <h2>{{ error }}</h2>
-      <RouterLink v-if="!embedded" to="/" class="more">Back to the city <span aria-hidden="true">›</span></RouterLink>
+      <RouterLink v-if="!embedded" to="/" class="more">{{ said.backToCity }} <span aria-hidden="true">›</span></RouterLink>
     </div>
 
     <Waiting v-else-if="waiting" @retry="open(id)" />
-    <Waiting v-else-if="failed" title="That didn't load." line="Something went wrong on our side. Try again in a moment." @retry="open(id)" />
+    <Waiting v-else-if="failed" :title="said.failed" :line="said.failedWhy" @retry="open(id)" />
 
     <template v-else-if="app">
       <RouterLink v-if="!embedded" :to="`/houses/${app.house.id}`" class="back"><span aria-hidden="true">‹</span> {{ app.house.name }}</RouterLink>
-      <Panel :explain="explainLine" body-label="The thread">
+      <Panel :explain="explainLine" :body-label="said.theThread">
         <template #head>
           <PanelHead :title="title" :state="state" :line="line">
             <template #lead><Avatar :person="app.applicant" :size="52" decorative /></template>
             <template v-if="app.repo" #aside>
-              <a :href="app.repo" class="repo" target="_blank" rel="noopener" :aria-label="`${mine ? 'Your' : 'Their'} repo: ${shortRepo(app.repo)} (opens in a new tab)`">
+              <a :href="app.repo" class="repo" target="_blank" rel="noopener" :aria-label="said.repoName(mine, shortRepo(app.repo))">
                 <Icon name="code" :size="16" />
                 <span class="repo-word">{{ shortRepo(app.repo) }}</span>
               </a>
@@ -182,7 +181,7 @@ async function withdraw() {
           </PanelHead>
 
           <!-- The vote, in one strip: the seats fill as flatmates answer, then who voted, then what you can do. -->
-          <section class="vote" aria-label="The vote">
+          <section class="vote" :aria-label="said.theVote">
             <div class="tally">
               <div class="seats" role="img" :aria-label="seatsLabel">
                 <span
@@ -196,32 +195,32 @@ async function withdraw() {
                 <span>{{ count }}</span>
                 <span v-if="yourVote" class="sr-only">{{ yourVote }}</span>
               </p>
-              <ul v-if="app.votes?.length" class="voters plain" aria-label="Who voted">
-                <li v-for="v in app.votes" :key="v.voter.login" :class="v.yes ? 'yes' : 'no'" :title="`${v.voter.name ?? v.voter.login} said ${v.yes ? 'yes' : 'no'}`">
+              <ul v-if="app.votes?.length" class="voters plain" :aria-label="said.whoVoted">
+                <li v-for="v in app.votes" :key="v.voter.login" :class="v.yes ? 'yes' : 'no'" :title="said.voterSaid(v.voter.name ?? v.voter.login, v.yes)">
                   <Avatar :person="v.voter" :size="22" decorative />
-                  <span class="sr-only">{{ v.voter.name ?? v.voter.login }} said {{ v.yes ? "yes" : "no" }}</span>
+                  <span class="sr-only">{{ said.voterSaid(v.voter.name ?? v.voter.login, v.yes) }}</span>
                 </li>
               </ul>
             </div>
 
             <div v-if="app.status === 'open' && !mine" class="act">
-              <button class="primary" :aria-pressed="app.viewer.vote === true" @click="vote(true)">Let them in</button>
-              <button :aria-pressed="app.viewer.vote === false" @click="vote(false)">Not this time</button>
+              <button class="primary" :aria-pressed="app.viewer.vote === true" @click="vote(true)">{{ said.letThemIn }}</button>
+              <button :aria-pressed="app.viewer.vote === false" @click="vote(false)">{{ said.notThisTime }}</button>
             </div>
             <div v-else-if="app.status === 'open' && mine" class="act">
-              <button class="quiet" @click="withdraw">Withdraw</button>
+              <button class="quiet" @click="withdraw">{{ said.withdraw }}</button>
             </div>
             <div v-else-if="app.status === 'admitted' && mine" class="act">
-              <RouterLink :to="`/houses/${app.house.id}/rooms/${encodeURIComponent(app.room)}`" class="button primary">Go to your room</RouterLink>
+              <RouterLink :to="`/houses/${app.house.id}/rooms/${encodeURIComponent(app.room)}`" class="button primary">{{ said.goToRoom }}</RouterLink>
             </div>
           </section>
           <!-- What they've built: their top public repos, and the reviews they've traded. -->
           <p v-if="work" class="work">
             <template v-if="work.repos.length">
-              {{ mine ? "The house sees your work, like" : "Their work includes" }}
+              {{ mine ? said.yourWork : said.theirWork }}
               <template v-for="(r, i) in work.repos.slice(0, 3)" :key="r.url">
-                <a :href="r.url" target="_blank" rel="noopener">{{ shortRepo(r.url) }}<span class="sr-only"> (opens in a new tab)</span></a
-                ><template v-if="r.language"> in {{ r.language }}</template>{{ i < Math.min(3, work.repos.length) - 1 ? ", " : ". " }}
+                <a :href="r.url" target="_blank" rel="noopener">{{ shortRepo(r.url) }}<span class="sr-only">{{ said.newTab }}</span></a
+                ><template v-if="r.language">{{ said.inLanguage(r.language) }}</template>{{ i < Math.min(3, work.repos.length) - 1 ? ", " : ". " }}
               </template>
             </template>
             {{ reviewsSaid }}
@@ -233,12 +232,12 @@ async function withdraw() {
           :messages="app.messages"
           :post-url="app.status === 'open' ? `/api/applications/${app.id}/messages` : null"
           :me="app.viewer.login"
-          :placeholder="mine ? 'Tell the house about you' : 'Ask them something'"
+          :placeholder="mine ? said.tellHouse : said.askThem"
         />
       </Panel>
     </template>
 
-    <p v-else class="state muted" aria-live="polite">Opening the door…</p>
+    <p v-else class="state muted" aria-live="polite">{{ said.opening }}</p>
   </div>
 </template>
 

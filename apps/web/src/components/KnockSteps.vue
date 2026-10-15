@@ -9,6 +9,7 @@ import { coreDown, DOWN_READ, DOWN_WRITE, wentDown } from "../core";
 import { loadMe, me } from "../session";
 import type { Room } from "../types";
 import { knockOn } from "./lobby/cards";
+import { joinWords as w } from "./joinWords";
 import UiSteps from "./UiSteps.vue";
 
 // The room only matters by name, so any room shape fits: the city's slimmer one, or the house page's Room.
@@ -31,19 +32,19 @@ const finding = ref(false);
 const known = computed(() => knockOn(me.value?.knocks, props.houseId));
 const refused = ref<{ id: string } | null>(null);
 const already = computed(() => (known.value ? { id: known.value.id } : refused.value));
-const where = computed(() => props.houseName || "this house");
+const where = computed(() => props.houseName || w.thisHouse);
 
 onMounted(() => dialog.value?.showModal());
 
 function next() {
   error.value = "";
   if (step.value === 1 && !note.value.trim()) {
-    error.value = "Say what you'd build in this room.";
+    error.value = w.sayWhat;
     return;
   }
   const link = repo.value.trim();
   if (step.value === 2 && link && !link.startsWith("https://")) {
-    error.value = "The link should start with https://";
+    error.value = w.httpsLink;
     return;
   }
   step.value++;
@@ -79,7 +80,7 @@ async function send() {
     return;
   }
   if (!res?.ok) {
-    error.value = typeof data.message === "string" ? data.message : res?.status === 401 ? "Log in first." : "That didn't work.";
+    error.value = typeof data.message === "string" ? data.message : res?.status === 401 ? w.logInFirst : w.didntWork;
     return;
   }
   // Your list of open knocks now has this one: the cards offer "Your knock" from here on.
@@ -105,8 +106,8 @@ async function seeKnock() {
     id = knockOn(me.value?.knocks, props.houseId)?.id ?? "";
   }
   if (id) open(id);
-  else if (coreDown()) error.value = `${DOWN_READ} Try again in a moment.`;
-  else error.value = "We couldn't find your knock. It may have just been decided: have a look at the house.";
+  else if (coreDown()) error.value = w.tryAgain(DOWN_READ);
+  else error.value = w.notFound;
 }
 
 // Clicks on the dimmed backdrop land on the dialog itself: treat them as Cancel.
@@ -116,38 +117,38 @@ function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <dialog ref="dialog" class="sheet" :aria-label="`Knock on room ${room.name}`" @close="emit('close')" @click="onClick">
+  <dialog ref="dialog" class="sheet" :aria-label="w.knockOn(room.name)" @close="emit('close')" @click="onClick">
     <div class="inner">
-      <button type="button" class="x" aria-label="Cancel (Esc)" @click="dialog?.close()">
+      <button type="button" class="x" :aria-label="w.cancel" @click="dialog?.close()">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
       </button>
 
       <!-- Already knocked here: one screen, one way on. -->
       <UiSteps v-if="already" :step="1" :total="1" focus-on-mount>
         <div class="form">
-          <h2>Already knocked</h2>
-          <p class="lead">You've already knocked on {{ where }}.</p>
-          <p class="muted">One knock per house. Yours waits for the flatmates' votes; its thread is where you talk to them.</p>
+          <h2>{{ w.alreadyTitle }}</h2>
+          <p class="lead">{{ w.alreadyLead(where) }}</p>
+          <p class="muted">{{ w.alreadyWhy }}</p>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <button type="button" class="second" @click="dialog?.close()">Not now</button>
-            <button type="button" class="primary" autofocus data-autofocus :disabled="finding" @click="seeKnock">{{ finding ? "Finding it…" : "See your knock" }}</button>
+            <button type="button" class="second" @click="dialog?.close()">{{ w.notNow }}</button>
+            <button type="button" class="primary" autofocus data-autofocus :disabled="finding" @click="seeKnock">{{ finding ? w.finding : w.seeKnock }}</button>
           </div>
         </div>
       </UiSteps>
 
       <UiSteps v-else :step="step" :total="3">
         <form v-if="step === 1" class="form" novalidate @submit.prevent="next">
-          <h2>What would you build?</h2>
-          <p class="muted">Say who you are and what you'd run in this room. The flatmates read it before they vote.</p>
+          <h2>{{ w.buildTitle }}</h2>
+          <p class="muted">{{ w.buildWhy }}</p>
           <textarea
             v-model="note"
             autofocus
             data-autofocus
             rows="5"
             maxlength="2000"
-            placeholder="Who you are, and what you'd build"
-            aria-label="Your note to the house"
+            :placeholder="w.notePlaceholder"
+            :aria-label="w.noteLabel"
             :aria-invalid="!!error"
             :aria-describedby="error ? 'knock-error' : undefined"
             @input="error = ''"
@@ -155,13 +156,13 @@ function onClick(e: MouseEvent) {
           <p v-if="error" id="knock-error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
             <span />
-            <button class="primary">Next</button>
+            <button class="primary">{{ w.next }}</button>
           </div>
         </form>
 
         <form v-else-if="step === 2" class="form" novalidate @submit.prevent="next">
-          <h2>Got a repo?</h2>
-          <p class="muted">A link to your repo helps the house see what you've shipped. You can skip this.</p>
+          <h2>{{ w.repoTitle }}</h2>
+          <p class="muted">{{ w.repoWhy }}</p>
           <input
             v-model="repo"
             data-autofocus
@@ -169,28 +170,28 @@ function onClick(e: MouseEvent) {
             inputmode="url"
             autocomplete="url"
             placeholder="https://github.com/you/your-app"
-            aria-label="Link to your repo"
+            :aria-label="w.repoLabel"
             :aria-invalid="!!error"
             :aria-describedby="error ? 'knock-error' : undefined"
             @input="error = ''"
           />
           <p v-if="error" id="knock-error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <button type="button" class="second" @click="back"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg> Back</button>
-            <button class="primary">{{ repo.trim() ? "Next" : "Skip" }}</button>
+            <button type="button" class="second" @click="back"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg> {{ w.back }}</button>
+            <button class="primary">{{ repo.trim() ? w.next : w.skip }}</button>
           </div>
         </form>
 
         <form v-else class="form" @submit.prevent="send">
-          <h2>Ready to knock?</h2>
-          <p class="muted">This is what the house will read.</p>
+          <h2>{{ w.readyTitle }}</h2>
+          <p class="muted">{{ w.readyWhy }}</p>
           <blockquote class="quote">{{ note.trim() }}</blockquote>
-          <p v-if="repo.trim()">You'd move in with <a :href="repo.trim()" target="_blank" rel="noopener">{{ repo.trim().replace(/^https:\/\//, "") }}</a>.</p>
-          <p class="muted small">Knocking opens a thread with the flatmates. They vote, and a majority decides.</p>
+          <p v-if="repo.trim()">{{ w.moveInBefore }} <a :href="repo.trim()" target="_blank" rel="noopener">{{ repo.trim().replace(/^https:\/\//, "") }}</a>{{ w.moveInAfter }}</p>
+          <p class="muted small">{{ w.readyHow }}</p>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <button type="button" class="second" @click="back"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg> Back</button>
-            <button class="primary" :disabled="sending">{{ sending ? "Knocking…" : "Knock" }}</button>
+            <button type="button" class="second" @click="back"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg> {{ w.back }}</button>
+            <button class="primary" :disabled="sending">{{ sending ? w.knocking : w.knock }}</button>
           </div>
         </form>
       </UiSteps>

@@ -7,6 +7,7 @@ import UiNote, { type Note } from "../UiNote.vue";
 import UiSteps from "../UiSteps.vue";
 import type { RoomManage } from "../../types";
 import { codeRows, draftRows, parsePort, type SettingsForm } from "./room";
+import { roomWords as w } from "./words";
 
 const props = defineProps<{
   data: RoomManage;
@@ -46,7 +47,7 @@ function cancel() {
 
 function next() {
   if (question.value === "port" && !parsePort(props.form.port).ok) {
-    portError.value = "The port is a number between 1 and 65535.";
+    portError.value = w.portRange;
     return;
   }
   step.value++;
@@ -69,20 +70,20 @@ async function finish() {
         <div v-for="r in rows" :key="r.term" class="fact">
           <dt>{{ r.term }}</dt>
           <dd :class="{ unset: r.unset }">
-            <a v-if="r.href" :href="r.href" target="_blank" rel="noopener" class="mono">{{ r.value }}<span class="sr-only"> (opens in a new tab)</span></a>
+            <a v-if="r.href" :href="r.href" target="_blank" rel="noopener" class="mono">{{ r.value }}<span class="sr-only">{{ w.newTab }}</span></a>
             <span v-else :class="{ mono: !r.unset }">{{ r.value }}</span>
           </dd>
         </div>
       </dl>
       <p class="aside">
         <template v-if="data.github">
-          Merging into the default branch updates the room on its own<template v-if="data.house.strictReviews">, once a flatmate approves</template>.
+          {{ w.mergeUpdates }}<template v-if="data.house.strictReviews">{{ w.onceApproved }}</template>.
         </template>
-        <template v-else>Each update builds it from scratch with the Dockerfile in that folder. Your app gets the port as <code>PORT</code>.</template>
+        <template v-else>{{ w.dockerAside }} <code>PORT</code>.</template>
       </p>
       <div class="bar">
-        <button ref="editButton" type="button" class="chunk" aria-label="Edit where the code comes from" @click="startEdit">
-          <Icon name="edit" :size="16" /> Edit
+        <button ref="editButton" type="button" class="chunk" :aria-label="w.editCode" @click="startEdit">
+          <Icon name="edit" :size="16" /> {{ w.edit }}
         </button>
       </div>
       <UiNote :note="formNote" />
@@ -91,77 +92,77 @@ async function finish() {
     <div v-else class="flow">
       <UiSteps :step="step" :total="questions.length" focus-on-mount>
         <form v-if="question === 'repo'" novalidate @submit.prevent="next">
-          <h3>Where's the code?</h3>
-          <p class="hint">A Git repo link. Each update builds it from scratch.</p>
+          <h3>{{ w.whereCode }}</h3>
+          <p class="hint">{{ w.whereHint }}</p>
           <input
             v-model="form.source"
             data-autofocus
             type="url"
             inputmode="url"
             placeholder="https://github.com/you/your-app.git"
-            aria-label="Repo link"
+            :aria-label="w.repoLink"
             autocapitalize="off"
             spellcheck="false"
           />
           <div class="flow-nav">
-            <button type="button" class="chunk" @click="cancel">Cancel</button>
-            <button class="primary next">Next</button>
+            <button type="button" class="chunk" @click="cancel">{{ w.cancel }}</button>
+            <button class="primary next">{{ w.next }}</button>
           </div>
         </form>
 
         <form v-else-if="question === 'where'" novalidate @submit.prevent="next">
-          <h3>Which branch, which folder?</h3>
-          <p class="hint">The folder is the one with your Dockerfile. Leave them empty for the defaults.</p>
+          <h3>{{ w.branchFolder }}</h3>
+          <p class="hint">{{ w.branchFolderHint }}</p>
           <div class="pair">
             <input
               v-model="form.branch"
               data-autofocus
-              :placeholder="data.github ? 'Default branch' : 'main'"
-              aria-label="Branch"
+              :placeholder="data.github ? w.defaultBranchShort : 'main'"
+              :aria-label="w.branch"
               autocapitalize="off"
               spellcheck="false"
             />
-            <input v-model="form.buildPath" placeholder=". (the repo's root)" aria-label="Folder with the Dockerfile" autocapitalize="off" spellcheck="false" />
+            <input v-model="form.buildPath" :placeholder="w.folderPlaceholder" :aria-label="w.folderName" autocapitalize="off" spellcheck="false" />
           </div>
           <div class="flow-nav">
-            <button v-if="step > 1" type="button" class="chunk" @click="step--"><span aria-hidden="true">‹</span> Back</button>
-            <button v-else type="button" class="chunk" @click="cancel">Cancel</button>
-            <button class="primary next">Next</button>
+            <button v-if="step > 1" type="button" class="chunk" @click="step--"><span aria-hidden="true">‹</span> {{ w.back }}</button>
+            <button v-else type="button" class="chunk" @click="cancel">{{ w.cancel }}</button>
+            <button class="primary next">{{ w.next }}</button>
           </div>
         </form>
 
         <form v-else-if="question === 'port'" novalidate @submit.prevent="next">
-          <h3>Which port does it listen on?</h3>
-          <p class="hint">Visitors are sent there. Your app also gets it as <code>PORT</code>.</p>
+          <h3>{{ w.portQuestion }}</h3>
+          <p class="hint">{{ w.portHint }} <code>PORT</code>.</p>
           <input
             v-model="form.port"
             data-autofocus
             inputmode="numeric"
             placeholder="3000"
-            aria-label="Port"
+            :aria-label="w.port"
             :aria-invalid="!!portError"
             @input="portError = ''"
           />
           <p v-if="portError" class="error small" role="alert">{{ portError }}</p>
           <div class="flow-nav">
-            <button type="button" class="chunk" @click="step--"><span aria-hidden="true">‹</span> Back</button>
-            <button class="primary next">Next</button>
+            <button type="button" class="chunk" @click="step--"><span aria-hidden="true">‹</span> {{ w.back }}</button>
+            <button class="primary next">{{ w.next }}</button>
           </div>
         </form>
 
         <form v-else novalidate @submit.prevent="finish">
-          <h3>Save these?</h3>
+          <h3>{{ w.saveThese }}</h3>
           <dl class="facts tight">
             <div v-for="r in draft" :key="r.term" class="fact">
               <dt>{{ r.term }}</dt>
               <dd :class="{ unset: r.unset, mono: !r.unset }">{{ r.value }}</dd>
             </div>
           </dl>
-          <p class="hint">It applies from the next update.</p>
+          <p class="hint">{{ w.appliesNext }}</p>
           <UiNote :note="formNote?.error ? formNote : null" />
           <div class="flow-nav">
-            <button type="button" class="chunk" @click="step--"><span aria-hidden="true">‹</span> Back</button>
-            <button class="primary next" :disabled="saving">{{ saving ? "Saving…" : "Save" }}</button>
+            <button type="button" class="chunk" @click="step--"><span aria-hidden="true">‹</span> {{ w.back }}</button>
+            <button class="primary next" :disabled="saving">{{ saving ? w.saving : w.save }}</button>
           </div>
         </form>
       </UiSteps>

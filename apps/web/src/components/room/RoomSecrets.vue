@@ -9,6 +9,7 @@ import UiSteps from "../UiSteps.vue";
 import { sendJSON } from "../../session";
 import type { RoomManage } from "../../types";
 import { secretName as normalise, secretNameOk } from "./room";
+import { roomWords as w } from "./words";
 
 const props = defineProps<{
   data: RoomManage;
@@ -47,11 +48,11 @@ async function endSecret() {
 function secretNext() {
   secretError.value = "";
   if (secretStep.value === 1 && !secretNameOk(secretName.value)) {
-    secretError.value = "Names are capitals, digits and underscores, like STRIPE_KEY.";
+    secretError.value = w.badName;
     return;
   }
   if (secretStep.value === 2 && !secret.value) {
-    secretError.value = "Enter a value.";
+    secretError.value = w.enterValue;
     return;
   }
   secretStep.value++;
@@ -74,7 +75,7 @@ async function saveSecret() {
   }
   secret.name = "";
   secret.value = "";
-  secretNote.value = quiet(`${name} saved. It reaches your app on the next update.`);
+  secretNote.value = quiet(w.secretSaved(name));
   await props.reload();
   await endSecret();
 }
@@ -99,7 +100,7 @@ async function keep(name: string) {
 async function deleteSecret(name: string) {
   confirming.value = null;
   const res = await sendJSON("DELETE", `${props.base}/secrets/${name}`);
-  secretNote.value = res.ok ? quiet(`${name} removed. Update the room for your app to stop seeing it.`) : loud(res.message);
+  secretNote.value = res.ok ? quiet(w.secretRemoved(name)) : loud(res.message);
   await props.reload();
   await nextTick();
   addButton.value?.focus();
@@ -108,44 +109,44 @@ async function deleteSecret(name: string) {
 
 <template>
   <div ref="root" class="secrets">
-    <p v-if="!data.secretsEnabled" class="off"><Icon name="warn" :size="16" /> Secrets are off on this server.</p>
+    <p v-if="!data.secretsEnabled" class="off"><Icon name="warn" :size="16" /> {{ w.secretsOff }}</p>
 
     <template v-if="!secretStep">
       <!-- Add sits above the list, so it's in view however many secrets there are. -->
       <div class="bar">
         <button ref="addButton" type="button" class="chunk" :disabled="!data.secretsEnabled" @click="startSecret">
-          <Icon name="plus" :size="16" /> Add a secret
+          <Icon name="plus" :size="16" /> {{ w.addSecret }}
         </button>
       </div>
       <UiNote :note="secretNote" />
       <ul v-if="data.secrets.length" class="row-list">
         <ListRow v-for="s in data.secrets" :key="s.name" :title="s.name" class="secret">
           <template #lead><span class="lock"><Icon name="lock" :size="18" /></span></template>
-          <span class="sub" :class="{ asking: confirming === s.name }">{{ confirming === s.name ? "Remove it? Your app loses it." : `set ${when(s.updatedAt)}` }}</span>
+          <span class="sub" :class="{ asking: confirming === s.name }">{{ confirming === s.name ? w.removeAsk : w.setAt(when(s.updatedAt)) }}</span>
           <template #end>
             <template v-if="confirming === s.name">
-              <button type="button" class="chunk small danger" :data-secret="s.name" data-act="confirm" @click="deleteSecret(s.name)">Remove</button>
-              <button type="button" class="chunk small" :data-secret="s.name" data-act="keep" @click="keep(s.name)">Keep</button>
+              <button type="button" class="chunk small danger" :data-secret="s.name" data-act="confirm" @click="deleteSecret(s.name)">{{ w.remove }}</button>
+              <button type="button" class="chunk small" :data-secret="s.name" data-act="keep" @click="keep(s.name)">{{ w.keep }}</button>
             </template>
-            <button v-else type="button" class="chunk small" :data-secret="s.name" data-act="remove" :aria-label="`Remove ${s.name}`" @click="ask(s.name)">
-              Remove
+            <button v-else type="button" class="chunk small" :data-secret="s.name" data-act="remove" :aria-label="w.removeName(s.name)" @click="ask(s.name)">
+              {{ w.remove }}
             </button>
           </template>
         </ListRow>
       </ul>
-      <p v-else class="empty">No secrets yet. Add one when your app needs a key or a password.</p>
+      <p v-else class="empty">{{ w.noSecrets }}</p>
     </template>
 
     <div v-else class="flow">
       <UiSteps :step="secretStep" :total="3" focus-on-mount>
         <form v-if="secretStep === 1" novalidate @submit.prevent="secretNext">
-          <h3>What's it called?</h3>
-          <p class="hint">The name your app reads it by: capitals, digits and underscores.</p>
+          <h3>{{ w.whatCalled }}</h3>
+          <p class="hint">{{ w.secretNameHint }}</p>
           <input
             v-model="secret.name"
             data-autofocus
             placeholder="WAVE_API_KEY"
-            aria-label="Secret name"
+            :aria-label="w.secretName"
             autocomplete="off"
             autocapitalize="characters"
             spellcheck="false"
@@ -155,38 +156,38 @@ async function deleteSecret(name: string) {
           />
           <p v-if="secretError" class="error small" role="alert">{{ secretError }}</p>
           <div class="flow-nav">
-            <button type="button" class="chunk" @click="endSecret">Cancel</button>
-            <button class="primary next">Next</button>
+            <button type="button" class="chunk" @click="endSecret">{{ w.cancel }}</button>
+            <button class="primary next">{{ w.next }}</button>
           </div>
         </form>
 
         <form v-else-if="secretStep === 2" novalidate @submit.prevent="secretNext">
-          <h3>Paste its value.</h3>
-          <p class="hint">It's encrypted as soon as you save it, and nobody sees it again, you included.</p>
+          <h3>{{ w.pasteValue }}</h3>
+          <p class="hint">{{ w.valueHint }}</p>
           <input
             v-model="secret.value"
             data-autofocus
             type="password"
-            placeholder="Value"
-            :aria-label="`Value of ${secretName}`"
+            :placeholder="w.value"
+            :aria-label="w.valueOf(secretName)"
             autocomplete="new-password"
             :aria-invalid="!!secretError"
             @input="secretError = ''"
           />
           <p v-if="secretError" class="error small" role="alert">{{ secretError }}</p>
           <div class="flow-nav">
-            <button type="button" class="chunk" @click="secretBack"><span aria-hidden="true">‹</span> Back</button>
-            <button class="primary next">Next</button>
+            <button type="button" class="chunk" @click="secretBack"><span aria-hidden="true">‹</span> {{ w.back }}</button>
+            <button class="primary next">{{ w.next }}</button>
           </div>
         </form>
 
         <form v-else @submit.prevent="saveSecret">
-          <h3>Save <span class="mono">{{ secretName }}</span>?</h3>
-          <p class="hint"><template v-if="replacing">This replaces the value it has now. </template>Your app sees it from the next update.</p>
+          <h3>{{ w.saveSecretBefore }} <span class="mono">{{ secretName }}</span>{{ w.saveSecretAfter }}</h3>
+          <p class="hint"><template v-if="replacing">{{ w.replaces }}</template>{{ w.seesNext }}</p>
           <p v-if="secretError" class="error small" role="alert">{{ secretError }}</p>
           <div class="flow-nav">
-            <button type="button" class="chunk" @click="secretBack"><span aria-hidden="true">‹</span> Back</button>
-            <button class="primary next" :disabled="savingSecret || !data.secretsEnabled">{{ savingSecret ? "Saving…" : "Save secret" }}</button>
+            <button type="button" class="chunk" @click="secretBack"><span aria-hidden="true">‹</span> {{ w.back }}</button>
+            <button class="primary next" :disabled="savingSecret || !data.secretsEnabled">{{ savingSecret ? w.saving : w.saveSecret }}</button>
           </div>
         </form>
       </UiSteps>

@@ -4,6 +4,7 @@
 import { bare, explain } from "../lobby/panel/words";
 import type { IconName } from "../lobby/house/icons";
 import type { RoomManage, RoomStatus, RoomUsage } from "../../types";
+import { roomWords as w } from "./words";
 
 type Deployment = RoomManage["deployments"][number];
 type Settings = RoomManage["settings"];
@@ -22,7 +23,7 @@ export interface SettingsForm {
 /** The project's name as the room shows it: its name, else its one line, else "Hello" in the tutorial's workshop
  *  (where the sample is a Hello page), else "Untitled project". */
 export function projectTitle(settings: Pick<Settings, "project" | "projectDescription">, tutorial = false): string {
-  return settings.project || settings.projectDescription || (tutorial ? "Hello" : "Untitled project");
+  return settings.project || settings.projectDescription || (tutorial ? w.hello : w.untitled);
 }
 
 /** True while the room has never been online: no update of it ever went live, and nothing is up or stopped now. */
@@ -40,8 +41,8 @@ export interface UpdateTile {
 /** The big action tile that fetches the code and builds it: "Put online" the first time, "Update" after that. */
 export function updateTile(status: RoomStatus, deployments: Pick<Deployment, "kind" | "status">[]): UpdateTile {
   return neverOnline(status, deployments)
-    ? { verb: "Put online", hint: explain.firstOnline, icon: "rocket" }
-    : { verb: "Update", hint: explain.update, icon: "spin" };
+    ? { verb: w.putOnline, hint: explain.firstOnline, icon: "rocket" }
+    : { verb: w.update, hint: explain.update, icon: "spin" };
 }
 
 /** A restart switches the running app off and on, so it needs an app that has been online at least once. */
@@ -58,15 +59,15 @@ export function memoryUse(usage: RoomUsage | null): { mb: number; pct: number } 
 /** A length of time in plain words: "a few minutes", "5 hours", "3 days". */
 export function span(ms: number): string {
   const minutes = Math.round(ms / 60_000);
-  if (minutes < 10) return "a few minutes";
-  if (minutes < 60) return `${minutes} minutes`;
+  if (minutes < 10) return w.fewMinutes;
+  if (minutes < 60) return w.minutes(minutes);
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
-  return `${Math.round(hours / 24)} days`;
+  if (hours < 48) return w.hours(hours);
+  return w.days(Math.round(hours / 24));
 }
 
 /** "half a CPU", "1 CPU", "2 CPUs": a room's share of the processor. */
-export const cpuShare = (cpus: number) => (cpus === 0.5 ? "half a CPU" : `${cpus} ${cpus === 1 ? "CPU" : "CPUs"}`);
+export const cpuShare = (cpus: number) => w.cpuShare(cpus);
 
 /** The Overview's one sentence about how the room is doing: its state and since when, then what it uses of its
  *  share, or what that share is when nothing is measured. "Online for 3 days, using 9 of its 256 MB and almost no
@@ -78,18 +79,18 @@ export function roomSentence(room: Pick<RoomManage["room"], "status" | "limits" 
   let state: string;
   if (room.status === "live") {
     const up = prod.find((d) => d.status === "live");
-    state = up ? `Online for ${ago(up.updatedAt)}` : "Online";
-  } else if (room.status === "deploying") state = "Building now";
-  else if (room.status === "down") state = "Stopped";
-  else if (room.status === "failed") state = last ? `Its last build failed ${ago(last.updatedAt)} ago` : "Its last build failed";
-  else state = last ? "Not online yet" : "Never built yet";
+    state = up ? w.onlineFor(ago(up.updatedAt)) : w.online;
+  } else if (room.status === "deploying") state = w.buildingNow;
+  else if (room.status === "down") state = w.stopped;
+  else if (room.status === "failed") state = last ? w.failedAgo(ago(last.updatedAt)) : w.failed;
+  else state = last ? w.notOnlineYet : w.neverBuilt;
 
   const memory = memoryUse(room.usage);
   if (room.usage && memory && (room.status === "live" || room.status === "deploying")) {
-    const cpu = room.usage.cpuPercent < 1 ? "almost no CPU" : `${Math.round(room.usage.cpuPercent)}% of a CPU`;
-    return `${state}, using ${memory.mb} of its ${room.limits.memoryMb} MB and ${cpu}.`;
+    const cpu = room.usage.cpuPercent < 1 ? w.almostNoCpu : w.cpuPercent(Math.round(room.usage.cpuPercent));
+    return w.using(state, memory.mb, room.limits.memoryMb, cpu);
   }
-  return `${state}. It has ${room.limits.memoryMb} MB of memory and ${cpuShare(room.limits.cpus)} of its own.`;
+  return w.has(state, room.limits.memoryMb, cpuShare(room.limits.cpus));
 }
 
 export interface CodeRow {
@@ -106,13 +107,13 @@ export function codeRows(settings: Pick<Settings, "source" | "branch" | "buildPa
   const repo: CodeRow = github
     ? { term: "GitHub", value: github.fullName, href: github.url }
     : settings.source
-      ? { term: "Repo", value: bare(settings.source).replace(/\.git$/, ""), href: settings.source }
-      : { term: "Repo", value: "Not set yet", unset: true };
+      ? { term: w.repo, value: bare(settings.source).replace(/\.git$/, ""), href: settings.source }
+      : { term: w.repo, value: w.notSetYet, unset: true };
   return [
     repo,
-    settings.branch ? { term: "Branch", value: settings.branch } : { term: "Branch", value: github ? "The default branch" : "main", unset: true },
-    { term: "Folder", value: settings.buildPath && settings.buildPath !== "." ? settings.buildPath : "The repo's root", unset: !settings.buildPath || settings.buildPath === "." },
-    settings.port ? { term: "Port", value: String(settings.port) } : { term: "Port", value: "Not set", unset: true },
+    settings.branch ? { term: w.branch, value: settings.branch } : { term: w.branch, value: github ? w.defaultBranch : "main", unset: true },
+    { term: w.folder, value: settings.buildPath && settings.buildPath !== "." ? settings.buildPath : w.repoRoot, unset: !settings.buildPath || settings.buildPath === "." },
+    settings.port ? { term: w.port, value: String(settings.port) } : { term: w.port, value: w.notSet, unset: true },
   ];
 }
 
@@ -155,19 +156,24 @@ export const secretName = (typed: string) => typed.trim().toUpperCase();
 export const secretNameOk = (name: string) => /^[A-Z_][A-Z0-9_]{0,63}$/.test(name);
 
 /** A build in the history: "Update of main", "Preview of fix-login". */
-export const deploymentTitle = (d: Pick<Deployment, "kind" | "ref">) => `${d.kind === "preview" ? "Preview" : "Update"} of ${d.ref}`;
+export const deploymentTitle = (d: Pick<Deployment, "kind" | "ref">) => (d.kind === "preview" ? w.previewOf(d.ref) : w.updateOf(d.ref));
 
-const STEP: Record<string, { word: string; tone: "live" | "warn" | "danger"; icon: IconName }> = {
-  queued: { word: "Waiting its turn", tone: "warn", icon: "clock" },
-  cloning: { word: "Fetching the code", tone: "warn", icon: "spin" },
-  building: { word: "Building", tone: "warn", icon: "spin" },
-  starting: { word: "Starting", tone: "warn", icon: "spin" },
-  live: { word: "Went online", tone: "live", icon: "tick" },
-  failed: { word: "Failed", tone: "danger", icon: "warn" },
+// Each step's colour and icon; its word is read from the dictionary when asked, so it follows the language.
+type Step = keyof typeof w.steps;
+const STEP: Record<Step, { tone: "live" | "warn" | "danger"; icon: IconName }> = {
+  queued: { tone: "warn", icon: "clock" },
+  cloning: { tone: "warn", icon: "spin" },
+  building: { tone: "warn", icon: "spin" },
+  starting: { tone: "warn", icon: "spin" },
+  live: { tone: "live", icon: "tick" },
+  failed: { tone: "danger", icon: "warn" },
 };
 
 /** How a build's status reads in the history, with its colour and icon. Unknown steps read as building. */
-export const deploymentStep = (status: string) => STEP[status] ?? { word: status || "Building", tone: "warn" as const, icon: "spin" as IconName };
+export const deploymentStep = (status: string): { word: string; tone: "live" | "warn" | "danger"; icon: IconName } =>
+  Object.hasOwn(STEP, status)
+    ? { word: w.steps[status as Step], ...STEP[status as Step] }
+    : { word: status || w.steps.building, tone: "warn", icon: "spin" };
 
 /** The first line of a failure's detail: the part that says what went wrong. */
 export const firstLine = (detail: string | null) => detail?.split("\n").find((l) => l.trim())?.trim() ?? "";

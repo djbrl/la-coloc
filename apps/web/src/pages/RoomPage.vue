@@ -18,9 +18,11 @@ import RoomOverview from "../components/room/RoomOverview.vue";
 import RoomSecrets from "../components/room/RoomSecrets.vue";
 import { parsePort, projectTitle, type SettingsForm, settingsBody } from "../components/room/room";
 import "../components/room/room.css";
+import { roomWords as w } from "../components/room/words";
 import { loud, quiet, type Note } from "../components/UiNote.vue";
 import Waiting from "../components/Waiting.vue";
 import { useWhenBack, wentDown } from "../core";
+import { locale } from "../i18n";
 import { me, sendJSON } from "../session";
 import { openStream, type Stream } from "../stream";
 import type { RoomManage } from "../types";
@@ -33,7 +35,9 @@ import type { RoomManage } from "../types";
 const props = withDefaults(defineProps<{ id: string; room: string; embedded?: boolean; coached?: boolean }>(), { coached: undefined });
 const emit = defineEmits<{ label: [text: string] }>();
 const data = ref<RoomManage | null>(null);
-const error = ref("");
+// Why there's no room to show, kept as which sentence it is so it follows a language change.
+const errorKind = ref<"" | "needLogin" | "notYours" | "missing">("");
+const error = computed(() => (errorKind.value ? w[errorKind.value] : ""));
 const status = ref(0);
 const base = computed(() => `/api/houses/${encodeURIComponent(props.id)}/rooms/${encodeURIComponent(props.room)}`);
 
@@ -60,9 +64,9 @@ async function load() {
     // A refresh that fails keeps the room that's showing.
     if (data.value) return;
     status.value = res?.status ?? 0;
-    if (res?.status === 401) error.value = "Log in to manage your room.";
-    else if (res?.status === 403) error.value = "This isn't your room.";
-    else if (res?.status === 404) error.value = "This room doesn't exist.";
+    if (res?.status === 401) errorKind.value = "needLogin";
+    else if (res?.status === 403) errorKind.value = "notYours";
+    else if (res?.status === 404) errorKind.value = "missing";
     else if (await wentDown(res)) waiting.value = true;
     else failed.value = true;
     return;
@@ -91,7 +95,7 @@ async function open() {
   source?.close();
   source = null;
   data.value = null;
-  error.value = "";
+  errorKind.value = "";
   waiting.value = failed.value = false;
   await load();
   if (!data.value) return;
@@ -115,14 +119,15 @@ useWhenBack(() => {
     void fetchLogs();
   }
 });
-watch(
-  () => data.value?.house.name,
-  (name) => {
-    const d = data.value;
-    if (!d || !name) return;
-    emit("label", d.as === "chef" ? `Room ${d.room.name} in ${name}` : "Your room");
-  },
-);
+// What the sheet calls this room; a computed, so it's said again when the language changes.
+const label = computed(() => {
+  const d = data.value;
+  if (!d?.house.name) return "";
+  return d.as === "chef" ? w.chefLabel(d.room.name, d.house.name) : w.yourRoom;
+});
+watch(label, (text) => {
+  if (text) emit("label", text);
+});
 onBeforeUnmount(() => {
   source?.close();
   clearInterval(followTimer);
@@ -134,13 +139,13 @@ async function saveSettings(): Promise<boolean> {
   formNote.value = null;
   const port = parsePort(form.port);
   if (!port.ok) {
-    formNote.value = loud("The port is a number between 1 and 65535.");
+    formNote.value = loud(w.portRange);
     return false;
   }
   savingSettings.value = true;
   const res = await sendJSON("PATCH", `${base.value}/settings`, settingsBody(form, !!data.value?.github, port.port));
   savingSettings.value = false;
-  formNote.value = res.ok ? quiet("Saved. It applies from the next update.") : loud(res.message);
+  formNote.value = res.ok ? quiet(w.saved) : loud(res.message);
   if (res.ok) await load();
   return res.ok;
 }
@@ -150,7 +155,7 @@ async function run(what: "redeploy" | "restart") {
   action.value = what;
   const res = await sendJSON("POST", `${base.value}/${what}`, {});
   action.value = "";
-  actionNote.value = res.ok ? quiet(what === "redeploy" ? "Building. Follow it in History." : "Restarting.") : loud(res.message);
+  actionNote.value = res.ok ? quiet(what === "redeploy" ? w.buildingFollow : w.restartingNote) : loud(res.message);
 }
 
 async function fetchLogs() {
@@ -160,7 +165,7 @@ async function fetchLogs() {
   logsLoading.value = false;
   if (!res?.ok) {
     // The core being down is not "couldn't read the logs": they come back with it (and are asked for again then).
-    logsMessage.value = (await wentDown(res)) ? "Waiting for the city. The logs come back with it." : ((await res?.json().catch(() => null))?.message ?? "Couldn't read the logs.");
+    logsMessage.value = (await wentDown(res)) ? w.logsWaiting : ((await res?.json().catch(() => null))?.message ?? w.logsFailed);
     return;
   }
   logs.value = (await res.json()).text;
@@ -175,19 +180,19 @@ watch(follow, (on) => {
 type TabKey = "overview" | "code" | "secrets" | "logs" | "history";
 const tab = ref<TabKey>("overview");
 const tabs = computed<PanelTab[]>(() => [
-  { key: "overview", icon: "gauge", word: "Overview" },
-  { key: "code", icon: "code", word: "Code" },
-  { key: "secrets", icon: "lock", word: "Secrets", badge: data.value?.secrets.length || undefined },
-  { key: "logs", icon: "logs", word: "Logs" },
-  { key: "history", icon: "clock", word: "History" },
+  { key: "overview", icon: "gauge", word: w.tabs.overview },
+  { key: "code", icon: "code", word: w.tabs.code },
+  { key: "secrets", icon: "lock", word: w.tabs.secrets, badge: data.value?.secrets.length || undefined },
+  { key: "logs", icon: "logs", word: w.tabs.logs },
+  { key: "history", icon: "clock", word: w.tabs.history },
 ]);
-const explains: Record<TabKey, string> = {
+const explains = computed<Record<TabKey, string>>(() => ({
   overview: explain.project,
   code: explain.code,
   secrets: explain.secrets,
   logs: explain.logs,
   history: explain.history,
-};
+}));
 // A "Saved." from one tab shouldn't greet you on the next.
 watch(tab, () => (formNote.value = null));
 
@@ -199,18 +204,18 @@ const headLine = computed(() => {
   const d = data.value;
   if (!d) return "";
   const who = d.room.occupant;
-  const whose = !who || who.login === me.value?.login ? "Your room" : `${(who.name ?? who.login).split(" ")[0]}'s room`;
-  return `${roomLine(d.room)} ${whose} in ${d.house.name}.`;
+  const whose = !who || who.login === me.value?.login ? w.yourRoom : w.theirRoom((who.name ?? who.login).split(" ")[0]);
+  return w.headLine(roomLine(d.room), whose, d.house.name);
 });
 const workshop = computed(() => props.id === TUTORIAL_HOUSE);
 const coached = computed(() => props.coached ?? (!!props.embedded && workshop.value && !!me.value && me.value.tutorialDone === false));
 const title = computed(() => (data.value ? projectTitle(data.value.settings, workshop.value) : ""));
-const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 </script>
 
 <template>
   <div class="room-page" :class="{ embedded }">
-    <RouterLink v-if="!embedded" :to="`/houses/${id}`" class="back"><span aria-hidden="true">‹</span> {{ data?.house.name ?? "The house" }}</RouterLink>
+    <RouterLink v-if="!embedded" :to="`/houses/${id}`" class="back"><span aria-hidden="true">‹</span> {{ data?.house.name ?? w.theHouse }}</RouterLink>
 
     <Panel
       v-if="data && state"
@@ -223,7 +228,7 @@ const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric",
         <PanelHead :title="title" :state="state" :line="headLine" :class="{ untitled: !data.settings.project && !workshop }">
           <template v-if="online" #aside>
             <a :href="data.room.url!" target="_blank" rel="noopener" class="chunk small">
-              <Icon name="external" :size="16" /> Open<span class="sr-only"> the project (opens in a new tab)</span>
+              <Icon name="external" :size="16" /> {{ w.open }}<span class="sr-only">{{ w.openProject }}</span>
             </a>
           </template>
         </PanelHead>
@@ -231,19 +236,19 @@ const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric",
         <p class="what">
           {{ explain.room(data.room.limits.memoryMb, data.room.limits.cpus) }}
           <template v-if="online">
-            Its address:
-            <a :href="data.room.url!" target="_blank" rel="noopener" class="mono">{{ bare(data.room.url!) }}<span class="sr-only"> (opens in a new tab)</span></a><template
+            {{ w.address }}
+            <a :href="data.room.url!" target="_blank" rel="noopener" class="mono">{{ bare(data.room.url!) }}<span class="sr-only">{{ w.newTab }}</span></a><template
               v-if="data.room.previewUrl"
-            >, and a preview at
-              <a :href="data.room.previewUrl" target="_blank" rel="noopener" class="mono">{{ bare(data.room.previewUrl) }}<span class="sr-only"> (opens in a new tab)</span></a></template>.
+            >{{ w.andPreview }}
+              <a :href="data.room.previewUrl" target="_blank" rel="noopener" class="mono">{{ bare(data.room.previewUrl) }}<span class="sr-only">{{ w.newTab }}</span></a></template>.
           </template>
           <template v-else>{{ explain.online }}</template>
         </p>
-        <p class="sr-only" aria-live="polite">Room state: {{ state.word }}</p>
+        <p class="sr-only" aria-live="polite">{{ w.stateSr(state.word) }}</p>
       </template>
 
       <template #tabs>
-        <PanelTabs v-model="tab" :tabs="tabs" label="Room sections" />
+        <PanelTabs v-model="tab" :tabs="tabs" :label="w.sections" />
       </template>
 
       <Transition name="fade" mode="out-in">
@@ -281,13 +286,13 @@ const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric",
     <!-- Not yours, not there, or still loading: one short message in the middle of the panel. -->
     <Panel v-else class="room-panel">
       <Waiting v-if="waiting" @retry="open" />
-      <Waiting v-else-if="failed" title="That didn't load." line="Something went wrong on our side. Try again in a moment." @retry="open" />
+      <Waiting v-else-if="failed" :title="w.loadFailed" :line="w.loadFailedWhy" @retry="open" />
       <div v-else class="message" :aria-live="error ? undefined : 'polite'">
         <span class="icon"><Icon :name="error ? (status === 401 ? 'login' : 'door') : 'key'" :size="28" /></span>
-        <p class="said">{{ error || "Unlocking the door…" }}</p>
+        <p class="said">{{ error || w.unlocking }}</p>
         <div v-if="error && (status === 401 || !embedded)" class="go">
-          <RouterLink v-if="status === 401" to="/login" class="chunk primary"><Icon name="login" :size="16" /> Log in</RouterLink>
-          <RouterLink v-if="!embedded" :to="`/houses/${id}`" class="chunk"><Icon name="house" :size="16" /> Back to the house</RouterLink>
+          <RouterLink v-if="status === 401" to="/login" class="chunk primary"><Icon name="login" :size="16" /> {{ w.logIn }}</RouterLink>
+          <RouterLink v-if="!embedded" :to="`/houses/${id}`" class="chunk"><Icon name="house" :size="16" /> {{ w.backToHouse }}</RouterLink>
         </div>
       </div>
     </Panel>

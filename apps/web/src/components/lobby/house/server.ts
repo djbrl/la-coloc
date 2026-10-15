@@ -11,9 +11,8 @@ export interface ServerInfo {
 export type PlanId = "small" | "medium" | "large";
 
 export interface Plan {
+  // Also names the size: its one word on the tile is rentWords.plans[id] (joinWords.ts), in the current language.
   id: PlanId;
-  // The one word on the tile.
-  word: string;
   vcpu: number;
   gb: number;
   // A month, in FCFA. Illustrative until the landlord's real prices are in.
@@ -21,9 +20,9 @@ export interface Plan {
 }
 
 export const plans: Plan[] = [
-  { id: "small", word: "Small", vcpu: 2, gb: 4, fcfa: 7000 },
-  { id: "medium", word: "Medium", vcpu: 4, gb: 8, fcfa: 12000 },
-  { id: "large", word: "Large", vcpu: 8, gb: 16, fcfa: 22000 },
+  { id: "small", vcpu: 2, gb: 4, fcfa: 7000 },
+  { id: "medium", vcpu: 4, gb: 8, fcfa: 12000 },
+  { id: "large", vcpu: 8, gb: 16, fcfa: 22000 },
 ];
 
 // "12 000 FCFA": thousands split by a non-breaking space, the French way, so the amount never wraps.

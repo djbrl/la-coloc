@@ -2,6 +2,7 @@
 // One question per screen: progress dots, then the current step, sliding forward or back.
 // The parent renders the step's content in the slot, switching on the same `step` number.
 import { onMounted, ref, watch } from "vue";
+import { joinWords as w } from "./joinWords";
 
 const props = withDefaults(defineProps<{ step: number; total: number; focusOnMount?: boolean; center?: boolean }>(), { focusOnMount: false, center: false });
 const dir = ref<"forward" | "back">("forward");
@@ -34,7 +35,7 @@ onMounted(() => {
       aria-valuemin="1"
       :aria-valuemax="total"
       :aria-valuenow="step"
-      :aria-valuetext="`Step ${step} of ${total}`"
+      :aria-valuetext="w.stepOf(step, total)"
     >
       <span v-for="i in total" :key="i" class="d" :class="{ on: i === step, done: i < step }" />
     </div>

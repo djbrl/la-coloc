@@ -4,6 +4,7 @@
 // It reads like a game's menu: a short bold title per step, big tiles to pick from, chunky buttons with one main one.
 import { onMounted, ref, watch } from "vue";
 import { DOWN_WRITE, wentDown } from "../../../core";
+import { joinWords, rentWords as w } from "../../joinWords";
 import UiSteps from "../../UiSteps.vue";
 import { explain } from "../panel/words";
 import Icon from "./Icon.vue";
@@ -52,7 +53,7 @@ async function rent(renew: boolean) {
   if (!res?.ok) {
     keyExists.value = res?.status === 409;
     error.value =
-      typeof data?.message === "string" ? data.message : res?.status === 404 ? "Renting isn't open yet." : "That didn't work.";
+      typeof data?.message === "string" ? data.message : res?.status === 404 ? w.notOpen : joinWords.didntWork;
     return;
   }
   command.value = data.command;
@@ -65,7 +66,7 @@ async function copy() {
     copied.value = true;
     setTimeout(() => (copied.value = false), 2000);
   } catch {
-    error.value = "Copy it by hand.";
+    error.value = w.copyByHand;
   }
 }
 
@@ -102,17 +103,17 @@ watch(
 </script>
 
 <template>
-  <dialog ref="dialog" class="sheet" aria-label="Rent the server" @close="emit('close')" @click="onClick">
+  <dialog ref="dialog" class="sheet" :aria-label="w.rentLabel" @close="emit('close')" @click="onClick">
     <div class="inner">
-      <button type="button" class="x" :aria-label="step === 3 ? 'Later (Esc)' : 'Cancel (Esc)'" @click="dialog?.close()">
+      <button type="button" class="x" :aria-label="step === 3 ? w.laterEsc : joinWords.cancel" @click="dialog?.close()">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
       </button>
 
       <UiSteps :step="step" :total="3">
         <form v-if="step === 1" class="form" novalidate @submit.prevent="rent(keyExists)">
-          <h2>Pick a size</h2>
+          <h2>{{ w.pickTitle }}</h2>
           <p class="muted">{{ explain.bill }}</p>
-          <div class="plans" role="radiogroup" aria-label="Server size">
+          <div class="plans" role="radiogroup" :aria-label="w.sizeLabel">
             <button
               v-for="(p, i) in plans"
               :key="p.id"
@@ -128,49 +129,49 @@ watch(
               @keydown="onPlanKey($event, i)"
             >
               <span class="plan-ic"><Icon name="server" :size="20" /></span>
-              <span class="size">{{ p.word }}</span>
-              <span class="spec">{{ p.vcpu }} CPU · {{ p.gb }} GB</span>
-              <span class="price">{{ fcfa(p.fcfa) }}<span class="per"> a month</span></span>
+              <span class="size">{{ w.plans[p.id] }}</span>
+              <span class="spec">{{ w.spec(p.vcpu, p.gb) }}</span>
+              <span class="price">{{ fcfa(p.fcfa) }}<span class="per">{{ w.aMonth }}</span></span>
               <span v-if="plan === p.id" class="picked" aria-hidden="true"><Icon name="tick" :size="14" /></span>
             </button>
           </div>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
             <button class="primary" :disabled="sending">
-              <Icon :name="keyExists ? 'key' : 'server'" :size="20" />{{ sending ? "Renting…" : keyExists ? "Make a new key" : "Rent it" }}
+              <Icon :name="keyExists ? 'key' : 'server'" :size="20" />{{ sending ? w.renting : keyExists ? w.newKeyLong : w.rentIt }}
             </button>
           </div>
         </form>
 
         <div v-else-if="step === 2" class="form">
-          <h2>Run this once</h2>
-          <p class="muted">On your server, as root. It installs Docker, the proxy and the caretaker, which then calls the house.</p>
-          <pre class="code" tabindex="0" data-autofocus aria-label="The install command"><code>{{ command }}</code></pre>
+          <h2>{{ w.runTitle }}</h2>
+          <p class="muted">{{ w.runWhy }}</p>
+          <pre class="code" tabindex="0" data-autofocus :aria-label="w.commandLabel"><code>{{ command }}</code></pre>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
             <button type="button" class="second" @click="copy">
-              <Icon :name="copied ? 'tick' : 'copy'" :size="20" />{{ copied ? "Copied" : "Copy" }}
+              <Icon :name="copied ? 'tick' : 'copy'" :size="20" />{{ copied ? w.copied : w.copy }}
             </button>
-            <button type="button" class="primary" @click="step = 3"><Icon name="next" :size="20" />Done, it's running</button>
+            <button type="button" class="primary" @click="step = 3"><Icon name="next" :size="20" />{{ w.running }}</button>
           </div>
         </div>
 
         <div v-else class="form wait" aria-live="polite">
           <template v-if="live">
             <span class="ring on" aria-hidden="true"><Icon name="tick" :size="28" /></span>
-            <h2 autofocus data-autofocus tabindex="-1">Server up</h2>
-            <p class="muted">Every flatmate can now put their project online in their room.</p>
+            <h2 autofocus data-autofocus tabindex="-1">{{ w.upTitle }}</h2>
+            <p class="muted">{{ w.upWhy }}</p>
             <div class="nav">
-              <button type="button" class="primary" @click="dialog?.close()"><Icon name="tick" :size="20" />Done</button>
+              <button type="button" class="primary" @click="dialog?.close()"><Icon name="tick" :size="20" />{{ w.done }}</button>
             </div>
           </template>
           <template v-else>
             <span class="ring spin" aria-hidden="true" />
-            <h2 autofocus data-autofocus tabindex="-1">Waiting for your server</h2>
-            <p class="muted">This finishes on its own once the caretaker calls, so you can close this and come back. Lost the command? Make a new key.</p>
+            <h2 autofocus data-autofocus tabindex="-1">{{ w.waitTitle }}</h2>
+            <p class="muted">{{ w.waitWhy }}</p>
             <div class="nav">
-              <button type="button" class="second" @click="startOver"><Icon name="key" :size="20" />New key</button>
-              <button type="button" class="primary" @click="dialog?.close()">Later</button>
+              <button type="button" class="second" @click="startOver"><Icon name="key" :size="20" />{{ w.newKey }}</button>
+              <button type="button" class="primary" @click="dialog?.close()">{{ w.later }}</button>
             </div>
           </template>
         </div>
