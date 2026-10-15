@@ -1212,7 +1212,8 @@ function cityLine(c: { name: string; houses: number }): string {
 </template>
 
 <style scoped>
-.lobby { position: relative; height: 100dvh; min-height: 420px; overflow: hidden; background: linear-gradient(180deg, #2a2148 0%, #4b3a74 45%, #8a6aa0 100%); }
+/* Behind the canvas, the 3D city's own day sky (daylight.ts): the city is always seen by day. */
+.lobby { position: relative; height: 100dvh; min-height: 420px; overflow: hidden; background: linear-gradient(180deg, #6fa6dc 0%, #cfe2f2 100%); }
 /* Its own stacking context: three.js gives every name tag a z-index, which would otherwise float over the sheets. */
 .stage { position: absolute; inset: 0; z-index: 0; isolation: isolate; outline: none; }
 /* Tabbed to with the keyboard: a ring inside the screen's edge says the city has the keys now. */

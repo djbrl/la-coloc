@@ -1,5 +1,5 @@
 // The city as a walkable lobby: one neighbourhood at a time, generated from its city's name (see neighbourhood.ts),
-// lit by the city's real local time (daylight.ts) and dressed in its own style (cityStyle.ts). Your character, the
+// always in daylight (daylight.ts, pinned to late morning; the UI's day/night theme doesn't touch it) and dressed in its own style (cityStyle.ts). Your character, the
 // flatmates hanging around their houses, and everyone else who's online in this neighbourhood, live. Each house's
 // front shows its rooms as windows (windows.ts). Every house, empty plot, person and the market's chores board is a
 // target: walk up to one and press E, click it, or press [ and ] to pick one from afar; whatever the mouse is over
@@ -55,7 +55,11 @@ const FRAMED = { half: 6.5, at: 0.28, narrow: 720 };
 const LAMP_LIGHT = 0xffc078;
 const TAG_RANGE = 10; // people's name tags show within this distance of you
 const NOBODY = 0xd8d8de; // the ring colour of someone without a house
-const DAYLIGHT_EVERY = 60_000; // milliseconds between two looks at the city's clock
+const DAYLIGHT_EVERY = 60_000; // milliseconds between two looks at the light
+// The city is always seen by day, bright and colourful, whatever the time there or the site's theme (Jib, 15 10):
+// a night city read as gloomy, and the HUD's own day/night theme is a separate choice. The hour every city is shown
+// at: late morning, well after sunrise everywhere on the map, so the lamps are off and the windows unlit.
+const CITY_HOUR = 11;
 const SPACING = 0.9;
 // How much nearer than a building a person must be to win "in reach" (see `reach`).
 const PEOPLE_MARGIN = 0.8; // the closest two people standing at a door may get (R39)
@@ -330,7 +334,7 @@ export class Lobby {
     host.appendChild(this.labels.domElement);
 
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
-    // The light follows the city's clock (see `daylight`): these are dusk's, until the first look at it.
+    // The light is set by `daylight` (always day): these are dusk's, until its first look.
     this.hemi = new THREE.HemisphereLight(0xe4dcff, 0x6a6488, 1.9);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffc9a0, 2.1);
@@ -731,7 +735,7 @@ export class Lobby {
     if (!on) for (const k of [...this.keys]) if (k.length === 1) this.keys.delete(k);
   }
 
-  /** Development only: pins the city's local hour (0–24) to see it by day or night; null goes back to the real time. */
+  /** Development only: pins the city's local hour (0–24) to see it by day or night; null goes back to the day look. */
   setHour(hour: number | null) {
     this.hourOverride = hour;
     this.daylight(true);
@@ -1456,14 +1460,15 @@ export class Lobby {
   }
 
   /**
-   * The light of the city's local time: the sky, the sun, the fog, and the lamps and lit windows from dusk on (R29).
-   * Looked at once a minute, or straight away when `now` is set.
+   * The light: the sky, the sun, the fog, and the lamps and lit windows (they'd come on from dusk, R29). Always the
+   * day look (CITY_HOUR) unless the development tool pins another hour. Looked at once a minute, or straight away
+   * when `now` is set.
    */
   private daylight(now = false) {
     const t = performance.now();
     if (!now && t - this.lastDaylight < DAYLIGHT_EVERY) return;
     this.lastDaylight = t;
-    const d = daylightAt(new Date(), this.style, this.hourOverride);
+    const d = daylightAt(new Date(), this.style, this.hourOverride ?? CITY_HOUR);
     const l = lightingFor(d.sun, new THREE.Color(this.style.palette.sky).getHex());
     this.hemi.color.setHex(l.sky);
     this.hemi.groundColor.setHex(l.ground);
