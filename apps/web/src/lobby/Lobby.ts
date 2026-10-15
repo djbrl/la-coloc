@@ -1,5 +1,5 @@
 // The city as a walkable lobby: one neighbourhood at a time, generated from its city's name (see neighbourhood.ts),
-// always in daylight (daylight.ts, pinned to late morning; the UI's day/night theme doesn't touch it) and dressed in its own style (cityStyle.ts). Your character, the
+// always in full daylight (daylight.ts; the UI's day/night theme doesn't touch it) and dressed in its own style (cityStyle.ts). Your character, the
 // flatmates hanging around their houses, and everyone else who's online in this neighbourhood, live. Each house's
 // front shows its rooms as windows (windows.ts). Every house, empty plot, person and the market's chores board is a
 // target: walk up to one and press E, click it, or press [ and ] to pick one from afar; whatever the mouse is over
@@ -18,7 +18,7 @@ import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRe
 import type { CityHouse } from "../types";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
 import { type CityStyle, styleFor } from "./cityStyle";
-import { daylightAt, lightingFor } from "./daylight";
+import { daylight } from "./daylight";
 import { Beacon } from "./beacon";
 import { Fireworks } from "./fireworks";
 import { liveKey, liveState } from "./live";
@@ -52,14 +52,10 @@ const TOUR = { glide: 1.2, hold: 2 };
 // from the left. A screen narrower than `narrow` pixels shows windows as a bottom sheet: it zooms, and you stand in
 // the top third, above the sheet.
 const FRAMED = { half: 6.5, at: 0.28, narrow: 720 };
-const LAMP_LIGHT = 0xffc078;
 const TAG_RANGE = 10; // people's name tags show within this distance of you
 const NOBODY = 0xd8d8de; // the ring colour of someone without a house
-const DAYLIGHT_EVERY = 60_000; // milliseconds between two looks at the light
-// The city is always seen by day, bright and colourful, whatever the time there or the site's theme (Jib, 15 10):
-// a night city read as gloomy, and the HUD's own day/night theme is a separate choice. The hour every city is shown
-// at: late morning, well after sunrise everywhere on the map, so the lamps are off and the windows unlit.
-const CITY_HOUR = 11;
+// The city is always seen by day, bright and colourful, whatever the time there or the site's theme (15 10 2026):
+// a night city read as gloomy. No dusk, no lamps coming on: the light is set once per city (see `light`).
 const SPACING = 0.9;
 // How much nearer than a building a person must be to win "in reach" (see `reach`).
 const PEOPLE_MARGIN = 0.8; // the closest two people standing at a door may get (R39)
@@ -174,13 +170,6 @@ interface Remote extends Thing {
   hidden?: boolean;
 }
 
-// The street lamps (all of them at once): not targets, they light themselves at dusk.
-interface Lamps {
-  bulb: THREE.InstancedMesh;
-  pool: THREE.InstancedMesh;
-  on: boolean;
-}
-
 // The chores board on the market square (R19): a target, with a pin per house that has reviews waiting.
 interface Board extends Thing {
   group: THREE.Group;
@@ -223,17 +212,12 @@ export class Lobby {
   private npcs: Npc[] = [];
   private remotes = new Map<string, Remote>();
   private residents = new Map<string, Resident>();
-  private lamps: Lamps | null = null;
   private board: Board | null = null;
   private props: CityProps | null = null;
   // The city's look (colours, grounds, props), and the light of its local time.
   private style: CityStyle = styleFor("");
   private hemi: THREE.HemisphereLight;
   private sky: { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture; key: string };
-  private lampsOn = false;
-  private lastDaylight = 0;
-  // Pins the city's local hour (a dev tool: `lobby.setHour(22)`), or null for the real time.
-  private hourOverride: number | null = null;
   private fireworks = new Fireworks();
   // The tutorial's quest marker at a house's door (`setBeacon`), and which house. It lives in the scene, not the town,
   // so a rebuild keeps it and clicks go through it; each frame it finds its house again (see `step`).
@@ -334,7 +318,7 @@ export class Lobby {
     host.appendChild(this.labels.domElement);
 
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
-    // The light is set by `daylight` (always day): these are dusk's, until its first look.
+    // The light is set by `light` (always day) once the city is built: these hold until then.
     this.hemi = new THREE.HemisphereLight(0xe4dcff, 0x6a6488, 1.9);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffc9a0, 2.1);
@@ -409,14 +393,12 @@ export class Lobby {
     this.plots = [];
     this.solids = [];
     this.npcs = [];
-    this.lamps = null;
     this.board = null;
     this.props = null;
     this.skyline = [];
     this.occluders = [];
     this.arrival = null;
     this.style = styleFor(n.city);
-    this.lastDaylight = 0;
     const rand = seeded(`decor:${n.city}`);
     // The city's own props have their own dice, so adding one never moves the trees and parasols.
     const dice = seeded(`props:${n.city}`);
@@ -503,7 +485,7 @@ export class Lobby {
       });
     }
 
-    // Lamps at the crossings (they light themselves at dusk), traffic lights at a few, where the city has them.
+    // Lamps at the crossings (scenery, always off), traffic lights at a few, where the city has them.
     this.addLamps(n.lamps);
     if (n.board) this.addBoard(n.board, n.city);
     for (const t of this.style.trafficLights ? n.trafficLights : []) {
@@ -539,7 +521,7 @@ export class Lobby {
       play("arrive");
     }
     this.updateHouses(houses);
-    this.daylight(true);
+    this.light();
     // A house opened from the address bar before its neighbourhood was built: go there now.
     if (this.pendingArrival) this.arriveAt(this.pendingArrival);
     // The old town is gone, and so is anything in it you were heading for, had highlighted or pointed at. People
@@ -733,12 +715,6 @@ export class Lobby {
   setShortcuts(on: boolean) {
     this.shortcuts = on;
     if (!on) for (const k of [...this.keys]) if (k.length === 1) this.keys.delete(k);
-  }
-
-  /** Development only: pins the city's local hour (0–24) to see it by day or night; null goes back to the day look. */
-  setHour(hour: number | null) {
-    this.hourOverride = hour;
-    this.daylight(true);
   }
 
   /**
@@ -1393,41 +1369,22 @@ export class Lobby {
   }
 
   /**
-   * The street lamps, all of them three instanced meshes (posts, bulbs, and the pools of light they throw on the
-   * ground): three draw calls however many crossings there are, and no real lights to slow the frame.
+   * The street lamps: scenery only, always off (no light, no switching). Two instanced meshes, posts and bulbs: two
+   * draw calls however many crossings there are.
    */
   private addLamps(spots: { x: number; z: number }[]) {
     const n = spots.length;
     if (!n) return;
     const post = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.08, 2.6, 8), new THREE.MeshStandardMaterial({ color: 0x2c2a33, roughness: 0.6, metalness: 0.4 }), n);
-    const bulb = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshStandardMaterial({ color: 0x77736c, emissive: LAMP_LIGHT, emissiveIntensity: 0 }), n);
-    const pool = new THREE.InstancedMesh(new THREE.CircleGeometry(2, 28), new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending }), n);
+    const bulb = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshStandardMaterial({ color: 0x77736c }), n);
     const m = new THREE.Matrix4();
-    const flat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
     spots.forEach((p, i) => {
       post.setMatrixAt(i, m.makeTranslation(p.x, 1.3, p.z));
       bulb.setMatrixAt(i, m.makeTranslation(p.x, 2.7, p.z));
-      pool.setMatrixAt(i, m.compose(new THREE.Vector3(p.x, 0.16, p.z), flat, new THREE.Vector3(1, 1, 1)));
     });
     post.castShadow = true;
-    for (const mesh of [post, bulb, pool]) mesh.computeBoundingSphere();
-    // Lamps are street furniture, not targets: the mouse looks through their light.
-    pool.raycast = () => undefined;
-    this.town.add(post, bulb, pool);
-    this.lamps = { bulb, pool, on: false };
-    this.setLamps(this.lampsOn);
-  }
-
-  /** Lamps on (a warm bulb and a pool of light under it, stronger the darker it is) or off. */
-  private setLamps(on: boolean, dark = 1) {
-    const l = this.lamps;
-    if (!l) return;
-    l.on = on;
-    (l.pool.material as THREE.MeshBasicMaterial).opacity = 0.03 + 0.14 * dark;
-    const m = l.bulb.material as THREE.MeshStandardMaterial;
-    m.emissiveIntensity = on ? 2.2 : 0;
-    m.color.set(on ? 0xfff1d6 : 0x77736c);
-    l.pool.visible = on;
+    for (const mesh of [post, bulb]) mesh.computeBoundingSphere();
+    this.town.add(post, bulb);
   }
 
   /** The chores board on the market square (R19): a cork board on two legs, facing the street. */
@@ -1459,17 +1416,9 @@ export class Lobby {
     b.pins.add(makePins(key.split("").map((k) => k === "r")));
   }
 
-  /**
-   * The light: the sky, the sun, the fog, and the lamps and lit windows (they'd come on from dusk, R29). Always the
-   * day look (CITY_HOUR) unless the development tool pins another hour. Looked at once a minute, or straight away
-   * when `now` is set.
-   */
-  private daylight(now = false) {
-    const t = performance.now();
-    if (!now && t - this.lastDaylight < DAYLIGHT_EVERY) return;
-    this.lastDaylight = t;
-    const d = daylightAt(new Date(), this.style, this.hourOverride ?? CITY_HOUR);
-    const l = lightingFor(d.sun, new THREE.Color(this.style.palette.sky).getHex());
+  /** The light: the sky, the sun and the fog of full day, tinted by the city's sky colour. Set when a city is built. */
+  private light() {
+    const l = daylight(new THREE.Color(this.style.palette.sky).getHex());
     this.hemi.color.setHex(l.sky);
     this.hemi.groundColor.setHex(l.ground);
     this.hemi.intensity = l.hemi;
@@ -1487,9 +1436,6 @@ export class Lobby {
       g.fillRect(0, 0, 2, 256);
       this.sky.texture.needsUpdate = true;
     }
-    this.lampsOn = d.lampsOn;
-    this.setLamps(d.lampsOn, 1 - d.sun);
-    for (const p of this.placed) p.face.setNight(d.sun < 0.5);
   }
 
   // ---- People ----
@@ -1997,7 +1943,6 @@ export class Lobby {
       if (p) this.beacon.place(p.door.x, p.door.z);
       this.beacon.update(time, calm);
     }
-    this.daylight();
 
     // Zoom eases towards the wheel's choice (or the onboarding's close-up, or the close-up beside a window).
     const want = this.focus ?? (this.framing === "left" ? FRAMED.half : this.zoom);

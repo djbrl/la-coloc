@@ -25,7 +25,6 @@ export class HouseFace {
   private windows: THREE.InstancedMesh;
   private states: WindowState[] = [];
   private powerCut = false;
-  private night = true;
   private crane: THREE.Group | null = null;
   private jib: THREE.Object3D | null = null;
   private color = new THREE.Color();
@@ -57,13 +56,6 @@ export class HouseFace {
     if (live.building && !this.crane) this.raiseCrane();
     if (!live.building && this.crane) this.lowerCrane();
     return changes;
-  }
-
-  /** Day or night: lit windows glow at night and read as warm glass by day. */
-  setNight(night: boolean) {
-    if (night === this.night) return;
-    this.night = night;
-    this.paint(0);
   }
 
   /** Every frame: a down room's window flickers, the crane's jib turns slowly (neither with calm motion). */
@@ -123,14 +115,15 @@ export class HouseFace {
     for (let i = 0; i < this.rooms; i++) {
       const state = this.states[i] ?? "dark";
       this.windows.setColorAt(i * 3, this.color.setHex(COLORS.frame));
-      this.windows.setColorAt(i * 3 + 2, this.color.setHex(COLORS.placard).multiplyScalar(this.powerCut ? 0.45 : this.night ? 0.85 : 1));
+      this.windows.setColorAt(i * 3 + 2, this.color.setHex(COLORS.placard).multiplyScalar(this.powerCut ? 0.45 : 1));
       if (this.powerCut) {
         this.windows.setColorAt(i * 3 + 1, this.color.setHex(COLORS.glass));
         continue;
       }
       this.color.setHex(COLORS[state]);
       // By day a lit window is less of a lantern; a down one flickers (two sines out of step, never quite dark).
-      if (state === "lit" && !this.night) this.color.multiplyScalar(0.82);
+      // By day, a lit window reads as warm glass rather than a glow.
+      if (state === "lit") this.color.multiplyScalar(0.82);
       if (state === "down") this.color.multiplyScalar(0.55 + 0.45 * Math.abs(Math.sin(time * 9 + i) * Math.sin(time * 3.1 + i * 2)));
       this.windows.setColorAt(i * 3 + 1, this.color);
     }
