@@ -137,14 +137,15 @@ async function finish() {
 <style scoped>
 .overview { display: grid; gap: 10px; align-content: start; }
 
-.project { display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 14px 16px; border-radius: 18px; background: var(--tile); }
+/* The project and its state: dashboard cards, the surface with a 1px edge. */
+.project { display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 14px 16px; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
 .what { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
-.name { font-size: 17px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name { font: 700 19px/1.2 var(--display); letter-spacing: -0.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .about { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .unset { color: var(--muted); }
 .name.unset { font-weight: 500; }
 
-.doing { display: grid; gap: 10px; padding: 14px 16px; border-radius: 18px; background: var(--tile); }
+.doing { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--r-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
 .doing p { font-size: 15px; line-height: 1.4; }
 .dot-here { margin-right: 8px; vertical-align: 0.08em; }
 
@@ -158,21 +159,24 @@ async function finish() {
   gap: 8px 10px;
   min-height: 108px;
   padding: 14px 16px;
-  border-radius: 18px;
-  background: var(--tile);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--quiet-edge);
   color: var(--text);
   text-align: left;
-  transition: background-color 0.15s var(--ease), transform 0.12s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.act:hover:not(:disabled) { background: var(--fill-hover); }
-.act:active:not(:disabled) { transform: scale(0.98); }
-.act .ic { grid-area: ic; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--fill); }
-.act .verb { grid-area: verb; font-size: 18px; font-weight: 600; }
+.act:hover:not(:disabled) { background: var(--tile); }
+.act:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 0 0 1px var(--border), 0 1px 0 var(--line-strong); }
+.act .ic { grid-area: ic; display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--fill); }
+.act .verb { grid-area: verb; font: 700 19px/1.15 var(--display); letter-spacing: -0.015em; }
 .act .hint { grid-area: hint; align-self: start; font-size: 13px; line-height: 1.35; color: var(--muted); }
-.act.go { background: var(--accent-soft); }
-.act.go:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.act.go .ic { background: var(--accent-fill); color: var(--on-accent); }
-.act.go .verb { color: var(--accent); }
+/* The usual next step is the game's key: the orange, dark ink, the lip under it. */
+.act.go { background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 var(--lip) 0 var(--accent-lip); }
+.act.go:hover:not(:disabled) { background: var(--accent-fill-hover); }
+.act.go:active:not(:disabled) { transform: translateY(calc(var(--lip) - var(--lip-pressed))); box-shadow: 0 var(--lip-pressed) 0 var(--accent-lip); }
+.act.go .ic { background: color-mix(in srgb, var(--on-accent) 12%, transparent); }
+.act.go .hint { color: color-mix(in srgb, var(--on-accent) 88%, transparent); }
 
 .down { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--danger); }
 

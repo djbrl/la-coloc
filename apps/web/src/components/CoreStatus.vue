@@ -115,7 +115,6 @@ onBeforeUnmount(() => {
 .line { margin: 0; font-size: 14px; line-height: 1.35; color: var(--muted); }
 .act { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; }
 .act .primary { min-height: 40px; padding: 0 20px; border-radius: var(--r-md); font-size: 15px; font-weight: 600; }
-
 .count { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .hide { flex: none; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
 .hide:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }

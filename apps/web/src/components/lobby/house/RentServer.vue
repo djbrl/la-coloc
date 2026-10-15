@@ -186,14 +186,14 @@ watch(
   max-height: calc(100dvh - 32px);
   padding: 0;
   border: none;
-  border-radius: 28px;
+  border-radius: var(--r-xl);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.sheet[open] { animation: menu-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+.sheet[open] { animation: menu-pop var(--dur-slow) var(--ease-pop); }
 .sheet::backdrop { background: var(--scrim); }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.94); }
@@ -201,10 +201,10 @@ watch(
 .inner { position: relative; padding: 26px 28px 24px; }
 .inner :deep(.steps) { gap: 20px; }
 /* The round close button in the corner, like the lobby's cards. */
-.x { position: absolute; top: 16px; right: 16px; z-index: 1; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--fill); color: var(--muted); }
+.x { position: absolute; top: 16px; right: 16px; z-index: 1; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
 .x:hover:not(:disabled) { color: var(--text); }
 .form { display: grid; gap: 14px; }
-.form h2 { padding-right: 44px; font-size: 28px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+.form h2 { padding-right: 44px; font-size: 28px; line-height: 1.05; overflow-wrap: anywhere; }
 .form > p { font-size: 15px; line-height: 1.4; }
 .error { font-size: 14px; }
 
@@ -217,20 +217,23 @@ watch(
   justify-items: start;
   min-height: 0;
   padding: 14px;
-  border-radius: 18px;
-  background: var(--tile);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--quiet-edge);
   color: var(--text);
   text-align: left;
-  transition: background-color 0.15s var(--ease), box-shadow 0.15s var(--ease), transform 0.1s var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-.plan:hover:not(:disabled) { background: var(--fill); }
-.plan:active:not(:disabled) { transform: scale(0.97); }
-.plan[aria-checked="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.plan-ic { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 6px; border-radius: 11px; background: var(--surface); color: var(--muted); }
+.plan:hover:not(:disabled) { background: var(--tile); }
+.plan:active:not(:disabled) { transform: translateY(1px); }
+.plan[aria-checked="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill), 0 var(--lip) 0 var(--accent-fill); }
+.plan-ic { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 6px; border-radius: var(--r-sm); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
 .plan[aria-checked="true"] .plan-ic { background: var(--accent-fill); color: var(--on-accent); }
-.size { font-size: 19px; font-weight: 700; }
-.spec { font-size: 13px; color: var(--muted); }
-.price { display: grid; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.size { font: 800 20px/1.1 var(--display); letter-spacing: -0.02em; }
+/* The machine's numbers and its price: the monospace, like a cloud provider's plan table. */
+.spec { font: 500 12px/1.35 var(--mono); letter-spacing: 0; color: var(--muted); }
+.price { display: grid; font: 500 14px/1.3 var(--mono); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.per { font-family: var(--font); font-size: 13px; }
 .per { display: block; font-weight: 400; color: var(--muted); }
 .picked { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); }
 
@@ -239,7 +242,7 @@ watch(
   max-height: 30vh;
   overflow-y: auto;
   padding: 16px 18px;
-  border-radius: 16px;
+  border-radius: var(--r-lg);
   background: var(--code-bg);
   color: var(--code-text);
   font-family: var(--mono);
@@ -252,9 +255,8 @@ watch(
 
 /* Chunky buttons, as in a game's menu: the main one in the accent and as wide as it can be, the other in grey. */
 .nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.nav button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 20px; border-radius: 14px; font-size: 17px; font-weight: 600; white-space: nowrap; }
+.nav button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; white-space: nowrap; }
 .nav .primary { flex: 1 1 auto; font-weight: 700; }
-.nav button:active:not(:disabled) { transform: scale(0.97); }
 
 .wait { justify-items: center; text-align: center; }
 .wait h2 { padding: 0; }
@@ -269,7 +271,7 @@ watch(
 
 @media (max-width: 520px) {
   /* A phone: the card becomes a sheet along the bottom edge. */
-  .sheet { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 24px 24px 0 0; }
+  .sheet { width: 100%; max-width: 100%; margin: auto 0 0; border-radius: var(--r-xl) var(--r-xl) 0 0; }
   .inner { padding: 22px 18px max(18px, env(safe-area-inset-bottom)); }
   .plans { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .plan { grid-template-columns: auto 1fr auto; grid-template-areas: "ic size price" "ic spec price"; align-items: center; column-gap: 12px; padding: 10px 14px; }
@@ -293,7 +295,7 @@ watch(
 @media (prefers-reduced-motion: reduce) {
   .sheet[open] { animation: none; }
   .plan, .nav button { transition: none; }
-  .plan:active:not(:disabled), .nav button:active:not(:disabled) { transform: none; }
+  .plan:active:not(:disabled) { transform: none; }
   .ring.spin { animation-duration: 4s; }
 }
 </style>

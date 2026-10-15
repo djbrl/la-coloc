@@ -47,7 +47,7 @@ function onKey(e: KeyboardEvent, i: number) {
 </template>
 
 <style scoped>
-.choice { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--fill); min-width: 0; }
+.choice { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); min-width: 0; }
 .option {
   flex: 1 0 auto;
   display: inline-flex;
@@ -56,7 +56,7 @@ function onKey(e: KeyboardEvent, i: number) {
   gap: 6px;
   min-height: 38px;
   padding: 0 12px;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   font-size: 14px;

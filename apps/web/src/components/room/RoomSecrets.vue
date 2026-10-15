@@ -197,10 +197,10 @@ async function deleteSecret(name: string) {
 <style scoped>
 .secrets { display: grid; gap: 10px; align-content: start; }
 .secret :deep(.title) { font-family: var(--mono); font-size: 14px; }
-.lock { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--fill); color: var(--muted); }
+.lock { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--fill); color: var(--muted); }
 .asking { color: var(--danger) !important; }
 .off { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--danger); }
-.empty { padding: 18px 16px; border-radius: 16px; background: var(--tile); font-size: 14px; color: var(--muted); }
+.empty { padding: 18px 16px; border-radius: var(--r-lg); background: var(--tile); font-size: 14px; color: var(--muted); }
 .bar { display: flex; gap: 8px; }
 /* The note line keeps its live region in the page, but takes no room until it says something. */
 .secrets :deep(.note-line) { min-height: 0; }

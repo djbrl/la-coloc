@@ -117,8 +117,8 @@ function ask() {
 <style scoped>
 .who { margin-top: -6px; overflow-wrap: anywhere; }
 /* Their project, as a small block: what it's called, whether it's online, and what it does. */
-.project { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 14px; background: var(--tile); }
-.ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; background: var(--surface); color: var(--muted); }
+.project { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-md); background: var(--tile); }
+.ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--surface); color: var(--muted); }
 .what { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .name strong { overflow-wrap: anywhere; }

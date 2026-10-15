@@ -312,7 +312,7 @@ const when = (iso: string) => new Date(iso).toLocaleString([], { day: "numeric",
 .room-page:not(.embedded) .tab-body.fill { height: 60vh; flex: none; }
 
 .message { margin: auto; display: grid; justify-items: center; gap: 14px; padding: 32px 16px; text-align: center; }
-.icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px; background: var(--fill); color: var(--muted); }
+.icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--fill); color: var(--muted); }
 .said { font-size: 19px; font-weight: 600; }
 .go { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 </style>

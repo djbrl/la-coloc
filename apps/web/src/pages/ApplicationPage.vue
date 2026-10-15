@@ -252,12 +252,12 @@ async function withdraw() {
 
 /* The title here is a short sentence ("Your knock on Sacré-Cœur"): it may take two lines rather than lose its end. */
 .application-page :deep(.panel-head .title) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
-.repo { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: 980px; background: var(--fill); color: var(--text); font-size: 13px; font-weight: 500; max-width: 160px; }
+.repo { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-pill); background: var(--fill); color: var(--text); font-size: 13px; font-weight: 500; max-width: 160px; }
 .repo:hover { background: var(--fill-hover); text-decoration: none; }
 .repo-word { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The vote: one tile, the tally on the left, the action on the right; it wraps on a phone. */
-.vote { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--tile); }
+.vote { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 14px; padding: 12px 14px; border-radius: var(--r-md); background: var(--tile); }
 .tally { flex: 1 1 200px; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .seats { display: flex; gap: 4px; flex: none; }
 .seat { width: 20px; height: 6px; border-radius: 3px; background: var(--border); }
@@ -273,7 +273,7 @@ async function withdraw() {
 .voters li.no { box-shadow: 0 0 0 2px var(--tile), 0 0 0 3.5px var(--danger); }
 .act { flex: none; display: flex; align-items: center; gap: 8px; margin-left: auto; }
 /* Chunky, game-menu buttons: the main one in the accent, the rest grey. */
-.act button, .act .button { min-height: 40px; padding: 0 16px; border-radius: 12px; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.act button, .act .button { min-height: 40px; padding: 0 16px; border-radius: var(--r-md); font-size: 14px; font-weight: 600; white-space: nowrap; }
 .act button.quiet { color: var(--muted); font-weight: 500; }
 .act button.quiet:hover:not(:disabled) { color: var(--danger); }
 .error { margin-top: 8px; }
