@@ -216,3 +216,45 @@ describe("installing the App during the tutorial", () => {
     expect((await db.select().from(repos))[0].houseId).toBe("sacre-coeur");
   });
 });
+
+describe("the webhook's backup: asking GitHub what someone installed", () => {
+  let db: Db;
+  const moussa = { githubId: 3, login: "moussa" };
+  let installed: Record<string, number>;
+  let covers: Record<number, { id: number; full_name: string }[]>;
+  let svc: ChoresService;
+
+  beforeAll(async () => {
+    db = await testDb();
+  });
+
+  beforeEach(async () => {
+    await seedCity(db, { agentSecret: "s", domain: (id) => id });
+    await db.update(users).set({ githubId: 3 }).where(eq(users.login, "moussa"));
+    // Awa's repo came in by webhook already; Moussa's install event got lost.
+    installed = { moussa: 9 };
+    covers = { 9: [{ id: 100, full_name: "awa/ndaje" }, { id: 200, full_name: "moussa/prix-marche" }] };
+    const fake = {
+      userInstallation: async (login: string) => installed[login] ?? null,
+      installationRepos: async (id: number) => covers[id] ?? [],
+    } as unknown as GithubAppClient;
+    svc = new ChoresService(db, new HousesService(db), fake);
+    await db.insert(repos).values({ githubId: 100, fullName: "awa/ndaje", houseId: "sacre-coeur", room: "awa", installationId: 7 });
+  });
+
+  it("links only the repos nobody has yet, to the installer's room, once", async () => {
+    expect(await svc.catchUp(moussa)).toBe("linked 1");
+    const [r] = await db.select().from(repos).where(eq(repos.githubId, 200));
+    expect(r).toMatchObject({ fullName: "moussa/prix-marche", houseId: "sacre-coeur", room: "moussa", installationId: 9 });
+    const [awas] = await db.select().from(repos).where(eq(repos.githubId, 100));
+    expect(awas.room).toBe("awa");
+    expect(await svc.catchUp(moussa)).toBe("nothing new");
+  });
+
+  it("does nothing when the App isn't installed, isn't configured, or the person has no GitHub account", async () => {
+    installed = {};
+    expect(await svc.catchUp(moussa)).toBe("not installed");
+    expect(await svc.catchUp({ githubId: null, login: "moussa" })).toBe("nothing to ask");
+    expect(await new ChoresService(db, new HousesService(db), null).catchUp(moussa)).toBe("nothing to ask");
+  });
+});

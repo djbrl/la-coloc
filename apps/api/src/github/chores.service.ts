@@ -115,6 +115,22 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
     return `linked ${[...moved.values()].flat().length}`;
   }
 
+  /**
+   * The webhook's backup: asks GitHub which repos this person installed the App on, and links the new ones as if the
+   * install event had arrived. For when that event got lost (in development, a relay that wasn't running). Only
+   * looks at the App's installation on their own account, not on an organisation's.
+   */
+  async catchUp(user: { githubId: number | null; login: string }): Promise<string> {
+    if (!this.github || !user.githubId) return "nothing to ask";
+    const installation = await this.github.userInstallation(user.login);
+    if (!installation) return "not installed";
+    const all = await this.github.installationRepos(installation);
+    const known = new Set((await this.db.select({ id: repos.githubId }).from(repos)).map((r) => r.id));
+    const fresh = all.filter((r) => !known.has(r.id));
+    if (!fresh.length) return "nothing new";
+    return this.linkRepos({ installation: { id: installation }, sender: { id: user.githubId, login: user.login }, repositories: fresh });
+  }
+
   /** The workshop room of someone mid-tutorial, if it has no repo yet. Otherwise undefined. */
   private async freeTutorialRoom(u: typeof users.$inferSelect, theirRooms: (typeof rooms.$inferSelect)[]) {
     if (u.tutorialDoneAt) return undefined;

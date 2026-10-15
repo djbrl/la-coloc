@@ -45,6 +45,22 @@ export class GithubAppClient {
     return ((await res.json()) as { default_branch: string }).default_branch;
   }
 
+  /** The App's installation on this person's own account, or null if they haven't installed it there. */
+  async userInstallation(login: string): Promise<number | null> {
+    const res = await this.fetch(`${API}/users/${encodeURIComponent(login)}/installation`, { headers: this.headers(`Bearer ${appJwt(this.cfg)}`) });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`couldn't look up ${login}'s installation (${res.status})`);
+    return ((await res.json()) as { id: number }).id;
+  }
+
+  /** The repos an installation covers (the first hundred: plenty for a newcomer). */
+  async installationRepos(installationId: number): Promise<{ id: number; full_name: string }[]> {
+    const token = await this.installationToken(installationId);
+    const res = await this.fetch(`${API}/installation/repositories?per_page=100`, { headers: this.headers(`token ${token}`) });
+    if (!res.ok) throw new Error(`couldn't list the installation's repos (${res.status})`);
+    return ((await res.json()) as { repositories: { id: number; full_name: string }[] }).repositories;
+  }
+
   async comment(installationId: number, repo: string, issue: number, text: string): Promise<void> {
     await this.call(installationId, "POST", `/repos/${repo}/issues/${issue}/comments`, { body: text });
   }

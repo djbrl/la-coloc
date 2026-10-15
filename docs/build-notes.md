@@ -736,3 +736,12 @@ context variables the API already sets (`COLOC_ROOM`, `COLOC_HOUSE`, `COLOC_CITY
 - The 3D house name tag can sit just above the tracker when the camera frames the house.
 - New French to check: the chapters ("Trouver un toit", "Prendre les clés", "Le lancer", "Le montrer"), "Votre premier
   chez-vous", "Bienvenue chez vous", "À vous de jouer" (starter page), "Nouvelles" for News, "Revues".
+
+### 15 Oct 2026: the GitHub step no longer waits for ever on a lost webhook
+
+Trying the quest for real, the install event never reached the API: in development it comes through the smee relay,
+which wasn't running. Now, while a newcomer is on chapter 4 with nothing linked, `GET /api/tutorial` (polled every
+2 s by the coach) also asks GitHub directly, at most every 10 s per person: the App's installation on their own
+account (`GET /users/{login}/installation`) and the repos it covers. Repos nobody has yet are linked exactly as the
+webhook would (`ChoresService.catchUp`, then the same `linkRepos`). Limit: an install on an organisation isn't seen
+this way; the webhook still covers it. Tests in `github/github.test.ts`.
