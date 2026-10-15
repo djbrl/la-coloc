@@ -125,10 +125,13 @@ function frame() {
   return mapFrame(view, w, h, props.large ? 6 : 2);
 }
 
-function draw() {
-  const c = canvas.value;
-  const ctx = c?.getContext("2d");
-  if (!c || !ctx) return;
+// ---- Drawing: the city once into a layer of its own, the people over it at the screen's frame rate ----
+
+// The city, its houses and (big map) their names: drawn again only when the city, its houses, the size or the theme
+// change, then copied under the moving markers each frame.
+let base: HTMLCanvasElement | null = null;
+
+function fit(c: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
   const { w, h } = size.value;
   const dpr = window.devicePixelRatio || 1;
   if (c.width !== w * dpr || c.height !== h * dpr) {
@@ -137,6 +140,14 @@ function draw() {
   }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
+}
+
+function paintBase() {
+  base ??= document.createElement("canvas");
+  const ctx = base.getContext("2d");
+  if (!ctx) return;
+  fit(base, ctx);
+  const { w, h } = size.value;
   const f = frame();
   const { toX, toY } = f;
   const big = props.large;
@@ -152,25 +163,83 @@ function draw() {
     const font = getComputedStyle(document.documentElement).getPropertyValue("--font").trim();
     for (const p of housesOnMap.value) drawName(ctx, p.house.name, toX(p.x), toY(p.z), across / 2 + 5, w, font);
   }
+  pinColour = getComputedStyle(document.documentElement).getPropertyValue("--accent-fill").trim();
+}
+let pinColour = "";
 
+// The engine reports where everyone is five times a second. Between two reports the markers glide from where they
+// were drawn to where they now are, over one report's time, so they move at the screen's frame rate instead of
+// jumping five times a second. Someone who moved further than a street in one report (a fast travel, a new city)
+// is put there at once.
+const GLIDE_MS = 200;
+const JUMP = 8;
+interface Spot { x: number; z: number }
+interface Drawn { you: Spot & { ry: number }; people: Map<string, Spot> }
+let drawn: Drawn | null = null;
+let from: Drawn | null = null;
+let glideStart = 0;
+let raf = 0;
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+// The shortest way round from one heading to another.
+const turn = (a: number, b: number, t: number) => a + (((((b - a) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) * t;
+const far = (a: Spot, b: Spot) => Math.abs(a.x - b.x) > JUMP || Math.abs(a.z - b.z) > JUMP;
+
+function glideTo() {
   const s = props.state;
-  if (s) {
+  if (!s) return;
+  from = drawn ?? { you: { ...s.you }, people: new Map(s.people.map((p) => [p.login, { x: p.x, z: p.z }])) };
+  glideStart = performance.now();
+  if (!raf) raf = requestAnimationFrame(tick);
+}
+
+function tick(now: number) {
+  raf = 0;
+  const s = props.state;
+  if (!s || !from) return;
+  const t = Math.min(1, (now - glideStart) / GLIDE_MS);
+  const you = far(from.you, s.you) ? { ...s.you } : { x: lerp(from.you.x, s.you.x, t), z: lerp(from.you.z, s.you.z, t), ry: turn(from.you.ry, s.you.ry, t) };
+  const people = new Map<string, Spot>();
+  for (const p of s.people) {
+    const was = from.people.get(p.login);
+    people.set(p.login, !was || far(was, p) ? { x: p.x, z: p.z } : { x: lerp(was.x, p.x, t), z: lerp(was.z, p.z, t) });
+  }
+  drawn = { you, people };
+  paintFrame();
+  if (t < 1) raf = requestAnimationFrame(tick);
+}
+
+function paintFrame() {
+  const c = canvas.value;
+  const ctx = c?.getContext("2d");
+  if (!c || !ctx) return;
+  fit(c, ctx);
+  const { w, h } = size.value;
+  if (base) ctx.drawImage(base, 0, 0, w, h);
+  const { toX, toY } = frame();
+  const big = props.large;
+
+  if (drawn) {
     // People: a small dot in their house's colour; grey when they're just visiting.
-    for (const p of s.people) {
-      const home = props.residents.get(p.login);
+    for (const [login, p] of drawn.people) {
+      const home = props.residents.get(login);
       drawPerson(ctx, toX(p.x), toY(p.z), (big ? PERSON.big : PERSON.small) * shrink.value, home ? hexOf(colorFor(home.houseId)) : VISITOR);
     }
     // You, last but the pin: the arrow the way you face.
-    drawYou(ctx, toX(s.you.x), toY(s.you.z), s.you.ry, (big ? YOU.big : YOU.small) * shrink.value);
+    drawYou(ctx, toX(drawn.you.x), toY(drawn.you.z), drawn.you.ry, (big ? YOU.big : YOU.small) * shrink.value);
   }
 
   // The goal, last so nothing covers it.
   const goal = goalOnMap.value;
   if (goal) {
     const { head, tall } = big ? PIN.big : PIN.small;
-    const orange = getComputedStyle(document.documentElement).getPropertyValue("--accent-fill").trim();
-    drawPin(ctx, toX(goal.x), toY(goal.z), head, tall, orange);
+    drawPin(ctx, toX(goal.x), toY(goal.z), head, tall, pinColour);
   }
+}
+
+function draw() {
+  paintBase();
+  paintFrame();
 }
 
 // ---- The mouse: a name on hover (small map), travel on click ----
@@ -195,14 +264,20 @@ const resize = () => (size.value = pickSize());
 onMounted(() => {
   window.addEventListener("resize", resize);
   draw();
+  glideTo();
   // The big map takes focus on its first house, a moment later: the M that opened it must not land here.
   if (props.large) setTimeout(() => houseButtons.value[0]?.focus({ preventScroll: true }), 0);
 });
-onBeforeUnmount(() => window.removeEventListener("resize", resize));
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", resize);
+  cancelAnimationFrame(raf);
+});
 
-// Redraw when the engine speaks or the city changes, never every frame. The page's theme doesn't change the map, but
-// the pin's orange is a token, so a theme switch redraws too.
-watch(() => [props.state, props.neighbourhood, props.houses, props.residents, size.value, settings.theme, props.goal], draw, { flush: "post" });
+// The city's layer is drawn again only when the city, its houses, the size or the theme change (the pin's orange is
+// a token). A new word from the engine starts a glide; nothing is drawn while nobody moves.
+watch(() => [props.neighbourhood, props.houses, size.value, settings.theme], draw, { flush: "post" });
+watch(() => [props.residents, props.goal], paintFrame, { flush: "post" });
+watch(() => props.state, glideTo, { flush: "post" });
 
 // Enter presses the focused button, and must not also reach the lobby, which would read it as E.
 function onKey(e: KeyboardEvent) {
