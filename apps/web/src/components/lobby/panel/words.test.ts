@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bare, explain, houseLine, houseState, roomLine, roomState } from "./words";
+import { bare, explain, houseLine, houseState, houseTrouble, roomLine, roomState } from "./words";
 
 describe("the panels' words", () => {
   const awa = { login: "awa", name: "Awa", avatarUrl: null };
@@ -31,6 +31,14 @@ describe("the panels' words", () => {
     expect(houseLine({ ...h, agentOnline: false })).toBe("Dakar. Its server is down for now.");
     expect(houseLine({ ...h, demo: true })).toBe("Dakar. An example house, to show how one looks.");
     expect(houseLine({ ...h, status: "making" })).toBe("Dakar. Still being set up.");
+  });
+
+  it("says nothing about a house that's fine, and what's wrong otherwise", () => {
+    const h = { status: "live" as const, agentOnline: true, demo: false };
+    expect(houseTrouble(h)).toBeNull();
+    expect(houseTrouble({ ...h, agentOnline: false })).toBe("Its server is down for now.");
+    expect(houseTrouble({ ...h, status: "making" })).toBe("Still being set up.");
+    expect(houseTrouble({ ...h, demo: true })).toBe("An example house, to show how one looks.");
   });
 
   it("explains the Reviews tab with what a review takes off the rent, in plain words", () => {

@@ -31,7 +31,7 @@ import Panel from "./panel/Panel.vue";
 import PanelHead from "./panel/PanelHead.vue";
 import PanelTabs, { type Tab } from "./panel/PanelTabs.vue";
 import StatusDot from "./panel/StatusDot.vue";
-import { explain, houseLine, houseState, roomLine, roomState } from "./panel/words";
+import { explain, houseState, houseTrouble, roomLine, roomState } from "./panel/words";
 import type { Place } from "./place";
 
 // The house's parts, one tab each. The keys are the API's names: "chores" shows as Reviews, "fridge" as News.
@@ -138,18 +138,19 @@ const reviews = computed(() => splitReviews(house.value?.chores, viewer.value?.l
 const myChores = computed(() => reviews.value.mine);
 const notes = computed(() => house.value?.notes ?? []);
 
-// The head's one line, after the state's dot: where the house is and its state in words ("Dakar. Its server is
-// running."), then the tagline when it's short enough to share the line.
+// The head's one line, after the state's dot: only what's wrong ("Its server is down for now."), never "running"
+// (the green dot, with its hidden name, says that), and never the city (you're standing in it). Then the tagline
+// when it's short enough to share the line.
 const line = computed(() => {
   const h = house.value;
   if (!h) return "";
-  const said = houseLine(h);
-  return h.tagline && h.tagline.length <= 40 ? `${said} ${h.tagline}` : said;
+  const parts = [houseTrouble(h), h.tagline && h.tagline.length <= 40 ? h.tagline : null];
+  return parts.filter(Boolean).join(" ");
 });
 
-// Under the faces, the house's exchange in public sentences: whose project the house rallies behind this
-// fortnight (the tontine), with its faces in turn order, and how many reviews were traded this month, with the
-// house's review rule.
+// Under the faces, for flatmates only, the house's exchange: whose project the house rallies behind this fortnight
+// (the tontine), with its faces in turn order, and how many reviews were traded this month, with the house's review
+// rule. Someone outside doesn't need the house's inner workings (Jib, 15 10).
 const me = computed(() => viewer.value?.login ?? null);
 const tontine = computed(() => house.value?.tontine ?? null);
 const tontineText = computed(() => tontineLine(tontine.value, me.value));
@@ -194,9 +195,9 @@ const intro = computed((): { summary: string | null; explain: string | null } =>
   if (!h) return { summary: null, explain: null };
   switch (shownTab.value) {
     case "rooms":
-      // In the workshop, a room is waiting for you at the top of the list: "all taken" would say the opposite.
-      if (takeRow.value) return { summary: null, explain: explain.rooms };
-      return { summary: w.roomsLine(h.rooms.length, h.rooms.filter((r) => !r.occupant).length), explain: explain.rooms };
+      // In the workshop, a room is waiting for you at the top of the list: one line says what a room is. Elsewhere
+      // the list speaks for itself: the faces and the empty dashed seat above already say how many rooms are free.
+      return { summary: null, explain: takeRow.value ? explain.rooms : null };
     case "channel":
       return { summary: explain.channel, explain: null };
     case "chores":
@@ -337,10 +338,9 @@ async function takeRoom() {
   if (!res.ok) takeError.value = res.message;
 }
 
-// A room's row: who and what (the person and their project), then one line that starts with its state in words
-// ("Online.", "An example project.") and goes on with what the project is. A free room says its size there, in
-// the sentence. The state's colour is the dot on the face.
-const ledger = (login: string) => house.value?.ledger.find((l) => l.login === login) ?? { given: 0, received: 0 };
+// A room's row: who and what (the person and their project), then one line with what the project is. Its state
+// is the dot on the face; the line says it in words only when it isn't simply online ("Its last build failed.",
+// "An example project."). A free room says its size there, in the sentence.
 function rowTitle(room: Room): string {
   if (!room.occupant) return w.freeRoom;
   return room.project ? `${nameOf(room.occupant)} · ${room.project}` : nameOf(room.occupant);
@@ -349,7 +349,7 @@ function rowSub(room: Room): string {
   const h = house.value!;
   if (!room.occupant) return `${w.freeRow(room.limits.memoryMb)} ${room.ad ?? w.knockToAsk}`;
   const what = room.projectDescription ?? (room.project ? w.noDescription : w.noProject);
-  return `${roomLine(room, h.status, h.demo)} ${what}`;
+  return roomState(room, h.status, h.demo).tone === "live" ? what : `${roomLine(room, h.status, h.demo)} ${what}`;
 }
 const actionOf = (room: Room) => rowAction(room, situation.value, foot.value);
 
@@ -483,9 +483,9 @@ function rundownEnded() {
           </div>
           <UiNote v-if="rulesNote" :note="rulesNote" />
           <Crew data-tour="crew" :seats="seats" @pick="pick" />
-          <!-- The exchange, in public sentences: the tontine's turn (its faces in order, the one whose turn it is lit)
-               and the month's reviews with the house's review rule. -->
-          <div class="life" data-tour="life">
+          <!-- Flatmates only: the tontine's turn (its faces in order, the one whose turn it is lit) and the month's
+               reviews with the house's review rule. -->
+          <div v-if="member" class="life" data-tour="life">
             <p v-if="tontineText" class="tontine">
               <span class="turns" aria-hidden="true">
                 <Avatar v-for="(p, i) in turnFaces" :key="p.login" :person="p" :size="i === 0 ? 26 : 20" decorative :class="{ now: i === 0 }" />
@@ -530,16 +530,6 @@ function rundownEnded() {
               <StatusDot class="on-face" :state="roomState(room, house.status, house.demo)" />
             </span>
             <span v-else class="door"><Icon name="door" :size="20" /></span>
-          </template>
-          <template v-if="room.occupant && ledger(room.occupant.login).given > 0" #meta>
-            <!-- Reviews given, only once there are some: a row of zeros says nothing. -->
-            <span
-              class="given"
-              :title="w.given(ledger(room.occupant.login).given, ledger(room.occupant.login).received)"
-              :aria-label="w.givenShort(ledger(room.occupant.login).given)"
-            >
-              <Icon name="check" :size="14" />{{ ledger(room.occupant.login).given }}
-            </span>
           </template>
           <template v-if="actionOf(room)" #end>
             <button
@@ -723,7 +713,6 @@ function rundownEnded() {
 .door { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--line-strong); color: var(--free); }
 .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub.warn { color: var(--danger); }
-.given { display: inline-flex; align-items: center; gap: 3px; }
 /* A face with its state's dot on the lower right, like a presence dot in a game's friend list. */
 .face { position: relative; display: inline-grid; }
 /* Ringed in the row's colour, so the dot reads as a badge on the face (it replaces the dot's own halo). */

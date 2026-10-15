@@ -17,8 +17,6 @@ export const houseWords = defineWords(
     parts: "Parts of the house",
     // The tabs' keys are the API's names (chores, fridge); the words are what a newcomer understands.
     tabs: { rooms: "Rooms", channel: "Channel", chores: "Reviews", fridge: "News", bill: "Bill" },
-    // The Rooms tab's sentence: how many rooms, and how many are free.
-    roomsLine: (rooms: number, free: number) => (free ? `${plural(rooms, "room", "rooms")}, ${free} free.` : `${plural(rooms, "room", "rooms")}, all taken.`),
 
     // The chef's chips in the head.
     inviteCopied: "Invite link copied",
@@ -40,8 +38,6 @@ export const houseWords = defineWords(
     knockToAsk: "Knock to ask for it.",
     noDescription: "No description yet.",
     noProject: "No project yet.",
-    given: (given: number, received: number) => `${given} reviews given, ${received} received`,
-    givenShort: (given: number) => `${given} reviews given`,
     open: "Open",
     openName: (room: string) => `Open your room, ${room}`,
     visit: "Visit",
@@ -174,8 +170,6 @@ export const houseWords = defineWords(
     rooms: "Chambres",
     parts: "Les pièces de la maison",
     tabs: { rooms: "Chambres", channel: "Salon", chores: "Revues", fridge: "Nouvelles", bill: "Facture" },
-    roomsLine: (rooms, free) =>
-      free ? `${pluriel(rooms, "chambre", "chambres")}, ${pluriel(free, "libre", "libres")}.` : `${pluriel(rooms, "chambre", "chambres")}, toutes prises.`,
 
     inviteCopied: "Lien d'invitation copié",
     copyInvite: "Copier un lien d'invitation",
@@ -195,8 +189,6 @@ export const houseWords = defineWords(
     knockToAsk: "Frappez pour la demander.",
     noDescription: "Pas encore de description.",
     noProject: "Pas encore de projet.",
-    given: (given, received) => `${pluriel(given, "revue faite", "revues faites")}, ${pluriel(received, "reçue", "reçues")}`,
-    givenShort: (given) => pluriel(given, "revue faite", "revues faites"),
     open: "Ouvrir",
     openName: (room) => `Ouvrir votre chambre, ${room}`,
     visit: "Visiter",

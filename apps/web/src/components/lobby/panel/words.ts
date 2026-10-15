@@ -82,6 +82,12 @@ const said = defineWords(
       running: (city: string) => `${city}. Its server is running.`,
       down: (city: string) => `${city}. Its server is down for now.`,
     },
+    // The same, without the city, for a house's own window (you know where you are): said only when it isn't fine.
+    trouble: {
+      example: "An example house, to show how one looks.",
+      making: "Still being set up.",
+      down: "Its server is down for now.",
+    },
   },
   {
     room: { live: "En ligne", deploying: "En construction", down: "Arrêté", failed: "Échec de la construction", empty: "Pas encore en ligne" },
@@ -98,6 +104,11 @@ const said = defineWords(
       making: (city) => `${city}. Encore en préparation.`,
       running: (city) => `${city}. Son serveur tourne.`,
       down: (city) => `${city}. Son serveur est arrêté pour l'instant.`,
+    },
+    trouble: {
+      example: "Une maison d'exemple, pour montrer à quoi ça ressemble.",
+      making: "Encore en préparation.",
+      down: "Son serveur est arrêté pour l'instant.",
     },
   },
 );
@@ -144,6 +155,14 @@ export function houseLine(h: { city: string; status: HouseStatus; agentOnline: b
   if (h.demo) return said.houseLine.example(h.city);
   if (h.status === "making") return said.houseLine.making(h.city);
   return h.agentOnline ? said.houseLine.running(h.city) : said.houseLine.down(h.city);
+}
+
+/** What's wrong with a house, in a sentence, or null when its server is simply running: the green dot says that
+ *  (with its hidden name), so a house that's fine says nothing. An example house says so, since nothing runs there. */
+export function houseTrouble(h: { status: HouseStatus; agentOnline: boolean; demo: boolean }): string | null {
+  if (h.demo) return said.trouble.example;
+  if (h.status === "making") return said.trouble.making;
+  return h.agentOnline ? null : said.trouble.down;
 }
 
 /** "jib.coloc.localhost" from "http://jib.coloc.localhost:8000/": an address as people read it. */

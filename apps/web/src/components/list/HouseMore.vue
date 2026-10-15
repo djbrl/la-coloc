@@ -47,7 +47,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 
   <ListCard v-if="work.length" :title="said.atWork" heading-id="work-title" :explain="said.work">
     <ul class="plain lines">
-      <RoomCard v-for="w in work" :key="w.room.name" :house-id="house.id" :row="w" :mine="viewer?.room === w.room.name" />
+      <RoomCard v-for="w in work" :key="w.room.name" :house-id="house.id" :row="w" :mine="viewer?.room === w.room.name" :member="member" />
     </ul>
   </ListCard>
 

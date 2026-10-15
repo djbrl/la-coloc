@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One lived-in room at work, as a row on a house's page in the list view: who lives there and what they build,
 // its state (a dot on the face, and in words) and how much of the room's memory and CPU it's using right now, the reviews its flatmate has given and
-// got, and, for the chef, the way into that room to manage it. The house panel above already lists the rooms with
+// got (flatmates only: reviews aren't a public score), and, for the chef, the way into that room to manage it. The house panel above already lists the rooms with
 // their one action each (Visit, Open, Knock); this row is about the server's load.
 import { computed } from "vue";
 import Avatar from "./Avatar.vue";
@@ -11,7 +11,7 @@ import StatusDot from "./lobby/panel/StatusDot.vue";
 import { roomState } from "./lobby/panel/words";
 import { type WorkRow, workLine } from "./list/house";
 
-const props = defineProps<{ houseId: string; row: WorkRow; mine?: boolean }>();
+const props = defineProps<{ houseId: string; row: WorkRow; mine?: boolean; member?: boolean }>();
 
 const person = computed(() => props.row.room.occupant!);
 const name = computed(() => person.value.name ?? person.value.login);
@@ -35,7 +35,7 @@ const title = computed(() => (props.row.room.project ? `${name.value} · ${props
       ><span class="fill" :class="{ high: row.memory.pct >= 80 }" :style="{ width: row.memory.pct + '%' }" /></span>
       <span class="sub">{{ workLine(row) }}</span>
     </span>
-    <template v-if="row.given || row.received" #meta>
+    <template v-if="member && (row.given || row.received)" #meta>
       <span
         class="reviews"
         :title="`${row.given} reviews given, ${row.received} received`"
