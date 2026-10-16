@@ -145,6 +145,25 @@ describe("answering a house invitation", () => {
     expect(jibs.sent).toEqual([]);
   });
 
+  it("invites a newcomer who only has a room in the workshop, and once they moved in, not again", async () => {
+    // Fatou is doing the quest: a room of her own in the workshop, which isn't a house.
+    await db.insert(memberships).values({ houseId: "atelier", userId: ids.fatou, role: "flatmate" });
+    await db.insert(rooms).values({ houseId: "atelier", name: "fatou-home", memoryMb: 128, cpus: 0.5, occupantId: ids.fatou });
+    const { id } = await invite();
+    const moved = await service.accept(ids.fatou, id);
+    expect(moved).toMatchObject({ house: { id: "sacre-coeur" }, room: "room-4" });
+    // Now she has a house: nobody can invite her to another.
+    await db.insert(rooms).values({ houseId: "sacre-coeur", name: "room-5", memoryMb: 128, cpus: 0.5 });
+    await expect(invite("awa", "fatou", "sacre-coeur", "room-5")).rejects.toThrow(/already live in a house/);
+  });
+
+  it("offers the room the sender picked, when the house has several free", async () => {
+    await db.insert(rooms).values({ houseId: "sacre-coeur", name: "room-5", memoryMb: 128, cpus: 0.5 });
+    const { id } = await invite("jib", "fatou", "sacre-coeur", "room-5");
+    expect((await service.list(ids.fatou)).items[0]).toMatchObject({ id, room: "room-5" });
+    expect(await service.accept(ids.fatou, id)).toMatchObject({ room: "room-5" });
+  });
+
   it("closes other knocks on that room and their own knock, and lapses their other invitations", async () => {
     await doorbell.knock("sacre-coeur", "room-4", ids.sam, { message: "I'd host a bot." });
     // A second free room, so Fatou can knock on one and be invited to the other.

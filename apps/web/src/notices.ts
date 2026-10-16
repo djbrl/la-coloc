@@ -58,8 +58,8 @@ export const declineNotice = (id: string) => answer(id, "decline");
 export const withdrawInvite = (id: string) => answer(id, "withdraw");
 
 /** Invites someone with no house to your house's free room. */
-export async function inviteToHouse(to: string, house: string): Promise<Sent<{ id: string }>> {
-  const sent = await postJSON<{ id: string }>("/api/invites/house", { to, house });
+export async function inviteToHouse(to: string, house: string, room?: string): Promise<Sent<{ id: string }>> {
+  const sent = await postJSON<{ id: string }>("/api/invites/house", room ? { to, house, room } : { to, house });
   await loadNotices();
   return sent;
 }

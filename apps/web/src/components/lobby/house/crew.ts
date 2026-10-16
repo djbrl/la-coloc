@@ -124,18 +124,32 @@ export interface PersonActions {
   example: boolean;
   // Waving is your avatar's emote in the city: only from the lobby, logged in, at someone else.
   wave: boolean;
+  // In the workshop, a newcomer has no real house yet: someone who lives in one can invite them to it (the API picks
+  // its first free room, and says so if there's none). Then "Invited", until they answer.
+  invite: { kind: "invite"; houseId: string; houseName: string } | { kind: "invited" } | null;
 }
 
-export function personActions(person: Person, roomDemo: boolean, s: Situation, opts: { inCity: boolean }): PersonActions {
+export function personActions(
+  person: Person,
+  roomDemo: boolean,
+  s: Situation,
+  // `home`: your own real house (the workshop isn't one), if you have one; `invited`: you've invited them already.
+  opts: { inCity: boolean; home?: { id: string; name: string } | null; invited?: boolean },
+): PersonActions {
   const you = s.viewer?.login === person.login;
   const example = s.demo || roomDemo || person.github === false;
   const github = person.github === true ? `https://github.com/${encodeURIComponent(person.login)}` : null;
   const wave = opts.inCity && !!s.viewer && !you;
-  if (you) return { reach: null, github, example, wave: false };
+  if (you) return { reach: null, github, example, wave: false, invite: null };
+  if (s.tutorial && s.viewer && !example && opts.home) {
+    const invite = opts.invited ? ({ kind: "invited" } as const) : ({ kind: "invite", houseId: opts.home.id, houseName: opts.home.name } as const);
+    return { reach: null, github, example, wave, invite };
+  }
+  const invite = null;
   // Logged out: logging in is a way in only where there's a room to knock on.
-  if (!s.viewer) return { reach: !s.demo && !s.tutorial && s.freeRooms.length ? { kind: "login" } : null, github, example, wave };
-  if (s.viewer?.member) return { reach: s.making ? null : { kind: "chat" }, github, example, wave };
+  if (!s.viewer) return { reach: !s.demo && !s.tutorial && s.freeRooms.length ? { kind: "login" } : null, github, example, wave, invite };
+  if (s.viewer?.member) return { reach: s.making ? null : { kind: "chat" }, github, example, wave, invite };
   const foot = footFor(s);
   const reach: ReachOut = foot.kind === "knock" || foot.kind === "pick" || foot.kind === "thread" || foot.kind === "login" ? foot : null;
-  return { reach, github, example, wave };
+  return { reach, github, example, wave, invite };
 }

@@ -139,7 +139,7 @@ describe("a person picked in the crew row", () => {
     expect(personActions(seeded, false, situation({ viewer: null, demo: true }), city).reach).toBeNull();
     expect(personActions(real, false, situation({ viewer: null }), city).reach).toBeNull();
     const you = personActions({ ...person("jib"), github: true }, false, situation(), city);
-    expect(you).toEqual({ reach: null, github: "https://github.com/jib", example: false, wave: false });
+    expect(you).toEqual({ reach: null, github: "https://github.com/jib", example: false, wave: false, invite: null });
   });
 
   it("links a GitHub profile only for a real account, and marks made-up people as examples", () => {
@@ -148,5 +148,17 @@ describe("a person picked in the crew row", () => {
     // An older API doesn't say: no link, and only the house's own flags make an example.
     expect(personActions(person("moussa"), false, situation(), city)).toMatchObject({ github: null, example: false });
     expect(personActions(person("ndeye"), true, situation(), city).example).toBe(true);
+  });
+
+  it("lets someone with a real house invite a newcomer they meet in the workshop, once", () => {
+    const workshop = situation({ tutorial: true, viewer: viewer({ member: true, room: "jib-home" }) });
+    const home = { id: "sacre-coeur", name: "Sacré-Cœur" };
+    expect(personActions(real, false, workshop, { ...city, home }).invite).toEqual({ kind: "invite", houseId: "sacre-coeur", houseName: "Sacré-Cœur" });
+    expect(personActions(real, false, workshop, { ...city, home, invited: true }).invite).toEqual({ kind: "invited" });
+    // Not without a house of your own, not an example person, not outside the workshop, not yourself.
+    expect(personActions(real, false, workshop, city).invite).toBeNull();
+    expect(personActions(seeded, false, workshop, { ...city, home }).invite).toBeNull();
+    expect(personActions(real, false, situation({ viewer: viewer({ member: true }) }), { ...city, home }).invite).toBeNull();
+    expect(personActions({ ...person("jib"), github: true }, false, workshop, { ...city, home }).invite).toBeNull();
   });
 });

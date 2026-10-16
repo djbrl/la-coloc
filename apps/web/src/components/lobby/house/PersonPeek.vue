@@ -4,6 +4,8 @@
 // knock, or log in), then quiet icon buttons: their GitHub profile (only for a real account; an example person's is
 // shown disabled, with why), and a wave from the city. No direct messages: the team chose the channel and knocks.
 import { computed, onMounted, ref } from "vue";
+import { inviteToHouse } from "../../../notices";
+import { bellWords as bw } from "../../bell/words";
 import type { Person } from "../../../types";
 import Avatar from "../../Avatar.vue";
 import type { PersonActions } from "./crew";
@@ -37,6 +39,19 @@ const main = computed(() => {
   }
 });
 
+// In the workshop: inviting a newcomer to your house. Its first free room; the API says so when there's none.
+const busy = ref(false);
+const error = ref("");
+async function invite() {
+  const i = props.actions.invite;
+  if (busy.value || i?.kind !== "invite") return;
+  busy.value = true;
+  error.value = "";
+  const sent = await inviteToHouse(props.person.login, i.houseId);
+  busy.value = false;
+  if (!sent.ok) error.value = sent.message;
+}
+
 // A wave answers once, in words, then the button rests a moment.
 const waved = ref(false);
 function wave() {
@@ -62,11 +77,16 @@ onMounted(() => card.value?.focus({ preventScroll: true }));
         <span v-if="actions.github" class="handle">@{{ person.login }}</span>
         <span v-if="line" class="what">{{ line }}</span>
       </p>
+      <p v-if="error" class="error" role="alert">{{ error }}</p>
       <p class="sr-only" aria-live="polite">{{ waved ? w.person.waved(first) : "" }}</p>
     </div>
     <div class="acts">
       <RouterLink v-if="actions.reach?.kind === 'login'" to="/login" class="button go"><Icon name="login" :size="16" />{{ w.logInToKnock }}</RouterLink>
       <button v-else-if="main" type="button" class="go" @click="emit('reach')"><Icon :name="main.icon" :size="16" />{{ main.word }}</button>
+      <button v-else-if="actions.invite?.kind === 'invite'" type="button" class="go" :disabled="busy" :aria-label="bw.inviteHomeName(actions.invite.houseName)" @click="invite">
+        <Icon name="key" :size="16" />{{ bw.inviteHome }}
+      </button>
+      <span v-else-if="actions.invite?.kind === 'invited'" class="done"><Icon name="tick" :size="16" />{{ bw.invited }}</span>
       <a v-if="actions.github" class="button icon" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.person.githubName(person.login)" :title="w.person.githubName(person.login)">
         <Icon name="profile" :size="18" />
       </a>
@@ -113,6 +133,8 @@ onMounted(() => card.value?.focus({ preventScroll: true }));
 .acts .icon { width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); }
 .acts .icon:disabled { opacity: 0.45; cursor: not-allowed; }
 .acts .icon.waved { color: var(--accent); }
+.done { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); background: var(--live-soft); color: var(--live); font-size: 14px; font-weight: 600; }
+.error { font-size: 13px; }
 .x { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-xs); background: none; color: var(--muted); box-shadow: none; }
 .x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
 @media (max-width: 520px) {

@@ -3,7 +3,8 @@
 //
 // - They live in a house: see it (its window opens, wherever it is).
 // - They have no house, and you live in one with a free room: invite them to it (once; then "Invited", which you
-//   can take back). Your house is full: no invitation, and the card says why.
+//   can take back), to the room you pick when there are several. Your house is full: no invitation, and the card
+//   says why.
 // - Neither of you has a house: ask them to rent a server together.
 // - You're logged out: log in first.
 // - An example person (made up so the city isn't empty): the action shows, disabled, with why. Nothing real happens.
@@ -12,7 +13,8 @@ import type { CityHouse, Notices } from "../../types";
 
 export type StreetMain =
   | { kind: "see"; houseId: string; houseName: string }
-  | { kind: "invite"; houseId: string; houseName: string; example: boolean }
+  // `rooms`: its free rooms, the first offered unless you pick another.
+  | { kind: "invite"; houseId: string; houseName: string; rooms: string[]; example: boolean }
   | { kind: "invited"; inviteId: string }
   | { kind: "full"; houseName: string }
   | { kind: "rent"; example: boolean }
@@ -65,8 +67,9 @@ export function streetActions(
       if (invited && !example) return { kind: "invited", inviteId: invited.id };
       const house = myHouse && viewer.houses.some((h) => h.id === myHouse.id) ? myHouse : null;
       if (!house || house.demo) return null;
-      if (!house.rooms.some((r) => !r.occupant)) return { kind: "full", houseName: house.name };
-      return { kind: "invite", houseId: house.id, houseName: house.name, example };
+      const rooms = house.rooms.filter((r) => !r.occupant).map((r) => r.name);
+      if (!rooms.length) return { kind: "full", houseName: house.name };
+      return { kind: "invite", houseId: house.id, houseName: house.name, rooms, example };
     }
     const asked = sent.find((s) => s.kind === "rent_together" && s.to === person.login);
     if (asked && !example) return { kind: "asked", inviteId: asked.id };

@@ -5,7 +5,8 @@
 // is longer than the space. The house view arrives from the API and keeps arriving over its stream, as on HousePage.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useWhenBack, wentDown } from "../../core";
-import { postJSON, sendJSON } from "../../session";
+import { notices } from "../../notices";
+import { me as session, postJSON, sendJSON } from "../../session";
 import { openStream, type Stream } from "../../stream";
 import type { HouseView, Room } from "../../types";
 import Avatar from "../Avatar.vue";
@@ -298,7 +299,12 @@ const peek = computed(() => {
   return {
     person: s.person,
     line: room?.project ?? (s.room ? w.person.room(s.room) : null),
-    actions: personActions(s.person, !!room?.demo, situation.value, { inCity: !!props.inCity }),
+    // In the workshop, someone with a real house may invite a newcomer to it (your houses from /api/me leave the workshop out).
+    actions: personActions(s.person, !!room?.demo, situation.value, {
+      inCity: !!props.inCity,
+      home: session.value?.houses[0] ?? null,
+      invited: notices.sent.some((n) => n.kind === "house_invite" && n.to === s.person.login),
+    }),
   };
 });
 // The channel's composer, started with their first name when you reach out to a flatmate there.

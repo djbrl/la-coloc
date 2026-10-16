@@ -61,6 +61,13 @@ const actions = computed(() =>
   ),
 );
 const main = computed(() => actions.value.main);
+// The free room to offer, when your house has several: the first until you pick another.
+const pickedRoom = ref<string | null>(null);
+const offered = computed(() => {
+  const m = main.value;
+  if (m?.kind !== "invite") return null;
+  return pickedRoom.value && m.rooms.includes(pickedRoom.value) ? pickedRoom.value : m.rooms[0];
+});
 const first = computed(() => props.name.split(" ")[0]);
 
 // Sending an invitation: a sentence once it's sent, or the API's refusal in its own words.
@@ -75,7 +82,7 @@ async function send(kind: "invite" | "rent" | "withdraw") {
   said.value = "";
   const sent =
     kind === "invite" && m.kind === "invite"
-      ? await inviteToHouse(props.login, m.houseId)
+      ? await inviteToHouse(props.login, m.houseId, offered.value ?? undefined)
       : kind === "rent"
         ? await rentTogether(props.login)
         : (m.kind === "invited" || m.kind === "asked") ? await withdrawInvite(m.inviteId) : null;
@@ -122,7 +129,12 @@ async function send(kind: "invite" | "rent" | "withdraw") {
       <button v-if="main?.kind === 'see'" class="big primary" :aria-label="bw.seeHouseName(main.houseName)" @click="emit('see', main.houseId)">
         <Icon name="house" :size="20" /> {{ bw.seeHouse }}
       </button>
-      <button v-else-if="main?.kind === 'invite'" class="big primary" :disabled="main.example || busy" :aria-label="bw.inviteHomeName(main.houseName)" @click="send('invite')">
+      <div v-if="main?.kind === 'invite' && main.rooms.length > 1 && !main.example" class="segmented rooms" role="radiogroup" :aria-label="bw.whichRoom">
+        <button v-for="r in main.rooms" :key="r" type="button" role="radio" :aria-checked="offered === r" @click="pickedRoom = r">
+          <Icon name="door" :size="16" />{{ r }}
+        </button>
+      </div>
+      <button v-if="main?.kind === 'invite'" class="big primary" :disabled="main.example || busy" :aria-label="bw.inviteHomeName(main.houseName)" @click="send('invite')">
         <Icon name="key" :size="20" /> {{ bw.inviteHome }}
       </button>
       <button v-else-if="main?.kind === 'full'" class="big primary" disabled :title="bw.fullWhy(main.houseName)">
@@ -170,4 +182,7 @@ async function send(kind: "invite" | "rent" | "withdraw") {
 .sent { display: flex; align-items: center; gap: 8px; }
 .done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 50px; padding: 0 14px; border-radius: var(--r-md); background: var(--live-soft); color: var(--live); font-weight: 700; }
 .sent .quiet { flex: none; }
+/* Several free rooms: pick the one to offer, above the invitation. */
+.rooms { flex-wrap: wrap; }
+.rooms > button { flex: 1 1 auto; justify-content: center; }
 </style>

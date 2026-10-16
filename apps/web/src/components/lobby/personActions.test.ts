@@ -21,9 +21,14 @@ describe("what you can do about someone in the street", () => {
   });
 
   it("invites someone with no house to your house's free room, once", () => {
-    expect(streetActions(fatou, housed, withFree, []).main).toEqual({ kind: "invite", houseId: "sacre-coeur", houseName: "Sacré-Cœur", example: false });
+    expect(streetActions(fatou, housed, withFree, []).main).toEqual({ kind: "invite", houseId: "sacre-coeur", houseName: "Sacré-Cœur", rooms: ["room-4"], example: false });
     const sent = [{ id: "n1", kind: "house_invite" as const, to: "fatou", houseId: "sacre-coeur" }];
     expect(streetActions(fatou, housed, withFree, sent).main).toEqual({ kind: "invited", inviteId: "n1" });
+  });
+
+  it("offers each free room when there are several, the first one first", () => {
+    const two: MyHouse = { ...withFree, rooms: [room("jib", "jib"), room("room-3", null), room("room-4", null)] };
+    expect(streetActions(fatou, housed, two, []).main).toMatchObject({ kind: "invite", rooms: ["room-3", "room-4"] });
   });
 
   it("says your house is full instead of inviting", () => {
@@ -41,7 +46,7 @@ describe("what you can do about someone in the street", () => {
   });
 
   it("shows an example person's action as an example, and never their GitHub", () => {
-    expect(streetActions(passerBy, housed, withFree, [])).toEqual({ main: { kind: "invite", houseId: "sacre-coeur", houseName: "Sacré-Cœur", example: true }, github: null, example: true, wave: true });
+    expect(streetActions(passerBy, housed, withFree, [])).toEqual({ main: { kind: "invite", houseId: "sacre-coeur", houseName: "Sacré-Cœur", rooms: ["room-4"], example: true }, github: null, example: true, wave: true });
     expect(streetActions(passerBy, homeless, null, []).main).toEqual({ kind: "rent", example: true });
     expect(streetActions({ ...passerBy, github: true }, homeless, null, []).github).toBeNull();
   });
