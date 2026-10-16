@@ -6,6 +6,7 @@ import { computed } from "vue";
 import { locale } from "../../i18n";
 import type { HouseView } from "../../types";
 import Avatar from "../Avatar.vue";
+import GithubLink from "../GithubLink.vue";
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
 import RoomCard from "../RoomCard.vue";
@@ -37,6 +38,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
           <span class="tally" :aria-label="said.votesSoFar(tallyLine(d.tally))"><Icon name="check" :size="14" />{{ tallyLine(d.tally) }}</span>
         </template>
         <template #end>
+          <GithubLink :person="d.applicant" />
           <RouterLink :to="`/applications/${d.id}`" class="button primary act" :aria-label="said.answerName(nameOf(d.applicant))">
             <Icon name="thread" :size="16" />{{ said.answer }}
           </RouterLink>

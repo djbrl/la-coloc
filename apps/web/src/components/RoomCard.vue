@@ -5,6 +5,7 @@
 // their one action each (Visit, Open, Knock); this row is about the server's load.
 import { computed } from "vue";
 import Avatar from "./Avatar.vue";
+import GithubLink from "./GithubLink.vue";
 import Icon from "./lobby/house/Icon.vue";
 import ListRow from "./lobby/panel/ListRow.vue";
 import StatusDot from "./lobby/panel/StatusDot.vue";
@@ -42,8 +43,9 @@ const title = computed(() => (props.row.room.project ? `${name.value} · ${props
         :aria-label="`${row.given} reviews given, ${row.received} received`"
       ><Icon name="check" :size="14" />{{ row.given }}/{{ row.received }}</span>
     </template>
-    <template v-if="row.manage" #end>
-      <RouterLink :to="`/houses/${houseId}/rooms/${row.room.name}`" class="button manage" :aria-label="`Manage ${name}'s room as the chef`">
+    <template v-if="row.manage || person.github" #end>
+      <GithubLink :person="person" />
+      <RouterLink v-if="row.manage" :to="`/houses/${houseId}/rooms/${row.room.name}`" class="button manage" :aria-label="`Manage ${name}'s room as the chef`">
         <Icon name="key" :size="16" />Manage
       </RouterLink>
     </template>

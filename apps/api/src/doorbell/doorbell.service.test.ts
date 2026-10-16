@@ -36,6 +36,10 @@ describe("knocking", () => {
     expect(asFatou.viewer.as).toBe("applicant");
     expect(asFatou.messages.map((m) => m.body)).toEqual(["Fatou knocked on a free room.", "Mobile dev from Lomé, I'd host my tontine app."]);
     expect(asFatou.messages[0].author).toBeNull();
+    // The house's line says what it is, so the web can say it in French; Fatou's own words don't.
+    expect(asFatou.messages.map((m) => m.said)).toEqual([{ kind: "knocked", params: { name: "Fatou" } }, null]);
+    // Logged in by name, not with GitHub: no profile to link.
+    expect(asFatou.applicant.github).toBe(false);
     expect((await doorbell.view(id, ids.awa)).viewer.as).toBe("flatmate");
     await expect(doorbell.view(id, ids.koffi)).rejects.toThrow();
   });

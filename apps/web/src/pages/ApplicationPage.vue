@@ -5,6 +5,7 @@
 // reads about their own knock, a flatmate about someone asking to move in.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import Avatar from "../components/Avatar.vue";
+import GithubLink from "../components/GithubLink.vue";
 import ChatPanel from "../components/ChatPanel.vue";
 import { joinWords as said } from "../components/joinWords";
 import Icon from "../components/lobby/house/Icon.vue";
@@ -172,11 +173,14 @@ async function withdraw() {
         <template #head>
           <PanelHead :title="title" :state="state" :line="line">
             <template #lead><Avatar :person="app.applicant" :size="52" decorative /></template>
-            <template v-if="app.repo" #aside>
-              <a :href="app.repo" class="repo" target="_blank" rel="noopener" :aria-label="said.repoName(mine, shortRepo(app.repo))">
-                <Icon name="code" :size="16" />
-                <span class="repo-word">{{ shortRepo(app.repo) }}</span>
-              </a>
+            <template v-if="app.repo || app.applicant.github" #aside>
+              <span class="asides">
+                <a v-if="app.repo" :href="app.repo" class="repo" target="_blank" rel="noopener" :aria-label="said.repoName(mine, shortRepo(app.repo))">
+                  <Icon name="code" :size="16" />
+                  <span class="repo-word">{{ shortRepo(app.repo) }}</span>
+                </a>
+                <GithubLink v-if="!mine" :person="app.applicant" />
+              </span>
             </template>
           </PanelHead>
 
@@ -253,6 +257,7 @@ async function withdraw() {
 .application-page :deep(.panel-head .title) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .repo { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-pill); background: var(--fill); color: var(--text); font-size: 13px; font-weight: 500; max-width: 160px; }
 .repo:hover { background: var(--fill-hover); text-decoration: none; }
+.asides { display: inline-flex; align-items: center; gap: 6px; }
 .repo-word { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The vote: one tile, the tally on the left, the action on the right; it wraps on a phone. */

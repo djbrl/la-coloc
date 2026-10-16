@@ -9,8 +9,9 @@ export const HISTORY = 50;
 export const houseChannel = (houseId: string) => `house:${houseId}`;
 export const applicationChannel = (applicationId: string) => `application:${applicationId}`;
 
-export function person(u: { login: string; name: string | null; avatarUrl: string | null }): PersonView {
-  return { login: u.login, name: u.name, avatarUrl: u.avatarUrl };
+// `github` when the row says (a full users row): their login is a real GitHub handle, so the web links it.
+export function person(u: { login: string; name: string | null; avatarUrl: string | null; githubId?: number | null }): PersonView {
+  return { login: u.login, name: u.name, avatarUrl: u.avatarUrl, ...(u.githubId !== undefined ? { github: u.githubId !== null } : {}) };
 }
 
 export function tally(flatmates: number, vs: { yes: boolean }[]): VoteTally {
