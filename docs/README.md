@@ -1,59 +1,49 @@
-# La Coloc: the docs
+# The docs
 
-**New here? Read in this order, about 30 minutes:** the [front page](../README.md) → [how it works](how-it-works.md) →
-[the install guide](dev.md) (get it running) → [CONTRIBUTING](../CONTRIBUTING.md) (how we work) → [TODO](../TODO.md) (what to pick up).
+*Updated 16 Oct 2026.* **New here?** Read the [front page](../README.md), then [how it works](how-it-works.md), then
+[run it](dev.md). About 20 minutes. If a doc disagrees with the code, the code is right: fix the doc in the same change.
 
-Dates are written "12 Oct 2026" in new text; older docs use "12 10 2026" (day, month, year).
-Every doc says when it was written. If one disagrees with the code, the code is right: fix the doc in the same pull request.
+## Read first
 
-## Start here
+| Doc | One line |
+|---|---|
+| [README.md](../README.md) | What La Coloc is, what you can do in it, how to start |
+| [how-it-works.md](how-it-works.md) | The product's ideas in plain words: houses, rooms, knocks, reviews, the bill, the quest |
+| [glossary.md](glossary.md) | Every house word and tech word, one sentence each |
+| [architecture.md](architecture.md) | The pieces, how a push becomes a live room, where each thing lives in the repo |
+| [dev.md](dev.md) | Install, run, share, test, troubleshoot |
 
-| Doc | What it is | Who needs it |
-|---|---|---|
-| [README.md](../README.md) | The front door: what La Coloc is, what works today, a quick start, the repo map | Everyone, first |
-| [CONTRIBUTING.md](../CONTRIBUTING.md) | How we work: orientation, branches and pull requests, code and design rules, art and licence rules, recipes for common changes | Every contributor, before the first commit |
-| [TODO.md](../TODO.md) | The one list of what's left, in priority order, with sizes, "good first task" marks and decisions that wait on Jib | Everyone choosing the next thing |
-| [dev.md](dev.md) | Install and run guide: prerequisites, step by step setup, environment variables, tests, GitHub App, troubleshooting | Day one, and whenever something won't start |
+## Working on it
 
-## Understand the product
+| Doc | One line |
+|---|---|
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Branches, commits, words in two languages, art and licences, tests, AI use |
+| [TODO.md](../TODO.md) | The one list of what's left, with "done when" for each item |
+| [apps/web/public/lobby/README.md](../apps/web/public/lobby/README.md) | Where the 3D models come from, and their licences |
 
-| Doc | What it is | Who needs it |
-|---|---|---|
-| [how-it-works.md](how-it-works.md) | The canonical product explanation: the city, houses, rooms, chores, tontine, bill. Written for someone with zero context | Everyone; this is the jury story |
-| [user-story.md](user-story.md) | One story of three flatmates over a month, plus the questions a jury will ask | Anyone preparing the pitch or the demo |
-| [roadmap.md](roadmap.md) | The original three-week plan (written 02 Oct), with a pointer to today's status. The plan is history; [TODO.md](../TODO.md) is current | Anyone asking "why did we build it in this order?" |
+## Records (the contest asks for some of these)
 
-## Understand the code
+| Doc | One line |
+|---|---|
+| [contest-rules.md](contest-rules.md) | The official CADEV rules, in French: dates, scoring, licences (Art. 6), rights (Art. 8) |
+| [licences.md](licences.md) | Every dependency's and every asset's licence. Update it when you add one |
+| [ai-usage.md](ai-usage.md) | The AI declaration. Add a row after notable AI-assisted work (only grows) |
+| [build-notes.md](build-notes.md) | A dated log of what was built, how it was checked and what was rough (only grows) |
+| [screenshots/](screenshots/) | Screenshots from the build notes: the quest (`first-home/`) and the style guide (`ui-refresh/`) |
 
-| Doc | What it is | Who needs it |
-|---|---|---|
-| [architecture.md](architecture.md) | The stack, the three programs, the key design choices (say these to the jury), the push-to-live flow, the data model | Every developer; read before changing the API, the caretaker or the database |
-| [CONTRIBUTING.md, section 1](../CONTRIBUTING.md#1-the-10-minute-orientation) | Where things live and how a request flows web → API → caretaker → Docker | Day one |
-| [CONTRIBUTING.md, "How to add things"](../CONTRIBUTING.md#how-to-add-things) | Short recipes: a migration, an API route, a lobby panel, a seed change, a protocol message | When you build something |
-| [apps/web/public/lobby/README.md](../apps/web/public/lobby/README.md) | Which 3D models are in the lobby, where they came from, their licences | Anyone touching lobby art |
-| [review-2026-10-10.md](review-2026-10-10.md) | A point-in-time adversarial review of the whole product, with a ranked fix list (R1 to R39). Most of it is fixed; its status table is at the end | Anyone wondering "what would a ruthless juror say?" |
+## Archive
 
-## Run and test
+Old documents kept for history. They no longer match the code; don't start from them.
 
-| Doc | What it is | Who needs it |
-|---|---|---|
-| [dev.md](dev.md) | Install, run, reset, test, troubleshoot | Everyone |
-| [CONTRIBUTING.md, testing](../CONTRIBUTING.md#testing) | What `npm test` covers, how to run one file, how to write a test | Everyone who writes logic |
-| `scripts/isolation-demo.sh` | The jury's favourite: one room's memory hog is killed while its neighbour never misses a request. How to run it is in [dev.md](dev.md#the-isolation-demo-the-jurys-favourite) | The demo video, the jury |
-
-## Project record and contest
-
-| Doc | What it is | Who needs it |
-|---|---|---|
-| [contest-rules.md](contest-rules.md) | The official CADEV rules (French), copied 02 Oct. Dates, scoring grid (annexe 1), the licence rule (Art. 6), the rights cession (Art. 8) | Everyone, once; Jib for admin |
-| [licences.md](licences.md) | Every dependency's licence summary and every art asset's source. **Update it when you add either** | Anyone adding a dependency or an asset |
-| [ai-usage.md](ai-usage.md) | The AI declaration the contest requires. **Append a row after notable AI-assisted work** (log: append-only) | Anyone using an AI tool |
-| [build-notes.md](build-notes.md) | A dated log of what was built, verified and found rough, night by night (log: append-only) | Anyone asking "when and why did this change?" |
-| [archive/handoff-2026-10-10.md](archive/handoff-2026-10-10.md) | The briefing written for the previous AI agent. Superseded by [CONTRIBUTING.md](../CONTRIBUTING.md) and [TODO.md](../TODO.md); kept for history | Nobody, unless digging |
+| Doc | One line |
+|---|---|
+| [archive/roadmap.md](archive/roadmap.md) | The original three-week plan of 2 Oct. Moved here on 16 Oct |
+| [archive/review-2026-10-10.md](archive/review-2026-10-10.md) | A harsh review of 10 Oct (items R1 to R39), mostly fixed; also a demo-video shot list. Moved here on 16 Oct |
+| [archive/user-story.md](archive/user-story.md) | The first story of three flatmates, from 2 Oct. Moved here on 16 Oct |
+| [archive/handoff-2026-10-10.md](archive/handoff-2026-10-10.md) | A briefing for an earlier AI agent, replaced by CONTRIBUTING and TODO |
 
 ## Keeping the docs honest
 
-- Change code that a doc describes? Change the doc in the same pull request.
-- A doc that is a snapshot says "as of <date>" at the top. Don't silently rewrite a snapshot: add a new dated line.
-- `build-notes.md` and `ai-usage.md` only grow. Fix a typo or a link in them, never rewrite history.
-- Links between docs are relative paths, so they work on GitHub and in an editor.
+- Change code a doc describes? Change the doc in the same pull request.
+- `build-notes.md` and `ai-usage.md` only grow: fix a typo or a link, never rewrite an entry.
+- Links between docs are relative, so they work on GitHub and in an editor.
