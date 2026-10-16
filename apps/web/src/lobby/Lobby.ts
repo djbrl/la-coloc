@@ -46,7 +46,10 @@ const STUCK = { moved: 0.05, after: 0.5 };
 // Far back along the isometric angle: an orthographic view looks the same from any distance, and a full-height
 // screen reaches ground that a closer camera would clip.
 const CAMERA_OFFSET = new THREE.Vector3(42, 48, 42);
-const ZOOM = { min: 7, max: 26, start: 13 }; // half the view's width, in world units
+// Half the view's width, in world units. A city opens zoomed out (`start`), so you see the streets around you and
+// the houses at a glance (Jib, 16 10); a phone held upright a little less far (`phone`), or people become specks;
+// the quest's one street opens closer (`close`), where it was designed to be seen.
+const ZOOM = { min: 7, max: 26, start: 20, phone: 15, close: 13 };
 // Showing a spot (`showSpot`): how long the camera takes to glide there (and back), and how long it stays, in seconds.
 const TOUR = { glide: 1.2, hold: 2 };
 // A window open on the right (`frame("left")`): zoomed in to this half-width, with you this far across the screen
@@ -384,16 +387,25 @@ export class Lobby {
   }
 
   /**
-   * Builds a neighbourhood. Moving to another one puts you at its entrance. `passersBy: false` leaves its streets to
-   * the flatmates (the tutorial's one street, where nothing should distract).
+   * Builds a neighbourhood. Moving to another one puts you at its entrance, zoomed out (`close`: at the closer zoom,
+   * for the tutorial's street). `passersBy: false` leaves its streets to the flatmates (the tutorial's one street,
+   * where nothing should distract).
    */
-  setNeighbourhood(n: Neighbourhood, houses: CityHouse[], opts: { passersBy?: boolean } = {}) {
+  setNeighbourhood(n: Neighbourhood, houses: CityHouse[], opts: { passersBy?: boolean; close?: boolean } = {}) {
     // The city stream re-sends the city often. Only rebuild if what's drawn changed; the live state (windows, the
     // crane, the power, knocks, the board's pins) is redrawn in place by `updateHouses`.
     const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.plot, h.rooms.map((r) => r.occupant?.login ?? null)])]);
     if (key === this.builtFrom) return this.updateHouses(houses);
     const arriving = n.city !== this.builtCity;
     this.builtCity = n.city;
+    if (arriving) {
+      // A new place starts at its own zoom, whatever the wheel chose in the last one; no ease, the camera cuts there.
+      this.zoom = opts.close ? ZOOM.close : this.aspect < 1 ? ZOOM.phone : ZOOM.start;
+      if (this.focus === null && this.framing !== "left") {
+        this.viewHalf = this.zoom;
+        this.project();
+      }
+    }
     this.builtFrom = key;
     const gen = ++this.generation;
     removeLabels(this.town);

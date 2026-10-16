@@ -122,7 +122,7 @@ function build() {
   const n = inWorkshop.value ? tutorialNeighbourhood() : generateNeighbourhood(city.value, here.value);
   neighbourhood.value = n;
   // Passers-by walk the city's streets, not the tutorial's: the quest keeps its one street calm.
-  lobby.setNeighbourhood(n, shown.value, { passersBy: !inWorkshop.value });
+  lobby.setNeighbourhood(n, shown.value, { passersBy: !inWorkshop.value, close: inWorkshop.value });
   lobby.setResidents(residents.value);
   if (awaiting && here.value.some((h) => h.id === awaiting)) {
     lobby.goTo(awaiting);
