@@ -13,11 +13,14 @@
 // with COLOC_PUBLIC_URL set to the site's address and COLOC_WEB_ORIGIN listing it too (this prints both).
 import { spawn, spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const out = join(root, ".vercel-share"); // git-ignored: the built site plus Vercel's link to the project
+// Outside the repo on purpose: deployed from inside it, the Vercel CLI attaches our git details and Vercel's Hobby
+// plan blocks the deploy. Holds the built site and Vercel's link to the project.
+const out = join(tmpdir(), "la-coloc-share");
 const PROJECT = process.env.COLOC_VERCEL_PROJECT ?? "la-coloc";
 
 const arg = process.argv.indexOf("--tunnel");
@@ -71,6 +74,9 @@ writeFileSync(
 
 console.log("Deploying to Vercel…");
 run("vercel", ["link", "--yes", "--project", PROJECT], { cwd: join(out, "site") });
+// Linking writes Vercel's own token to .env.local: never ship it with the site.
+rmSync(join(out, "site/.env.local"), { force: true });
+writeFileSync(join(out, "site/.vercelignore"), ".env*\n");
 const deploy = spawnSync("vercel", ["deploy", "--prod", "--yes"], { cwd: join(out, "site"), encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 if (deploy.status !== 0) {
   cloudflared?.kill();

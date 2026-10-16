@@ -14,4 +14,3 @@ dist/
 .claude/worktrees/
 *.log
 coverage/
-.vercel-share/

@@ -33,6 +33,7 @@ To let someone try it from your laptop: `npm run share` ([how](docs/dev.md#shari
 
 ## Read next
 
+- [Handoff](HANDOFF.md): where things stand and what to do next. Start here if you are picking the project up.
 - [How it works](docs/how-it-works.md): the product's ideas in plain words.
 - [Architecture](docs/architecture.md): the pieces, and how a push becomes a live room.
 - [Glossary](docs/glossary.md): every word, one sentence each.
