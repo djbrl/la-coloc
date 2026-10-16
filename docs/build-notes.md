@@ -848,7 +848,7 @@ listener failing never fails the knock. The bell's nudge is one word on the lobb
 asks the API, so nothing private travels on the live line. Moving in has one implementation for a vote and an
 invitation.
 
-**Verified.** `npm run build`, `npm test` and `npm run licences:check` pass. API: 20 new tests (rules, accept/expire,
+**Verified.** `npm run build`, `npm test` and `npm run licences:check` pass. API: 18 new tests (rules, accept/expire,
 the doorbell's news, reading, the routes' 401/400), the gateway's nudge and presence. Web: `personActions.test.ts`
 (who sees which action), `bell.test.ts` (what each notification says and offers), the nearest empty plot. A Nest
 boot of the whole AppModule (against an unreachable database) checked the dependency wiring. **On screen**, in a
