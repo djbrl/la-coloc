@@ -1,6 +1,8 @@
 # La Coloc: user story
 
-*02 10 2026. Written so Jib could picture the product. Full explanation: [how-it-works.md](how-it-works.md). Prices are illustrative.*
+> **Archived on 16 Oct 2026.** Kept for history; parts of it no longer match the code. What is true today: [how it works](../how-it-works.md), [architecture](../architecture.md), [TODO](../../TODO.md).
+
+*02 10 2026. Written so Jib could picture the product. Full explanation: [how-it-works.md](../how-it-works.md). Prices are illustrative.*
 
 **Before.** Jib's Discord bot runs on a free tier that falls asleep. Awa's app is on her laptop. Moussa's price
 scraper runs on *his* laptop and dies at every power cut. Nobody reviews anyone's code; all three projects stall.

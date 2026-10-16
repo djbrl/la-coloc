@@ -25,8 +25,8 @@ import { liveKey, liveState } from "./live";
 import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff } from "./models";
 import { CityProps, makeBoard, makePins, waxParasols } from "./props";
 import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
-import { MOST, passerbyCount, passersBy } from "./passersby";
-import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestFree, nearestOnBox, type Point, RADIUS, smooth } from "./path";
+import { keepApart, laneFor, MOST, passerbyCount, passersBy, type SidewalkPoint, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
+import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
 import { dye } from "./tint";
@@ -162,8 +162,9 @@ interface Npc extends Thing {
   tag: HTMLElement;
   // Behind a building, seen from the camera: their name tag hides (R39).
   hidden?: boolean;
-  // A passer-by (passersby.ts): walks a route across town (`route`, at `speed`) instead of hanging around a door.
-  passerby?: { route: THREE.Vector3[]; speed: number; dressing: boolean };
+  // A passer-by (passersby.ts): walks round the blocks on the sidewalks (`stroll`, towards `next`, at `speed`) instead
+  // of hanging around a door.
+  passerby?: { stroll: Stroll; next: THREE.Vector3 | null; speed: number; dressing: boolean };
 }
 
 interface Remote extends Thing {
@@ -217,9 +218,9 @@ export class Lobby {
   private plots: EmptyPlot[] = [];
   private solids: Box[] = [];
   private npcs: Npc[] = [];
-  // The passers-by (also in `npcs`), and the spots they walk between: the crossings and the middle of each street.
+  // The passers-by (also in `npcs`), and the sidewalks they walk round the blocks.
   private walkers: Npc[] = [];
-  private stops: Point[] = [];
+  private sidewalks: SidewalkPoint[][] = [];
   private remotes = new Map<string, Remote>();
   private residents = new Map<string, Resident>();
   private board: Board | null = null;
@@ -416,7 +417,7 @@ export class Lobby {
     this.solids = [];
     this.npcs = [];
     this.walkers = [];
-    this.stops = [];
+    this.sidewalks = [];
     this.board = null;
     this.props = null;
     this.skyline = [];
@@ -1317,18 +1318,18 @@ export class Lobby {
   }
 
   /**
-   * Passers-by (passersby.ts): made-up people with GitHub-style handles on their tags, walking from crossing to
-   * crossing along the walk grid, so a city has life beyond the few flatmates by their doors. They're all made at
-   * once; how many show depends on the quality (`showPassersBy`), and only those who show are dressed.
+   * Passers-by (passersby.ts): made-up people with GitHub-style handles on their tags, walking round the blocks on
+   * the sidewalks and crossing at the zebras, so a city has life beyond the few flatmates by their doors. They're all
+   * made at once; how many show depends on the quality (`showPassersBy`), and only those who show are dressed.
    */
   private addPassersBy(n: Neighbourhood, gen: number) {
-    this.stops = [...n.intersections.map((p) => ({ x: p.x, z: p.z })), ...n.streets.map((s) => ({ x: s.x, z: s.z }))];
-    if (!this.stops.length) return;
-    const grid = this.grid();
+    this.sidewalks = sidewalks(n.blocks);
+    if (!this.sidewalks.length) return;
     const rand = seeded(`walkers:${n.city}`);
     for (const who of passersBy(n.city, MOST)) {
-      const stop = this.stops[Math.floor(rand() * this.stops.length)];
-      const at = nearestFree(grid, stop.x + (rand() - 0.5) * 4, stop.z + (rand() - 0.5) * 4) ?? stop;
+      const dir: 1 | -1 = rand() < 0.5 ? 1 : -1;
+      const stroll: Stroll = { block: Math.floor(rand() * this.sidewalks.length), at: Math.floor(rand() * 16), dir, lane: laneFor(dir, rand) };
+      const at = standAt(this.sidewalks[stroll.block][stroll.at], stroll.lane);
       // The tag shows their handle; the card (the target's name) their full name.
       const { avatar, tag } = this.makePerson(who.login, who.login, "lobby-label small");
       avatar.position.set(at.x, 0, at.z);
@@ -1342,7 +1343,7 @@ export class Lobby {
         tag,
         target: { kind: "person", login: who.login, name: who.name, example: true },
         spot: avatar.position,
-        passerby: { route: [], speed: 1.1 + rand() * 0.5, dressing: false },
+        passerby: { stroll, next: null, speed: 1.1 + rand() * 0.5, dressing: false },
       };
       walker.avatar.userData.generation = gen;
       this.town.add(avatar);
@@ -1371,8 +1372,8 @@ export class Lobby {
   }
 
   /**
-   * One passer-by's step: along their route, then a pause, then a new route to another crossing or street. Someone
-   * you've picked, are walking to or standing next to stops and turns to you, so you can say hi.
+   * One passer-by's step: on to the next point of their walk round the block (`walkAhead`), now and then a pause.
+   * Someone you've picked, are walking to or standing next to stops and turns to you, so you can say hi.
    */
   private walkOn(n: Npc, walk: NonNullable<Npc["passerby"]>, dt: number) {
     const pos = n.avatar.position;
@@ -1381,24 +1382,25 @@ export class Lobby {
       n.person?.play("idle");
       return;
     }
-    const next = walk.route[0];
-    if (!next) {
+    if (n.wait > 0) {
       n.person?.play("idle");
       n.wait -= dt;
-      if (n.wait > 0) return;
-      n.wait = 1 + Math.random() * 4;
-      const grid = this.grid();
-      const stop = this.stops[Math.floor(Math.random() * this.stops.length)];
-      const goal = nearestFree(grid, stop.x + (Math.random() - 0.5) * 4, stop.z + (Math.random() - 0.5) * 4);
-      const found = goal ? findPath(grid, { x: pos.x, z: pos.z }, goal) : null;
-      walk.route = found ? smooth(grid, found).slice(1).map((p) => new THREE.Vector3(p.x, 0, p.z)) : [];
       return;
     }
+    if (!walk.next) {
+      walk.stroll = walkAhead(this.sidewalks, walk.stroll, Math.random);
+      const p = standAt(this.sidewalks[walk.stroll.block][walk.stroll.at], walk.stroll.lane);
+      walk.next = new THREE.Vector3(p.x, 0, p.z);
+    }
+    const next = walk.next;
     const to = new THREE.Vector3(next.x - pos.x, 0, next.z - pos.z);
     const step = walk.speed * dt;
     if (to.length() <= step) {
       pos.set(next.x, 0, next.z);
-      walk.route.shift();
+      walk.next = null;
+      // Now and then they stop a moment, mostly at a zebra.
+      const zebra = walk.stroll.at % 4 === 1 || walk.stroll.at % 4 === 2;
+      if (Math.random() < (zebra ? 0.2 : 0.04)) n.wait = 1 + Math.random() * 3;
     } else {
       to.setLength(step);
       pos.add(to);
@@ -1982,6 +1984,8 @@ export class Lobby {
 
     // Flatmates at the same door keep a little apart (R39): two people closer than SPACING step away from each other.
     if (!calm) for (const p of this.placed) separate(p.npcs, dt);
+    // Passers-by don't walk through each other: those who overlap step aside.
+    if (!calm) keepApart(this.walkers.filter((w) => w.avatar.visible).map((w) => w.avatar.position), RADIUS * 2);
 
     // Everyone else glides to where they last said they were.
     for (const r of this.remotes.values()) {

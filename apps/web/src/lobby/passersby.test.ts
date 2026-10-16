@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { allPassersBy, isGithubHandle, MOST, passerbyCount, passersBy } from "./passersby";
+import { generateNeighbourhood, ROAD, seeded } from "./neighbourhood";
+import { allPassersBy, isGithubHandle, keepApart, laneFor, MOST, passerbyCount, passersBy, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
 
 describe("passers-by", () => {
   it("carry handles GitHub would take: lowercase, digits, single hyphens, no dots", () => {
@@ -30,5 +31,62 @@ describe("passers-by", () => {
     expect(passerbyCount("low", true)).toBeLessThan(passerbyCount("low", false));
     expect(passerbyCount("low", false)).toBeLessThan(passerbyCount("high", true));
     expect(passerbyCount("high", true)).toBeLessThanOrEqual(passerbyCount("high", false));
+  });
+
+  describe("walking", () => {
+    const n = generateNeighbourhood("Dakar", []);
+    const rings = sidewalks(n.blocks);
+    // On the sidewalk: within 0.8 of a block's edge, outside it (or just inside, cutting a corner).
+    const onSidewalk = (p: { x: number; z: number }) =>
+      n.blocks.some((b) => {
+        const dx = Math.abs(p.x - b.x) - b.width / 2;
+        const dz = Math.abs(p.z - b.z) - b.depth / 2;
+        return Math.max(dx, dz) <= 0.8 && Math.max(dx, dz) >= -0.01;
+      });
+
+    it("stay on the sidewalks, and cross only at the zebras, straight over one street", () => {
+      const rand = seeded("test");
+      let s: Stroll = { block: 0, at: 0, dir: 1, lane: laneFor(1, rand) };
+      let crossings = 0;
+      for (let k = 0; k < 2000; k++) {
+        const from = standAt(rings[s.block][s.at], s.lane);
+        const next = walkAhead(rings, s, rand);
+        const to = standAt(rings[next.block][next.at], next.lane);
+        expect(onSidewalk(to)).toBe(true);
+        if (next.block !== s.block) {
+          crossings++;
+          expect(s.at % 4 === 1 || s.at % 4 === 2).toBe(true);
+          expect(Math.hypot(to.x - from.x, to.z - from.z)).toBeLessThan(ROAD);
+        }
+        s = next;
+      }
+      expect(crossings).toBeGreaterThan(20);
+    });
+
+    it("link every inner zebra to one across the street", () => {
+      const links = rings.flat().filter((p) => p.across);
+      expect(links.length).toBeGreaterThan(0);
+      for (const p of links) {
+        const q = rings[p.across!.block][p.across!.at];
+        expect(q.across).toBeDefined();
+        expect(Math.hypot(q.x - p.x, q.z - p.z)).toBeCloseTo(ROAD);
+      }
+    });
+
+    it("keep to one side by direction, so people walking towards each other pass", () => {
+      const rand = seeded("lanes");
+      for (let k = 0; k < 50; k++) expect(laneFor(1, rand)).toBeLessThan(laneFor(-1, rand));
+    });
+
+    it("step apart when they overlap, even head-on", () => {
+      const a = { x: 0, z: 0 };
+      const b = { x: 0.3, z: 0 };
+      keepApart([a, b], 0.8);
+      expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(0.3);
+      expect(a.z).not.toBe(0);
+      const far = { x: 5, z: 5 };
+      keepApart([a, far], 0.8);
+      expect(far).toEqual({ x: 5, z: 5 });
+    });
   });
 });
