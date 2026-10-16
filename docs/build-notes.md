@@ -778,3 +778,38 @@ big, Dakar light and Lomé dark, and 375. `npm run build`, `npm test -w @coloc/w
 real house wasn't seen (the only real house is Jib's). The tutorial's "emotes" HUD piece is now unused but left in the
 step machine. On a phone the travel sheet still scrolls its list, as before. Example houses' rows still say "An example
 project." on each row.
+
+### 16 Oct 2026: yellow road spots, the minimap, house rows, people you can reach, passers-by
+
+Five asks from Jib's look at the branch (Claude Code, no subagents).
+
+| Ask | What it was / what changed | Where |
+|---|---|---|
+| Yellow spots on the roads | Not lights: the road texture of the sandy cities (Dakar, Abidjan, Douala) had six soft sand-coloured patches drawn into a tile that repeats over the whole town, so they read as halos, and the ones on a tile's edge were cut straight. Those roads are plain asphalt now; the sand stays on the verges | `lobby/textures.ts` |
+| No teleporting from the minimap | Clicking the small map opens the big one (like M); it never moves you. On the big map, a house (on the map, where its row lights up and the cursor changes, or in the list) takes you to its door (`Lobby.travelTo`, which replaces `teleport`); empty ground does nothing. The map's hint, its screen-reader line and the M tip say so | `components/lobby/Minimap.vue`, `minimap.ts` (`clickOnMap`, tested), `LobbyView.vue`, `tutorial/tips.ts`, `lobby/words.ts` |
+| House cards: no left border, more recognisable | Selection is a fill everywhere a house is listed: the selected row the soft orange, yours a lighter wash, a lit row a shade stronger (no stripe, no ring), in `ListRow` and the find and travel sheets. Each house shows its badge in its own colour (dashed for an example) and three icon chips with hidden sentences: people living there, rooms, free rooms (in the free-window blue), plus a quiet "example" tag. On the big map's list, the find sheet, the list view's rows and the street card. The 3D name flag's orange pole is now a square in the house's colour | `HouseStats.vue`, `HouseBadge.vue`, `houseStats.ts` (tested), `panel/ListRow.vue`, `list/CityRow.vue`, `HouseCard.vue`, `style.css` |
+| People in a house are actionable | Picking a face opens a card under the faces: name, project, one way to reach out (`personActions` in `house/crew.ts`, tested): a flatmate writes in the channel (the tab opens with "Awa, " in the box), an outsider knocks or opens their knock, someone logged out is sent to log in where there's a room to knock on. Then a GitHub profile button (new tab) only for a real GitHub account, disabled with why for an example person, and a wave from the city. **No direct messages** (the team's decision); **a light chat between two people is still a pending decision** | `house/PersonPeek.vue`, `HouseInside.vue`, `Inside.vue`, `ChatPanel.vue` (`start`), `PersonCard.vue`; API `PersonView.github` in `houses.service.ts` (tested) |
+| More people, with GitHub-style handles | Up to sixteen made-up passers-by per city walk from crossing to crossing on the walk grid. Their tags show an invented handle ("mdiop221", "fatou-sow-dev": lowercase, digits, single hyphens, checked by a test); their card the full name (names of the city's languages), the "example person" marker and a disabled GitHub button. Grey dots on the minimap; they stop and turn to you when picked; in reach only when nothing else is. 16 on a desktop and 10 on a phone in high quality, 6 and 4 in low; none in the tutorial's street; still with calm motion | `lobby/passersby.ts` (tested), `Lobby.ts` (`addPassersBy`, `showPassersBy`, `walkOn`) |
+
+**Frame time** (headless Chrome, software GL, Dakar, walking, 375×812 with 4× CPU slowdown as a cheap phone; two runs
+each): high quality 18–21 fps without passers-by, 16–19 with ten (JavaScript per frame 5.5 → 6.6 ms; median frame 50 ms
+either way); low quality 35–37 fps without, 30–34 with four (3.4 → 3.7 ms; median 33 ms either way). Without the
+slowdown at 1440×900 the median frame didn't move (150–167 ms high, 117 ms low: software rendering is the bottleneck).
+
+**Verified** with headless Chrome against the running dev server (no server, API or Docker touched), screenshots in the
+session's scratchpad: Dakar's roads before and after; the small map opening the big one, a click on empty ground doing
+nothing, the hover lighting Almadies' row and a click landing at its door ("Almadies, Go in"); the big map, the find
+sheet and the list view at 1440 and 375, light and dark, English and French; the 3D flags; a passer-by's tag and card;
+the house window's person card logged out (Almadies, Sacré-Cœur), and as a flatmate and as an outsider with the house
+view's viewer swapped in that browser only (the dev login is off on the running API): "Write in the channel" opens the
+Channel tab with "Jib, " in a focused box, "Knock" opens the knock. `npm run build`, `npm test` (web 240, API 208) and
+`npm run licences:check` pass.
+
+**To see it all:** restart the API (it now sends `github` for each person; until then nobody gets a GitHub link). No
+migration, no reseed: the seed is unchanged (the passers-by are client-side; the seeded flatmates keep their logins,
+which `life.ts`, the tests, `dev.md`'s dev logins and the demo reset rely on).
+
+**Rough edges.** The wave and the knock from the person card were seen only with the swapped viewer, not with a real
+login. On a phone the list view's line under a house's name still ends in "…" for a long city name (Marrakech), and the
+example tag is left out there. Passers-by walk on the road as much as the sidewalk (the walk grid doesn't tell them
+apart), and pass through each other. Their names should be read by someone from each city.
