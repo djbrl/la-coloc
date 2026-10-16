@@ -56,6 +56,10 @@ const names = computed(() => props.house.rooms.filter((r) => r.occupant).map((r)
 .flag { margin-right: 5px; }
 .meta-parts { display: flex; align-items: center; gap: 10px; }
 .narrow { display: none; }
+/* On a phone the chips sit in the line under the name: on one line, after the city. */
+.narrow :deep(.house-stats) { flex-wrap: nowrap; gap: 8px; vertical-align: -2px; }
+/* No room for the "example" tag there; the row's hidden line still says it. */
+.narrow :deep(.tag) { display: none; }
 /* Side by side with a little air: overlapped, initials ran into each other ("AN AW MA"). */
 .faces { display: flex; align-items: center; gap: 3px; }
 /* Not ".more": the site has a link style by that name. */
