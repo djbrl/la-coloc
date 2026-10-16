@@ -58,8 +58,6 @@ The contest needs the project deployed on Datacloud (rules, Art. 6). Until then 
   new login plays it with Docker, Postgres and the workshop's caretaker, including a failed build and a reload.
 - **API sentences in French** · M. Error messages, house news, knock-thread lines, GitHub comments and the example
   city are English text. *Done when:* the API sends a kind and values and the site words them.
-- **Walk keys on a French keyboard** · S. `Lobby.ts` reads `e.key`, so W A S D are scattered on AZERTY. *Done when:*
-  it reads `e.code` and Z Q S D walk on AZERTY.
 - **A lighter first load on phones** · M. About 5 MB of the first visit is 3D models. *Done when:* models are
   compressed and the first load is measured on a cheap Android phone.
 - **ESLint and Prettier** · M · good first task (agree the rules with Jib first). *Done when:* `npm run lint` runs in CI and passes.
@@ -113,5 +111,6 @@ runs the isolation demo.
 | An always-daylight city, a game-like minimap, a new login page | same, "Jib's review of the city" |
 | Passers-by, house rows with icons, a person card you can act on | same, 16 Oct |
 | Invitations, the bell, and a "no" that tells the sender | same, "invitations, a bell" |
+| Walking by key position, so Z Q S D walk on a French keyboard | `apps/web/src/lobby/keys.ts` |
 | `npm run share`: the site on Vercel, the API behind a tunnel, a pass for the lobby's socket | [dev.md](docs/dev.md#sharing-the-city-from-a-laptop) |
 | The docs rewritten short and plain; old plans archived | [docs/README.md](docs/README.md) |
