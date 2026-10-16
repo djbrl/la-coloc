@@ -13,3 +13,4 @@ dist/
 .claude/settings.local.json
 *.log
 coverage/
+.vercel-share/

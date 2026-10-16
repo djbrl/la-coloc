@@ -466,3 +466,21 @@ reachable" and "caretaker without settings" were run for real.
 **Not run** (Docker is off on the machine that wrote this): steps 4 to 10, the isolation demo, the tutorial, and the GitHub App.
 Their commands come from reading the code and the previous guide, and their "you should see" lines from the code's log statements.
 If a step differs on your machine, fix this file in the same pull request.
+
+## Sharing the city from a laptop (Vercel + a tunnel)
+
+Until the real server exists, a teammate can try the city without building it: the site goes on Vercel, the API
+(and Docker, the caretakers, everything else) stays on the laptop behind a Cloudflare quick tunnel.
+
+```bash
+npm run share
+```
+
+It opens the tunnel to the API on :4100, builds the site pointed at it, deploys it to the `la-coloc` Vercel project
+(`https://la-coloc.vercel.app`), and keeps the tunnel open until Ctrl+C. Then start (or restart) the API with the two
+lines it prints (`COLOC_PUBLIC_URL` for the site's address, `COLOC_WEB_ORIGIN` listing it and your own dev server).
+A quick tunnel gets a new address each time it opens, so run `npm run share` again after a restart. Vercel forwards
+`/api`, but not WebSockets: the site opens the lobby's socket straight to the tunnel with a one-minute pass from
+`/api/lobby/ticket`. The GitHub App needs `https://la-coloc.vercel.app/api/auth/github/callback` among its callback
+URLs. Projects that rooms put online still answer only on this laptop (`*.coloc.localhost`). Never turn on
+`COLOC_DEV_LOGIN` while sharing: anyone could log in as anyone.
