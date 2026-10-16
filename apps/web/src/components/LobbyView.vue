@@ -121,7 +121,8 @@ function build() {
   // The tutorial's neighbourhood is one street, drawn by hand, with the workshop at its far end: nowhere to get lost.
   const n = inWorkshop.value ? tutorialNeighbourhood() : generateNeighbourhood(city.value, here.value);
   neighbourhood.value = n;
-  lobby.setNeighbourhood(n, shown.value);
+  // Passers-by walk the city's streets, not the tutorial's: the quest keeps its one street calm.
+  lobby.setNeighbourhood(n, shown.value, { passersBy: !inWorkshop.value });
   lobby.setResidents(residents.value);
   if (awaiting && here.value.some((h) => h.id === awaiting)) {
     lobby.goTo(awaiting);
@@ -994,6 +995,7 @@ function statsOf(name: string) {
             :home="cardHome"
             :house="cardHomeHouse"
             :is-me="card.login === me?.login"
+            :example="card.example"
             @knock="(houseId, room) => (knock = { houseId, room })"
             @see="seeHouse"
             @thread="(id) => goInside({ kind: 'application', id })"

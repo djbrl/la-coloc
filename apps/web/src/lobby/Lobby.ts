@@ -25,7 +25,8 @@ import { liveKey, liveState } from "./live";
 import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff } from "./models";
 import { CityProps, makeBoard, makePins, waxParasols } from "./props";
 import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
-import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
+import { MOST, passerbyCount, passersBy } from "./passersby";
+import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestFree, nearestOnBox, type Point, RADIUS, smooth } from "./path";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
 import { dye } from "./tint";
@@ -75,7 +76,8 @@ export type Target =
   | { kind: "house"; house: CityHouse }
   // An empty building or lot: a shop, a tower or a tree lot. Rentable: "start a coloc here". `key` is Plot.key.
   | { kind: "empty"; plot: { key: string; lot: "shop" | "tower" | "trees"; x: number; z: number } }
-  | { kind: "person"; login: string; name: string }
+  // `example`: a passer-by the lobby made up (passersby.ts), with no house and no GitHub account.
+  | { kind: "person"; login: string; name: string; example?: boolean }
   // The chores board on the market square: Vue lists the houses with reviews waiting.
   | { kind: "board"; city: string };
 
@@ -157,6 +159,8 @@ interface Npc extends Thing {
   tag: HTMLElement;
   // Behind a building, seen from the camera: their name tag hides (R39).
   hidden?: boolean;
+  // A passer-by (passersby.ts): walks a route across town (`route`, at `speed`) instead of hanging around a door.
+  passerby?: { route: THREE.Vector3[]; speed: number; dressing: boolean };
 }
 
 interface Remote extends Thing {
@@ -210,6 +214,9 @@ export class Lobby {
   private plots: EmptyPlot[] = [];
   private solids: Box[] = [];
   private npcs: Npc[] = [];
+  // The passers-by (also in `npcs`), and the spots they walk between: the crossings and the middle of each street.
+  private walkers: Npc[] = [];
+  private stops: Point[] = [];
   private remotes = new Map<string, Remote>();
   private residents = new Map<string, Resident>();
   private board: Board | null = null;
@@ -376,8 +383,11 @@ export class Lobby {
     }
   }
 
-  /** Builds a neighbourhood. Moving to another one puts you at its entrance. */
-  setNeighbourhood(n: Neighbourhood, houses: CityHouse[]) {
+  /**
+   * Builds a neighbourhood. Moving to another one puts you at its entrance. `passersBy: false` leaves its streets to
+   * the flatmates (the tutorial's one street, where nothing should distract).
+   */
+  setNeighbourhood(n: Neighbourhood, houses: CityHouse[], opts: { passersBy?: boolean } = {}) {
     // The city stream re-sends the city often. Only rebuild if what's drawn changed; the live state (windows, the
     // crane, the power, knocks, the board's pins) is redrawn in place by `updateHouses`.
     const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.plot, h.rooms.map((r) => r.occupant?.login ?? null)])]);
@@ -393,6 +403,8 @@ export class Lobby {
     this.plots = [];
     this.solids = [];
     this.npcs = [];
+    this.walkers = [];
+    this.stops = [];
     this.board = null;
     this.props = null;
     this.skyline = [];
@@ -509,6 +521,7 @@ export class Lobby {
     // The walk grid, from every footprint placed above. House models that load later refine theirs: see `grid`.
     this.gridDirty = true;
     this.grid();
+    if (opts.passersBy !== false) this.addPassersBy(n, gen);
 
     if (arriving) {
       // In front of the nearest real house, facing it, the camera turned to show its front (R3).
@@ -945,9 +958,10 @@ export class Lobby {
     const all = this.controls.targets === "all";
     const [building, db] = nearest(all ? [...this.placed, ...this.plots, ...(this.board ? [this.board] : [])] : this.placed);
     if (!all) return building;
-    const [person, dp] = nearest([...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values()]);
+    const [person, dp] = nearest([...this.npcs.filter((n) => n.avatar.visible && !n.passerby), ...this.remotes.values()]);
     if (person && (!building || dp + PEOPLE_MARGIN < db)) return person;
-    return building;
+    // Someone passing by is in reach only when nothing else is, so they never steal a door's prompt as they walk past.
+    return building ?? nearest(this.walkers.filter((w) => w.avatar.visible))[0];
   }
 
   private isRemote(t: Thing): boolean {
@@ -1290,6 +1304,97 @@ export class Lobby {
       });
   }
 
+  /**
+   * Passers-by (passersby.ts): made-up people with GitHub-style handles on their tags, walking from crossing to
+   * crossing along the walk grid, so a city has life beyond the few flatmates by their doors. They're all made at
+   * once; how many show depends on the quality (`showPassersBy`), and only those who show are dressed.
+   */
+  private addPassersBy(n: Neighbourhood, gen: number) {
+    this.stops = [...n.intersections.map((p) => ({ x: p.x, z: p.z })), ...n.streets.map((s) => ({ x: s.x, z: s.z }))];
+    if (!this.stops.length) return;
+    const grid = this.grid();
+    const rand = seeded(`walkers:${n.city}`);
+    for (const who of passersBy(n.city, MOST)) {
+      const stop = this.stops[Math.floor(rand() * this.stops.length)];
+      const at = nearestFree(grid, stop.x + (rand() - 0.5) * 4, stop.z + (rand() - 0.5) * 4) ?? stop;
+      // The tag shows their handle; the card (the target's name) their full name.
+      const { avatar, tag } = this.makePerson(who.login, who.login, "lobby-label small");
+      avatar.position.set(at.x, 0, at.z);
+      avatar.rotation.y = rand() * Math.PI * 2;
+      const walker: Npc = {
+        login: who.login,
+        avatar,
+        home: avatar.position.clone(),
+        goal: avatar.position.clone(),
+        wait: rand() * 4,
+        tag,
+        target: { kind: "person", login: who.login, name: who.name, example: true },
+        spot: avatar.position,
+        passerby: { route: [], speed: 1.1 + rand() * 0.5, dressing: false },
+      };
+      walker.avatar.userData.generation = gen;
+      this.town.add(avatar);
+      this.npcs.push(walker);
+      this.walkers.push(walker);
+    }
+    this.showPassersBy();
+  }
+
+  /** As many passers-by as the quality allows (fewer on low, and on a phone's small screen); the first time one shows, it's dressed. */
+  private showPassersBy() {
+    const count = passerbyCount(this.opts.quality, window.innerWidth < 520);
+    this.walkers.forEach((w, i) => {
+      w.avatar.visible = i < count;
+      if (!w.avatar.visible || w.person || w.passerby!.dressing) return;
+      w.passerby!.dressing = true;
+      const gen = w.avatar.userData.generation as number;
+      loadPerson(w.login)
+        .then((p) => {
+          if (gen !== this.generation) return;
+          w.person = p;
+          this.dress(w.avatar, p);
+        })
+        .catch(() => undefined);
+    });
+  }
+
+  /**
+   * One passer-by's step: along their route, then a pause, then a new route to another crossing or street. Someone
+   * you've picked, are walking to or standing next to stops and turns to you, so you can say hi.
+   */
+  private walkOn(n: Npc, walk: NonNullable<Npc["passerby"]>, dt: number) {
+    const pos = n.avatar.position;
+    if (this.highlighted === n || this.near === n || this.useOnArrival === n) {
+      n.avatar.rotation.y = Math.atan2(this.player.position.x - pos.x, this.player.position.z - pos.z);
+      n.person?.play("idle");
+      return;
+    }
+    const next = walk.route[0];
+    if (!next) {
+      n.person?.play("idle");
+      n.wait -= dt;
+      if (n.wait > 0) return;
+      n.wait = 1 + Math.random() * 4;
+      const grid = this.grid();
+      const stop = this.stops[Math.floor(Math.random() * this.stops.length)];
+      const goal = nearestFree(grid, stop.x + (Math.random() - 0.5) * 4, stop.z + (Math.random() - 0.5) * 4);
+      const found = goal ? findPath(grid, { x: pos.x, z: pos.z }, goal) : null;
+      walk.route = found ? smooth(grid, found).slice(1).map((p) => new THREE.Vector3(p.x, 0, p.z)) : [];
+      return;
+    }
+    const to = new THREE.Vector3(next.x - pos.x, 0, next.z - pos.z);
+    const step = walk.speed * dt;
+    if (to.length() <= step) {
+      pos.set(next.x, 0, next.z);
+      walk.route.shift();
+    } else {
+      to.setLength(step);
+      pos.add(to);
+      n.avatar.rotation.y = Math.atan2(to.x, to.z);
+    }
+    n.person?.play("walk");
+  }
+
   /** Puts the door just in front of the house's face (`front` units from its centre), moving the flatmates along. */
   private fitDoor(p: Placed, facing: Facing, front: number) {
     const dir = FACING_DIR[facing];
@@ -1513,6 +1618,7 @@ export class Lobby {
 
   private applyQuality() {
     const high = this.opts.quality === "high";
+    this.showPassersBy();
     this.renderer.setPixelRatio(high ? Math.min(window.devicePixelRatio, 2) : 1);
     this.renderer.shadowMap.enabled = high;
     this.sun.castShadow = high;
@@ -1835,10 +1941,14 @@ export class Lobby {
       this.ring.material.opacity = 0.75 + breath * 0.15;
     }
 
-    // Flatmates stroll around their front yard.
+    // Flatmates stroll around their front yard; passers-by walk their routes across town.
     for (const n of this.npcs) {
       if (calm || !n.avatar.visible) {
         n.person?.play("idle");
+        continue;
+      }
+      if (n.passerby) {
+        this.walkOn(n, n.passerby, dt);
         continue;
       }
       const to = new THREE.Vector3().subVectors(n.goal, n.avatar.position).setY(0);
