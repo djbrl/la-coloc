@@ -334,7 +334,7 @@ export class HousesService {
       recentDeployments = ds.map(deploymentView);
       notes = ns.map((n) => ({ id: n.id, tone: n.tone, text: n.text, said: readNote(n.text), room: n.room, at: n.at.toISOString(), count: n.count }));
       doorbell = await openDoorbell(this.db, houseId, h.memberships.length);
-      channel = await channelMessages(this.db, houseChannel(houseId));
+      channel = await channelMessages(this.db, houseChannel(houseId), undefined, viewerId);
       openChores = await this.openChores(houseId);
     } else if (viewerId) {
       const [app] = await this.db

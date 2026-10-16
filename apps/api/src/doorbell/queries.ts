@@ -1,6 +1,6 @@
 // Reads shared by the house page and the doorbell: chat history and vote tallies.
-import { applications, type Db, messages, users, votes } from "@coloc/db";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { applications, blocks, type Db, messages, users, votes } from "@coloc/db";
+import { and, asc, desc, eq, inArray, isNull, notInArray, or } from "drizzle-orm";
 import type { DoorbellItem, MessageView, PersonView, VoteTally } from "../houses/house.types";
 import { readKnockLine } from "../houses/lines";
 
@@ -19,13 +19,20 @@ export function tally(flatmates: number, vs: { yes: boolean }[]): VoteTally {
   return { flatmates, yes, no: vs.length - yes, needed: Math.floor(flatmates / 2) + 1 };
 }
 
-/** The last messages of a channel, oldest first. */
-export async function channelMessages(db: Db, channel: string, limit = HISTORY): Promise<MessageView[]> {
+/** The people `viewerId` has blocked: their words are hidden from them everywhere. */
+export async function blockedBy(db: Db, viewerId: string | null | undefined): Promise<string[]> {
+  if (!viewerId) return [];
+  return (await db.select({ id: blocks.blockedId }).from(blocks).where(eq(blocks.blockerId, viewerId))).map((b) => b.id);
+}
+
+/** The last messages of a channel, oldest first. With a viewer, what people they blocked said is left out. */
+export async function channelMessages(db: Db, channel: string, limit = HISTORY, viewerId?: string | null): Promise<MessageView[]> {
+  const hidden = await blockedBy(db, viewerId);
   const rows = await db
     .select({ id: messages.id, body: messages.body, at: messages.at, author: users })
     .from(messages)
     .leftJoin(users, eq(users.id, messages.authorId))
-    .where(eq(messages.channel, channel))
+    .where(and(eq(messages.channel, channel), hidden.length ? or(isNull(messages.authorId), notInArray(messages.authorId, hidden)) : undefined))
     .orderBy(desc(messages.id))
     .limit(limit);
   return rows

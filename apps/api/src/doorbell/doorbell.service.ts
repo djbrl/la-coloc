@@ -89,7 +89,7 @@ export class DoorbellService {
       tally: tally(flatmates, app.votes),
       votes: as === "flatmate" ? app.votes.map((v) => ({ voter: person(v.voter), yes: v.yes })) : null,
       viewer: { login: viewer.login, as, vote: app.votes.find((v) => v.voterId === viewerId)?.yes ?? null },
-      messages: await channelMessages(this.db, applicationChannel(app.id)),
+      messages: await channelMessages(this.db, applicationChannel(app.id), undefined, viewerId),
       work: await this.work(app.applicant),
     };
   }

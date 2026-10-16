@@ -2,7 +2,7 @@
 // from the same city. People and their logins stay; everything about houses goes and is planted again.
 import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { type Db, houses, messages, rooms, users } from "@coloc/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, like, or } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
 import { DB } from "../db/db.module";
 import { HousesService } from "../houses/houses.service";
@@ -63,9 +63,10 @@ export class DemoService {
 
     await this.db.transaction(async (tx) => {
       // Deleting the houses takes their rooms, flatmates, knocks and votes, chores, notes, deployments, secrets,
-      // linked repos and usage with them (all cascade). Chat isn't tied to a house in the schema, so it goes by hand:
-      // every channel is a house's (`house:<id>`) or a knock's (`application:<id>`), and every house goes.
-      await tx.delete(messages);
+      // linked repos and usage with them (all cascade). Chat isn't tied to a house in the schema, so a house's channel
+      // (`house:<id>`) and a knock's (`application:<id>`) go by hand. People's direct messages, the cities' rooms and
+      // their boards belong to people, not houses: they stay.
+      await tx.delete(messages).where(or(like(messages.channel, "house:%"), like(messages.channel, "application:%")));
       await tx.delete(houses);
       await tx.update(users).set({ tutorialDoneAt: null });
       await plantCity(tx, this.seed);

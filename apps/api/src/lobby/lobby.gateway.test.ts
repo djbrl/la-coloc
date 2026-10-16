@@ -82,6 +82,14 @@ describe("the bell's nudge", () => {
     gateway.notice("jib");
     expect(sent).toEqual([{ type: "notice" }]);
   });
+
+  it("says \"chat\" the same way when a direct message comes in", async () => {
+    const { gateway, socket, sent } = setup();
+    await gateway.handleConnection(socket as never, withSession);
+    sent.length = 0;
+    gateway.notice("jib", "chat");
+    expect(sent).toEqual([{ type: "chat" }]);
+  });
 });
 
 describe("a page served from another host (the site on Vercel, the API behind a tunnel)", () => {

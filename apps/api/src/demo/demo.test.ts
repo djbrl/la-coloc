@@ -72,6 +72,8 @@ describe("the demo reset", () => {
     await tutorial.room(req, response());
     await me.updateMe(req, { tutorialDone: true });
     await db.insert(messages).values({ channel: "house:sacre-coeur", authorId: fatou!.id, body: "salut" });
+    // And in Dakar's public room: that belongs to her, not to a house.
+    await db.insert(messages).values({ channel: "city:Dakar", authorId: fatou!.id, body: "bonjour Dakar" });
     // Someone renamed a seeded room's project: the reset puts it back. The room is running, and stays so.
     await db.update(rooms).set({ project: "Changed", status: "live", url: "http://jib.coloc.localhost:8000" }).where(eq(rooms.name, "jib"));
 
@@ -86,6 +88,7 @@ describe("the demo reset", () => {
     // Fatou's message went with the old city; the seeded chat is back.
     const said = await db.select().from(messages);
     expect(said.some((m) => m.body === "salut")).toBe(false);
+    expect(said.some((m) => m.body === "bonjour Dakar")).toBe(true);
     expect(said.length).toBeGreaterThan(0);
     const [jibRoom] = await db.select().from(rooms).where(eq(rooms.name, "jib"));
     expect(jibRoom).toMatchObject({ project: "Kër Bot", status: "live", url: "http://jib.coloc.localhost:8000" });

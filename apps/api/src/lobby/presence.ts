@@ -37,7 +37,9 @@ export type ServerMessage =
   | { type: "leave"; login: string }
   | { type: "census"; counts: Record<string, number> }
   // Something new under your bell (an invitation, a knock): the page fetches /api/notifications. Only to you.
-  | { type: "notice" };
+  | { type: "notice" }
+  // A new direct message for you (or one you sent from another tab): the page fetches /api/chat/conversations.
+  | { type: "chat" };
 
 export interface Viewer {
   login: string;

@@ -5,12 +5,14 @@ import type WebSocket from "ws";
 import { AuthService, SESSION_COOKIE, type User } from "../auth/auth.service";
 import { parseCookies } from "../auth/http";
 import { Core, CoreDownError, isCoreDown } from "../core/core";
+import { ChatService } from "../chat/chat.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { type Out, Presence, type ServerMessage } from "./presence";
 
 // The lobby's live line: positions and emotes, relayed between everyone walking around. Logged-in people appear;
 // visitors only watch. Only pages from our own site may connect (a WebSocket ignores CORS, so we check Origin).
-// It also tells someone, on their own line only, that something new is under their bell.
+// It also tells someone, on their own line only, that something new is under their bell, or that a direct message
+// came in (one word each; the page then asks the API, so nothing private travels on the line).
 @WebSocketGateway({ path: "/lobby-ws" })
 export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
   private readonly log = new Logger("lobby");
@@ -24,19 +26,27 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
     private readonly core: Core,
     // Left out in tests that don't need it.
     @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly chat?: ChatService,
   ) {
     const sub = this.notifications?.pushes.subscribe((login) => this.notice(login));
-    this.unsubscribe = () => sub?.unsubscribe();
+    const chatSub = this.chat?.pushes.subscribe((login) => this.notice(login, "chat"));
+    this.unsubscribe = () => {
+      sub?.unsubscribe();
+      chatSub?.unsubscribe();
+    };
   }
 
   onModuleDestroy() {
     this.unsubscribe();
   }
 
-  /** "Look at your bell": a one-word message to each of `login`'s open tabs. Offline, they see it on their next load. */
-  notice(login: string) {
+  /**
+   * "Look at your bell" (`notice`) or "look at your messages" (`chat`): a one-word message to each of `login`'s open
+   * tabs. Offline, they see it on their next load.
+   */
+  notice(login: string, type: "notice" | "chat" = "notice") {
     if (!login) return;
-    this.send(this.presence.connectionsOf(login).map((conn) => ({ to: "one" as const, conn, msg: { type: "notice" as const } })));
+    this.send(this.presence.connectionsOf(login).map((conn) => ({ to: "one" as const, conn, msg: { type } })));
   }
 
   async handleConnection(socket: WebSocket, req: { url?: string; headers: Record<string, string | string[] | undefined> }) {
