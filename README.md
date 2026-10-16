@@ -15,6 +15,8 @@ the server bill, and each code review you do for them pays part of your rent.
 - **Review your flatmates' code:** La Coloc picks the reviewer in turn, and each review takes 500 FCFA off your rent.
 - **Share the bill** by room size and CPU used, and follow the house's tontine turn. (Paying is a mock for now.)
 - **Get news under the bell:** invitations, knocks on your house, answers to your knock.
+- **Talk:** direct messages, a public room and a board per city (looking for a house, flatmates, a project), and
+  your house's channel, in one card over the city.
 - **Play in English or French.** If the database goes down, the city stays up and heals by itself.
 
 ## Quick start

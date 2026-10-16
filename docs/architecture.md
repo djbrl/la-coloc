@@ -12,7 +12,7 @@
      │  WebSocket /lobby-ws: the lobby's live line                    │  App installed (via smee in development)
      ▼                                                                ▼
   ┌──────────────────────────── API (apps/api, NestJS) ────────────────────────────┐
-  │ login · houses · knocks · rooms · GitHub · notifications · lobby · tutorial    │
+  │ login · houses · knocks · rooms · GitHub · notifications · chat · lobby · tut. │
   └───────┬──────────────────────────────────────────────────────┬─────────────────┘
           │ Drizzle (packages/db)                                 │ WebSocket /agent (packages/protocol)
           ▼                                                       ▼ the caretaker dials out; a house opens no port
@@ -71,7 +71,18 @@ instead of a merge. Every 30 seconds the caretaker sends each room's CPU and mem
   `/api` but not WebSockets, and the login cookie belongs to the site's host. So the page asks `GET /api/lobby/ticket`
   for a one-minute, single-use pass and opens the socket straight to the API with it. The address comes from
   `VITE_LOBBY_WS`, set when the site is built (`apps/web/src/lobby/link.ts`, `apps/api/src/auth/auth.service.ts`).
-- Houses, the city and knock threads update through server-sent events (`…/stream` routes), a simpler one-way stream.
+- It also says "chat" to someone when a direct message reaches them; their page then fetches its conversations.
+- Houses, the city, knock threads, and a city's room and board update through server-sent events (`…/stream`
+  routes), a simpler one-way stream. A city's stream only says "chat" or "board"; each page then fetches with its own
+  login, so what a person blocked stays hidden from them.
+
+## The chat
+
+Every conversation is a channel in the `messages` table: `house:<id>`, `application:<id>`, `dm:<id>:<id>` (two
+user ids, sorted, so a pair has one channel), `city:<City>` and `post:<id>` (a board post's replies). The rules
+live in `apps/api/src/chat/` (`chat.service.ts`, `board.service.ts`): who reads and writes each channel, blocks,
+reports, and an in-memory brake (`limiter.ts`, a sliding window per person; one API process, so that's enough).
+The web's side is `apps/web/src/components/chat/` and `conversations.ts`.
 
 ## When the database is down
 
@@ -84,7 +95,8 @@ itself. Caretakers are asked to reconnect later; running rooms keep running. Cod
 
 The tables, in `packages/db/src/schema.ts`: `users`, `sessions`, `houses`, `rooms`, `memberships` (who lives where,
 their place in the tontine), `deployments`, `fridge_notes` (house news), `usage_samples`, `applications` and `votes`
-(knocks), `messages` (channel and knock threads), `room_secrets`, `repos` (a GitHub repo linked to a room), `chores`
+(knocks), `messages` (every chat: houses, knocks, direct, cities, board replies), `board_posts`, `blocks`,
+`chat_reads` (how far you read a conversation), `reports`, `room_secrets`, `repos` (a GitHub repo linked to a room), `chores`
 (one pull request, one reviewer), `bill_payments` and `notifications`. A month's bill is worked out from usage and
 reviews when asked; it is not stored. Who is online lives only in the API's memory. Migrations are in
 `packages/db/drizzle/`, and the API applies new ones when it starts.
@@ -100,7 +112,8 @@ apps/
     src/i18n.ts      English and French words
     public/          3D models (lobby/), install.sh
   api/src/       the API, one folder per area: auth, houses, doorbell (knocks), rooms, github, agents (caretakers),
-                 notifications, lobby, tutorial (the quest), demo, seed (the example city), core (database down)
+                 notifications, chat (messages, city rooms, the board), lobby, tutorial (the quest), demo,
+                 seed (the example city), core (database down)
   agent/src/     the caretaker: deploy.ts, docker.ts, room-spec.ts (the walls), proxy.ts (route files), meter.ts
 packages/
   protocol/      every message between the API and a caretaker, checked with zod

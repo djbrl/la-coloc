@@ -19,7 +19,11 @@
 | **Rent credit** | Each review you do takes 500 FCFA off your line of the bill. |
 | **Tontine** | A turn that passes from flatmate to flatmate every two weeks, so the house rallies behind one project at a time. |
 | **News** (the *fridge* in the code) | Short notes the house posts by itself: a project went live, a room ran out of memory, someone moved in. |
-| **Channel** | The house's group chat; a knock has its own thread. There are no private messages. |
+| **Channel** | The house's group chat, for flatmates only; a knock has its own thread. |
+| **Message** (a *DM* in the code) | A conversation between two people, started from someone's card. |
+| **City room** | A city's public chat: anyone reads it, logged-in people write. |
+| **Board** | A city's small forum: tagged posts (looking for a house, flatmates, a project, help) with replies. Not the market's chores board, which lists reviews waiting. |
+| **Block** | Stops direct messages both ways with someone, and hides what they write from you. |
 | **Workshop** | L'Atelier, a hidden practice house in Dakar where newcomers get a first room during the quest. |
 | **Quest** | "Your first home": the eight-chapter first visit that ends with your own page online. |
 | **Bell** | The icon in the top bar that holds your invitations and news about your knocks. |

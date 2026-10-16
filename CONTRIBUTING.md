@@ -49,6 +49,13 @@ mistake, tell Jib at once: the key must be replaced.
 Flat floating cards (no glass or blur); panels fit without scrolling; one main action per view; day and night both
 work, using only the colour tokens in `apps/web/src/style.css`; keyboard first. Jib has the last word on the look.
 
+## Chat
+
+Direct messages, a city's room and its board are allowed (the old "no DMs" rule is gone). Whatever people type is
+plain text: Vue writes it as text, never `v-html`; only http(s) links are drawn, by `linkParts` in
+`components/chat/chat.ts`. A new place to talk is a new channel name in the `messages` table, with its read and
+write rule in `apps/api/src/chat/` and a test for each.
+
 ## Art and licences
 
 - **Only our own art, CC0, or permissive licences.** Never images from ArtStation, Pinterest or rips.

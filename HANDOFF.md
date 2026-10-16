@@ -12,7 +12,8 @@ What works today, in one breath: a walkable 3D city by day with passers-by and a
 rooms (one project each); a first-visit quest, "Your first home", that takes a newcomer from the street to a live,
 shared project; knocks to join a house, invitations and a notification bell; reviews that pay part of the rent, the
 bill and the tontine; GitHub login, repo picker, deploy on merge and PR previews; English and French; a city that
-keeps working when the database is down. [docs/how-it-works.md](docs/how-it-works.md) explains each idea in plain
+keeps working when the database is down; direct messages, a chat room and a board per city, with blocking and
+reports. [docs/how-it-works.md](docs/how-it-works.md) explains each idea in plain
 words; [docs/architecture.md](docs/architecture.md) shows the pieces and the folders.
 
 What is **not** real yet: payments (a mock that only marks a line paid), the Datacloud deployment, HTTPS, and rate
@@ -46,8 +47,9 @@ To run it locally from scratch, follow [docs/dev.md](docs/dev.md). The site's de
    - today's mock lives in `POST /api/houses/:id/bill/paid`, `markBillPaid` in
      `apps/api/src/houses/houses.service.ts`, table `bill_payments`, operators in `houses/money.ts`;
    - Jib creates the Stripe account and puts the test keys in `dev/.env.local` himself (never commit keys).
-2. **Rate limiting** on login, knock, message, invite and deploy routes (`@nestjs/throttler`, MIT), with a test
-   showing the 429. Do it before the Vercel link is shared beyond the team.
+2. **Rate limiting** on login, knock, invite and deploy routes (`@nestjs/throttler`, MIT), with a test showing the
+   429. Do it before the Vercel link is shared beyond the team. The chat already has its own brake (five messages in
+   ten seconds, five board posts an hour: `apps/api/src/chat/limiter.ts`).
 3. Everything else is in [TODO.md](TODO.md): the Datacloud items (Jib handles them), real people in rooms, the demo
    video, a native French read, and the contest admin with its dates (register by Thu 22 Oct, submit Sun 25 Oct).
 
@@ -55,8 +57,10 @@ To run it locally from scratch, follow [docs/dev.md](docs/dev.md). The site's de
 
 - **Every word on screen in English and French.** UI words live in per-area dictionaries made with `defineWords`
   (`apps/web/src/i18n.ts`); a missing French key fails the build. French says "vous".
-- **No free-text direct messages.** Conversations are a house's channel and a knock's thread only. Invitations are
-  structured actions.
+- **Talking: direct messages and public rooms are allowed** (the team reversed the old "no DMs" rule on 16 Oct). Every
+  conversation is a channel in the `messages` table: a house's, a knock's, two people's (`dm:`), a city's (`city:`)
+  and a board post's replies (`post:`). Keep the safety around them: block, report, the posting brake, plain text
+  only. Invitations stay structured actions.
 - **The look:** flat floating cards, no glass or blur; icons over words, with accessible names; short stats rather
   than sentences; status text only when something is wrong; no coloured left-border to mark a selection; panels fit
   without scrolling; keyboard first; the city is always seen by day. Details in
@@ -82,5 +86,6 @@ To run it locally from scratch, follow [docs/dev.md](docs/dev.md). The site's de
 - **Caretakers started before 16 Oct** run old code. Restart both (commands in docs/dev.md) to get the per-house
   Docker fix; running rooms keep answering and move to the new network on their next deploy.
 - **The repo picker** lists your own GitHub installation, plus organisation installs you made yourself after 16 Oct.
-- **Open product questions** for Jib: should real people's houses survive a demo reset; a light chat or not; the
-  project's own licence (none yet, and the contest asks winners to cede their rights).
+- **Reports have no screen.** Admins (`COLOC_ADMINS`) read them at `GET /api/reports` and act by hand (an admin can
+  delete any board post or reply).
+- **Open product questions** for Jib: should real people's houses survive a demo reset; the project's own licence (none yet, and the contest asks winners to cede their rights).

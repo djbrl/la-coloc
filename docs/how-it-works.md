@@ -60,7 +60,7 @@ There are two ways in.
 
 ## Living together
 
-- **The channel:** one group chat per house, plus one thread per knock. There are no private messages, on purpose.
+- **The channel:** one group chat per house, flatmates only, plus one thread per knock.
 - **News:** notes the house posts by itself (a project went live, a room ran out of memory, a review was late,
   someone moved in). Called the "fridge" in the code.
 - **Your room's page:** build settings, secret keys (stored encrypted), logs, restart and update.
@@ -109,6 +109,24 @@ chapters, and each one moves on by itself when the game sees it done:
 It ends on "Welcome home", then the city. You can leave and come back: it remembers your chapter. Settings can
 restart it. The workshop room stays yours; a real house comes later, by knocking or an invitation.
 
+## Talking: messages, the city's room and its board
+
+A chat key in the top bar opens a card over the city (you never leave the game). Its tabs:
+
+- **Messages:** one-to-one conversations. "Message" on someone's card starts one (real people only; an example
+  person's key is greyed out, with why). Newest first, with how many you haven't read; the key in the top bar counts
+  them. A new message arrives live.
+- **City:** one public room per city, the last hundred messages. Anyone can read, visitors too; you write once logged in.
+- **Board:** the city's small forum. A post has a tag (looking for a house, looking for flatmates, starting a
+  project, help, other), a title and a few lines; replies go under it, and the most recently active post comes
+  first. Only its author can delete a post or a reply. "Message" writes to the author. The chores board on the
+  market square, and a key in the city's corner, open it too.
+- **House:** your house's channel, the same as in its window, flatmates only.
+
+Keeping it safe: **block** someone (no messages either way, and you stop seeing what they write anywhere);
+**report** a message or a post (the admins get a copy); a **brake** of five messages in ten seconds and five posts an
+hour; messages up to 1 000 characters; everything is shown as plain text, links included.
+
 ## Notifications: the bell
 
 GitHub can't message people for us, so La Coloc has a **bell** in the top bar. It holds invitations (Move in or No
@@ -130,7 +148,7 @@ comes back without a reload when the database returns.
 
 - Payments that move money (Stripe test mode, then a mobile-money sandbox, are planned).
 - The real server on Datacloud, HTTPS, and a production GitHub App.
-- Leaving a house, evicting, reporting or muting someone (the chef can only empty a room).
+- Leaving a house, or evicting someone (the chef can only empty a room). Reports have no admin screen yet.
 - Team rooms, where several flatmates deploy one project.
 - Tontine perks, and a penalty for skipped reviews.
 - A database per room, and backups.
