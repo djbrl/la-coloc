@@ -813,3 +813,62 @@ which `life.ts`, the tests, `dev.md`'s dev logins and the demo reset rely on).
 login. On a phone the list view's line under a house's name still ends in "…" for a long city name (Marrakech), and the
 example tag is left out there. Passers-by walk on the road as much as the sidewalk (the walk grid doesn't tell them
 apart), and pass through each other. Their names should be read by someone from each city.
+
+### 16 Oct 2026, morning: invitations, a bell, a person's actions, no "Walk there", a city seen from further
+
+Four asks from Jib (Claude Code, no subagents). **The API changed: restart it** (it applies migration
+`0013_notifications` on start: one new table, nothing else touched).
+
+| Ask | What changed | Where |
+|---|---|---|
+| No "Walk there" on a house's card | The button and its words are gone. Getting there is walking, or a pick on the big map (its door) | `HouseCard.vue`, `lobby/words.ts`, `LobbyView.vue` |
+| Zoomed out by default | A city opens at a half-width of 20 world units (was 13), 15 on a phone held upright; travelling to another city resets the zoom. The quest's street keeps 13; the onboarding's close-up and the close-up beside an open window override it as before | `lobby/Lobby.ts` (`ZOOM`, `setNeighbourhood({ close })`), `LobbyView.vue` |
+| Actions on a person | The street card's main action comes from `streetActions` (tested): **See their house** (its window, at its door, in its city) when they have one; **Invite to my house** when they don't and yours has a free room (then "Invited" with "Take back"; "Your house is full" otherwise); **Rent a place together** when neither of you has a house; **Log in to invite** logged out. An example person's action shows disabled, with why. Then GitHub (real accounts only) and the wave. Knocking stays on the house's card and window | `PersonCard.vue`, `personActions.ts`, `LobbyView.vue` |
+| Invitations and notifications | A `notifications` table (who it's for, kind, from whom, house and room, a small JSON payload, created/read/decided, and a state for invitations: open, accepted, declined, withdrawn, expired). `house_invite`: yes moves them in through `moveInto` (now shared with the doorbell's vote, so the rules are the same). `rent_together`: yes tells the sender; renting stays "Start a coloc here". News from the doorbell through a small listener: a knock on your house, the answer to your knock; and "your invitation was taken" | `packages/db` (schema, `0013_notifications`), `apps/api/src/notifications/*`, `houses/move-in.ts`, `doorbell/doorbell.service.ts` |
+| The bell | In the top bar: an icon with the unread count (hidden name "Notifications, 3 unread"), opening a flat card of dense rows: their face, one line, and the actions (Move in / ×, I'm in / ×, open, Find a plot). Opening it marks them read. Moving in shows the quest's keys card, then the house's window. The lobby's WebSocket sends `{ type: "notice" }` to the recipient's open tabs; the bell also fetches on login and when the tab comes back | `components/bell/*`, `notices.ts`, `App.vue`, `lobby/link.ts`, `lobby/lobby.gateway.ts` |
+
+**Routes** (all need a login; zod-checked bodies): `GET /api/notifications` (unread count, the latest 30, and your
+invitations still waiting), `POST /api/notifications/read` (`{ ids? }`, none = all), `POST /api/notifications/:id/accept`,
+`/decline` (the recipient only), `/withdraw` (the sender only), `POST /api/invites/house` (`{ to, house, room? }`),
+`POST /api/invites/rent-together` (`{ to }`).
+
+**The rules, each with a PGlite test** (`notifications/notifications.test.ts`): not yourself (400), nobody by that
+name (404), not an example person, not someone already housed, not to an example house, the workshop or a full house
+(409), only people who live in the house may invite (403), one open invitation per pair and kind, not again within a
+day of a no, ten a day per sender (429); a week unanswered and it lapses. Accepting re-checks everything: the room
+still free ("Someone else took that room first.", and it expires), the sender still living there, the person still
+without a house. Moving in lapses their other house invitations, closes their own knock on that house and other
+knocks on that room (those applicants are told). "Example person": seeded (a member of an example house, or in an
+example room), or anyone without GitHub **while the dev login is off**; with `COLOC_DEV_LOGIN=1`, people who logged in
+by name are real, so invitations can be tried on a laptop. "Housed": belongs to a house that isn't the workshop.
+
+**How to explain it to the jury.** No free text anywhere: an invitation is a row with a kind and a state, and the web
+words it. The doorbell doesn't know about notifications: it calls its listeners after a knock or a verdict, and a
+listener failing never fails the knock. The bell's nudge is one word on the lobby's existing WebSocket; the page then
+asks the API, so nothing private travels on the live line. Moving in has one implementation for a vote and an
+invitation.
+
+**Verified.** `npm run build`, `npm test` and `npm run licences:check` pass. API: 20 new tests (rules, accept/expire,
+the doorbell's news, reading, the routes' 401/400), the gateway's nudge and presence. Web: `personActions.test.ts`
+(who sees which action), `bell.test.ts` (what each notification says and offers), the nearest empty plot. A Nest
+boot of the whole AppModule (against an unreachable database) checked the dependency wiring. **On screen**, in a
+headless Chrome against the running dev server, with the new API calls and one extra person on the live line mocked
+in that browser only (the running API is the old build; nothing was written to it): the city zoomed out at 1440 and
+375; the bell closed and open at 1440 (light, English; dark, French) and 375; Move in → keys card → the house's
+window; a refusal shown on its row; "I'm in" → Find a plot → walking to an empty plot and its card; the person card
+as a housed viewer (invite → "Invited"), an unhoused viewer (rent together → "Asked"), logged out at 375 ("Log in to
+invite"), on a passer-by (disabled, "An example person: invitations only go to real people."), and "See their house"
+opening Sacré-Cœur's window. Screenshots in the session's scratchpad (`me/r3/`).
+
+**Not seen for real** (needs the API restarted): an invitation between two real accounts end to end, the live nudge
+arriving, the migration on Docker Postgres (it ran on PGlite in every test).
+
+**Rough edges and what's left.**
+- The house window's person card (`PersonPeek`) keeps its own actions (write in the channel, knock): everyone in it
+  lives in that house. A real newcomer in the workshop's window isn't offered an invitation yet.
+- Declining isn't told to the sender (their "Invited" just goes away); that's on purpose, but it's a product choice.
+- Inviting picks your first house when you have several (`me.houses[0]`), and the first free room in it.
+- The other places that show a person (a knock's thread, the list view's pages, the crew row's faces in the list
+  view) don't have the new actions.
+- On a 375 px phone the top bar is crowded: your house's name shrinks to a letter beside the bell.
+- New French to check: "Partant" (I'm in), "Inviter chez moi", "Louer ensemble", "sous sa cloche".

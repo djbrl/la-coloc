@@ -65,7 +65,7 @@ La Coloc has **three programs and one database**. A *house* is a server rented t
 | `packages/protocol/src/index.ts` | Every message between the API and a caretaker, as zod schemas. Short. | This one: it is the whole contract |
 | `packages/domain/src` | Pure rules, no I/O: reviewer rotation, bill split, reviews as rent, tontine turn | `bill.ts`, `tontine.ts` |
 | `packages/db/src/schema.ts`, `packages/db/drizzle/` | The tables, and the SQL migrations generated from them | `schema.ts` |
-| `apps/api/src` | One folder per area: `auth`, `houses`, `doorbell`, `rooms`, `github`, `agents`, `lobby`, `tutorial`, `demo`, `seed` | `houses/houses.controller.ts` |
+| `apps/api/src` | One folder per area: `auth`, `houses`, `doorbell`, `notifications`, `rooms`, `github`, `agents`, `lobby`, `tutorial`, `demo`, `seed` | `houses/houses.controller.ts` |
 | `apps/agent/src` | The caretaker: `deploy.ts` (swap), `docker.ts`, `room-spec.ts` (the walls), `proxy.ts` (routes), `meter.ts` (usage) | `room-spec.ts`, `deploy.ts` |
 | `apps/web/src/lobby` | The 3D city (three.js): `Lobby.ts` is the engine, `neighbourhood.ts` generates a city's streets, `cityStyle.ts` gives each city its look | `neighbourhood.ts` |
 | `apps/web/src/components` | `LobbyView.vue` runs the lobby screen; `lobby/` holds its cards and panels; `list/` and `pages/` are the list view | `lobby/HouseInside.vue` |
@@ -280,7 +280,7 @@ Look at an existing one and copy its path: `COLOC_ROOM` (`room-deployer.ts`, res
 |---|---|---|---|
 | Web, UX and art | The lobby's look, the panels, the design tokens, every asset, copy | `apps/web`, `docs/licences.md` | Jib |
 | The 3D engine | Walking, camera, paths, windows, city styles, sound | `apps/web/src/lobby` | ? |
-| API: people and houses | Login, houses, doorbell, tutorial, demo, seed | `apps/api/src/{auth,houses,doorbell,tutorial,demo,seed}` | ? |
+| API: people and houses | Login, houses, doorbell, invitations and notifications, tutorial, demo, seed | `apps/api/src/{auth,houses,doorbell,notifications,tutorial,demo,seed}` | ? |
 | API: GitHub | The App, webhooks, chores, deploy on merge, previews | `apps/api/src/github` | ? |
 | Rooms, the caretaker and servers | Builds, walls, Traefik routes, `install.sh`, the real server, HTTPS | `apps/agent`, `apps/api/src/{rooms,agents}`, `apps/web/public/install.sh`, `dev/` | ? |
 | Database and rules | Schema, migrations, the domain rules, the money | `packages/db`, `packages/domain`, `apps/api/src/houses/money.ts` | ? |

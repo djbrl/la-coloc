@@ -7,7 +7,8 @@ zero context. Stack: [architecture.md](architecture.md) · Plan: [roadmap.md](ro
 > text isn't misread. **Not built yet:** team rooms (§4), report and mute, evict and "give notice" (§5, §8), paused rooms for unpaid rent, a per-room
 > database (the "kitchen"), payment *links that move money* (the bill, its split and each person's line are real; paying is a mock, §6), priority
 > reviews for the tontine's turn and its penalty for skipped reviews (§5, §7; the turn is shown and rotates every fortnight), and the Datacloud server. **Built since this was written:** the walkable lobby
-> (the "Later" section at the end happened on 09 10), a tutorial, a list view and a live city. What's left: [TODO.md](../TODO.md).
+> (the "Later" section at the end happened on 09 10), a tutorial, a list view, a live city, and invitations with a
+> bell (16 10). What's left: [TODO.md](../TODO.md).
 
 ## In one paragraph
 La Coloc is **a city of dev houses**. You log in with GitHub and see the city: every house, its rooms, who lives
@@ -86,6 +87,28 @@ Their workshop room stays theirs; a real house comes later, by knocking. Details
 
 Or you start your own house (step 1) and post ads for the rooms you want filled.
 
+### Invitations and the bell (built 16 10)
+The other way in is to be invited. Click someone in the city and their card offers one thing to do, depending on
+who they are and who you are:
+- **They live in a house:** "See their house" opens its window, at its door (in its city).
+- **They have no house, and yours has a free room:** "Invite to my house". They get an invitation to that room; saying
+  yes moves them in exactly as if the house had voted yes on a knock (same function, `moveInto`: the room must still
+  be free, they join the back of the tontine line, other knocks on the room close, the fridge door says welcome).
+  Your house is full: no invitation, and the card says so.
+- **Neither of you has a house:** "Rent a place together". Saying yes just tells the other person; renting is the
+  usual "Start a coloc here" on an empty plot, and whoever rents it invites the other.
+- **Logged out:** "Log in to invite". **An example person** (seeded, or a made-up passer-by): the action shows,
+  disabled, with why. Nothing is sent. Then their GitHub profile (real accounts only), and a wave.
+
+These are structured actions, not messages: there are still no direct messages (the house channel and a knock's
+thread are the only conversations). GitHub can't notify a user for us, so La Coloc has its own **bell** in the top
+bar: invitations (Move in / No thanks, I'm in / No thanks), a knock on your house, the answer to your knock, your
+invitation taken. A live nudge on the lobby's WebSocket updates it without a reload. The rules: not yourself, not an
+example person, not someone who already has a house, not to an example house or the workshop, one open invitation
+per person, not again the day they said no, ten a day; unanswered for a week, it lapses. Only the person invited
+answers; only the sender takes it back. "Has a house" means belonging to one that isn't the workshop: the tutorial's
+room is practice.
+
 ### 1. Renting the flat
 1. The chef clicks **Rent a flat**.
 2. They rent a server on Datacloud, then paste one install command into it. The script installs Docker, Traefik,
@@ -94,7 +117,8 @@ Or you start your own house (step 1) and post ads for the rooms you want filled.
 4. The chef picks room sizes. The sizes must add up to at most the server's capacity, so nobody can ever hog the house.
 
 ### 2. Moving in
-1. The chef invites people **they follow on GitHub**, or admits applicants from the doorbell.
+1. A flatmate invites someone with no house from their card in the city (built 16 10; see "Invitations and the bell"),
+   or the house admits applicants from the doorbell. *(The plan said the chef invites people they follow on GitHub; not built.)*
 2. A new flatmate picks **one of their own repos** and installs the coloc GitHub App on it.
 3. The app gives the house **review access** to that repo, and gives coloc the right to read the code for building.
 4. The flatmate sets their secrets (API keys, passwords) on their room's page. They're encrypted and only given to their room.
