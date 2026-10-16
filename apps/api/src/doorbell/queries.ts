@@ -2,6 +2,7 @@
 import { applications, type Db, messages, users, votes } from "@coloc/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { DoorbellItem, MessageView, PersonView, VoteTally } from "../houses/house.types";
+import { readKnockLine } from "../houses/lines";
 
 export const HISTORY = 50;
 
@@ -26,7 +27,9 @@ export async function channelMessages(db: Db, channel: string, limit = HISTORY):
     .where(eq(messages.channel, channel))
     .orderBy(desc(messages.id))
     .limit(limit);
-  return rows.reverse().map((m) => ({ id: String(m.id), body: m.body, at: m.at.toISOString(), author: m.author ? person(m.author) : null }));
+  return rows
+    .reverse()
+    .map((m) => ({ id: String(m.id), body: m.body, said: m.author ? null : readKnockLine(m.body), at: m.at.toISOString(), author: m.author ? person(m.author) : null }));
 }
 
 /** Everyone currently knocking on a house, with where the vote stands. */

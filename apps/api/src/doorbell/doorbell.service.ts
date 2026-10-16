@@ -9,6 +9,7 @@ import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import type { ApplicationView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
+import { knockText, noteText } from "../houses/lines";
 import { moveInto } from "../houses/move-in";
 import { applicationChannel, channelMessages, houseChannel, person, tally } from "./queries";
 
@@ -55,11 +56,11 @@ export class DoorbellService {
     await this.db.transaction(async (tx) => {
       await tx.insert(applications).values({ id, houseId, room: roomName, applicantId, message, repo: input.repo ?? null });
       await tx.insert(messages).values([
-        { channel: applicationChannel(id), authorId: null, body: `${applicant.name ?? applicant.login} knocked on a free room.` },
+        { channel: applicationChannel(id), authorId: null, body: knockText("knocked", { name: applicant.name ?? applicant.login }) },
         { channel: applicationChannel(id), authorId: applicantId, body: message },
       ]);
     });
-    await this.houses.note(houseId, { tone: "info", room: roomName, text: `${applicant.name ?? applicant.login} knocked on a free room. Answer the door!` });
+    await this.houses.note(houseId, { tone: "info", room: roomName, text: noteText("knocked", { name: applicant.name ?? applicant.login }) });
     await this.tell({ type: "knocked", applicationId: id, houseId, room: roomName, applicantId });
     return { id };
   }
@@ -137,7 +138,7 @@ export class DoorbellService {
     const verdict = tallyVotes(await this.flatmateCount(app.houseId), all);
     if (verdict === "admitted") await this.admit(app);
     if (verdict === "declined") {
-      await this.close(app, "declined", "The house said no this time. Thanks for knocking.");
+      await this.close(app, "declined", knockText("no"));
       await this.tell({ type: "answered", applicationId: app.id, houseId: app.houseId, room: app.room, applicantId: app.applicantId, verdict: "declined" });
     }
     this.changes.next(app.id);
@@ -149,7 +150,7 @@ export class DoorbellService {
     const app = await this.mustFind(applicationId);
     if (app.applicantId !== userId) throw new ForbiddenException("Only the person who knocked can withdraw.");
     if (app.status !== "open") throw new ConflictException("This knock is already decided.");
-    await this.close(app, "withdrawn", "They withdrew their knock.");
+    await this.close(app, "withdrawn", knockText("withdrawn"));
     this.changes.next(app.id);
     this.houses.changes.next(app.houseId);
   }
@@ -161,11 +162,11 @@ export class DoorbellService {
       // Only if the room is still free: two knocks on one room can't both move in (moveInto checks).
       if (!(await moveInto(tx, app.houseId, app.room, app.applicantId))) return false;
       await tx.update(applications).set({ status: "admitted", decidedAt: new Date() }).where(eq(applications.id, app.id));
-      await tx.insert(messages).values({ channel: applicationChannel(app.id), authorId: null, body: `The house said yes. Welcome home, ${name}!` });
+      await tx.insert(messages).values({ channel: applicationChannel(app.id), authorId: null, body: knockText("yes", { name }) });
       return true;
     });
     if (!moved) {
-      await this.close(app, "declined", "Someone else moved into this room first. Knock on another one?");
+      await this.close(app, "declined", knockText("taken"));
       await this.tell({ type: "answered", applicationId: app.id, houseId: app.houseId, room: app.room, applicantId: app.applicantId, verdict: "declined" });
       return;
     }
@@ -190,11 +191,11 @@ export class DoorbellService {
         ),
       );
     for (const other of others) {
-      await this.close(other, "declined", "Someone else moved into this room first. Knock on another one?");
+      await this.close(other, "declined", knockText("taken"));
       this.changes.next(other.id);
       await this.tell({ type: "answered", applicationId: other.id, houseId, room, applicantId: other.applicantId, verdict: "declined" });
     }
-    await this.houses.note(houseId, { tone: "thanks", room, text: `${name} moved in. Welcome home!` });
+    await this.houses.note(houseId, { tone: "thanks", room, text: noteText("movedIn", { name }) });
   }
 
   /** Closes someone's own open knock on a house they just moved into another way (an invitation). */
@@ -204,7 +205,7 @@ export class DoorbellService {
       .from(applications)
       .where(and(eq(applications.houseId, houseId), eq(applications.applicantId, applicantId), eq(applications.status, "open")));
     for (const app of open) {
-      await this.close(app, "withdrawn", "They moved in at a flatmate's invitation.");
+      await this.close(app, "withdrawn", knockText("invited"));
       this.changes.next(app.id);
     }
   }

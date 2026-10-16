@@ -7,6 +7,7 @@ import { useWhenBack } from "../core";
 import { postJSON } from "../session";
 import type { Message } from "../types";
 import Avatar from "./Avatar.vue";
+import { knockLine } from "./said";
 import { commonWords as w } from "./words";
 
 // `start`: begins a message for you and puts the cursor after it (reaching out to a flatmate from their card: "Awa, ").
@@ -71,7 +72,7 @@ async function send() {
     <div ref="list" class="list" role="log" aria-live="polite" tabindex="0" :aria-label="w.messages">
       <p v-if="!messages.length" class="empty muted">{{ w.noMessages }}</p>
       <template v-for="m in messages" :key="m.id">
-        <p v-if="!m.author" class="system">{{ m.body }}</p>
+        <p v-if="!m.author" class="system">{{ knockLine(m) }}</p>
         <div v-else class="msg" :class="{ mine: m.author.login === me }">
           <Avatar v-if="m.author.login !== me" :person="m.author" :size="28" decorative />
           <div class="body">

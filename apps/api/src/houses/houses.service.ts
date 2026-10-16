@@ -22,6 +22,7 @@ import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import { channelMessages, houseChannel, openDoorbell } from "../doorbell/queries";
 import { type Draft, noteForDeploy, noteForRoomEvent } from "./fridge";
+import { readNote } from "./lines";
 import { billReference, monthOf, monthStart, operatorsFor, REVIEW_CREDIT_FCFA, TONTINE_ANCHOR } from "./money";
 import { PLAN_COST_FCFA } from "./server";
 import { alias } from "drizzle-orm/pg-core";
@@ -331,7 +332,7 @@ export class HousesService {
       const ds = await this.db.select().from(deployments).where(eq(deployments.houseId, houseId)).orderBy(desc(deployments.createdAt)).limit(RECENT);
       const ns = await this.db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, houseId)).orderBy(desc(fridgeNotes.at)).limit(RECENT);
       recentDeployments = ds.map(deploymentView);
-      notes = ns.map((n) => ({ id: n.id, tone: n.tone, text: n.text, room: n.room, at: n.at.toISOString(), count: n.count }));
+      notes = ns.map((n) => ({ id: n.id, tone: n.tone, text: n.text, said: readNote(n.text), room: n.room, at: n.at.toISOString(), count: n.count }));
       doorbell = await openDoorbell(this.db, houseId, h.memberships.length);
       channel = await channelMessages(this.db, houseChannel(houseId));
       openChores = await this.openChores(houseId);

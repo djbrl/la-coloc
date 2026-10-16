@@ -7,6 +7,7 @@ import { and, eq, isNull, lt } from "drizzle-orm";
 import { isCoreDown } from "../core/core";
 import { DB } from "../db/db.module";
 import { HousesService } from "../houses/houses.service";
+import { noteText } from "../houses/lines";
 import type { GithubAppClient } from "./github.client";
 
 export const GITHUB_CLIENT = Symbol("GITHUB_CLIENT");
@@ -113,7 +114,7 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       moved.set(room, [...(moved.get(room) ?? []), r.full_name]);
     }
     for (const [room, names] of moved) {
-      await this.houses.note(room.houseId, { tone: "info", room: room.name, text: `${u.name ?? u.login} moved ${names.join(", ")} into their room.` });
+      await this.houses.note(room.houseId, { tone: "info", room: room.name, text: noteText("reposMoved", { name: u.name ?? u.login, repos: names.join(", ") }) });
     }
     return `linked ${[...moved.values()].flat().length}`;
   }
@@ -214,7 +215,7 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
     const late = chore.chore.dueAt.getTime() < Date.now();
     await this.houses.note(chore.chore.houseId, {
       tone: "thanks",
-      text: `${chore.assignee.name ?? chore.assignee.login} reviewed ${chore.chore.repoFullName}#${chore.chore.prNumber}${late ? " (late, but done)" : ""}. Merci!`,
+      text: noteText(late ? "reviewedLate" : "reviewed", { name: chore.assignee.name ?? chore.assignee.login, ref: `${chore.chore.repoFullName}#${chore.chore.prNumber}` }),
     });
     return "done";
   }
@@ -230,7 +231,7 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       await this.db.update(chores).set({ lateNotedAt: now }).where(eq(chores.id, chore.id));
       await this.houses.note(chore.houseId, {
         tone: "warning",
-        text: `${assignee.name ?? assignee.login} hasn't reviewed ${chore.repoFullName}#${chore.prNumber} yet. It was due ${CHORE_HOURS}h after it opened.`,
+        text: noteText("reviewLate", { name: assignee.name ?? assignee.login, ref: `${chore.repoFullName}#${chore.prNumber}`, hours: String(CHORE_HOURS) }),
       });
     }
     return late.length;

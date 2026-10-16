@@ -12,6 +12,7 @@ import type { Subscription } from "rxjs";
 import { AgentRegistry } from "../agents/agent.registry";
 import { DB } from "../db/db.module";
 import { HousesService } from "../houses/houses.service";
+import { noteText } from "../houses/lines";
 import { RoomDeployer } from "../rooms/room-deployer";
 import { type GhEvent, GITHUB_CLIENT } from "./chores.service";
 import type { GithubAppClient } from "./github.client";
@@ -92,12 +93,12 @@ export class DeploysService implements OnModuleInit, OnModuleDestroy {
     const ref = `${repo.fullName}#${pr.number}`;
 
     if (house.rules.strictReviews && !approved) {
-      await this.houses.note(house.id, { tone: "warning", room: room.name, text: `${ref} was merged without a flatmate's approval. Strict house: not deployed.` });
+      await this.houses.note(house.id, { tone: "warning", room: room.name, text: noteText("mergedStrict", { ref }) });
       await this.comment(repo, pr.number, `**Not deployed.** ${house.name} is a strict house: a merge only goes live once the flatmate on review duty has approved it. The previous version is still running.`);
       return "not deployed: unreviewed in a strict house";
     }
     if (!this.agents.isOnline(house.id)) {
-      await this.houses.note(house.id, { tone: "danger", room: room.name, text: `${ref} was merged, but the house's server is offline. Not deployed.` });
+      await this.houses.note(house.id, { tone: "danger", room: room.name, text: noteText("mergedOffline", { ref }) });
       await this.comment(repo, pr.number, `**Not deployed:** ${house.name}'s server is offline right now. The previous version will be back with it.`);
       return "not deployed: server offline";
     }
@@ -113,7 +114,7 @@ export class DeploysService implements OnModuleInit, OnModuleDestroy {
       prNumber: pr.number,
     });
     if (!approved) {
-      await this.houses.note(house.id, { tone: "warning", room: room.name, text: `${ref} was merged without a flatmate's approval. Relaxed house: deploying anyway.` });
+      await this.houses.note(house.id, { tone: "warning", room: room.name, text: noteText("mergedRelaxed", { ref }) });
     }
     return `deploying ${d.id}`;
   }

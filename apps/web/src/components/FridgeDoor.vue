@@ -12,6 +12,7 @@ import { locale } from "../i18n";
 import type { FridgeNote } from "../types";
 import Icon from "./lobby/house/Icon.vue";
 import { noteLook, noteWhen, notesSummary } from "./lobby/house/notes";
+import { noteText } from "./said";
 import ListRow from "./lobby/panel/ListRow.vue";
 import { explain } from "./lobby/panel/words";
 import { commonWords as w } from "./words";
@@ -30,7 +31,7 @@ const fullWhen = (iso: string) => new Date(iso).toLocaleString(locale(), { dateS
       <p v-if="!notes.length" class="muted">{{ notesSummary(notes) }}</p>
     </template>
     <ul v-if="notes.length" class="plain notes">
-      <ListRow v-for="n in notes" :key="n.id" :title="n.text">
+      <ListRow v-for="n in notes" :key="n.id" :title="noteText(n)">
         <template #lead>
           <span class="kind" :class="noteLook(n.tone).colour">
             <Icon :name="noteLook(n.tone).icon" :size="20" />

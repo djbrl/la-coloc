@@ -43,10 +43,19 @@ export interface DeploymentView {
   updatedAt: string;
 }
 
+// What a sentence the API wrote says, so the web can say it in the reader's language (houses/lines.ts): its kind
+// and what fills its blanks. Null for a text no template wrote (an older wording, a seeded note): show the text.
+export interface SaidView {
+  kind: string;
+  params: Record<string, string>;
+}
+
 export interface FridgeNoteView {
   id: string;
   tone: NoteTone;
+  // In English, as stored; `said` is the same note, for saying it in another language.
   text: string;
+  said: SaidView | null;
   room: string | null;
   at: string;
   count: number;
@@ -194,6 +203,8 @@ export interface MessageView {
   // Null: the house itself speaking (someone knocked, the vote's result).
   author: PersonView | null;
   body: string;
+  // The house's own lines only (no author): what the line says, for saying it in another language.
+  said: SaidView | null;
   at: string;
 }
 

@@ -15,6 +15,7 @@ import type { GithubAppClient, GhRepoInfo } from "../github/github.client";
 import type { GithubAppConfig } from "../github/github.config";
 import { GITHUB_CONFIG } from "../github/github.controller";
 import { HousesService, slugify } from "../houses/houses.service";
+import { noteText } from "../houses/lines";
 import { RoomDeployer, type Source } from "../rooms/room-deployer";
 import { RoomsService } from "../rooms/rooms.service";
 
@@ -121,7 +122,7 @@ export class TutorialService {
       await tx.delete(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name)));
       await tx.insert(repos).values({ githubId, fullName: repo.full_name, houseId: room.houseId, room: room.name, installationId: installation });
     });
-    await this.houses.note(room.houseId, { tone: "info", room: room.name, text: `${user.name ?? user.login} moved ${repo.full_name} into their room.` });
+    await this.houses.note(room.houseId, { tone: "info", room: room.name, text: noteText("reposMoved", { name: user.name ?? user.login, repos: repo.full_name }) });
     return { repo: repo.full_name };
   }
 
@@ -202,7 +203,7 @@ export class TutorialService {
       .onConflictDoNothing();
     // The house greets them on its fridge, where the other flatmates read the news. (It also tells the live
     // streams the house changed.)
-    if (created) await this.houses.note(house.id, { tone: "thanks", room: room.name, text: `${user.name ?? user.login} moved in. Welcome home!` });
+    if (created) await this.houses.note(house.id, { tone: "thanks", room: room.name, text: noteText("movedIn", { name: user.name ?? user.login }) });
     return { created, room: roomView(room) };
   }
 

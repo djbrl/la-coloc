@@ -43,10 +43,18 @@ export interface Deployment {
   updatedAt: string;
 }
 
+// What a sentence the API wrote says (its kind and blanks), for saying it in the reader's language (said.ts).
+export interface Said {
+  kind: string;
+  params: Record<string, string>;
+}
+
 export interface FridgeNote {
   id: string;
   tone: "info" | "warning" | "danger" | "thanks";
+  // The stored English; `said` (absent from an older API) lets the page say it in French.
   text: string;
+  said?: Said | null;
   room: string | null;
   at: string;
   count: number;
@@ -66,6 +74,8 @@ export interface Message {
   // Null: the house itself ("Fatou knocked", "the house said yes").
   author: Person | null;
   body: string;
+  // The house's own lines only: what it says, for the reader's language (said.ts).
+  said?: Said | null;
   at: string;
 }
 

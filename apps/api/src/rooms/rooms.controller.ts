@@ -23,6 +23,7 @@ import { AuthService } from "../auth/auth.service";
 import type { HttpRequest } from "../auth/http";
 import { isCoreDown } from "../core/core";
 import { HousesService } from "../houses/houses.service";
+import { noteText } from "../houses/lines";
 import { RoomDeployer } from "./room-deployer";
 import { RoomsService } from "./rooms.service";
 
@@ -130,9 +131,14 @@ export class RoomsController {
     if (!this.agents.isOnline(id)) throw new ConflictException("The house's server is offline.");
     this.agents.send(id, { type: "restart_room", room: room.name });
     // People, not room slugs: "Jib restarted their app", or "Jib restarted Awa's app" when the chef does it.
-    const whose =
-      room.occupantId === user.id ? "their app" : room.occupantId ? `${await this.houses.occupantName(room.occupantId)}'s app` : "the app in a free room";
-    await this.houses.note(id, { tone: "info", room: room.name, text: `${user.name ?? user.login} restarted ${whose}.` });
+    const name = user.name ?? user.login;
+    const text =
+      room.occupantId === user.id
+        ? noteText("restartedOwn", { name })
+        : room.occupantId
+          ? noteText("restartedOther", { name, other: await this.houses.occupantName(room.occupantId) })
+          : noteText("restartedFree", { name });
+    await this.houses.note(id, { tone: "info", room: room.name, text });
     return { ok: true };
   }
 
