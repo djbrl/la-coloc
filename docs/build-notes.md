@@ -926,3 +926,65 @@ channel belongs to a house or a knock. Whether real people's houses should survi
 `npm run licences:check` pass. Not run against Docker: the network move was reasoned through, not watched.
 **Restart the API and both caretakers** to pick it up (no migration, no reseed); restart Vite to get the `/agent`
 forwarding.
+
+### 16 Oct 2026, night: direct messages, a room and a board per city (branch `chat`)
+
+Claude Code (Claude Opus 5.5), no subagents. The team reversed the "no direct messages" rule: people can now write to
+each other, talk in their city, and post on its board. **The API changed: restart it.** It applies migration
+`0015_chat` (four new tables) on start. No reseed.
+
+**The idea in one breath.** Every conversation was already a row-per-message table with a text `channel`
+(`house:<id>`, `application:<id>`). We kept that and added three channel names instead of new message tables:
+`dm:<idA>:<idB>` (the two user ids sorted, so a pair always has one channel), `city:<City>` and `post:<id>` (a board
+post's replies). The name alone says who may read and write, so each rule is one small check
+(`canRead` in `chat.service.ts`).
+
+| Piece | What it does | Where |
+|---|---|---|
+| Tables | `blocks` (who blocked whom), `chat_reads` (the last message id you saw in a conversation: what's after it, from the other person, is unread), `board_posts` (city, tag, title, body, `active_at` bumped by each reply), `reports` (a copy of the words, so it survives a delete) | `packages/db/src/schema.ts`, `drizzle/0015_chat.sql` |
+| Direct messages | `GET /api/chat/conversations` (newest first, unread counts, blocked people left out), `GET /api/chat/dm/:login` (opens it, marks it read, says whether you can write and why not), `POST /api/chat/dm/:login`. Refused: yourself, an example person, anyone either of you blocked | `apps/api/src/chat/chat.service.ts` |
+| Live direct messages | After a DM the service pushes both logins; the lobby gateway sends `{ "type": "chat" }` to their open tabs (like the bell's `notice`); the page fetches its conversations | `lobby.gateway.ts`, `presence.ts`, web `lobby/link.ts` |
+| A city's room | `GET /api/cities/:city/chat` (last 100, anyone), `POST` (logged in). A city is one of the eight, or one a house is in; anything else is a 404 | `chat.service.ts`, `channels.ts` |
+| The board | `GET/POST /api/cities/:city/board`, `GET /api/board/:id`, `POST /api/board/:id/replies`, `DELETE /api/board/:id` and `/replies/:reply` (author or admin) | `board.service.ts` |
+| Live city | `GET /api/cities/:city/stream` (SSE) says `chat` or `board`; each page fetches with its own login, so hidden stays hidden | `chat.controller.ts` |
+| Safety | Block / unblock (`/api/chat/blocks`), report (`POST /api/reports`, only what you can read, not your own, once each), the admins' list (`GET /api/reports`, `COLOC_ADMINS`). Blocked people's words are filtered in SQL in `channelMessages`, so the house channel and knock threads hide them too | `chat.service.ts`, `doorbell/queries.ts` |
+| Brake | A sliding window per person in memory: 5 messages in 10 s (DMs, city, replies), 5 posts an hour; a 429 with a sentence. Checked after validation, so a refused message doesn't count. No new dependency | `chat/limiter.ts` |
+| Text | zod at the door, then `cleanText` trims, strips control characters and caps (1 000 a message, 100 a title, 2 000 a post). Stored as typed; the web writes it as text and only makes `http(s)` links, with `rel="noopener noreferrer nofollow ugc"` | `chat.service.ts`, web `components/chat/chat.ts` (`linkParts`) |
+| The chat sheet | A chat key with an unread count in the top bar (for visitors too). A flat card docked on the right (a bottom sheet under 520 px) with icon tabs: Messages, City, Board, House. Esc closes, arrows move between tabs, Enter sends, Ctrl/Cmd+Enter posts. A message's "…" offers Message, Report, Block | `components/chat/*.vue`, `conversations.ts`, `ChatPanel.vue`, `App.vue` |
+| Entry points | "Message" on the street card and the house window's card (disabled with why for an example person); a board key in the HUD's round tools; "City board" on the market's chores board | `PersonCard.vue`, `PersonPeek.vue`, `LobbyView.vue`, `BoardCard.vue` |
+| Demo reset | Now deletes only house and knock channels: people's DMs, city rooms and board replies stay | `demo/demo.service.ts` |
+
+**How to explain it to a jury.** "A message is a row with a channel name. The name says who it's for: two people, a
+city, a house. Reading a conversation checks you belong to that name; writing also passes a brake and a length check.
+Nothing private goes over the live line: it only says 'something new', and your page asks the API, with your login."
+
+**Verified.** `npm run build`, `npm test` (589: db 13, domain 20, protocol 4, agent 15, API 262, web 275) and
+`npm run licences:check` pass. API tests (`chat/chat.test.ts`, PGlite): DMs between two people and their unread
+counts, privacy from a third person, refusals (self, nobody, example person, empty, too long, logged out), block
+both ways and hiding in the city, board and house channel, the city room for visitors, the 100-message history, the
+brake (429, per person, refused ones not counted, the window forgetting), board order, reply counts, author/admin
+delete, reports (copy kept, once, only readable things, not your own, admins only), the stream's events; the
+gateway's `chat` nudge; the demo reset keeping a city message. Web tests: tabs per viewer, the card's Message,
+the badge, `linkParts` (no `javascript:`, punctuation, brackets).
+**On screen**, in the desktop app's browser against a Vite on :5180 from this folder and a throwaway stand-in API
+on :4180 (the real built API with PGlite in memory instead of Postgres, dev login, seeded; a script in the session's
+scratchpad, not committed; nothing touched :4100 or :5175): the chat key and its count; the conversation list and a
+conversation, a reply sent with Enter; a DM from another account arriving live (count from 1 to 2); the city room,
+with a message posted from outside appearing live and its link drawn as a link; a message's tools, Report, then
+Block hiding that person's words; the board list, a new post with Ctrl+Enter, the post and a reply; a person card's
+Message greyed out for an example person; the house tab; a visitor's sheet (City and Board only, "Log in to talk");
+375 px dark French (bottom sheet, the top bar fits: logo, house, chat, bell, log out, gear). The admins' list read with
+curl. Screenshots: [docs/screenshots/chat/](screenshots/chat/) and the session's scratchpad (`chat/`).
+
+**Not seen:** the "City board" key on the market's chores board (wired and type-checked), Message from the house
+window's card, the migration on Docker Postgres (it ran on PGlite in every test and the stand-in).
+
+**Rough edges and what's left.**
+- Reports have no screen: admins read `GET /api/reports` and delete by hand (an admin may delete any post or reply).
+- The brake lives in one API process's memory; several processes would each count on their own.
+- Nothing is sent to someone offline (no email): they see the count on their next visit.
+- Conversations list at most 50, a conversation its last 100 messages; no "load older".
+- A city room's history is not filtered by city membership: it's public by design.
+- No way to delete a message in a DM or the city room (only board replies), and no edits anywhere.
+- The list view (no lobby) has no live line: direct messages there refresh when the sheet opens or the tab comes back.
+- New French to check: "Discussions", "Annonces" (the board), "Cherche des colocs", "Entraide", "Signaler", "Bloquer".
