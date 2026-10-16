@@ -872,3 +872,28 @@ arriving, the migration on Docker Postgres (it ran on PGlite in every test).
   view) don't have the new actions.
 - On a 375 px phone the top bar is crowded: your house's name shrinks to a letter beside the bell.
 - New French to check: "Partant" (I'm in), "Inviter chez moi", "Louer ensemble", "sous sa cloche".
+
+### 16 Oct 2026, later: loose ends (Claude Code, no subagents)
+
+**The API changed: restart it.** It applies migration `0014_github_installations` on start (one new table). No reseed.
+
+| Loose end | What changed | Where |
+|---|---|---|
+| Passers-by on the road, through each other | Each block's sidewalk is a ring of 16 points (corners cut round the palm, lamp and traffic light, two zebras a side). A passer-by walks round it in a lane (one way nearer the block, the other nearer the road) and sometimes crosses at a zebra to the next block; two who overlap step apart, a little to the right, so head-on they pass. No path search any more | `lobby/passersby.ts` (`sidewalks`, `walkAhead`, `keepApart`, tested), `Lobby.ts` |
+| Phone top bar | Under 520 px your house is a house icon and Log out an arrow out of a door (their words stay as names and tooltips) | `App.vue`, `house/icons.ts` |
+| Organisations' repos in the picker | GitHub won't say who belongs to an organisation without the person's own token. So the install webhooks now record who installed the App where (or last added repos to it) and forget a removed installation; the picker lists your own installation plus those you made on organisations. Other members of that organisation don't see them, so nobody can link someone else's repo. An install made before this (or whose webhook was lost) shows once repos are added to it again | `github/chores.service.ts`, `tutorial/tutorial.service.ts`, `packages/db` (`github_installations`) |
+| Invitations | Several free rooms: pick the one to offer on the person card (the first by default). In the workshop's window, someone with a real house can invite a newcomer (the workshop isn't a house; the API already allowed it, now tested) | `PersonCard.vue`, `personActions.ts`, `house/crew.ts`, `house/PersonPeek.vue`, `notifications.test.ts` |
+| AZERTY | W A S D, Q, E, R are read by physical key (`KeyboardEvent.code`): Z Q S D walk on a French keyboard, A and R turn. The caps (keys sheet, legend, tips, tutorial) show this keyboard's letters where the browser tells (Chrome, Edge), else W A S D | `lobby/keys.ts` (tested), `Lobby.ts`, `KeysSheet.vue`, `KeyLegend.vue`, `tutorial/tips.ts`, `Coach.vue` |
+| Server-written English | Fridge notes and a knock's house lines are written from templates in one place; the same template reads a stored text back into a kind and its blanks, sent as `said`. The web says them in French or English and shows the stored text for anything else (old rows read the same way, so no migration). Errors and PR comments stay English | `houses/lines.ts` (tested), `components/said.ts` (tested), `FridgeDoor.vue`, `ChatPanel.vue` |
+| GitHub profile on knock and list pages | A round icon link beside the applicant on a knock's thread, on each knock and each room's flatmate on the list view's house page, real GitHub accounts only | `GithubLink.vue`, `ApplicationPage.vue`, `list/HouseMore.vue`, `RoomCard.vue`, `doorbell/queries.ts` |
+| Leftover | The quest's unused "emotes" screen piece is gone | `tutorial/tutorial.ts` |
+
+**Verified.** `npm run build`, `npm test` (555: db 13, domain 22, protocol 4, agent 13, API 238, web 265) and
+`npm run licences:check` pass. In headless Chrome against a second Vite on :5176 from this folder (the usual :5175 wasn't
+running; the real API answered reads, the person and the live line were mocked in that browser): sixteen passers-by in
+Dakar sampled for 30 s, 90 % of samples on a sidewalk, 8 % crossing at a zebra, the rest nudged a little off while
+standing, never closer than 0.8 (two people's width); same in Lomé. At 375 × 812 with 4× CPU slowdown the engine's step
+took a 0.60 ms median with ten passers-by and without. The phone top bar at 375 (French, dark) fits: logo, house icon,
+bell, face, log-out icon, gear. The person card offering room-4 or room-5 and sending room-5. A French keyboard simulated:
+the keys sheet says Z Q S D and A / R; Z walks, AZERTY's W doesn't. **Not seen:** the French notes and knock lines on
+screen (they need the restarted API), a real organisation install, the workshop window's invite.
