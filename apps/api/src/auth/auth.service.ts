@@ -69,6 +69,28 @@ export class AuthService {
     return token;
   }
 
+  // One-minute, single-use passes for the lobby's WebSocket, for a page served from another host than the API (the
+  // site on Vercel, the API behind a tunnel): the page asks for one through /api (where its cookie goes), then
+  // opens the socket straight to the API with it. Kept in memory: a restart only means asking again.
+  private tickets = new Map<string, { userId: string; expires: number }>();
+
+  issueTicket(userId: string): string {
+    const now = Date.now();
+    for (const [t, v] of this.tickets) if (v.expires < now) this.tickets.delete(t);
+    const ticket = randomBytes(24).toString("base64url");
+    this.tickets.set(ticket, { userId, expires: now + 60_000 });
+    return ticket;
+  }
+
+  /** The person a pass was issued to, once: the pass is gone after this, used or not. */
+  async userFromTicket(ticket: string): Promise<User | null> {
+    const t = this.tickets.get(ticket);
+    this.tickets.delete(ticket);
+    if (!t || t.expires < Date.now()) return null;
+    const [u] = await this.db.select().from(users).where(eq(users.id, t.userId));
+    return u ?? null;
+  }
+
   async userFromRequest(req: HttpRequest): Promise<User | null> {
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     if (!token) return null;

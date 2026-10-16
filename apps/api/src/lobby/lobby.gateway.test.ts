@@ -83,3 +83,21 @@ describe("the bell's nudge", () => {
     expect(sent).toEqual([{ type: "notice" }]);
   });
 });
+
+describe("a page served from another host (the site on Vercel, the API behind a tunnel)", () => {
+  it("is recognised by its one-minute pass instead of a cookie, and the pass works once", async () => {
+    const { AuthService: Real } = await import("../auth/auth.service");
+    const jib = { id: "u1", login: "jib", name: "Jib", avatar: "male-a", githubId: 1 };
+    const db = { select: () => ({ from: () => ({ where: async () => [jib] }) }) };
+    const auth = new Real(db as never, { publicUrl: "https://coloc.vercel.app" } as never);
+    const core = { ready: true, reportDown: vi.fn() };
+    const gateway = new LobbyGateway(auth, core as unknown as Core);
+    const ticket = auth.issueTicket("u1");
+    const sent: unknown[] = [];
+    const socket = Object.assign(new EventEmitter(), { close: vi.fn(), readyState: 1, send: (m: string) => sent.push(JSON.parse(m)) });
+    await gateway.handleConnection(socket as never, { url: `/lobby-ws?ticket=${ticket}`, headers: { origin: "https://coloc.vercel.app" } });
+    socket.emit("message", Buffer.from(JSON.stringify({ type: "place", place: "lobby" })));
+    expect(sent.find((m) => (m as { type: string }).type === "snapshot")).toMatchObject({ you: "jib" });
+    expect(await auth.userFromTicket(ticket)).toBeNull();
+  });
+});

@@ -49,7 +49,7 @@ export class LobbyLink {
   private place: string | null = null;
 
   constructor(private events: LinkEvents) {
-    this.open();
+    void this.open();
   }
 
   /** Moves us to a neighbourhood: we get a fresh snapshot of who's there. */
@@ -76,8 +76,19 @@ export class LobbyLink {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
-  private open() {
-    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/lobby-ws`;
+  // The lobby's address: the page's own host, or (site and API on different hosts) VITE_LOBBY_WS with a one-minute
+  // pass asked through /api, where the session cookie goes; a visitor connects without one.
+  private async address(): Promise<string> {
+    const remote = import.meta.env.VITE_LOBBY_WS;
+    if (!remote) return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/lobby-ws`;
+    const res = await fetch("/api/lobby/ticket").catch(() => null);
+    const ticket = res?.ok ? ((await res.json()) as { ticket: string | null }).ticket : null;
+    return ticket ? `${remote}?ticket=${encodeURIComponent(ticket)}` : remote;
+  }
+
+  private async open() {
+    const url = await this.address();
+    if (this.closed) return;
     const ws = new WebSocket(url);
     this.ws = ws;
     ws.onopen = () => {
@@ -103,7 +114,7 @@ export class LobbyLink {
     ws.onclose = () => {
       this.events.onStatus(false);
       if (this.closed) return;
-      this.timer = window.setTimeout(() => this.open(), this.retry);
+      this.timer = window.setTimeout(() => void this.open(), this.retry);
       this.retry = Math.min(this.retry * 2, 15_000);
     };
   }

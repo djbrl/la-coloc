@@ -39,9 +39,10 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
     this.send(this.presence.connectionsOf(login).map((conn) => ({ to: "one" as const, conn, msg: { type: "notice" as const } })));
   }
 
-  async handleConnection(socket: WebSocket, req: { headers: Record<string, string | string[] | undefined> }) {
+  async handleConnection(socket: WebSocket, req: { url?: string; headers: Record<string, string | string[] | undefined> }) {
     const origin = req.headers.origin;
-    if (origin && origin !== new URL(this.auth.config.publicUrl).origin) {
+    const allowed = this.auth.config.origins ?? [new URL(this.auth.config.publicUrl).origin];
+    if (origin && !allowed.includes(String(origin))) {
       socket.close(4003, "wrong origin");
       return;
     }
@@ -86,11 +87,13 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
    * them walk around as a stranger until they reload. People already in the lobby are not affected: presence
    * lives in memory, not in the database.
    */
-  private async whoIs(req: { headers: Record<string, string | string[] | undefined> }, socket: WebSocket) {
-    if (!parseCookies(req.headers.cookie)[SESSION_COOKIE]) return null;
+  private async whoIs(req: { url?: string; headers: Record<string, string | string[] | undefined> }, socket: WebSocket) {
+    // A page served from elsewhere (the site on Vercel) brings a pass from /api/lobby/ticket instead of a cookie.
+    const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket");
+    if (!ticket && !parseCookies(req.headers.cookie)[SESSION_COOKIE]) return null;
     try {
       if (!this.core.ready) throw new CoreDownError();
-      return await this.auth.userFromRequest(req);
+      return ticket ? await this.auth.userFromTicket(ticket) : await this.auth.userFromRequest(req);
     } catch (e) {
       if (!isCoreDown(e)) return null;
       this.core.reportDown(e);

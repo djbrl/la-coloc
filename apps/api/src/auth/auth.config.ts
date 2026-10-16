@@ -2,6 +2,9 @@
 export interface AuthConfig {
   // Where the website lives, as the browser sees it. GitHub sends people back here after login.
   publicUrl: string;
+  // Pages allowed to open the lobby's WebSocket: the public URL's origin, plus any in COLOC_WEB_ORIGIN (a comma
+  // list), so the site on Vercel and a laptop's own dev server can both connect.
+  origins: string[];
   github: { clientId: string; clientSecret: string } | null;
   // Development only: log in as anyone, no GitHub needed.
   devLogin: boolean;
@@ -22,8 +25,10 @@ export function loadAuthConfig(env = process.env): AuthConfig {
   const publicUrl = (env.COLOC_PUBLIC_URL ?? "http://localhost:5173").replace(/\/$/, "");
   const id = env.COLOC_GITHUB_CLIENT_ID;
   const secret = env.COLOC_GITHUB_CLIENT_SECRET;
+  const extra = (env.COLOC_WEB_ORIGIN ?? "").split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean);
   return {
     publicUrl,
+    origins: [...new Set([new URL(publicUrl).origin, ...extra])],
     github: id && secret ? { clientId: id, clientSecret: secret } : null,
     devLogin: env.COLOC_DEV_LOGIN === "1",
     secureCookies: publicUrl.startsWith("https://"),

@@ -13,7 +13,7 @@ async function bootstrap() {
   // Agents connect over plain WebSockets (the `ws` library), not socket.io.
   app.useWebSocketAdapter(new WsAdapter(app));
   app.setGlobalPrefix("api");
-  app.enableCors({ origin: process.env.COLOC_WEB_ORIGIN ?? "http://localhost:5173" });
+  app.enableCors({ origin: (process.env.COLOC_WEB_ORIGIN ?? "http://localhost:5173").split(",").map((o) => o.trim()) });
   const port = Number(process.env.PORT ?? 4100);
   // No login yet (GitHub OAuth lands in week 2), so only listen locally by default.
   const host = process.env.HOST ?? "127.0.0.1";
