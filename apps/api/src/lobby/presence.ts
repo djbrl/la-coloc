@@ -31,7 +31,9 @@ export type ServerMessage =
   | { type: "move"; login: string; x: number; z: number; ry: number; moving: boolean }
   | { type: "emote"; login: string; name: (typeof EMOTES)[number] }
   | { type: "leave"; login: string }
-  | { type: "census"; counts: Record<string, number> };
+  | { type: "census"; counts: Record<string, number> }
+  // Something new under your bell (an invitation, a knock): the page fetches /api/notifications. Only to you.
+  | { type: "notice" };
 
 export interface Viewer {
   login: string;
@@ -103,6 +105,11 @@ export class Presence {
   /** Connection ids watching `place`. */
   watching(place: string): string[] {
     return [...this.conns.entries()].filter(([, c]) => c.place === place).map(([id]) => id);
+  }
+
+  /** Connection ids of `login`'s tabs (the same person may have several open). */
+  connectionsOf(login: string): string[] {
+    return [...this.conns.entries()].filter(([, c]) => c.login === login).map(([id]) => id);
   }
 
   online(): string[] {

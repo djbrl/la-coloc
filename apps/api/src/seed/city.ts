@@ -2,7 +2,7 @@
 // is the workshop where newcomers take the tutorial (a second agent runs it, with the same secret).
 // Every other house is a demo house: flagged `demo`, labelled as such in the UI, with made-up flatmates
 // who have no GitHub account. They exist so the city isn't empty on screen.
-import { applications, billPayments, chores, type Db, deployments, fridgeNotes, houses, memberships, messages, repos, rooms, sessions, usageSamples, users, votes } from "@coloc/db";
+import { applications, billPayments, chores, type Db, deployments, fridgeNotes, houses, memberships, messages, notifications, repos, rooms, sessions, usageSamples, users, votes } from "@coloc/db";
 import { eq } from "drizzle-orm";
 import { hashSecret } from "../houses/houses.service";
 import { plantLife } from "./life";
@@ -275,7 +275,7 @@ export function devSeedOptions(env = process.env): SeedOptions {
  */
 export async function seedCity(db: Db, opts: SeedOptions) {
   await db.transaction(async (tx) => {
-    for (const t of [messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, billPayments, sessions, memberships, rooms, houses, users])
+    for (const t of [notifications, messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, billPayments, sessions, memberships, rooms, houses, users])
       await tx.delete(t);
     await plantCity(tx, opts);
   });

@@ -7,5 +7,6 @@ import { DoorbellService } from "./doorbell.service";
   imports: [HousesModule],
   controllers: [DoorbellController],
   providers: [DoorbellService],
+  exports: [DoorbellService],
 })
 export class DoorbellModule {}

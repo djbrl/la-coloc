@@ -71,3 +71,15 @@ describe("the lobby while the database is down", () => {
     expect(ghost.gateway.presence.watching("lobby")).toEqual([]);
   });
 });
+
+describe("the bell's nudge", () => {
+  it("tells only that person's tabs that something is new under their bell", async () => {
+    const { gateway, socket, sent } = setup();
+    await gateway.handleConnection(socket as never, withSession);
+    sent.length = 0;
+    gateway.notice("awa");
+    expect(sent).toEqual([]);
+    gateway.notice("jib");
+    expect(sent).toEqual([{ type: "notice" }]);
+  });
+});

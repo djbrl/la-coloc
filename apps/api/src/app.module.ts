@@ -10,7 +10,8 @@ import { GithubModule } from "./github/github.module";
 import { RoomsModule } from "./rooms/rooms.module";
 import { HousesModule } from "./houses/houses.module";
 import { LobbyModule } from "./lobby/lobby.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { TutorialModule } from "./tutorial/tutorial.module";
 
-@Module({ imports: [DbModule, CoreModule, AuthModule, HousesModule, AgentsModule, DoorbellModule, GithubClientModule, RoomsModule, GithubModule, LobbyModule, TutorialModule, DemoModule] })
+@Module({ imports: [DbModule, CoreModule, AuthModule, HousesModule, AgentsModule, DoorbellModule, GithubClientModule, RoomsModule, GithubModule, NotificationsModule, LobbyModule, TutorialModule, DemoModule] })
 export class AppModule {}

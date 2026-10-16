@@ -299,6 +299,50 @@ export const billPayments = pgTable(
   (t) => [primaryKey({ columns: [t.houseId, t.userId, t.month] })],
 );
 
+export type NotificationKind =
+  // A flatmate offers an unhoused person their house's free room. Accepting moves them in.
+  | "house_invite"
+  // Someone with no house asks another with no house to rent a server together. Accepting tells the sender.
+  | "rent_together"
+  // Your invitation was taken: they moved in (house_invite) or want to rent with you (rent_together).
+  | "invite_accepted"
+  | "rent_together_yes"
+  // The doorbell: someone knocked on your house, or the house answered your knock.
+  | "knock"
+  | "knock_answer";
+
+// Only invitations have a state; the other kinds are news, and leave it null.
+export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
+
+// What a notification carries besides its columns: the knock it's about, and how the vote went.
+export interface NotificationPayload {
+  applicationId?: string;
+  verdict?: "admitted" | "declined";
+}
+
+// La Coloc's own notifications, shown under the bell. GitHub can't message a user for us, so the news lives here.
+// Never free text: each row is a structured event (an invitation, a knock), drawn by the web in its own words.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Who it's for.
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<NotificationKind>().notNull(),
+    // Who it's from. Null: the house itself (a vote's verdict).
+    fromId: uuid("from_id").references(() => users.id, { onDelete: "cascade" }),
+    // The house (and room) it's about, when it's about one.
+    houseId: text("house_id").references(() => houses.id, { onDelete: "cascade" }),
+    room: text("room"),
+    payload: jsonb("payload").$type<NotificationPayload>().notNull().default({}),
+    state: text("state").$type<InviteState>(),
+    createdAt: createdAt(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [index("notifications_user_created").on(t.userId, t.createdAt), index("notifications_from_created").on(t.fromId, t.createdAt)],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({ memberships: many(memberships) }));
 export const housesRelations = relations(houses, ({ many, one }) => ({
   rooms: many(rooms),

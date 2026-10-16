@@ -21,6 +21,6 @@ import { MembershipsService } from "./memberships.service";
     AuthService,
     MembershipsService,
   ],
-  exports: [AuthService, MembershipsService],
+  exports: [AUTH_CONFIG, AuthService, MembershipsService],
 })
 export class AuthModule {}

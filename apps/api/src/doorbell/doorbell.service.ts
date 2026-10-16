@@ -1,18 +1,25 @@
 // The doorbell: someone knocks on a free room, chats with the house in a thread, and the house votes.
 // Also the house's living-room chat, which works the same way.
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { applications, chores, type Db, houses, memberships, messages, rooms, users, votes } from "@coloc/db";
 import { tallyVotes } from "@coloc/domain";
-import { and, count, eq, isNull, max, ne } from "drizzle-orm";
+import { and, count, eq, ne } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import type { ApplicationView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
+import { moveInto } from "../houses/move-in";
 import { applicationChannel, channelMessages, houseChannel, person, tally } from "./queries";
 
 export const MAX_MESSAGE = 2000;
 const BURST = { messages: 20, perMs: 60_000 };
+
+// What the doorbell tells its listeners (the notifications): someone knocked, or a knock was answered.
+export type KnockEvent =
+  | { type: "knocked"; applicationId: string; houseId: string; room: string; applicantId: string }
+  | { type: "answered"; applicationId: string; houseId: string; room: string; applicantId: string; verdict: "admitted" | "declined" };
+export type KnockListener = (e: KnockEvent) => Promise<void>;
 
 @Injectable()
 export class DoorbellService {
@@ -20,6 +27,8 @@ export class DoorbellService {
   readonly changes = new Subject<string>();
   // Messages per person in the last minute: a crude brake on flooding, enough for now.
   private recent = new Map<string, number[]>();
+  private listeners: KnockListener[] = [];
+  private readonly log = new Logger("doorbell");
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -51,6 +60,7 @@ export class DoorbellService {
       ]);
     });
     await this.houses.note(houseId, { tone: "info", room: roomName, text: `${applicant.name ?? applicant.login} knocked on a free room. Answer the door!` });
+    await this.tell({ type: "knocked", applicationId: id, houseId, room: roomName, applicantId });
     return { id };
   }
 
@@ -126,7 +136,10 @@ export class DoorbellService {
     const all = await this.db.select().from(votes).where(eq(votes.applicationId, applicationId));
     const verdict = tallyVotes(await this.flatmateCount(app.houseId), all);
     if (verdict === "admitted") await this.admit(app);
-    if (verdict === "declined") await this.close(app, "declined", "The house said no this time. Thanks for knocking.");
+    if (verdict === "declined") {
+      await this.close(app, "declined", "The house said no this time. Thanks for knocking.");
+      await this.tell({ type: "answered", applicationId: app.id, houseId: app.houseId, room: app.room, applicantId: app.applicantId, verdict: "declined" });
+    }
     this.changes.next(app.id);
     this.houses.changes.next(app.houseId);
     return { verdict };
@@ -145,34 +158,65 @@ export class DoorbellService {
     const [applicant] = await this.db.select().from(users).where(eq(users.id, app.applicantId));
     const name = applicant.name ?? applicant.login;
     const moved = await this.db.transaction(async (tx) => {
-      // Only if the room is still free: two knocks on one room can't both move in.
-      const taken = await tx
-        .update(rooms)
-        .set({ occupantId: app.applicantId, ad: null, project: null, projectDescription: null, status: "empty", url: null })
-        .where(and(eq(rooms.houseId, app.houseId), eq(rooms.name, app.room), isNull(rooms.occupantId)))
-        .returning({ id: rooms.id });
-      if (!taken.length) return false;
-      const [{ last }] = await tx.select({ last: max(memberships.tontinePosition) }).from(memberships).where(eq(memberships.houseId, app.houseId));
-      // Newcomers join the back of the tontine line.
-      await tx.insert(memberships).values({ houseId: app.houseId, userId: app.applicantId, role: "flatmate", tontinePosition: (last ?? -1) + 1 });
+      // Only if the room is still free: two knocks on one room can't both move in (moveInto checks).
+      if (!(await moveInto(tx, app.houseId, app.room, app.applicantId))) return false;
       await tx.update(applications).set({ status: "admitted", decidedAt: new Date() }).where(eq(applications.id, app.id));
       await tx.insert(messages).values({ channel: applicationChannel(app.id), authorId: null, body: `The house said yes. Welcome home, ${name}!` });
       return true;
     });
     if (!moved) {
       await this.close(app, "declined", "Someone else moved into this room first. Knock on another one?");
+      await this.tell({ type: "answered", applicationId: app.id, houseId: app.houseId, room: app.room, applicantId: app.applicantId, verdict: "declined" });
       return;
     }
-    // Anyone else knocking on the same room: it's taken now.
+    await this.tell({ type: "answered", applicationId: app.id, houseId: app.houseId, room: app.room, applicantId: app.applicantId, verdict: "admitted" });
+    await this.movedIn(app.houseId, app.room, name, app.id);
+  }
+
+  /**
+   * After someone moved into a room (by a vote, or by an invitation): anyone else knocking on that room is told it's
+   * taken, and the fridge door welcomes them. `exceptApplication`: the knock that moved them in, already closed.
+   */
+  async movedIn(houseId: string, room: string, name: string, exceptApplication?: string) {
     const others = await this.db
       .select()
       .from(applications)
-      .where(and(eq(applications.houseId, app.houseId), eq(applications.room, app.room), eq(applications.status, "open"), ne(applications.id, app.id)));
+      .where(
+        and(
+          eq(applications.houseId, houseId),
+          eq(applications.room, room),
+          eq(applications.status, "open"),
+          exceptApplication ? ne(applications.id, exceptApplication) : undefined,
+        ),
+      );
     for (const other of others) {
       await this.close(other, "declined", "Someone else moved into this room first. Knock on another one?");
       this.changes.next(other.id);
+      await this.tell({ type: "answered", applicationId: other.id, houseId, room, applicantId: other.applicantId, verdict: "declined" });
     }
-    await this.houses.note(app.houseId, { tone: "thanks", room: app.room, text: `${name} moved in. Welcome home!` });
+    await this.houses.note(houseId, { tone: "thanks", room, text: `${name} moved in. Welcome home!` });
+  }
+
+  /** Closes someone's own open knock on a house they just moved into another way (an invitation). */
+  async closeOwnKnock(houseId: string, applicantId: string) {
+    const open = await this.db
+      .select()
+      .from(applications)
+      .where(and(eq(applications.houseId, houseId), eq(applications.applicantId, applicantId), eq(applications.status, "open")));
+    for (const app of open) {
+      await this.close(app, "withdrawn", "They moved in at a flatmate's invitation.");
+      this.changes.next(app.id);
+    }
+  }
+
+  /** Listens to the doorbell: a knock, and a knock answered. The notifications use it; nothing else needs to. */
+  listen(listener: KnockListener) {
+    this.listeners.push(listener);
+  }
+
+  // A listener failing (a notification not written) must never fail the knock or the vote itself.
+  private async tell(e: KnockEvent) {
+    for (const l of this.listeners) await l(e).catch((err: Error) => this.log.warn(`a doorbell listener failed: ${err.message}`));
   }
 
   private async close(app: typeof applications.$inferSelect, status: "declined" | "withdrawn", why: string) {

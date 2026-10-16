@@ -1,24 +1,43 @@
-import { Logger } from "@nestjs/common";
+import { Logger, type OnModuleDestroy, Optional } from "@nestjs/common";
 import { OnGatewayConnection, WebSocketGateway } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
 import type WebSocket from "ws";
 import { AuthService, SESSION_COOKIE } from "../auth/auth.service";
 import { parseCookies } from "../auth/http";
 import { Core, CoreDownError, isCoreDown } from "../core/core";
+import { NotificationsService } from "../notifications/notifications.service";
 import { type Out, Presence, type ServerMessage } from "./presence";
 
 // The lobby's live line: positions and emotes, relayed between everyone walking around. Logged-in people appear;
 // visitors only watch. Only pages from our own site may connect (a WebSocket ignores CORS, so we check Origin).
+// It also tells someone, on their own line only, that something new is under their bell.
 @WebSocketGateway({ path: "/lobby-ws" })
-export class LobbyGateway implements OnGatewayConnection {
+export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
   private readonly log = new Logger("lobby");
   readonly presence = new Presence();
   private sockets = new Map<string, WebSocket>();
 
+  private readonly unsubscribe: () => void;
+
   constructor(
     private readonly auth: AuthService,
     private readonly core: Core,
-  ) {}
+    // Left out in tests that don't need it.
+    @Optional() notifications?: NotificationsService,
+  ) {
+    const sub = notifications?.pushes.subscribe((login) => this.notice(login));
+    this.unsubscribe = () => sub?.unsubscribe();
+  }
+
+  onModuleDestroy() {
+    this.unsubscribe();
+  }
+
+  /** "Look at your bell": a one-word message to each of `login`'s open tabs. Offline, they see it on their next load. */
+  notice(login: string) {
+    if (!login) return;
+    this.send(this.presence.connectionsOf(login).map((conn) => ({ to: "one" as const, conn, msg: { type: "notice" as const } })));
+  }
 
   async handleConnection(socket: WebSocket, req: { headers: Record<string, string | string[] | undefined> }) {
     const origin = req.headers.origin;
@@ -81,7 +100,10 @@ export class LobbyGateway implements OnGatewayConnection {
   private send(out: Out[]) {
     for (const o of out) {
       const json = JSON.stringify(o.msg satisfies ServerMessage);
-      if (o.to === "one") this.sockets.get(o.conn)?.send(json);
+      if (o.to === "one") {
+        const s = this.sockets.get(o.conn);
+        if (s?.readyState === 1) s.send(json);
+      }
       else {
         const targets = o.to === "all" ? [...this.sockets.keys()] : this.presence.watching(o.place).filter((id) => id !== o.except);
         for (const id of targets) {
