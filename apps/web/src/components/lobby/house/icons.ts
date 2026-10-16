@@ -81,6 +81,18 @@ export const icons = {
   box: "M3 7l9-4 9 4-9 4z M3 7v10l9 4 9-4V7 M12 11v10",
   // An "i" in a circle: what is this.
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h.01",
+  // A flag on its pole: report something to the admins.
+  flag: "M5 21V4 M5 4h11l-2 4 2 4H5",
+  // A circle with a bar across: block someone.
+  block: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M5.6 5.6l12.8 12.8",
+  // A bin: delete.
+  trash: "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6",
+  // A cork board with two notes pinned: the city board.
+  board: "M3 5h18v14H3z M6 8h5v4H6z M13 8h5v7h-5z M8.5 8v.01 M15.5 8v.01",
+  // A globe: the city's public room.
+  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3 12h18 M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z",
+  // A back arrow.
+  back: "M15 6l-6 6 6 6",
 } as const;
 
 export type IconName = keyof typeof icons;

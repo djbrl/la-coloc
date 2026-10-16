@@ -343,3 +343,39 @@ export interface Notices {
   // Your invitations still waiting for an answer: the person card says "Invited" instead of offering another.
   sent: { id: string; kind: "house_invite" | "rent_together"; to: string; houseId: string | null }[];
 }
+
+// ---- The chat (apps/api/src/chat): direct messages, a city's room and its board ----
+
+/** One conversation in your list (GET /api/chat/conversations). */
+export interface ConversationItem {
+  with: Person;
+  last: { body: string; at: string; mine: boolean };
+  unread: number;
+}
+
+export interface Conversations {
+  unread: number;
+  items: ConversationItem[];
+}
+
+/** One conversation, opened (GET /api/chat/dm/:login). `canWrite` false says why in `why`. */
+export interface Conversation {
+  with: Person & { example: boolean };
+  blocked: boolean;
+  canWrite: boolean;
+  why: string | null;
+  messages: Message[];
+}
+
+/** A post on a city's board. */
+export interface BoardPost {
+  id: string;
+  city: string;
+  tag: "house" | "flatmates" | "project" | "help" | "other";
+  title: string;
+  body: string;
+  author: Person;
+  createdAt: string;
+  activeAt: string;
+  replies: number;
+}

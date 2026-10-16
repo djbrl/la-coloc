@@ -1,5 +1,5 @@
 // The lobby's live line to the server: which neighbourhood we're in, our position and emotes out; everyone else's
-// in, plus a head count per neighbourhood, and a nudge when something new is under your bell. Reconnects on its own
+// in, plus a head count per neighbourhood, and a nudge when something new is under your bell or in your messages. Reconnects on its own
 // when the line drops (a laptop waking up, the API restarting), and says where we are again when it does.
 import type { Emote } from "./Lobby";
 
@@ -25,7 +25,9 @@ type ServerMessage =
   | { type: "leave"; login: string }
   | { type: "census"; counts: Record<string, number> }
   // Something new under your bell: fetch the notifications.
-  | { type: "notice" };
+  | { type: "notice" }
+  // A new direct message: fetch the conversations.
+  | { type: "chat" };
 
 export interface LinkEvents {
   // A fresh list of everyone here (on every (re)connect).
@@ -39,6 +41,8 @@ export interface LinkEvents {
   onCensus(counts: Record<string, number>): void;
   // Something new under your bell (an invitation, a knock).
   onNotice?(): void;
+  // A new direct message (or one you sent from another tab).
+  onChat?(): void;
 }
 
 export class LobbyLink {
@@ -110,6 +114,7 @@ export class LobbyLink {
       else if (m.type === "leave") this.events.onLeave(m.login);
       else if (m.type === "census") this.events.onCensus(m.counts);
       else if (m.type === "notice") this.events.onNotice?.();
+      else if (m.type === "chat") this.events.onChat?.();
     };
     ws.onclose = () => {
       this.events.onStatus(false);

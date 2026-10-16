@@ -3,6 +3,8 @@ import { computed, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Avatar from "./components/Avatar.vue";
 import Bell from "./components/bell/Bell.vue";
+import ChatButton from "./components/chat/ChatButton.vue";
+import ChatSheet from "./components/chat/ChatSheet.vue";
 import CoreStatus from "./components/CoreStatus.vue";
 import SettingsPane from "./components/SettingsPane.vue";
 import Icon from "./components/lobby/house/Icon.vue";
@@ -55,6 +57,8 @@ const gear = (() => {
       <RouterLink to="/" class="logo">La Coloc</RouterLink>
       <div class="side">
         <template v-if="meLoaded">
+          <!-- The chat: for everyone (visitors read the city's room and board). -->
+          <ChatButton />
           <template v-if="me">
             <!-- On a phone, your house and logging out are icons (their words stay for screen readers), so the bar fits. -->
             <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item house" :title="h.name">
@@ -91,6 +95,8 @@ const gear = (() => {
   </main>
 
   <SettingsPane />
+  <!-- The chat sheet (components/chat), over whatever page is open: talking never leaves the city. -->
+  <ChatSheet />
   <!-- "The city can't be reached", over everything while the core is down (components/CoreStatus.vue). -->
   <CoreStatus />
 </template>
@@ -132,6 +138,8 @@ button.item:hover:not(:disabled) { background: var(--fill); }
 @media (max-width: 520px) {
   .item { padding: 0 8px; }
   .narrow { display: block; }
+  /* Your face makes room for the chat key; "Logged in as" stays for screen readers on the log-out key's side. */
+  .me { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); padding: 0; }
   .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 </style>

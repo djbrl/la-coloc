@@ -19,6 +19,7 @@ import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
+import { chatPinged, chatSheet, openChat } from "../conversations";
 import { loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
@@ -108,6 +109,8 @@ const myCity = computed(() => {
 });
 // The city in the address bar, else your house's city, else the busiest one.
 const city = ref<string>(String(route.query.city ?? "") || myCity.value || cities.value[0]?.name || "Dakar");
+// The chat's City and Board tabs are about the city you're in.
+watch(city, (c) => (chatSheet.city = c), { immediate: true });
 const here = computed(() => props.houses.filter((h) => h.city === city.value));
 
 // Who lives where, across every city: rings and cards.
@@ -589,6 +592,7 @@ onMounted(() => {
     onCensus: (counts) => (census.value = counts),
     // Something new under your bell: the top bar's bell fetches it.
     onNotice: () => void loadNotices(),
+    onChat: chatPinged,
   });
   link.enter(city.value);
 });
@@ -679,6 +683,12 @@ function open(target: Target) {
     return;
   }
   card.value = target;
+}
+
+// "City board" on the market's chores board: the chat sheet opens on this city's board.
+function cityBoard() {
+  closeCard();
+  openChat("board", {});
 }
 
 function closeCard() {
@@ -996,6 +1006,9 @@ function statsOf(name: string) {
       </div>
 
       <div v-if="shows('tools')" class="hud tools" :class="{ questing: inWorkshop }">
+        <button :aria-label="w.cityBoard(city)" :title="w.cityBoard(city)" @click="openChat('board', {})">
+          <Icon name="board" :size="20" />
+        </button>
         <button :aria-label="w.find" @click="openSheet('find')">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
         </button>
@@ -1037,7 +1050,7 @@ function statsOf(name: string) {
             @close="closeCard"
           />
           <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />
-          <BoardCard v-else-if="card?.kind === 'board'" :key="cardKey" :city="city" :houses="here" @open="boardHouse" @close="closeCard" />
+          <BoardCard v-else-if="card?.kind === 'board'" :key="cardKey" :city="city" :houses="here" @open="boardHouse" @city-board="cityBoard" @close="closeCard" />
         </Transition>
         <KeyLegend v-if="shows('keys')" :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" />
       </div>
