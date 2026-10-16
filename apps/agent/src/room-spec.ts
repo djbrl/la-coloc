@@ -10,8 +10,23 @@ export const LABEL = {
   port: "coloc.port",
 } as const;
 
-export function roomNetwork(room: string): string {
+// Named after the house too: two caretakers on one machine (in development, the workshop's next to Sacré-Cœur's)
+// may each have a room called "jib". Networks made before 16 Oct are named after the room only; containers on one
+// keep it until their next deploy (syncRoutes plugs the proxy into whatever network a container is on).
+export function roomNetwork(houseId: string, room: string): string {
+  return `coloc-room-${houseId}--${room}`;
+}
+
+export function legacyRoomNetwork(room: string): string {
   return `coloc-room-${room}`;
+}
+
+// Docker label filters for this house's room containers: all of them, one room's, or one room's prod or preview.
+// Every container has carried the house label since the first caretaker, so nothing older slips through.
+export function roomFilter(houseId: string, room?: string, kind?: DeployKind): string[] {
+  const label = [`${LABEL.house}=${houseId}`, room ? `${LABEL.room}=${room}` : LABEL.room];
+  if (kind) label.push(`${LABEL.kind}=${kind}`);
+  return label;
 }
 
 // Previews get a single-level subdomain (preview-jib.house.domain) so one wildcard
@@ -38,7 +53,7 @@ export function containerName(room: string, kind: DeployKind, deployId: string):
 }
 
 export function roomContainerSpec(i: RoomContainerInput): Docker.ContainerCreateOptions {
-  const network = roomNetwork(i.room);
+  const network = roomNetwork(i.houseId, i.room);
   const memoryBytes = i.limits.memoryMb * 1024 * 1024;
 
   return {

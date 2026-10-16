@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePort, roomContainerSpec, roomHost, roomRoute } from "./room-spec";
+import { resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetwork, roomRoute } from "./room-spec";
 
 const spec = roomContainerSpec({
   houseId: "sacre-coeur",
@@ -33,7 +33,16 @@ describe("room walls", () => {
   });
 
   it("lives on its own network", () => {
-    expect(spec.HostConfig?.NetworkMode).toBe("coloc-room-jib");
+    expect(spec.HostConfig?.NetworkMode).toBe("coloc-room-sacre-coeur--jib");
+  });
+
+  it("keeps two houses' rooms with the same name on different networks", () => {
+    expect(roomNetwork("atelier", "jib")).not.toBe(roomNetwork("sacre-coeur", "jib"));
+  });
+
+  it("only ever looks at its own house's containers", () => {
+    expect(roomFilter("sacre-coeur")).toEqual(["coloc.house=sacre-coeur", "coloc.room"]);
+    expect(roomFilter("sacre-coeur", "jib", "preview")).toEqual(["coloc.house=sacre-coeur", "coloc.room=jib", "coloc.kind=preview"]);
   });
 
   it("gets its env and port, and no routing labels (the agent routes it)", () => {

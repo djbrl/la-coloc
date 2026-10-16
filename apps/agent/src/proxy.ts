@@ -6,7 +6,7 @@ import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentConfig } from "./config";
 import { docker, ensureRoomNetwork } from "./docker";
-import { LABEL, roomRoute } from "./room-spec";
+import { LABEL, roomFilter, roomRoute } from "./room-spec";
 
 // One file per room, named after the house too: several caretakers may share one proxy folder (in development
 // the workshop's runs next to Sacré-Cœur's), and each only ever touches its own files.
@@ -46,7 +46,7 @@ export async function unrouteRoom(cfg: AgentConfig, room: string): Promise<void>
 export async function syncRoutes(cfg: AgentConfig): Promise<void> {
   await mkdir(cfg.proxyConfigDir, { recursive: true });
   // Only this house's rooms: another caretaker on the same machine looks after its own.
-  const running = await docker.listContainers({ filters: { label: [`${LABEL.house}=${cfg.houseId}`, LABEL.room], status: ["running"] } });
+  const running = await docker.listContainers({ filters: { label: roomFilter(cfg.houseId), status: ["running"] } });
   const newest = new Map<string, Docker.ContainerInfo>();
   for (const c of running) {
     const key = `${c.Labels[LABEL.room]}-${c.Labels[LABEL.kind]}`;
@@ -60,7 +60,9 @@ export async function syncRoutes(cfg: AgentConfig): Promise<void> {
     const port = Number(c.Labels[LABEL.port]);
     // Containers from before routing moved to files have no port label; their next deploy fixes them.
     if (!port) continue;
-    await ensureRoomNetwork(room, cfg.houseId, cfg.proxyContainer);
+    // The network the container is really on: an older one may still be on a network named after the room only.
+    const network = c.HostConfig?.NetworkMode;
+    await ensureRoomNetwork(cfg.houseId, room, cfg.proxyContainer, network?.startsWith("coloc-room-") ? network : undefined);
     wanted.add(routeName(cfg.houseId, room, kind));
     const route = roomRoute(room, kind, cfg.houseDomain, c.Names[0].replace(/^\//, ""), port);
     await writeFile(routeFile(cfg, room, kind), JSON.stringify(route, null, 2));

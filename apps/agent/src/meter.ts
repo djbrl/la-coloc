@@ -2,7 +2,7 @@
 import type Docker from "dockerode";
 import type { UsageSample } from "@coloc/protocol";
 import { docker } from "./docker";
-import { LABEL } from "./room-spec";
+import { LABEL, roomFilter } from "./room-spec";
 
 export function cpuPercent(stats: Docker.ContainerStats): number {
   const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
@@ -19,8 +19,8 @@ export function memoryUsed(stats: Docker.ContainerStats): number {
   return Math.max(0, (s.usage ?? 0) - cache);
 }
 
-export async function sampleRooms(): Promise<UsageSample[]> {
-  const running = await docker.listContainers({ filters: { label: [LABEL.room, `${LABEL.kind}=prod`] } });
+export async function sampleRooms(houseId: string): Promise<UsageSample[]> {
+  const running = await docker.listContainers({ filters: { label: [...roomFilter(houseId), `${LABEL.kind}=prod`] } });
   return Promise.all(
     running.map(async (c) => {
       const stats = (await docker.getContainer(c.Id).stats({ stream: false })) as Docker.ContainerStats;

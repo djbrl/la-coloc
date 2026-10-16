@@ -49,25 +49,25 @@ async function main() {
         break;
       case "restart_room":
         console.log(`[restart] ${cmd.room}`);
-        enqueue(cmd.room, () => restartRoom(cmd.room).catch((e) => console.error(`[restart] ${cmd.room}: ${e.message}`)));
+        enqueue(cmd.room, () => restartRoom(cfg, cmd.room).catch((e) => console.error(`[restart] ${cmd.room}: ${e.message}`)));
         break;
       case "get_logs":
         // Not queued: reading logs never waits behind a build.
-        roomLogs(cmd.room, cmd.kind, cmd.lines)
+        roomLogs(cfg, cmd.room, cmd.kind, cmd.lines)
           .then((text) => link.send({ type: "logs", requestId: cmd.requestId, room: cmd.room, text }))
           .catch((e) => link.send({ type: "logs", requestId: cmd.requestId, room: cmd.room, text: "", error: (e as Error).message }));
         break;
     }
   }, () => void sendSnapshot());
 
-  await watchRoomEvents((e) => {
+  await watchRoomEvents(cfg.houseId, (e) => {
     console.log(`[event] ${e.room}: ${e.event}`);
     link.send(e);
   });
 
   setInterval(async () => {
     try {
-      link.send({ type: "usage", at: new Date().toISOString(), samples: await sampleRooms() });
+      link.send({ type: "usage", at: new Date().toISOString(), samples: await sampleRooms(cfg.houseId) });
     } catch (e) {
       console.error(`[meter] ${(e as Error).message}`);
     }

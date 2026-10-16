@@ -2,7 +2,7 @@
 // and turns them into room events. They become fridge notes on the house page.
 import type { RoomEvent } from "@coloc/protocol";
 import { docker, retiring } from "./docker";
-import { LABEL } from "./room-spec";
+import { LABEL, roomFilter } from "./room-spec";
 
 interface DockerEvent {
   Action: string;
@@ -10,9 +10,9 @@ interface DockerEvent {
   time: number;
 }
 
-export async function watchRoomEvents(onEvent: (e: RoomEvent) => void): Promise<() => void> {
+export async function watchRoomEvents(houseId: string, onEvent: (e: RoomEvent) => void): Promise<() => void> {
   const stream = (await docker.getEvents({
-    filters: { type: ["container"], event: ["oom", "die", "start"], label: [LABEL.room] },
+    filters: { type: ["container"], event: ["oom", "die", "start"], label: roomFilter(houseId) },
   })) as NodeJS.ReadableStream & { destroy: () => void };
 
   const crashed = new Set<string>();

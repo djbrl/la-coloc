@@ -4,6 +4,7 @@ import { roomUrl, type AgentConfig } from "./config";
 import {
   buildImage,
   docker,
+  dropLegacyNetwork,
   ensureRoomNetwork,
   imageExposedPorts,
   lastLogs,
@@ -14,7 +15,7 @@ import {
 } from "./docker";
 import { resolveInside, shallowClone } from "./git";
 import { routeTo, unroute, unrouteRoom } from "./proxy";
-import { LABEL, containerName, resolvePort, roomContainerSpec, roomHost } from "./room-spec";
+import { LABEL, containerName, resolvePort, roomContainerSpec, roomFilter, roomHost } from "./room-spec";
 
 type Report = (s: Omit<DeployStatus, "type" | "deployId" | "room">) => void;
 
@@ -30,7 +31,7 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
   let newContainerId: string | undefined;
   try {
     const shortSha = checkout.sha.slice(0, 12);
-    const tag = `coloc/${cmd.room}:${shortSha}`;
+    const tag = `coloc/${cfg.houseId}/${cmd.room}:${shortSha}`;
     report({ status: "building", detail: `commit ${shortSha}` });
     const buildLog: string[] = [];
     try {
@@ -40,7 +41,7 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
     }
 
     report({ status: "starting" });
-    await ensureRoomNetwork(cmd.room, cfg.houseId, cfg.proxyContainer);
+    await ensureRoomNetwork(cfg.houseId, cmd.room, cfg.proxyContainer);
     const port = resolvePort(cmd.port, await imageExposedPorts(tag));
     const spec = roomContainerSpec({
       houseId: cfg.houseId,
@@ -69,9 +70,12 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
     await routeTo(cfg, cmd.room, cmd.kind, containerName(cmd.room, cmd.kind, cmd.deployId), port);
     // From here the new version is the one serving: never roll it back, even if cleanup fails.
     newContainerId = undefined;
-    const others = (await roomContainers(cmd.room, cmd.kind)).filter((c) => c.Id !== container.id);
+    const others = (await roomContainers(cfg.houseId, cmd.room, cmd.kind)).filter((c) => c.Id !== container.id);
     await Promise.all(others.map((c) => removeContainer(c.Id))).catch((e) =>
       console.error(`[deploy] ${cmd.room}: couldn't remove an old version: ${(e as Error).message}`),
+    );
+    await dropLegacyNetwork(cfg.houseId, cmd.room, cfg.proxyContainer).catch((e) =>
+      console.error(`[deploy] ${cmd.room}: couldn't remove its old network: ${(e as Error).message}`),
     );
 
     report({ status: "live", url: roomUrl(cfg, roomHost(cmd.room, cmd.kind, cfg.houseDomain)), detail: `commit ${shortSha}` });
@@ -86,20 +90,21 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
 
 export async function removeRoom(cfg: AgentConfig, room: string): Promise<void> {
   await unrouteRoom(cfg, room);
-  const containers = await roomContainers(room);
+  const containers = await roomContainers(cfg.houseId, room);
   await Promise.all(containers.map((c) => removeContainer(c.Id)));
+  await dropLegacyNetwork(cfg.houseId, room, cfg.proxyContainer).catch(() => undefined);
 }
 
 /** The pull request closed: its preview leaves. The room's real app isn't touched. */
 export async function removePreview(cfg: AgentConfig, room: string): Promise<void> {
   await unroute(cfg, room, "preview");
-  const previews = await roomContainers(room, "preview");
+  const previews = await roomContainers(cfg.houseId, room, "preview");
   await Promise.all(previews.map((c) => removeContainer(c.Id)));
 }
 
 /** Restarts what runs in a room, without rebuilding. Its stop and start aren't reported as a crash. */
-export async function restartRoom(room: string): Promise<void> {
-  const running = await roomContainers(room, "prod");
+export async function restartRoom(cfg: AgentConfig, room: string): Promise<void> {
+  const running = await roomContainers(cfg.houseId, room, "prod");
   for (const c of running) {
     retiring.add(c.Id);
     setTimeout(() => retiring.delete(c.Id), 60_000).unref();
@@ -108,20 +113,16 @@ export async function restartRoom(room: string): Promise<void> {
 }
 
 /** The last lines the room's app printed (stdout and stderr), newest last. */
-export async function roomLogs(room: string, kind: DeployKind, lines: number): Promise<string> {
-  const containers = (await roomContainers(room, kind)).sort((a, b) => b.Created - a.Created);
+export async function roomLogs(cfg: AgentConfig, room: string, kind: DeployKind, lines: number): Promise<string> {
+  const containers = (await roomContainers(cfg.houseId, room, kind)).sort((a, b) => b.Created - a.Created);
   if (!containers.length) return "";
   const text = await lastLogs(docker.getContainer(containers[0].Id), lines);
   // The protocol caps a reply; keep the end, it's what people want.
   return text.length > 250_000 ? text.slice(-250_000) : text;
 }
 
-export function roomOf(labels: Record<string, string> | undefined): string | undefined {
-  return labels?.[LABEL.room];
-}
-
 export async function snapshot(cfg: AgentConfig): Promise<RoomsSnapshot["rooms"]> {
-  const containers = await docker.listContainers({ all: true, filters: { label: [LABEL.room] } });
+  const containers = await docker.listContainers({ all: true, filters: { label: roomFilter(cfg.houseId) } });
   return containers.map((c) => {
     const room = c.Labels[LABEL.room];
     const kind = c.Labels[LABEL.kind] as DeployKind;

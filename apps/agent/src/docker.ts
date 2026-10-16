@@ -3,13 +3,14 @@ import Docker from "dockerode";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import tar from "tar-fs";
-import { LABEL, roomNetwork } from "./room-spec";
+import type { DeployKind } from "@coloc/protocol";
+import { LABEL, legacyRoomNetwork, roomFilter, roomNetwork } from "./room-spec";
 
 export const docker = new Docker();
 
 // The proxy must sit on every room's network to route to it; rooms never share one with each other.
-export async function ensureRoomNetwork(room: string, houseId: string, proxyContainer: string): Promise<void> {
-  const name = roomNetwork(room);
+// `name` is the room's network by default; syncRoutes passes the one an existing container is on.
+export async function ensureRoomNetwork(houseId: string, room: string, proxyContainer: string, name = roomNetwork(houseId, room)): Promise<void> {
   const existing = await docker.listNetworks({ filters: { name: [name] } });
   if (!existing.some((n) => n.Name === name)) {
     await docker.createNetwork({ Name: name, Driver: "bridge", Labels: { [LABEL.house]: houseId, [LABEL.room]: room } });
@@ -19,6 +20,20 @@ export async function ensureRoomNetwork(room: string, houseId: string, proxyCont
   if (!info.NetworkSettings.Networks[name]) {
     await docker.getNetwork(name).connect({ Container: proxyContainer });
   }
+}
+
+// Once a room's last container on its pre-16-Oct network (named after the room only) is gone, that network goes too,
+// so they don't pile up. Only a network this house made, and only when nothing but the proxy is left on it.
+export async function dropLegacyNetwork(houseId: string, room: string, proxyContainer: string): Promise<void> {
+  const name = legacyRoomNetwork(room);
+  const found = (await docker.listNetworks({ filters: { name: [name] } })).find((n) => n.Name === name);
+  if (!found || found.Labels?.[LABEL.house] !== houseId) return;
+  const network = docker.getNetwork(found.Id);
+  const info = await network.inspect();
+  const containers = Object.values((info.Containers ?? {}) as Record<string, { Name: string }>);
+  if (containers.some((c) => c.Name !== proxyContainer)) return;
+  await network.disconnect({ Container: proxyContainer, Force: true }).catch(() => undefined);
+  await network.remove();
 }
 
 async function dockerignore(dir: string): Promise<string[]> {
@@ -71,10 +86,9 @@ export async function imageExposedPorts(tag: string): Promise<Record<string, unk
   return info.Config?.ExposedPorts;
 }
 
-export async function roomContainers(room: string, kind?: string): Promise<Docker.ContainerInfo[]> {
-  const label = [`${LABEL.room}=${room}`];
-  if (kind) label.push(`${LABEL.kind}=${kind}`);
-  return docker.listContainers({ all: true, filters: { label } });
+// This house's containers for one room. Another caretaker on the same machine may have a room with the same name.
+export async function roomContainers(houseId: string, room: string, kind?: DeployKind): Promise<Docker.ContainerInfo[]> {
+  return docker.listContainers({ all: true, filters: { label: roomFilter(houseId, room, kind) } });
 }
 
 export async function lastLogs(container: Docker.Container, lines = 40): Promise<string> {
