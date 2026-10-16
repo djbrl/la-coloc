@@ -19,6 +19,10 @@ export interface Player {
   login: string;
   name: string | null;
   avatar: string | null;
+  // Logged in with GitHub, so their profile can be linked; and whether they're an example person (no real
+  // invitation can reach them). Their card in the lobby needs both.
+  github?: boolean;
+  example?: boolean;
   x: number;
   z: number;
   ry: number;
@@ -39,6 +43,8 @@ export interface Viewer {
   login: string;
   name: string | null;
   avatar: string | null;
+  github?: boolean;
+  example?: boolean;
 }
 
 export type Out =

@@ -87,3 +87,22 @@ describe("lobby presence", () => {
     expect(p.counts()).toEqual({});
   });
 });
+
+describe("what the lobby says about each person", () => {
+  it("passes on whether they have a real GitHub account and whether they're an example person", () => {
+    const p = new Presence();
+    p.join("c1", { ...jib, github: true, example: false });
+    p.receive("c1", { type: "place", place: "Dakar" });
+    const out = inDakar(p, "c2", awa);
+    expect(out[0].msg).toMatchObject({ type: "snapshot", players: [{ login: "jib", github: true, example: false }] });
+  });
+
+  it("finds every tab one person has open, for the bell's nudge", () => {
+    const p = new Presence();
+    inDakar(p, "c1", jib);
+    inDakar(p, "c2", jib);
+    inDakar(p, "c3", awa);
+    expect(p.connectionsOf("jib")).toEqual(["c1", "c2"]);
+    expect(p.connectionsOf("nobody")).toEqual([]);
+  });
+});

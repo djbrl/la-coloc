@@ -2,7 +2,7 @@ import { Logger, type OnModuleDestroy, Optional } from "@nestjs/common";
 import { OnGatewayConnection, WebSocketGateway } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
 import type WebSocket from "ws";
-import { AuthService, SESSION_COOKIE } from "../auth/auth.service";
+import { AuthService, SESSION_COOKIE, type User } from "../auth/auth.service";
 import { parseCookies } from "../auth/http";
 import { Core, CoreDownError, isCoreDown } from "../core/core";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -23,9 +23,9 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
     private readonly auth: AuthService,
     private readonly core: Core,
     // Left out in tests that don't need it.
-    @Optional() notifications?: NotificationsService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {
-    const sub = notifications?.pushes.subscribe((login) => this.notice(login));
+    const sub = this.notifications?.pushes.subscribe((login) => this.notice(login));
     this.unsubscribe = () => sub?.unsubscribe();
   }
 
@@ -72,8 +72,10 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
 
     const user = await this.whoIs(req, socket);
     if (user === "try-later" || left) return;
+    const example = user ? await this.isExample(user) : false;
+    if (left) return;
     this.sockets.set(conn, socket);
-    this.send(this.presence.join(conn, user ? { login: user.login, name: user.name, avatar: user.avatar } : null));
+    this.send(this.presence.join(conn, user ? { login: user.login, name: user.name, avatar: user.avatar, github: user.githubId !== null, example } : null));
     joined = true;
     early.forEach(handle);
   }
@@ -94,6 +96,15 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
       this.core.reportDown(e);
       socket.close(1013, "try again later");
       return "try-later" as const;
+    }
+  }
+
+  // Whether their card should say "example person". Not worth refusing someone over: a failed look-up says no.
+  private async isExample(user: User): Promise<boolean> {
+    try {
+      return (await this.notifications?.isExample(user)) ?? false;
+    } catch {
+      return false;
     }
   }
 
