@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { chores, type Db, repos, rooms, users } from "@coloc/db";
+import { chores, type Db, githubInstallations, repos, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { and, eq } from "drizzle-orm";
 import { createHmac, createVerify, generateKeyPairSync } from "node:crypto";
@@ -190,6 +190,18 @@ describe("installing the App during the tutorial", () => {
     expect(await svc.handle("installation", install(2, ["jib/again"]))).toBe("installer doesn't live in exactly one room");
     expect(await roomOf(200)).toBeUndefined();
     expect(await roomOf(100)).toBe("atelier/jib");
+  });
+
+  it("remembers who installed the App on an organisation, and forgets it when it's removed", async () => {
+    await db.delete(githubInstallations);
+    const onOrg: GhEvent = { ...install(4, ["dakar-devs/meteo"]), installation: { id: 4, account: { login: "dakar-devs" } } };
+    await svc.handle("installation", onOrg);
+    expect(await db.select().from(githubInstallations)).toMatchObject([{ id: 4, account: "dakar-devs", installerGithubId: 1 }]);
+    // Someone else adding repos to it later becomes the one who may pick them.
+    await svc.handle("installation_repositories", { action: "added", installation: { id: 4, account: { login: "dakar-devs" } }, sender: { id: 2, login: "awa" }, repositories_added: [] });
+    expect((await db.select().from(githubInstallations))[0].installerGithubId).toBe(2);
+    expect(await svc.handle("installation", { action: "deleted", installation: { id: 4 }, sender: jib })).toBe("forgot the installation");
+    expect(await db.select().from(githubInstallations)).toEqual([]);
   });
 
   it("works for repos added to an installation too", async () => {

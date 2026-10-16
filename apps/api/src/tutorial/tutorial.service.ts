@@ -4,7 +4,7 @@
 // deploys, the linked repo, the furthest chapter reached). Taking the tutorial again removes that room, so the next
 // run starts from nothing.
 import { ConflictException, Inject, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
-import { type Db, deployments, fridgeNotes, houses, memberships, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
+import { type Db, deployments, fridgeNotes, githubInstallations, houses, memberships, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
 import { and, asc, eq } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
 import type { User } from "../auth/auth.service";
@@ -84,11 +84,12 @@ export class TutorialService {
 
   private readonly log = new Logger("tutorial");
   // What GitHub last said about each newcomer's repos, so the coach's 2-second poll asks it at most every 5 seconds.
-  private readonly seen = new Map<string, { at: number; installation: number | null; repos: GhRepoInfo[] }>();
+  // Each repo carries the installation that lets the App see it.
+  private readonly seen = new Map<string, { at: number; installation: number | null; repos: (GhRepoInfo & { installation: number })[] }>();
 
   /**
-   * The repos the newcomer let the App see (its installation on their own account), the most recently pushed first,
-   * and the one in their workshop room. Asked straight from GitHub, so a lost install event doesn't matter.
+   * The repos the newcomer let the App see (its installation on their own account, and those they made on an
+   * organisation), the most recently pushed first, and the one in their workshop room. Asked straight from GitHub, so a lost install event doesn't matter.
    * `reason` says why the list is empty: GitHub isn't set up here, they didn't log in with GitHub, or nothing is
    * installed yet.
    */
@@ -111,9 +112,10 @@ export class TutorialService {
     const room = await this.roomOf(house.id, user.id);
     if (!room) throw new NotFoundException("Take a room first.");
     if (!this.client || !user.githubId) throw new ConflictException("Log in with GitHub to bring your own project.");
-    const { installation, repos: list } = await this.installed(user, true);
+    const { repos: list } = await this.installed(user, true);
     const repo = list.find((r) => r.id === githubId);
-    if (!installation || !repo) throw new NotFoundException("La Coloc can't see that repo. Allow it on GitHub first.");
+    if (!repo) throw new NotFoundException("La Coloc can't see that repo. Allow it on GitHub first.");
+    const installation = repo.installation;
     const [elsewhere] = await this.db.select().from(repos).where(eq(repos.githubId, githubId));
     if (elsewhere && (elsewhere.houseId !== room.houseId || elsewhere.room !== room.name)) {
       throw new ConflictException(`${repo.full_name} already lives in another room.`);
@@ -126,13 +128,26 @@ export class TutorialService {
     return { repo: repo.full_name };
   }
 
-  // The App's installation on their account and its repos, from GitHub at most every 5 seconds (always when `fresh`).
+  // The App's installations this person may take repos from, and their repos, from GitHub at most every 5 seconds
+  // (always when `fresh`). Their own account's, which GitHub tells the App; and any on an organisation that they
+  // installed themselves, which only the install webhook tells (github_installations): GitHub won't say who belongs
+  // to an organisation without the person's own token, and an organisation's other members must not be able to
+  // move its repos into their room.
   private async installed(user: User, fresh = false) {
     const cached = this.seen.get(user.id);
     if (!fresh && cached && Date.now() - cached.at < 5_000) return cached;
     try {
-      const installation = await this.client!.userInstallation(user.login);
-      const got = { at: Date.now(), installation, repos: installation ? await this.client!.installationRepos(installation) : [] };
+      const own = await this.client!.userInstallation(user.login);
+      const made = user.githubId
+        ? await this.db.select({ id: githubInstallations.id }).from(githubInstallations).where(eq(githubInstallations.installerGithubId, user.githubId))
+        : [];
+      const ids = [...new Set([...(own ? [own] : []), ...made.map((m) => m.id)])];
+      // An organisation's install that's gone (its removal missed) is skipped; their own account's must answer.
+      const reposOf = async (id: number) => (await this.client!.installationRepos(id)).map((r) => ({ ...r, installation: id }));
+      const lists = await Promise.all(ids.map((id) => (id === own ? reposOf(id) : reposOf(id).catch(() => []))));
+      // A repo seen through two installations is listed once.
+      const repos = [...new Map(lists.flat().map((r) => [r.id, r])).values()];
+      const got = { at: Date.now(), installation: ids[0] ?? null, repos };
       this.seen.set(user.id, got);
       return got;
     } catch (e) {

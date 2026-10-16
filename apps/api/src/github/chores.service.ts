@@ -1,7 +1,7 @@
 // Chores: every pull request in a flatmate's repo gets a reviewer from the house, picked on a rotation.
 // GitHub tells us what happens (webhooks); we pick, comment, request the review, and keep score.
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { chores, type Db, houses, memberships, repos, rooms, users } from "@coloc/db";
+import { chores, type Db, githubInstallations, houses, memberships, repos, rooms, users } from "@coloc/db";
 import { pickReviewer, type ReviewLoad } from "@coloc/domain";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import { isCoreDown } from "../core/core";
@@ -25,7 +25,7 @@ interface GhRepo {
 }
 export interface GhEvent {
   action?: string;
-  installation?: { id: number };
+  installation?: { id: number; account?: { login: string } };
   sender?: GhUser;
   repository?: GhRepo;
   repositories?: GhRepo[];
@@ -74,7 +74,12 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
 
   async handle(event: string, p: GhEvent): Promise<string> {
     if ((event === "installation" && p.action === "created") || (event === "installation_repositories" && p.action === "added")) {
+      await this.rememberInstaller(p);
       return this.linkRepos(p);
+    }
+    if (event === "installation" && p.action === "deleted" && p.installation) {
+      await this.db.delete(githubInstallations).where(eq(githubInstallations.id, p.installation.id));
+      return "forgot the installation";
     }
     if (event === "pull_request" && ["opened", "reopened", "ready_for_review"].includes(p.action ?? "")) return this.assign(p);
     if (event === "pull_request_review" && p.action === "submitted") return this.reviewed(p);
@@ -117,6 +122,19 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       await this.houses.note(room.houseId, { tone: "info", room: room.name, text: noteText("reposMoved", { name: u.name ?? u.login, repos: names.join(", ") }) });
     }
     return `linked ${[...moved.values()].flat().length}`;
+  }
+
+  /**
+   * Who installed the App where (or last added repos to it), for the tutorial's repo picker: an install on an
+   * organisation is listed there only to the person who made it.
+   */
+  private async rememberInstaller(p: GhEvent) {
+    const account = p.installation?.account?.login;
+    if (!p.installation || !p.sender || !account) return;
+    await this.db
+      .insert(githubInstallations)
+      .values({ id: p.installation.id, account, installerGithubId: p.sender.id })
+      .onConflictDoUpdate({ target: githubInstallations.id, set: { account, installerGithubId: p.sender.id } });
   }
 
   /** The workshop room of someone mid-tutorial, if it has no repo yet. Otherwise undefined. */

@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { type Db, fridgeNotes, memberships, repos, rooms, users } from "@coloc/db";
+import { type Db, fridgeNotes, githubInstallations, memberships, repos, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import type { ApiToAgent, DeployCommand } from "@coloc/protocol";
 import { HttpException } from "@nestjs/common";
@@ -385,6 +385,9 @@ describe("picking which GitHub repo to bring", () => {
     { id: 302, full_name: "fatou/portfolio", description: "My site", language: "HTML", private: false, pushed_at: "2026-10-01T00:00:00Z" },
     { id: 303, full_name: "fatou/api", description: null, language: "TypeScript", private: true, pushed_at: "2026-05-01T00:00:00Z" },
   ];
+  // And on organisations: "dakar-devs" (installation 50), and "someone-else-org" (60), which another person installed.
+  const team = [{ id: 501, full_name: "dakar-devs/meteo", description: null, language: "Go", private: false, pushed_at: "2026-09-01T00:00:00Z" }];
+  const others = [{ id: 601, full_name: "someone-else-org/secret", description: null, language: null, private: true, pushed_at: "2026-10-02T00:00:00Z" }];
   let picker: TutorialController;
 
   beforeEach(async () => {
@@ -392,7 +395,7 @@ describe("picking which GitHub repo to bring", () => {
     const agents = { isOnline: () => true, send: () => {} } as unknown as AgentRegistry;
     const client = {
       userInstallation: async (login: string) => (login === "fatou" ? installation : null),
-      installationRepos: async () => allowed,
+      installationRepos: async (id: number) => (id === 9 ? allowed : id === 50 ? team : id === 60 ? others : []),
     } as unknown as GithubAppClient;
     const service = new TutorialService(
       db,
@@ -406,6 +409,22 @@ describe("picking which GitHub repo to bring", () => {
     );
     picker = new TutorialController(service, auth);
     await db.update(users).set({ githubId: 77 }).where(eq(users.login, "fatou"));
+    await db.delete(githubInstallations);
+  });
+
+  it("also lists an organisation's repos when she installed the App there herself, never another person's install", async () => {
+    // The install webhooks said who installed where.
+    await db.insert(githubInstallations).values([
+      { id: 50, account: "dakar-devs", installerGithubId: 77 },
+      { id: 60, account: "someone-else-org", installerGithubId: 88 },
+    ]);
+    const got = await picker.repos(req);
+    expect(got.repos.map((r) => r.fullName)).toEqual(["fatou/portfolio", "dakar-devs/meteo", "fatou/api", "fatou/old"]);
+    await picker.room(req, response());
+    expect(await picker.repo(req, { id: 501 })).toEqual({ repo: "dakar-devs/meteo" });
+    const [inRoom] = await db.select().from(repos).where(and(eq(repos.houseId, "atelier"), eq(repos.room, "fatou")));
+    expect(inRoom).toMatchObject({ fullName: "dakar-devs/meteo", installationId: 50 });
+    await expect(picker.repo(req, { id: 601 })).rejects.toSatisfy((e) => status(e) === 404);
   });
 
   it("lists the repos she allowed, the most recently pushed first", async () => {

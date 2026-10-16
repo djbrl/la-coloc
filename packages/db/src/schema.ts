@@ -257,6 +257,20 @@ export const repos = pgTable("repos", {
   createdAt: createdAt(),
 });
 
+// Who installed the coloc GitHub App where, as GitHub's install webhooks tell it (`sender`). Kept for the tutorial's
+// repo picker: GitHub only lists an account's own installation to an App, so an install on an organisation is found
+// here, and only for the person who made it (an owner of that organisation, who chose its repos). Without a user's
+// own GitHub token, that is the only safe way to know who may link those repos.
+export const githubInstallations = pgTable("github_installations", {
+  // GitHub's installation id.
+  id: bigint("id", { mode: "number" }).primaryKey(),
+  // The account it's on: a user or an organisation login.
+  account: text("account").notNull(),
+  // The GitHub user id of whoever installed it, or last added repos to it.
+  installerGithubId: bigint("installer_github_id", { mode: "number" }).notNull(),
+  createdAt: createdAt(),
+});
+
 export type ChoreStatus = "open" | "done";
 
 // A chore is a review: one pull request, one flatmate assigned to review it.

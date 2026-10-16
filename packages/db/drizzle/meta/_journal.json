@@ -99,6 +99,13 @@
       "when": 1792122085931,
       "tag": "0013_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792126867362,
+      "tag": "0014_github_installations",
+      "breakpoints": true
     }
   ]
 }
