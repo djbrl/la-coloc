@@ -41,7 +41,7 @@ Linux kernel (GPL-2.0), Docker Engine (Apache-2.0), Traefik (MIT), Postgres (Pos
 (e.g. `node:22-alpine`, which contains BusyBox under GPL-2.0). These run the solution; they are not part of its code.
 
 ## Traps avoided
-- Redis (no longer permissive) → no Redis; jobs will use pg-boss on Postgres (MIT).
+- Redis (no longer permissive) → no Redis, and no job queue: webhooks are handled straight away.
 - MySQL (GPL) → Postgres.
 - Bun `--compile` (embeds JavaScriptCore, LGPL) → plain Node.
 - `psycopg2`, `sharp`/libvips (LGPL) → not used.
