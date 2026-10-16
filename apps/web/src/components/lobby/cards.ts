@@ -51,6 +51,17 @@ export function roomOf(house: Pick<CityHouse, "rooms"> | null, room: string | nu
   return house.rooms.find((r) => r.name === room) ?? null;
 }
 
+/** The empty plot nearest to (x, z), for "Find a plot" when two people will rent together: its key, or null. */
+export function nearestEmptyPlot(plots: { key: string; x: number; z: number; lot: { kind: string } }[], at: { x: number; z: number }): string | null {
+  let best: { key: string; d: number } | null = null;
+  for (const p of plots) {
+    if (p.lot.kind === "house") continue;
+    const d = (p.x - at.x) ** 2 + (p.z - at.z) ** 2;
+    if (!best || d < best.d) best = { key: p.key, d };
+  }
+  return best?.key ?? null;
+}
+
 // ---- Your knocks ----
 
 /** Your open knock on a house, if you have one. `me.knocks` is missing on an API that doesn't send it yet: no

@@ -2,6 +2,7 @@
 import { computed, watchEffect } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Avatar from "./components/Avatar.vue";
+import Bell from "./components/bell/Bell.vue";
 import CoreStatus from "./components/CoreStatus.vue";
 import SettingsPane from "./components/SettingsPane.vue";
 import { logout, me, meLoaded } from "./session";
@@ -55,6 +56,7 @@ const gear = (() => {
         <template v-if="meLoaded">
           <template v-if="me">
             <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item house">{{ h.name }}</RouterLink>
+            <Bell />
             <span class="item me">
               <Avatar :person="me" :size="26" decorative />
               <span class="sr-only">{{ w.loggedInAs(me.login) }}</span>

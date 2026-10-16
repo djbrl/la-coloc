@@ -306,3 +306,30 @@ export interface RoomManage {
     updatedAt: string;
   }[];
 }
+
+// The bell: GET /api/notifications (apps/api/src/notifications/notifications.service.ts). Never free text: each
+// notification is an event the web puts in its own words (components/bell/bell.ts).
+export type NotificationKind = "house_invite" | "rent_together" | "invite_accepted" | "rent_together_yes" | "knock" | "knock_answer";
+export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
+
+export interface Notice {
+  id: string;
+  kind: NotificationKind;
+  // Invitations only; null for news.
+  state: InviteState | null;
+  from: Person | null;
+  house: { id: string; name: string; city: string } | null;
+  room: string | null;
+  // The knock it's about, and how its vote went.
+  applicationId: string | null;
+  verdict: "admitted" | "declined" | null;
+  createdAt: string;
+  read: boolean;
+}
+
+export interface Notices {
+  unread: number;
+  items: Notice[];
+  // Your invitations still waiting for an answer: the person card says "Invited" instead of offering another.
+  sent: { id: string; kind: "house_invite" | "rent_together"; to: string; houseId: string | null }[];
+}

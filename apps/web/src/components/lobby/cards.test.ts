@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homeLine, knockOn, roomOf, roomsLine, shortRepo } from "./cards";
+import { homeLine, knockOn, nearestEmptyPlot, roomOf, roomsLine, shortRepo } from "./cards";
 
 const room = (name: string, occupied: boolean) => ({
   name,
@@ -60,5 +60,17 @@ describe("repo links", () => {
     expect(shortRepo("https://github.com/djbrl/app/")).toBe("djbrl/app");
     expect(shortRepo("https://github.com/djbrl/app.git")).toBe("djbrl/app");
     expect(shortRepo("https://gitlab.com/djbrl/app")).toBe("gitlab.com/djbrl/app");
+  });
+});
+
+describe("finding a plot to rent together", () => {
+  it("picks the nearest empty plot, never a house's", () => {
+    const plots = [
+      { key: "a", x: 1, z: 1, lot: { kind: "house" } },
+      { key: "b", x: 10, z: 0, lot: { kind: "shop" } },
+      { key: "c", x: -3, z: 2, lot: { kind: "trees" } },
+    ];
+    expect(nearestEmptyPlot(plots, { x: 0, z: 0 })).toBe("c");
+    expect(nearestEmptyPlot(plots.slice(0, 1), { x: 0, z: 0 })).toBeNull();
   });
 });

@@ -1,38 +1,40 @@
 <script setup lang="ts">
 // Someone you met in the street: who they are, where they live, what they build (and whether it's online), and
-// what you can do about it. Like a game's interaction menu: one main action, the rest as icon tiles. A made-up person
-// (a seeded flatmate, or a passer-by the lobby invents) says so, and only a real GitHub account gets a profile link.
+// what you can do about it. Like a game's interaction menu: one main action, the rest as icon tiles. The main action
+// depends on who they are and who you are (streetActions in personActions.ts): see their house; invite them to your
+// house's free room; rent a place together; or log in first. A made-up person (a seeded flatmate, or a passer-by
+// the lobby invents) says so, and their invitation is shown disabled; only a real GitHub account gets a profile link.
+// Invitations are structured actions, never messages: the team chose no direct messages.
 import { computed, ref } from "vue";
+import { inviteToHouse, notices, rentTogether, withdrawInvite } from "../../notices";
 import { me } from "../../session";
 import type { CityHouse } from "../../types";
+import { bellWords as bw } from "../bell/words";
 import Icon from "./house/Icon.vue";
-import { type CityRoom, freeRooms, type Home, homeLine, knockOn, roomOf, sentence } from "./cards";
+import { type Home, homeLine, roomOf, sentence } from "./cards";
 import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { roomLine, roomState } from "./panel/words";
+import { streetActions } from "./personActions";
 import { cardWords as w } from "./words";
 
 const props = defineProps<{
   login: string;
   name: string;
-  // Where they live, or null when they're just visiting.
+  // Where they live, or null when they have no house (or only the workshop's practice room).
   home: Home | null;
-  // Their house, as the city lists it (for their project and the free rooms).
+  // Their house, as the city lists it (for their project).
   house: CityHouse | null;
+  // Your own house, as the city lists it (for its free rooms), if you have one.
+  myHouse: CityHouse | null;
   isMe: boolean;
-  // A passer-by the lobby made up (passersby.ts): an example person, with no house and no GitHub account.
+  // A passer-by the lobby made up (passersby.ts), or someone the live line says is an example person.
   example?: boolean;
+  // What the live line says about someone walking around: whether they logged in with GitHub.
+  github?: boolean;
 }>();
-// `thread` opens your knock on their house (its id), when you already have one.
-const emit = defineEmits<{ knock: [houseId: string, room: CityRoom]; see: [houseId: string]; thread: [applicationId: string]; wave: []; close: [] }>();
-
-const free = computed(() => (props.house ? freeRooms(props.house) : []));
-const liveThere = computed(() => !!props.house && (me.value?.houses.some((h) => h.id === props.house!.id) ?? false));
-// Your open knock on their house: then the card takes you to it instead of offering a second one.
-const knock = computed(() => (props.isMe || liveThere.value ? null : knockOn(me.value?.knocks, props.house?.id)));
-// You can ask to join their house when it has a free room, it's real, you're logged in, and it isn't yours already.
-const canAsk = computed(() => !props.isMe && !knock.value && !!props.house && !props.house.demo && free.value.length > 0 && !!me.value && !liveThere.value);
-const askLogin = computed(() => !props.isMe && !!props.house && free.value.length > 0 && !props.house.demo && !me.value);
+// `see` opens their house's window (the lobby takes you to its door first, in its city).
+const emit = defineEmits<{ see: [houseId: string]; wave: []; close: [] }>();
 
 // Their room in the city's list: what they build, in their own words, and whether it's online.
 const room = computed(() => roomOf(props.house, props.home?.room));
@@ -41,18 +43,46 @@ const state = computed(() => (room.value ? roomState(room.value, props.house?.st
 // Its state in words, first in the line under the name ("Online."), the dot beside the name in colour.
 const stateWords = computed(() => (room.value ? roomLine(room.value, props.house?.status, props.house?.demo) : ""));
 const where = computed(() => homeLine(props.login, props.home));
-// Their GitHub profile only when the API says they have a real account; a made-up person's login may be a stranger's.
 const occupant = computed(() => room.value?.occupant ?? null);
-const github = computed(() => (occupant.value?.github === true ? `https://github.com/${encodeURIComponent(props.login)}` : null));
 const madeUp = computed(() => !!props.example || !!props.house?.demo || occupant.value?.github === false);
 
-// Several free rooms: pick one first.
-const choosing = ref(false);
+const actions = computed(() =>
+  streetActions(
+    {
+      login: props.login,
+      isMe: props.isMe,
+      example: madeUp.value,
+      github: occupant.value?.github ?? props.github,
+      home: props.home ? { houseId: props.home.houseId, houseName: props.home.houseName } : null,
+    },
+    me.value,
+    props.myHouse,
+    notices.sent,
+  ),
+);
+const main = computed(() => actions.value.main);
+const first = computed(() => props.name.split(" ")[0]);
 
-function ask() {
-  if (!props.house) return;
-  if (free.value.length === 1) emit("knock", props.house.id, free.value[0]);
-  else choosing.value = true;
+// Sending an invitation: a sentence once it's sent, or the API's refusal in its own words.
+const busy = ref(false);
+const said = ref("");
+const error = ref("");
+async function send(kind: "invite" | "rent" | "withdraw") {
+  const m = main.value;
+  if (busy.value || !m) return;
+  busy.value = true;
+  error.value = "";
+  said.value = "";
+  const sent =
+    kind === "invite" && m.kind === "invite"
+      ? await inviteToHouse(props.login, m.houseId)
+      : kind === "rent"
+        ? await rentTogether(props.login)
+        : (m.kind === "invited" || m.kind === "asked") ? await withdrawInvite(m.inviteId) : null;
+  busy.value = false;
+  if (!sent) return;
+  if (!sent.ok) error.value = sent.message;
+  else if (kind !== "withdraw") said.value = kind === "invite" ? bw.sentInvite(first.value) : bw.sentRent(first.value);
 }
 </script>
 
@@ -82,47 +112,41 @@ function ask() {
       </div>
     </div>
 
-    <template v-if="choosing && house">
-      <p class="soft small">{{ w.whichRoom }}</p>
-      <ul class="rooms">
-        <li v-for="r in free" :key="r.name">
-          <button class="big pick" @click="emit('knock', house.id, r)">
-            <Icon name="door" :size="20" />
-            <span class="pick-text">
-              <span>{{ w.room(r.name) }}</span>
-              <span class="soft small">{{ r.ad ? sentence(r.ad) : w.openToAll }}</span>
-            </span>
-          </button>
-        </li>
-      </ul>
-    </template>
+    <!-- Words only when they matter: an invitation just sent, a refusal, a full house, an example person. -->
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p v-else-if="said" class="soft small" role="status">{{ said }}</p>
+    <p v-else-if="main?.kind === 'full'" class="soft small">{{ bw.fullWhy(main.houseName) }}</p>
+    <p v-else-if="(main?.kind === 'invite' || main?.kind === 'rent') && main.example" class="soft small">{{ bw.exampleWhy }}</p>
 
     <div class="menu">
-      <button v-if="knock" class="big primary" @click="emit('thread', knock.id)"><Icon name="thread" :size="20" /> {{ w.seeKnock }}</button>
-      <button v-else-if="canAsk && !choosing" class="big primary" @click="ask"><Icon name="knock" :size="20" /> {{ w.askToJoin }}</button>
-      <RouterLink v-else-if="askLogin" to="/login" class="big primary"><Icon name="login" :size="20" /> {{ w.logInToAsk }}</RouterLink>
-      <div v-if="(home && !isMe) || (!isMe && me) || github || madeUp" class="tiles">
-        <button v-if="home && !isMe" class="big tile" @click="emit('see', home.houseId)">
-          <Icon name="house" :size="22" /><span>{{ w.house }}<span class="sr-only">{{ w.seeHouse(home.houseName) }}</span></span>
-        </button>
-        <button v-if="!isMe && me" class="big tile" @click="emit('wave')">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <path
-              d="M8 13V6.5a1.5 1.5 0 0 1 3 0V11 M11 11V4.5a1.5 1.5 0 0 1 3 0V11 M14 11V5.5a1.5 1.5 0 0 1 3 0V12 M17 9.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-2.8L4.3 15a1.5 1.5 0 0 1 2.5-1.6L8 15"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          <span>{{ w.sayHi }}</span>
-        </button>
-        <a v-if="github" class="big tile" :href="github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
+      <button v-if="main?.kind === 'see'" class="big primary" :aria-label="bw.seeHouseName(main.houseName)" @click="emit('see', main.houseId)">
+        <Icon name="house" :size="20" /> {{ bw.seeHouse }}
+      </button>
+      <button v-else-if="main?.kind === 'invite'" class="big primary" :disabled="main.example || busy" :aria-label="bw.inviteHomeName(main.houseName)" @click="send('invite')">
+        <Icon name="key" :size="20" /> {{ bw.inviteHome }}
+      </button>
+      <button v-else-if="main?.kind === 'full'" class="big primary" disabled :title="bw.fullWhy(main.houseName)">
+        <Icon name="key" :size="20" /> {{ bw.full }}
+      </button>
+      <button v-else-if="main?.kind === 'rent'" class="big primary" :disabled="main.example || busy" @click="send('rent')">
+        <Icon name="server" :size="20" /> {{ bw.rentTogether }}
+      </button>
+      <div v-else-if="main?.kind === 'invited' || main?.kind === 'asked'" class="sent">
+        <span class="done"><Icon name="tick" :size="18" /> {{ main.kind === "invited" ? bw.invited : bw.asked }}</span>
+        <button class="big quiet" :disabled="busy" :aria-label="bw.withdrawName" @click="send('withdraw')">{{ bw.withdraw }}</button>
+      </div>
+      <RouterLink v-else-if="main?.kind === 'login'" to="/login" class="big primary"><Icon name="login" :size="20" /> {{ bw.logIn }}</RouterLink>
+
+      <div v-if="actions.wave || actions.github || madeUp" class="tiles">
+        <a v-if="actions.github" class="big tile" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
           <Icon name="profile" :size="22" /><span>{{ w.github }}</span>
         </a>
         <button v-else-if="madeUp" class="big tile" disabled :title="w.noGithub">
           <Icon name="profile" :size="22" /><span>{{ w.github }}<span class="sr-only">. {{ w.noGithub }}</span></span>
+        </button>
+        <button v-if="actions.wave" class="big tile" @click="emit('wave')">
+          <Icon name="hand" :size="22" />
+          <span>{{ w.sayHi }}</span>
         </button>
       </div>
     </div>
@@ -140,8 +164,10 @@ function ask() {
 .name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .name strong { overflow-wrap: anywhere; }
 .desc { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.pick { width: 100%; justify-content: flex-start; text-align: left; padding: 8px 14px; }
-.pick-text { display: grid; min-width: 0; }
-.pick-text .small { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A disabled main action (an example person, a full house) stays readable but plainly off. */
+.menu .big.primary:disabled { background: var(--fill); color: var(--muted); box-shadow: none; cursor: not-allowed; }
+/* Already invited: the tick and the word, then "Take back" as a quiet key. */
+.sent { display: flex; align-items: center; gap: 8px; }
+.done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 50px; padding: 0 14px; border-radius: var(--r-md); background: var(--live-soft); color: var(--live); font-weight: 700; }
+.sent .quiet { flex: none; }
 </style>

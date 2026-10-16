@@ -1,6 +1,6 @@
 // The lobby's live line to the server: which neighbourhood we're in, our position and emotes out; everyone else's
-// in, plus a head count per neighbourhood. Reconnects on its own when the line drops (a laptop waking up, the API
-// restarting), and says where we are again when it does.
+// in, plus a head count per neighbourhood, and a nudge when something new is under your bell. Reconnects on its own
+// when the line drops (a laptop waking up, the API restarting), and says where we are again when it does.
 import type { Emote } from "./Lobby";
 
 export interface PlayerState {
@@ -11,6 +11,10 @@ export interface PlayerState {
   z: number;
   ry: number;
   moving: boolean;
+  // Logged in with GitHub (their profile can be linked), and an example person (no invitation can reach them).
+  // An older API leaves both out.
+  github?: boolean;
+  example?: boolean;
 }
 
 type ServerMessage =
@@ -19,7 +23,9 @@ type ServerMessage =
   | { type: "move"; login: string; x: number; z: number; ry: number; moving: boolean }
   | { type: "emote"; login: string; name: Emote }
   | { type: "leave"; login: string }
-  | { type: "census"; counts: Record<string, number> };
+  | { type: "census"; counts: Record<string, number> }
+  // Something new under your bell: fetch the notifications.
+  | { type: "notice" };
 
 export interface LinkEvents {
   // A fresh list of everyone here (on every (re)connect).
@@ -31,6 +37,8 @@ export interface LinkEvents {
   onStatus(connected: boolean): void;
   // How many people are in each neighbourhood.
   onCensus(counts: Record<string, number>): void;
+  // Something new under your bell (an invitation, a knock).
+  onNotice?(): void;
 }
 
 export class LobbyLink {
@@ -90,6 +98,7 @@ export class LobbyLink {
       else if (m.type === "emote") this.events.onEmote(m.login, m.name);
       else if (m.type === "leave") this.events.onLeave(m.login);
       else if (m.type === "census") this.events.onCensus(m.counts);
+      else if (m.type === "notice") this.events.onNotice?.();
     };
     ws.onclose = () => {
       this.events.onStatus(false);

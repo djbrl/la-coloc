@@ -18,6 +18,7 @@ import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
+import { loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
 import type { CityHouse } from "../types";
@@ -27,7 +28,7 @@ import { cityAlert, cityStats } from "./lobby/cityStats";
 import Icon from "./lobby/house/Icon.vue";
 import AfricaMap from "./lobby/AfricaMap.vue";
 import BoardCard from "./lobby/BoardCard.vue";
-import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam } from "./lobby/cards";
+import { type CityRoom, freeRooms, type Home, type MapState, nearestEmptyPlot, parsePlace, placeParam } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
 import HouseCard from "./lobby/HouseCard.vue";
 import Inside from "./lobby/Inside.vue";
@@ -66,6 +67,8 @@ const progress = ref<number | null>(null);
 const ready = ref(false);
 const leaving = ref(false);
 const others = ref(new Set<string>());
+// What the live line says about each person walking here: a real GitHub account, an example person. Their card uses it.
+const players = ref(new Map<string, { github?: boolean; example?: boolean }>());
 const connected = ref(false);
 const census = ref<Record<string, number>>({});
 const sheet = ref<"" | "find" | "travel">("");
@@ -558,14 +561,16 @@ onMounted(() => {
   }
 
   link = new LobbyLink({
-    onSnapshot: (players) => {
+    onSnapshot: (list) => {
       lobby?.clearRemotes();
-      players.forEach((p) => lobby?.addRemote(p));
-      others.value = new Set(players.map((p) => p.login).filter((l) => l !== me.value?.login));
+      list.forEach((p) => lobby?.addRemote(p));
+      others.value = new Set(list.map((p) => p.login).filter((l) => l !== me.value?.login));
+      players.value = new Map(list.map((p) => [p.login, { github: p.github, example: p.example }]));
     },
     onJoin: (p) => {
       lobby?.addRemote(p);
       if (p.login !== me.value?.login) others.value = new Set([...others.value, p.login]);
+      players.value = new Map(players.value).set(p.login, { github: p.github, example: p.example });
     },
     onMove: (login, x, z, ry, moving) => lobby?.moveRemote(login, x, z, ry, moving),
     onEmote: (login, name) => lobby?.emoteRemote(login, name),
@@ -581,6 +586,8 @@ onMounted(() => {
       if (!up) void checkCore();
     },
     onCensus: (counts) => (census.value = counts),
+    // Something new under your bell: the top bar's bell fetches it.
+    onNotice: () => void loadNotices(),
   });
   link.enter(city.value);
 });
@@ -692,6 +699,13 @@ const cardHomeHouse = computed(() => {
   const home = cardHome.value;
   return home ? (props.houses.find((h) => h.id === home.houseId) ?? null) : null;
 });
+// Your own house as the city lists it: the person card offers its free room.
+const myHouse = computed(() => {
+  const mine = me.value?.houses[0]?.id;
+  return mine ? (props.houses.find((h) => h.id === mine) ?? null) : null;
+});
+// What the live line says about the card's person, if they're walking around.
+const cardPlayer = computed(() => (card.value?.kind === "person" ? (players.value.get(card.value.login) ?? null) : null));
 
 // A card opens with a sound and takes focus itself; when it closes, focus goes back to the stage so the keys
 // work on the city again.
@@ -703,16 +717,36 @@ watch(cardKey, (now, before) => {
   }
 });
 
-function seeHouse(id: string) {
-  const h = props.houses.find((x) => x.id === id);
-  if (!h) return;
-  card.value = { kind: "house", house: h };
-  lobby?.goTo(id);
-}
-
 // A house picked on the chores board: you're at its door, and inside.
 function boardHouse(id: string) {
   card.value = null;
+  arriveFor({ kind: "house", id });
+  goInside({ kind: "house", id });
+}
+
+// "Find a plot" under the bell (two people will rent together): walk to the nearest empty plot; its card offers
+// to start a coloc there.
+watch(plotWanted, () => {
+  if (inWorkshop.value || !neighbourhood.value) return;
+  const you = mapState.value?.you ?? { x: 0, z: 0 };
+  const key = nearestEmptyPlot(neighbourhood.value.plots, you);
+  if (!key) return;
+  closeInside();
+  lobby?.goToPlot(key);
+});
+
+// Moved in through an invitation (the bell's "Move in"): the keys, as in the quest, then the house's window.
+const keysFor = computed(() => (movedIn.value && !inWorkshop.value ? movedIn.value : null));
+watch(keysFor, (now) => {
+  if (!now) return;
+  card.value = null;
+  window.setTimeout(() => play("keys"), 250);
+  void loadMe();
+});
+function movedInDone() {
+  const id = movedIn.value?.houseId;
+  movedIn.value = null;
+  if (!id) return;
   arriveFor({ kind: "house", id });
   goInside({ kind: "house", id });
 }
@@ -838,7 +872,7 @@ function onKey(e: KeyboardEvent) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   // A knock or rent dialog, or the Inside sheet, handles its own keys (Escape closes it), and the welcomes (the
   // visitors' one, and the tutorial's cards at either end) have their own too.
-  if (knock.value || rent.value || place.value || !ready.value || failed.value || welcoming.value) return;
+  if (knock.value || rent.value || place.value || keysFor.value || !ready.value || failed.value || welcoming.value) return;
   if (centred.value) return;
   if (e.key === "Escape") {
     if (bigMap.value) bigMap.value = false;
@@ -993,11 +1027,11 @@ function statsOf(name: string) {
             :name="card.name"
             :home="cardHome"
             :house="cardHomeHouse"
+            :my-house="myHouse"
             :is-me="card.login === me?.login"
-            :example="card.example"
-            @knock="(houseId, room) => (knock = { houseId, room })"
-            @see="seeHouse"
-            @thread="(id) => goInside({ kind: 'application', id })"
+            :example="card.example || cardPlayer?.example"
+            :github="cardPlayer?.github"
+            @see="boardHouse"
             @wave="emote('yes')"
             @close="closeCard"
           />
@@ -1088,6 +1122,7 @@ function statsOf(name: string) {
         :house="t.state.house.name"
         @next="t.send({ type: 'next' })"
       />
+      <KeysCard v-if="keysFor" :room="keysFor.room" :house="keysFor.house" @next="movedInDone" />
       <HomeCard
         v-if="inWorkshop && t.step === 'home'"
         :first="myFirstName"
