@@ -429,7 +429,7 @@ the list view's city and house pages in light and dark; the subagent checked eve
 
 ## 10 10 2026, review fixes: the API side
 
-The adversarial review (`docs/review-2026-10-10.md`, moved from the repo root on 12 10) said the exchange was invisible: ledgers at zero, no reviews as
+The adversarial review (`docs/archive/review-2026-10-10.md`, moved from the repo root on 12 10) said the exchange was invisible: ledgers at zero, no reviews as
 rent, no tontine, no mobile money. Four agents fixed it in parallel; this is the API's part.
 
 | What | Where |
@@ -867,6 +867,7 @@ arriving, the migration on Docker Postgres (it ran on PGlite in every test).
 - The house window's person card (`PersonPeek`) keeps its own actions (write in the channel, knock): everyone in it
   lives in that house. A real newcomer in the workshop's window isn't offered an invitation yet.
 - Declining isn't told to the sender (their "Invited" just goes away); that's on purpose, but it's a product choice.
+  *Changed later that day (commit 592d7ba): a no now tells the sender under the bell; see the next entries.*
 - Inviting picks your first house when you have several (`me.houses[0]`), and the first free room in it.
 - The other places that show a person (a knock's thread, the list view's pages, the crew row's faces in the list
   view) don't have the new actions.
@@ -897,3 +898,31 @@ took a 0.60 ms median with ten passers-by and without. The phone top bar at 375 
 bell, face, log-out icon, gear. The person card offering room-4 or room-5 and sending room-5. A French keyboard simulated:
 the keys sheet says Z Q S D and A / R; Z walks, AZERTY's W doesn't. **Not seen:** the French notes and knock lines on
 screen (they need the restarted API), a real organisation install, the workshop window's invite.
+
+### 16 Oct 2026, evening: sharing from a laptop, a "no" that's told, and a cleanup for a stable version
+
+Claude Code, no subagents. Three things that landed without their own entry, then a pass so the branch reads as a
+stable version.
+
+| What | What changed | Where |
+|---|---|---|
+| A declined invitation tells the sender (592d7ba) | Saying no to a house invitation or to renting together leaves the sender a notice under the bell ("Fatou said no to Sacré-Cœur", or "… won't rent with you this time"), so they stop waiting | `notifications/notifications.service.ts` (tested), `components/bell/bell.ts`, `bell/words.ts` |
+| The site on another host than the API (e5d31d9) | Vercel forwards `/api` but not WebSockets, and the login cookie belongs to the site's host. So the page asks `GET /api/lobby/ticket` for a one-minute, single-use pass and opens the lobby's socket straight to the API (`VITE_LOBBY_WS`, set at build). `COLOC_WEB_ORIGIN` may list several sites | `auth/auth.service.ts`, `lobby/lobby.controller.ts`, `lobby.gateway.ts` (tested), `web/src/lobby/link.ts` |
+| `npm run share` (ac6ff81) | One command: a Cloudflare quick tunnel to the API, the site built against it and deployed to Vercel with `/api` forwarded, the tunnel kept open until Ctrl+C. It prints the line to restart the API with | `scripts/share.mjs`, [dev.md](dev.md#sharing-the-city-from-a-laptop) |
+| One dev port | The site always runs on 5175 (`strictPort`: it stops rather than move); the API's defaults for `COLOC_PUBLIC_URL` and `COLOC_WEB_ORIGIN`, the GitHub App script, `npm run share`, the docs and the tests agree | `apps/web/vite.config.ts`, `auth/auth.config.ts`, `main.ts`, `docs/dev.md` |
+| Rent-a-server in development | Vite forwards `/agent` too, so the install command the site shows on a laptop connects | `apps/web/vite.config.ts` |
+| Rooms with the same name in two houses | A room's network is named after its house and room (`coloc-room-sacre-coeur--jib`), and a caretaker only lists, swaps, restarts, measures, reads logs of and reports events for its own house's containers (they all carry the house label). Images are tagged `coloc/<house>/<room>` | `apps/agent/src/room-spec.ts` (`roomNetwork`, `roomFilter`, tested), `docker.ts`, `deploy.ts`, `meter.ts`, `events.ts`, `proxy.ts` |
+| Leftovers | An unused tontine rule (skipped reviews pushing you back: not built, so the code goes), an unused house status line and its words, two unused quest words, unused CSS, a stale doc path, the schema's mention of a per-house database that doesn't exist | `packages/domain/src/tontine.ts`, `components/lobby/cards.ts`, `words.ts`, `style.css`, `packages/db/src/schema.ts` |
+
+**Existing rooms after the caretaker restarts.** Containers started before this keep their old network (named after
+the room only): on start the caretaker plugs the proxy into whatever network each container is really on, so they
+keep answering. Each room's next deploy moves it to the new network and then removes the old one, if this house made
+it and only the proxy is left on it. Container names don't change (the deploy id already makes them unique).
+
+**The demo reset** deletes every chat message on purpose: it deletes every house, real ones included, and every
+channel belongs to a house or a knock. Whether real people's houses should survive a reset is now a TODO for Jib.
+
+**Verified.** `npm run build`, `npm test` (555: db 13, domain 20, protocol 4, agent 15, API 238, web 265) and
+`npm run licences:check` pass. Not run against Docker: the network move was reasoned through, not watched.
+**Restart the API and both caretakers** to pick it up (no migration, no reseed); restart Vite to get the `/agent`
+forwarding.

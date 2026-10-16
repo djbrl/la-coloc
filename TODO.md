@@ -68,14 +68,9 @@ The contest needs the project deployed on Datacloud (rules, Art. 6). Until then 
 
 ## Rough edges
 
-- **Rent-a-server in development** · S · good first task. The install command points at `ws://localhost:5173/agent`,
-  which Vite doesn't forward. *Done when:* `apps/web/vite.config.ts` forwards `/agent`.
-- **One dev port** · S · **needs Jib**. The site defaults to 5173; `scripts/github-app.mjs`, `scripts/share.mjs` and
-  `.claude/launch.json` say 5175. *Done when:* they agree.
-- **Room networks can collide** · S. `roomNetwork(room)` in `apps/agent/src/room-spec.ts` ignores the house, so two
-  rooms with the same name on one machine share a network. *Done when:* the name includes the house, with a test.
-- **The demo reset deletes every chat message** · M. `apps/api/src/demo/demo.service.ts` empties `messages`. *Done
-  when:* it removes only the example houses' messages.
+- **The demo reset replants the whole city** · S · **needs Jib**. `apps/api/src/demo/demo.service.ts` deletes every
+  house, the ones real people started included, with their chat and knocks, then plants the seed. *Done when:* we
+  decide whether real people's houses survive a reset, and the code and its test say so.
 - **The tontine's turn changes at midnight without telling open pages** · S. *Done when:* the stream resends then.
 - **Invitations:** the person card inside a house window doesn't offer an invitation; inviting always uses your first
   house. **The quest:** on a phone, chapter 8's card covers half the house's sheet; the QR code can't report a scan.
@@ -114,3 +109,4 @@ runs the isolation demo.
 | Walking by key position, so Z Q S D walk on a French keyboard | `apps/web/src/lobby/keys.ts` |
 | `npm run share`: the site on Vercel, the API behind a tunnel, a pass for the lobby's socket | [dev.md](docs/dev.md#sharing-the-city-from-a-laptop) |
 | The docs rewritten short and plain; old plans archived | [docs/README.md](docs/README.md) |
+| One dev port (5175), rent-a-server on a laptop, rooms with the same name in two houses kept apart, leftovers removed | [build notes, 16 Oct, evening](docs/build-notes.md#16-oct-2026-evening-sharing-from-a-laptop-a-no-thats-told-and-a-cleanup-for-a-stable-version) |
