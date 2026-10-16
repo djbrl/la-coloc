@@ -73,7 +73,7 @@ async function start({ ready = true } = {}) {
   class TestApp {}
   app = await NestFactory.create(TestApp, { logger: false });
   app.setGlobalPrefix("api");
-  app.enableCors({ origin: "http://localhost:5173" });
+  app.enableCors({ origin: "http://localhost:5175" });
   await app.listen(0, "127.0.0.1");
   core.start();
   await new Promise((r) => setTimeout(r, 20));
@@ -140,8 +140,8 @@ describe("every other route", () => {
     expect(res.headers.get("retry-after")).toBe("2");
     expect(res.headers.get("content-type")).toMatch(/json/);
     // Normal CORS headers are still there, so the website can read the answer.
-    const withOrigin = await get("/api/city", { Origin: "http://localhost:5173" });
-    expect(withOrigin.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
+    const withOrigin = await get("/api/city", { Origin: "http://localhost:5175" });
+    expect(withOrigin.headers.get("access-control-allow-origin")).toBe("http://localhost:5175");
     expect(core.ready).toBe(true);
   });
 

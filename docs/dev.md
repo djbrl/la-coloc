@@ -27,7 +27,7 @@ images the first time. Stuck? See [Troubleshooting](#troubleshooting).
 | 2 | The API | 4100 |
 | 3 | Sacré-Cœur's caretaker | none, it dials out |
 | 4 | L'Atelier's caretaker (the quest's workshop) | none |
-| 5 | The website | 5173 |
+| 5 | The website | 5175 |
 | 6 | Optional: the GitHub webhook relay (`npm run dev:webhooks`) | none |
 
 ## 1. Install and build
@@ -120,15 +120,13 @@ Each says `[link] connected to ws://localhost:4100/agent`, and the API logs `age
 npm run dev:web
 ```
 
-Open http://localhost:5173. Vite forwards `/api` and `/lobby-ws` to the API, so the browser stays on one address.
-
-**Using another port** (Jib's setup uses 5175, see `.claude/launch.json`): start the site with
-`npm run dev:web -- --port 5175 --strictPort` and the API with `COLOC_PUBLIC_URL=http://localhost:5175`. The lobby's
-live line only accepts pages from that address.
+Open http://localhost:5175. Vite forwards `/api`, `/lobby-ws` and `/agent` (a caretaker's line) to the API, so the
+browser stays on one address. The port is fixed: if 5175 is taken, Vite stops instead of picking another, because
+the API's `COLOC_PUBLIC_URL` and the GitHub App's callback expect 5175.
 
 ## 8. Log in
 
-Go to http://localhost:5173/login and choose the development login. Pick `jib` (chef of Sacré-Cœur, and an admin),
+Go to http://localhost:5175/login and choose the development login. Pick `jib` (chef of Sacré-Cœur, and an admin),
 `awa`, `moussa` or `koffi`, or type a new name to be a newcomer. Use a private window to be two people at once.
 
 - A **new name gets the quest** "Your first home". Your page goes online at `http://<name>.atelier.coloc.localhost:8000`
@@ -138,15 +136,15 @@ Go to http://localhost:5173/login and choose the development login. Pick `jib` (
 - **To invite:** log in as `jib`, click a newcomer in the street, "Invite to my house". Their bell shows it.
 - **Settings** (the gear): language, day / night, sounds, the list view, the quest, and for admins the demo reset.
 
-Every address, live, is on **http://localhost:5173/dev/start.html** (development only). The main ones:
+Every address, live, is on **http://localhost:5175/dev/start.html** (development only). The main ones:
 
 | What | Where |
 |---|---|
-| The city | http://localhost:5173 |
-| Sacré-Cœur, inside | http://localhost:5173/?city=Dakar&in=house:sacre-coeur |
+| The city | http://localhost:5175 |
+| Sacré-Cœur, inside | http://localhost:5175/?city=Dakar&in=house:sacre-coeur |
 | The API | http://127.0.0.1:4100/api/city |
 | A room's project | http://jib.coloc.localhost:8000 |
-| The style guide | http://localhost:5173/styleguide |
+| The style guide | http://localhost:5175/styleguide |
 | Postgres | `postgres://coloc:coloc-dev-only@127.0.0.1:5433/coloc` |
 
 ## GitHub (optional)
@@ -154,11 +152,11 @@ Every address, live, is on **http://localhost:5173/dev/start.html** (development
 Without it, the dev login works and GitHub features stay off. To turn them on, make your **own** development App:
 
 ```bash
-COLOC_PUBLIC_URL=http://localhost:5173 npm run dev:github-app
+npm run dev:github-app
 ```
 
 Open http://localhost:4101, sign in to GitHub, confirm. It writes `dev/.env.github` and `dev/github-app.pem`
-(both git-ignored). Pass your site's address as above: the script's own default is `http://localhost:5175`.
+(both git-ignored). It uses `COLOC_PUBLIC_URL` for the callback (default `http://localhost:5175`).
 
 Then, in terminal 6, **keep the webhook relay running**. Without it GitHub's events (pull requests, reviews, the App
 being installed) never reach your laptop, so reviewers aren't picked and merges don't deploy:
@@ -185,7 +183,7 @@ npm run share
 1. It opens the tunnel to the API on :4100, builds the site pointed at it, deploys it to the `la-coloc` Vercel
    project, and keeps the tunnel open until Ctrl+C.
 2. Restart the API with the line it prints: `COLOC_PUBLIC_URL=<the site>` and `COLOC_WEB_ORIGIN=<the site>,<your
-   local site>` (it prints `http://localhost:5175` for the local one; change it if you use 5173).
+   local site>` (`http://localhost:5175`).
 3. Add `<the site>/api/auth/github/callback` to your GitHub App's callback URLs.
 
 Vercel forwards `/api` but not WebSockets, so the site opens the lobby's socket straight to the tunnel with a
@@ -244,8 +242,8 @@ It puts `examples/hello` in Jib's room and `examples/memory-hog` in Moussa's 128
 |---|---|---|
 | `PORT`, `HOST` | `4100`, `127.0.0.1` | Where it listens |
 | `COLOC_DATABASE_URL` | `postgres://coloc:coloc-dev-only@127.0.0.1:5433/coloc` | The database |
-| `COLOC_PUBLIC_URL` | `http://localhost:5173` | The site's address. GitHub login returns here; the live line accepts this origin; `https://` makes cookies `Secure` |
-| `COLOC_WEB_ORIGIN` | `http://localhost:5173` | Other sites allowed to call the API and open the live line, comma-separated |
+| `COLOC_PUBLIC_URL` | `http://localhost:5175` | The site's address. GitHub login returns here; the live line accepts this origin; `https://` makes cookies `Secure` |
+| `COLOC_WEB_ORIGIN` | `http://localhost:5175` | Other sites allowed to call the API and open the live line, comma-separated |
 | `COLOC_SECRETS_KEY` | none | 32 bytes in base64; without it rooms can't store secrets |
 | `COLOC_DEV_LOGIN` | off | `1`: log in as anyone. **Development only** |
 | `COLOC_DEMO_RESET`, `COLOC_ADMINS` | off; `jib,Djbrl` with the dev login | The demo reset button, and who may press it |
@@ -280,7 +278,7 @@ Every project in a room receives `COLOC_ROOM`, `COLOC_HOUSE`, `COLOC_CITY`, `COL
 | `Missing environment variable COLOC_HOUSE_ID` | The caretaker reads no file | Use the full command from step 6 |
 | `npm run dev:seed`: `Failed query: CREATE SCHEMA…` | Postgres isn't reachable yet | `npm run dev:proxy`, wait a few seconds, retry |
 | `EADDRINUSE` on 4100 | Another API is running | `lsof -nP -iTCP:4100 -sTCP:LISTEN`; stop it only if it's yours |
-| Vite opens 5174 instead of 5173 | Something holds 5173 | Free it, or pick a port on purpose (step 7) and set `COLOC_PUBLIC_URL` |
+| `Port 5175 is already in use` | Another site is running (perhaps yours) | Use that one, or stop it if it's yours |
 | Nobody walks; "live line" errors in the console | The page's address isn't `COLOC_PUBLIC_URL` | Open exactly that address (`localhost`, not `127.0.0.1`), or fix the setting |
 | The quest's launch fails with a clone error | `COLOC_TUTORIAL_REPO` isn't a committed local clone, or the workshop's caretaker isn't running with `COLOC_ALLOW_LOCAL_REPOS=1` | Step 2 and step 6 |
 | Reviews never get a reviewer; a merge doesn't deploy | The webhook relay isn't running | `npm run dev:webhooks` |
@@ -289,7 +287,6 @@ Every project in a room receives `COLOC_ROOM`, `COLOC_HOUSE`, `COLOC_CITY`, `COL
 | `*.coloc.localhost` doesn't open at all | Your system doesn't resolve `*.localhost` | Use Chrome, Firefox or curl, or add a line to `/etc/hosts` |
 | Code changes have no effect (API, caretaker) | They run from `dist/` | Build that package and restart it |
 | `Failed to resolve entry for package "@coloc/db"` in tests | Stale `packages/*/dist` | `npm run build:packages` |
-| Rent-a-server's command never connects in development | It points at `ws://localhost:5173/agent`, which Vite doesn't forward | Start the caretaker with `COLOC_API_URL=ws://localhost:4100/agent` |
 | Linux: caretaker can't write routes (`EACCES`) | Docker made `/tmp/coloc-agent/proxy` as root | `sudo chown -R $USER /tmp/coloc-agent` |
 
 ## Development only

@@ -11,7 +11,7 @@ const visitor = { headers: {} };
 
 function setup({ ready = true, lookup = async () => ({ login: "jib", name: "Jib", avatar: "male-a" }) as unknown } = {}) {
   const core = { ready, reportDown: vi.fn() };
-  const auth = { config: { publicUrl: "http://localhost:5173" }, userFromRequest: lookup } as unknown as AuthService;
+  const auth = { config: { publicUrl: "http://localhost:5175" }, userFromRequest: lookup } as unknown as AuthService;
   const gateway = new LobbyGateway(auth, core as unknown as Core);
   const sent: unknown[] = [];
   const socket = Object.assign(new EventEmitter(), { close: vi.fn(), readyState: 1, send: (m: string) => sent.push(JSON.parse(m)) });

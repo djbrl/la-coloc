@@ -16,7 +16,7 @@ beforeEach(async () => {
 });
 
 const config = (env: Record<string, string> = {}) =>
-  loadAuthConfig({ COLOC_PUBLIC_URL: "http://localhost:5173", COLOC_GITHUB_CLIENT_ID: "cid", COLOC_GITHUB_CLIENT_SECRET: "csecret", ...env });
+  loadAuthConfig({ COLOC_PUBLIC_URL: "http://localhost:5175", COLOC_GITHUB_CLIENT_ID: "cid", COLOC_GITHUB_CLIENT_SECRET: "csecret", ...env });
 const cookie = (token: string) => ({ headers: { cookie: `other=1; ${SESSION_COOKIE}=${token}` } });
 
 // Stands in for GitHub: hands out a token for the right code, then the profile for that token.
@@ -77,7 +77,7 @@ describe("GitHub login", () => {
     const url = new URL(new AuthService(db, config()).githubAuthorizeUrl("st4te"));
     expect(url.origin + url.pathname).toBe("https://github.com/login/oauth/authorize");
     expect(url.searchParams.get("client_id")).toBe("cid");
-    expect(url.searchParams.get("redirect_uri")).toBe("http://localhost:5173/api/auth/github/callback");
+    expect(url.searchParams.get("redirect_uri")).toBe("http://localhost:5175/api/auth/github/callback");
     expect(url.searchParams.get("state")).toBe("st4te");
   });
 

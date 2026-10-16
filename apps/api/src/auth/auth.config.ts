@@ -22,7 +22,7 @@ export function isAdmin(config: AuthConfig, login: string | null | undefined): b
 }
 
 export function loadAuthConfig(env = process.env): AuthConfig {
-  const publicUrl = (env.COLOC_PUBLIC_URL ?? "http://localhost:5173").replace(/\/$/, "");
+  const publicUrl = (env.COLOC_PUBLIC_URL ?? "http://localhost:5175").replace(/\/$/, "");
   const id = env.COLOC_GITHUB_CLIENT_ID;
   const secret = env.COLOC_GITHUB_CLIENT_SECRET;
   const extra = (env.COLOC_WEB_ORIGIN ?? "").split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean);

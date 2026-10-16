@@ -26,7 +26,7 @@ npm ci && npm run build
 cp dev/.env.example dev/.env.local    # then add the two lines from docs/dev.md, step 2
 npm run dev:proxy && npm run dev:seed # Traefik and Postgres in Docker, then the example city
 npm run start -w @coloc/api           # the API, then the two caretakers (docs/dev.md, step 6)
-npm run dev:web                       # open http://localhost:5173/login
+npm run dev:web                       # open http://localhost:5175/login
 ```
 
 To let someone try it from your laptop: `npm run share` ([how](docs/dev.md#sharing-the-city-from-a-laptop)).

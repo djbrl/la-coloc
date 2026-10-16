@@ -52,10 +52,10 @@ describe("isOutageError", () => {
 
 describe("isApiUrl", () => {
   it("judges same-origin /api/ requests only", () => {
-    const origin = "http://localhost:5173";
+    const origin = "http://localhost:5175";
     expect(isApiUrl("/api/me", origin)).toBe(true);
     expect(isApiUrl("/api/houses/x/stream", origin)).toBe(true);
-    expect(isApiUrl("http://localhost:5173/api/city", origin)).toBe(true);
+    expect(isApiUrl("http://localhost:5175/api/city", origin)).toBe(true);
     expect(isApiUrl("/apiary", origin)).toBe(false);
     expect(isApiUrl("/assets/model.glb", origin)).toBe(false);
     expect(isApiUrl("https://example.com/api/me", origin)).toBe(false);

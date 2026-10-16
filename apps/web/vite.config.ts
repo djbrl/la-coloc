@@ -8,11 +8,16 @@ const api = process.env.COLOC_DEV_API ?? "http://127.0.0.1:4100";
 export default defineConfig({
   plugins: [vue()],
   server: {
+    // The one dev port: the API's COLOC_PUBLIC_URL default, the GitHub App's callback and `npm run share` all say 5175.
+    port: 5175,
+    strictPort: true,
     // Proxying keeps the browser on one origin (no CORS, SSE just works).
     proxy: {
       "/api": api,
       // The lobby's live line (who's walking where).
       "/lobby-ws": { target: api.replace(/^http/, "ws"), ws: true },
+      // A caretaker's line, so the install command shown in development (ws://localhost:5175/agent) connects.
+      "/agent": { target: api.replace(/^http/, "ws"), ws: true },
     },
   },
 });
