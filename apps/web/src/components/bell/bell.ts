@@ -34,6 +34,10 @@ export function noticeRow(n: Notice): NoticeRow {
       return row(w.rentYes(who), w.rentHow, ["plot"]);
     case "invite_accepted":
       return row(w.tookInvite(who, house), w.tookInviteWhy, n.house ? ["house"] : []);
+    case "invite_declined":
+      return row(w.declinedInvite(who, house), w.declinedWhy);
+    case "rent_together_no":
+      return row(w.rentNo(who), w.declinedWhy);
     case "knock":
       return row(w.knock(who, house), n.room ? w.knockRoom(n.room) : null, n.applicationId ? ["knock"] : []);
     case "knock_answer":

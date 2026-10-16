@@ -112,6 +112,8 @@ describe("inviting someone to your house", () => {
     const { id } = await invite();
     await expect(invite()).rejects.toThrow(/already invited/);
     await service.decline(ids.fatou, id);
+    // Jib is told she said no.
+    expect((await service.list(ids.jib)).items[0]).toMatchObject({ kind: "invite_declined", from: { login: "fatou" }, house: { id: "sacre-coeur" } });
     await expect(invite()).rejects.toThrow(/said no today/);
     // Another flatmate may still invite her: the brake is per pair.
     expect(await status(invite("awa"))).toBe("ok");

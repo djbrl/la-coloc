@@ -307,6 +307,9 @@ export type NotificationKind =
   // Your invitation was taken: they moved in (house_invite) or want to rent with you (rent_together).
   | "invite_accepted"
   | "rent_together_yes"
+  // Your invitation was turned down: to your house (house_invite) or to rent together (rent_together).
+  | "invite_declined"
+  | "rent_together_no"
   // The doorbell: someone knocked on your house, or the house answered your knock.
   | "knock"
   | "knock_answer";

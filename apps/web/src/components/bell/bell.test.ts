@@ -41,5 +41,7 @@ describe("a notification under the bell", () => {
     expect(noticeRow(yes)).toMatchObject({ title: "Sacré-Cœur said yes. Welcome home!", actions: ["house"] });
     expect(noticeRow({ ...yes, verdict: "declined" })).toMatchObject({ title: "Sacré-Cœur said no this time.", actions: ["knock"] });
     expect(noticeRow({ ...base, kind: "invite_accepted", state: null, from: { login: "fatou", name: "Fatou Sow", avatarUrl: null } }).title).toBe("Fatou moved into Sacré-Cœur");
+    const no = noticeRow({ ...base, kind: "invite_declined", state: null, from: { login: "fatou", name: "Fatou Sow", avatarUrl: null } });
+    expect([no.title, no.actions]).toEqual(["Fatou said no to Sacré-Cœur", []]);
   });
 });

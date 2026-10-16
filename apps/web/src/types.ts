@@ -309,7 +309,7 @@ export interface RoomManage {
 
 // The bell: GET /api/notifications (apps/api/src/notifications/notifications.service.ts). Never free text: each
 // notification is an event the web puts in its own words (components/bell/bell.ts).
-export type NotificationKind = "house_invite" | "rent_together" | "invite_accepted" | "rent_together_yes" | "knock" | "knock_answer";
+export type NotificationKind = "house_invite" | "rent_together" | "invite_accepted" | "rent_together_yes" | "invite_declined" | "rent_together_no" | "knock" | "knock_answer";
 export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
 
 export interface Notice {

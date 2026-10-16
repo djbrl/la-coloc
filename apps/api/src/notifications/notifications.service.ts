@@ -154,10 +154,14 @@ export class NotificationsService {
     return { kind: n.kind, house: { id: house.id, name: house.name, city: house.city }, room: n.room };
   }
 
-  /** The recipient says no. The sender isn't told (they see their invitation is no longer waiting). */
+  /** The recipient says no, and the sender is told, so they can ask someone else. */
   async decline(userId: string, id: string) {
     const n = await this.openInvite(userId, id);
     await this.decide(n, "declined");
+    if (n.fromId) {
+      const kind = n.kind === "rent_together" ? "rent_together_no" : "invite_declined";
+      await this.create({ userId: n.fromId, kind, fromId: userId, houseId: n.houseId, room: n.room });
+    }
   }
 
   /** The sender takes their invitation back, while it's still open. */
