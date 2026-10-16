@@ -43,6 +43,10 @@ export const icons = {
   spin: "M21 12a9 9 0 1 1-2.6-6.4 M21 3v6h-6",
   // A house: the tour's first step.
   house: "M3 11l9-8 9 8 M5 9.5V21h14V9.5 M10 21v-6h4v6",
+  // An open hand: wave.
+  hand: "M8 13V6.5a1.5 1.5 0 0 1 3 0V11 M11 11V4.5a1.5 1.5 0 0 1 3 0V11 M14 11V5.5a1.5 1.5 0 0 1 3 0V12 M17 9.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-2.8L4.3 15a1.5 1.5 0 0 1 2.5-1.6L8 15",
+  // A card with a face and two lines: someone's profile (no brand logos, so GitHub is this and its name).
+  profile: "M3 5h18v14H3z M9 12a2.2 2.2 0 1 0 0-4.4A2.2 2.2 0 0 0 9 12z M5.8 16.5a3.5 3.5 0 0 1 6.4 0 M14.5 9.5h4 M14.5 13h3",
   // A right chevron: next.
   next: "M9 6l6 6-6 6",
   // A tick: done.

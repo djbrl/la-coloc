@@ -101,3 +101,41 @@ export function rowAction(room: Pick<Room, "name" | "status" | "url" | "occupant
   }
   return visitable ? "visit" : null;
 }
+
+// ---- A person picked in the crew row: what you can do about them ----
+
+// Reaching out, without direct messages (the team chose: the house chat and knock threads only). A flatmate writes to
+// them in the house chat; an outsider knocks on their house (or opens the knock they have); someone logged out is
+// asked to log in. Nothing when it's you, or when there's no way in (a full or example house).
+export type ReachOut =
+  | { kind: "chat" }
+  | { kind: "knock"; room: string }
+  | { kind: "pick" }
+  | { kind: "thread"; id: string }
+  | { kind: "login" }
+  | null;
+
+export interface PersonActions {
+  reach: ReachOut;
+  // Their GitHub profile, only for someone with a real GitHub account: a made-up person's login may well be a
+  // stranger's handle on GitHub, so it's never linked.
+  github: string | null;
+  // A made-up person, seeded so the city isn't empty: said in words on their card.
+  example: boolean;
+  // Waving is your avatar's emote in the city: only from the lobby, logged in, at someone else.
+  wave: boolean;
+}
+
+export function personActions(person: Person, roomDemo: boolean, s: Situation, opts: { inCity: boolean }): PersonActions {
+  const you = s.viewer?.login === person.login;
+  const example = s.demo || roomDemo || person.github === false;
+  const github = person.github === true ? `https://github.com/${encodeURIComponent(person.login)}` : null;
+  const wave = opts.inCity && !!s.viewer && !you;
+  if (you) return { reach: null, github, example, wave: false };
+  // Logged out: logging in is a way in only where there's a room to knock on.
+  if (!s.viewer) return { reach: !s.demo && !s.tutorial && s.freeRooms.length ? { kind: "login" } : null, github, example, wave };
+  if (s.viewer?.member) return { reach: s.making ? null : { kind: "chat" }, github, example, wave };
+  const foot = footFor(s);
+  const reach: ReachOut = foot.kind === "knock" || foot.kind === "pick" || foot.kind === "thread" || foot.kind === "login" ? foot : null;
+  return { reach, github, example, wave };
+}

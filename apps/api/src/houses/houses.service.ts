@@ -74,8 +74,9 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function person(u: Pick<UserRow, "login" | "name" | "avatarUrl"> | null | undefined): PersonView | null {
-  return u ? { login: u.login, name: u.name, avatarUrl: u.avatarUrl } : null;
+// `github`: whether they logged in with GitHub, so the web may link their profile. Seeded and demo people never did.
+function person(u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId"> | null | undefined): PersonView | null {
+  return u ? { login: u.login, name: u.name, avatarUrl: u.avatarUrl, github: u.githubId !== null } : null;
 }
 
 @Injectable()

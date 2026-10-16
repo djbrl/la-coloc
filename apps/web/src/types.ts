@@ -7,6 +7,9 @@ export interface Person {
   login: string;
   name: string | null;
   avatarUrl: string | null;
+  // Has a real GitHub account, so their profile can be linked. Only the house views send it (an older API doesn't):
+  // missing means "don't link".
+  github?: boolean;
 }
 
 export interface RoomUsage {

@@ -25,6 +25,15 @@ async function userId(login: string) {
 }
 
 describe("HousesService", () => {
+  it("says who has a GitHub account, so the web links only real profiles", async () => {
+    const { users } = await import("@coloc/db");
+    await db.update(users).set({ githubId: 42 }).where(eq(users.login, "jib"));
+    const people = Object.fromEntries((await svc.view("sacre-coeur"))!.rooms.filter((r) => r.occupant).map((r) => [r.occupant!.login, r.occupant!.github]));
+    expect(people).toEqual({ jib: true, awa: false, moussa: false });
+    const almadies = await svc.view("almadies");
+    expect(almadies!.members.every((m) => m.github === false)).toBe(true);
+  });
+
   it("collapses a crash loop into one fridge note with a count", async () => {
     await svc.recordRoomEvent("sacre-coeur", oom);
     await svc.recordRoomEvent("sacre-coeur", oom);

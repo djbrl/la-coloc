@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HouseView, Person, Room, Viewer } from "../../../types";
-import { canKnock, crewOf, footFor, rowAction, type Situation } from "./crew";
+import { canKnock, crewOf, footFor, personActions, rowAction, type Situation } from "./crew";
 import { houseWords } from "./words";
 
 const person = (login: string): Person => ({ login, name: login[0].toUpperCase() + login.slice(1), avatarUrl: null });
@@ -111,5 +111,42 @@ describe("a room row's one button", () => {
   it("offers nothing while the house is being made", () => {
     const s = situation({ viewer: viewer({ member: true, role: "chef", room: "one" }), making: true });
     expect(rowAction(mine, s, footFor(s))).toBe(null);
+  });
+});
+
+describe("a person picked in the crew row", () => {
+  const real: Person = { ...person("awa"), github: true };
+  const seeded: Person = { ...person("ibou"), github: false };
+  const city = { inCity: true };
+
+  it("lets a flatmate reach out in the house chat, and wave from the city", () => {
+    const a = personActions(real, false, situation({ viewer: viewer({ member: true, room: "jib" }) }), city);
+    expect(a.reach).toEqual({ kind: "chat" });
+    expect(a.wave).toBe(true);
+    expect(personActions(real, false, situation({ viewer: viewer({ member: true }) }), { inCity: false }).wave).toBe(false);
+  });
+
+  it("lets an outsider knock on their house, or open the knock they already have", () => {
+    expect(personActions(real, false, situation({ freeRooms: ["four"] }), city).reach).toEqual({ kind: "knock", room: "four" });
+    expect(personActions(real, false, situation({ freeRooms: ["three", "four"] }), city).reach).toEqual({ kind: "pick" });
+    expect(personActions(real, false, situation({ viewer: viewer({ application: "k9" }) }), city).reach).toEqual({ kind: "thread", id: "k9" });
+    expect(personActions(real, false, situation({ viewer: null, freeRooms: ["four"] }), city).reach).toEqual({ kind: "login" });
+  });
+
+  it("offers no way in at a full house or an example one, and nothing to yourself", () => {
+    expect(personActions(real, false, situation(), city).reach).toBeNull();
+    expect(personActions(seeded, false, situation({ demo: true, freeRooms: ["four"] }), city).reach).toBeNull();
+    expect(personActions(seeded, false, situation({ viewer: null, demo: true }), city).reach).toBeNull();
+    expect(personActions(real, false, situation({ viewer: null }), city).reach).toBeNull();
+    const you = personActions({ ...person("jib"), github: true }, false, situation(), city);
+    expect(you).toEqual({ reach: null, github: "https://github.com/jib", example: false, wave: false });
+  });
+
+  it("links a GitHub profile only for a real account, and marks made-up people as examples", () => {
+    expect(personActions(real, false, situation(), city)).toMatchObject({ github: "https://github.com/awa", example: false });
+    expect(personActions(seeded, false, situation(), city)).toMatchObject({ github: null, example: true });
+    // An older API doesn't say: no link, and only the house's own flags make an example.
+    expect(personActions(person("moussa"), false, situation(), city)).toMatchObject({ github: null, example: false });
+    expect(personActions(person("ndeye"), true, situation(), city).example).toBe(true);
   });
 });

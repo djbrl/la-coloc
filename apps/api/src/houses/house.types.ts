@@ -6,6 +6,9 @@ export interface PersonView {
   login: string;
   name: string | null;
   avatarUrl: string | null;
+  // Has a real GitHub account (logged in with GitHub): their login is then their GitHub handle, and the web links
+  // their profile. Seeded example people never have one. Set by the house views; absent elsewhere.
+  github?: boolean;
 }
 
 export interface RoomUsage {

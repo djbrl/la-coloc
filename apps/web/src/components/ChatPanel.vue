@@ -9,7 +9,9 @@ import type { Message } from "../types";
 import Avatar from "./Avatar.vue";
 import { commonWords as w } from "./words";
 
-const props = defineProps<{ messages: Message[]; postUrl: string | null; me: string | null; placeholder?: string }>();
+// `start`: begins a message for you and puts the cursor after it (reaching out to a flatmate from their card: "Awa, ").
+// A new `n` starts it again.
+const props = defineProps<{ messages: Message[]; postUrl: string | null; me: string | null; placeholder?: string; start?: { text: string; n: number } | null }>();
 
 const draft = ref("");
 const sending = ref(false);
@@ -20,6 +22,18 @@ useWhenBack(() => {
   if (errorDown.value) error.value = "";
 });
 const list = ref<HTMLElement | null>(null);
+const input = ref<HTMLInputElement | null>(null);
+watch(
+  () => props.start?.n,
+  async () => {
+    if (!props.start) return;
+    if (!draft.value.startsWith(props.start.text)) draft.value = props.start.text + draft.value;
+    await nextTick();
+    input.value?.focus({ preventScroll: true });
+    input.value?.setSelectionRange(draft.value.length, draft.value.length);
+  },
+  { immediate: true },
+);
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -72,6 +86,7 @@ async function send() {
     </div>
     <form v-if="postUrl" class="compose" novalidate @submit.prevent="send">
       <input
+        ref="input"
         v-model="draft"
         :placeholder="placeholder ?? w.messageHouse"
         :aria-label="w.message"

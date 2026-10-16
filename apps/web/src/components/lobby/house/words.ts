@@ -102,7 +102,25 @@ export const houseWords = defineWords(
     seatKnock: (name: string, room: string) => `${name} is knocking on room ${room}. Open their knock`,
     seatChef: "the chef",
     seatYou: "you",
-    seatShow: (who: string) => `${who}. Show their room`,
+    seatShow: (who: string) => `${who}. Show who they are and what you can do`,
+
+    // A person picked in the crew (PersonPeek.vue). No direct messages: a flatmate is reached in the channel, an
+    // outsider by knocking.
+    person: {
+      label: (name: string) => `${name}, and what you can do`,
+      close: "Close",
+      room: (name: string) => `Room ${name}`,
+      example: "example",
+      exampleWhy: "An example person, made up so the city isn't empty. No GitHub account.",
+      chat: "Write in the channel",
+      chatStart: (first: string) => `${first}, `,
+      github: "GitHub",
+      githubName: (login: string) => `@${login} on GitHub (opens a new tab)`,
+      noGithub: "No GitHub profile: an example person",
+      wave: "Wave",
+      waveName: (first: string) => `Wave at ${first} in the city`,
+      waved: (first: string) => `You waved at ${first}.`,
+    },
 
     // The window's rundown (Rundown.vue).
     tour: {
@@ -248,7 +266,23 @@ export const houseWords = defineWords(
     seatKnock: (name, room) => `${name} frappe à la chambre ${room}. Ouvrir sa demande`,
     seatChef: "le chef",
     seatYou: "vous",
-    seatShow: (who) => `${who}. Montrer sa chambre`,
+    seatShow: (who) => `${who}. Voir qui c'est et ce que vous pouvez faire`,
+
+    person: {
+      label: (name) => `${name}, et ce que vous pouvez faire`,
+      close: "Fermer",
+      room: (name) => `Chambre ${name}`,
+      example: "exemple",
+      exampleWhy: "Une personne d'exemple, inventée pour que la ville ne soit pas vide. Pas de compte GitHub.",
+      chat: "Écrire au salon",
+      chatStart: (first) => `${first}, `,
+      github: "GitHub",
+      githubName: (login) => `@${login} sur GitHub (nouvel onglet)`,
+      noGithub: "Pas de profil GitHub : une personne d'exemple",
+      wave: "Saluer",
+      waveName: (first) => `Saluer ${first} dans la ville`,
+      waved: (first) => `Vous avez salué ${first}.`,
+    },
 
     tour: {
       label: "Ce qu'il y a dans cette fenêtre",

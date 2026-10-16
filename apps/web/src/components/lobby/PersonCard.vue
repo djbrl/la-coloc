@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Someone you met in the street: who they are, where they live, what they build (and whether it's online), and
-// what you can do about it. Like a game's interaction menu: one main action, the rest as icon tiles.
+// what you can do about it. Like a game's interaction menu: one main action, the rest as icon tiles. A made-up person
+// (a seeded flatmate, or a passer-by the lobby invents) says so, and only a real GitHub account gets a profile link.
 import { computed, ref } from "vue";
 import { me } from "../../session";
 import type { CityHouse } from "../../types";
@@ -19,6 +20,8 @@ const props = defineProps<{
   // Their house, as the city lists it (for their project and the free rooms).
   house: CityHouse | null;
   isMe: boolean;
+  // A passer-by the lobby made up (passersby.ts): an example person, with no house and no GitHub account.
+  example?: boolean;
 }>();
 // `thread` opens your knock on their house (its id), when you already have one.
 const emit = defineEmits<{ knock: [houseId: string, room: CityRoom]; see: [houseId: string]; thread: [applicationId: string]; wave: []; close: [] }>();
@@ -38,6 +41,10 @@ const state = computed(() => (room.value ? roomState(room.value, props.house?.st
 // Its state in words, first in the line under the name ("Online."), the dot beside the name in colour.
 const stateWords = computed(() => (room.value ? roomLine(room.value, props.house?.status, props.house?.demo) : ""));
 const where = computed(() => homeLine(props.login, props.home));
+// Their GitHub profile only when the API says they have a real account; a made-up person's login may be a stranger's.
+const occupant = computed(() => room.value?.occupant ?? null);
+const github = computed(() => (occupant.value?.github === true ? `https://github.com/${encodeURIComponent(props.login)}` : null));
+const madeUp = computed(() => !!props.example || !!props.house?.demo || occupant.value?.github === false);
 
 // Several free rooms: pick one first.
 const choosing = ref(false);
@@ -59,6 +66,7 @@ function ask() {
       <template v-if="where">{{ where }}</template>
       <template v-else>{{ w.visiting(login) }}</template>
       <template v-if="isMe">{{ w.thatsYou }}</template>
+      <span v-if="madeUp" class="tag" :title="w.exampleWhy">{{ w.example }}<span class="sr-only">. {{ w.exampleWhy }}</span></span>
     </p>
 
     <!-- What they build: the project's name, its state, and a line from them about it. -->
@@ -93,7 +101,7 @@ function ask() {
       <button v-if="knock" class="big primary" @click="emit('thread', knock.id)"><Icon name="thread" :size="20" /> {{ w.seeKnock }}</button>
       <button v-else-if="canAsk && !choosing" class="big primary" @click="ask"><Icon name="knock" :size="20" /> {{ w.askToJoin }}</button>
       <RouterLink v-else-if="askLogin" to="/login" class="big primary"><Icon name="login" :size="20" /> {{ w.logInToAsk }}</RouterLink>
-      <div v-if="(home && !isMe) || (!isMe && me)" class="tiles">
+      <div v-if="(home && !isMe) || (!isMe && me) || github || madeUp" class="tiles">
         <button v-if="home && !isMe" class="big tile" @click="emit('see', home.houseId)">
           <Icon name="house" :size="22" /><span>{{ w.house }}<span class="sr-only">{{ w.seeHouse(home.houseName) }}</span></span>
         </button>
@@ -110,6 +118,12 @@ function ask() {
           </svg>
           <span>{{ w.sayHi }}</span>
         </button>
+        <a v-if="github" class="big tile" :href="github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
+          <Icon name="profile" :size="22" /><span>{{ w.github }}</span>
+        </a>
+        <button v-else-if="madeUp" class="big tile" disabled :title="w.noGithub">
+          <Icon name="profile" :size="22" /><span>{{ w.github }}<span class="sr-only">. {{ w.noGithub }}</span></span>
+        </button>
       </div>
     </div>
   </LobbyCard>
@@ -117,6 +131,8 @@ function ask() {
 
 <style scoped>
 .who { margin-top: -6px; overflow-wrap: anywhere; }
+/* The honest marker: a quiet word, its sentence on hover and for a screen reader. */
+.tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--r-xs); background: var(--fill); color: var(--muted); font-size: 11.5px; font-weight: 600; line-height: 17px; }
 /* Their project, as a small block: what it's called, whether it's online, and what it does. */
 .project { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-md); background: var(--tile); }
 .ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--surface); color: var(--muted); }

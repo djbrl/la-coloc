@@ -57,6 +57,12 @@ export const cardWords = defineWords(
     house: "House",
     seeHouse: (house: string) => `: see ${house}`,
     sayHi: "Say hi",
+    // A made-up person (a seeded flatmate, a passer-by): said honestly, and their GitHub never linked.
+    example: "example person",
+    exampleWhy: "Made up so the city isn't empty. No GitHub account.",
+    github: "GitHub",
+    githubName: (login: string) => `@${login} on GitHub (opens a new tab)`,
+    noGithub: "No GitHub profile: an example person",
   },
   {
     stillFinding: "Cherche encore ses colocs.",
@@ -104,6 +110,11 @@ export const cardWords = defineWords(
     house: "Maison",
     seeHouse: (house) => `: voir ${house}`,
     sayHi: "Dire bonjour",
+    example: "personne d'exemple",
+    exampleWhy: "Inventée pour que la ville ne soit pas vide. Pas de compte GitHub.",
+    github: "GitHub",
+    githubName: (login) => `@${login} sur GitHub (nouvel onglet)`,
+    noGithub: "Pas de profil GitHub : une personne d'exemple",
   },
 );
 

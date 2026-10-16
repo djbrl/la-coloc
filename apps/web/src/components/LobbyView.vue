@@ -1141,6 +1141,7 @@ function statsOf(name: string) {
       @change="insideChanged"
       @close="closeInside"
       @link="insideLink"
+      @wave="emote('yes')"
     />
 
     <Transition name="fade">

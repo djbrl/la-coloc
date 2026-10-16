@@ -32,6 +32,8 @@ const emit = defineEmits<{
   link: [url: string];
   // The rundown ended (Got it, or Escape).
   rundownDone: [];
+  // Someone picked in a house's crew was waved at: the lobby plays your avatar's wave.
+  wave: [];
 }>();
 
 const sheet = ref<HTMLElement | null>(null);
@@ -199,9 +201,11 @@ function trapTab(e: KeyboardEvent) {
           :rundown="!!rundown && !rundownSeen"
           :tab="atStart ? tab : undefined"
           :quiet="atStart && quiet"
+          in-city
           @open="go"
           @label="(l) => (label = l)"
           @rundown-done="rundownEnded"
+          @wave="emit('wave')"
         />
         <ApplicationPage v-else-if="top.kind === 'application'" :key="topKey" :id="top.id" embedded @label="(l) => (label = l)" />
         <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded :coached="coached" @label="(l) => (label = l)" />

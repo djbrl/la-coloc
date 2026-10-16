@@ -15,12 +15,13 @@ import KnockSteps from "../KnockSteps.vue";
 import UiNote, { loud, type Note } from "../UiNote.vue";
 import Waiting from "../Waiting.vue";
 import { dueOf, dueWords, reviewSummary, reviewTitle, splitReviews } from "./house/chores";
-import { crewOf, footFor, rowAction, type Seat, type Situation } from "./house/crew";
+import { crewOf, footFor, personActions, rowAction, type Seat, type Situation } from "./house/crew";
 import Crew from "./house/Crew.vue";
 import { billHead, type BillLine, lineWords, linesYoursFirst, reviewsLine, ruleLine, tontineLine, toPay } from "./house/exchange";
 import Icon from "./house/Icon.vue";
 import { notesSummary } from "./house/notes";
 import PayBill from "./house/PayBill.vue";
+import PersonPeek from "./house/PersonPeek.vue";
 import RentServer from "./house/RentServer.vue";
 import Rundown from "./house/Rundown.vue";
 import { evenSplit, fcfa, type ServerInfo } from "./house/server";
@@ -47,9 +48,12 @@ const props = defineProps<{
   // Keep the first-visit rundown from starting by itself, when something else (a quest) is already guiding the
   // player. The rundown still runs when `rundown` asks for it.
   quiet?: boolean;
+  // Shown over the 3D city (the lobby), not on a page of its own: a picked person can be waved at from there.
+  inCity?: boolean;
 }>();
+// `wave`: wave at someone picked in the crew (your avatar's emote in the city).
 // `view`: the house as it arrives (first fetch, then each push on its stream), for a page that shows more of it.
-const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: []; view: [house: HouseView | null] }>();
+const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: []; view: [house: HouseView | null]; wave: [login: string] }>();
 
 // The chef's server info is new on the API side; reading it through this type works whether or not the shared
 // HouseView type has caught up. The exchange (the bill, the tontine, the month's reviews) may be missing from an
@@ -279,9 +283,37 @@ async function light(names: string[], focusKnock = false) {
   litTimer = window.setTimeout(() => (lit.value = []), 1500);
 }
 
+// A face picked in the crew: someone knocking opens their knock; a flatmate opens their card under the faces
+// (PersonPeek: who they are, and reaching out), and their room's row lights up; a free seat lights its room.
+const peeked = ref<string | null>(null);
 function pick(seat: Seat) {
-  if (seat.kind === "knock") emit("open", { kind: "application", id: seat.id });
-  else if (seat.room) light([seat.room]);
+  if (seat.kind === "knock") return emit("open", { kind: "application", id: seat.id });
+  if (seat.kind === "person") peeked.value = peeked.value === seat.person.login ? null : seat.person.login;
+  if (seat.room) light([seat.room]);
+}
+const peek = computed(() => {
+  const s = seats.value.find((x) => x.kind === "person" && x.person.login === peeked.value);
+  if (!s || s.kind !== "person") return null;
+  const room = s.room ? house.value?.rooms.find((r) => r.name === s.room) : undefined;
+  return {
+    person: s.person,
+    line: room?.project ?? (s.room ? w.person.room(s.room) : null),
+    actions: personActions(s.person, !!room?.demo, situation.value, { inCity: !!props.inCity }),
+  };
+});
+// The channel's composer, started with their first name when you reach out to a flatmate there.
+const chatStart = ref<{ text: string; n: number } | null>(null);
+function reachOut() {
+  const p = peek.value;
+  const r = p?.actions.reach;
+  if (!p || !r) return;
+  if (r.kind === "chat") {
+    tab.value = "channel";
+    chatStart.value = { text: w.person.chatStart((p.person.name ?? p.person.login).split(" ")[0]), n: (chatStart.value?.n ?? 0) + 1 };
+    peeked.value = null;
+  } else if (r.kind === "knock") knocking.value = house.value?.rooms.find((x) => x.name === r.room) ?? null;
+  else if (r.kind === "pick") light(situation.value.freeRooms, true);
+  else if (r.kind === "thread") emit("open", { kind: "application", id: r.id });
 }
 
 function go() {
@@ -483,6 +515,16 @@ function rundownEnded() {
           </div>
           <UiNote v-if="rulesNote" :note="rulesNote" />
           <Crew data-tour="crew" :seats="seats" @pick="pick" />
+          <PersonPeek
+            v-if="peek"
+            :key="peek.person.login"
+            :person="peek.person"
+            :line="peek.line"
+            :actions="peek.actions"
+            @reach="reachOut"
+            @wave="emit('wave', peek.person.login)"
+            @close="peeked = null"
+          />
           <!-- Flatmates only: the tontine's turn (its faces in order, the one whose turn it is lit) and the month's
                reviews with the house's review rule. -->
           <div v-if="member" class="life" data-tour="life">
@@ -559,7 +601,7 @@ function rundownEnded() {
       </ul>
 
       <div v-else-if="shownTab === 'channel' && viewer" class="chat-host">
-        <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="viewer.login" />
+        <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="viewer.login" :start="chatStart" />
       </div>
 
       <!-- Reviews (the API's chores): yours first, each a sentence with when it's due and a link to the pull request
