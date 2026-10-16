@@ -5,7 +5,7 @@
 // must be checked with someone who speaks the language.
 
 // The ground a city walks on. The road stays asphalt everywhere; this is the sidewalks, the verges and the market.
-//   asphalt-sand: cement sidewalks, sand drifting over the verges (Dakar).
+//   asphalt-sand: cement sidewalks, sand verges (Dakar).
 //   laterite:     red earth sidewalks and verges (Lomé, Cotonou).
 //   terracotta:   terracotta tiles, a zellige market, ochre dust (Marrakech).
 //   stone:        pale stone flags (Tunis, Kigali's clean paving).

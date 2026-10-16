@@ -64,24 +64,6 @@ function make() {
     },
     1,
   );
-  // Asphalt with sand blown over it in soft patches (Dakar's streets near the curbs).
-  const asphaltSand = canvas(
-    256,
-    (g, r) => {
-      specks(g, r, 256, "#4b4a55", ["#55545f", "#43424c", "#5c5b66"], 2600, 2);
-      for (let i = 0; i < 6; i++) {
-        const x = r() * 256;
-        const y = r() * 256;
-        const rad = 14 + r() * 30;
-        const grad = g.createRadialGradient(x, y, 0, x, y, rad);
-        grad.addColorStop(0, "rgba(214, 190, 140, 0.3)");
-        grad.addColorStop(1, "rgba(214, 190, 140, 0)");
-        g.fillStyle = grad;
-        g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-      }
-    },
-    2,
-  );
   const sand = canvas(256, (g, r) => specks(g, r, 256, "#e3cc9c", ["#d6bd88", "#eedbb0", "#c9ad78", "#f3e4c2"], 3000, 2.5), 3);
   // Red earth, with a few darker pebbles.
   const laterite = canvas(256, (g, r) => specks(g, r, 256, "#b45a32", ["#a34d29", "#c46a3d", "#8f4122", "#cf7b4b"], 3400, 3), 4);
@@ -151,7 +133,7 @@ function make() {
     },
     8,
   );
-  return { grass, park, asphalt, paving, sidewalk, asphaltSand, sand, laterite, dust, terracotta, zellige, stone };
+  return { grass, park, asphalt, paving, sidewalk, sand, laterite, dust, terracotta, zellige, stone };
 }
 
 export type GroundKind = "asphalt-sand" | "laterite" | "terracotta" | "stone";
@@ -165,7 +147,7 @@ export function groundsFor(kind: GroundKind, grassy: boolean) {
   const green = (other: THREE.Texture) => (grassy ? t.grass : other);
   switch (kind) {
     case "asphalt-sand":
-      return { horizon: green(t.sand), lawn: green(t.sand), park: t.park, road: t.asphaltSand, sidewalk: t.sidewalk, market: t.paving };
+      return { horizon: green(t.sand), lawn: green(t.sand), park: t.park, road: t.asphalt, sidewalk: t.sidewalk, market: t.paving };
     case "laterite":
       return { horizon: green(t.laterite), lawn: green(t.laterite), park: t.park, road: t.asphalt, sidewalk: t.laterite, market: t.laterite };
     case "terracotta":
