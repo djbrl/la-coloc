@@ -2,7 +2,7 @@
 // The chores board on the market square: which houses in this city have code reviews waiting, and how many are
 // late. A review is a chore: a flatmate reviews a housemate's pull request, and it takes a little off their rent.
 // Only the counts are public (the pull requests' titles are for the flatmates); each house is one row that takes
-// you to it.
+// you to it. Under them, the city's own board (the chat sheet's Board tab): posts about houses, flatmates, projects.
 import { computed } from "vue";
 import type { CityHouse } from "../../types";
 import Icon from "./house/Icon.vue";
@@ -10,7 +10,7 @@ import LobbyCard from "./LobbyCard.vue";
 import { cardWords as w } from "./words";
 
 const props = defineProps<{ city: string; houses: CityHouse[] }>();
-const emit = defineEmits<{ open: [houseId: string]; close: [] }>();
+const emit = defineEmits<{ open: [houseId: string]; cityBoard: []; close: [] }>();
 
 // The houses with reviews waiting, the busiest first.
 const waiting = computed(() =>
@@ -46,6 +46,7 @@ function line(h: CityHouse): string {
         </button>
       </li>
     </ul>
+    <button class="big city" :aria-label="w.cityBoardName(city)" @click="emit('cityBoard')"><Icon name="board" :size="20" /> {{ w.cityBoard }}</button>
   </LobbyCard>
 </template>
 
@@ -56,5 +57,6 @@ function line(h: CityHouse): string {
 .pin .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .pin strong { font-weight: 600; }
 .pin svg { color: var(--muted); }
+.city.big { width: 100%; }
 .late { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
 </style>

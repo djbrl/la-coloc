@@ -5,6 +5,7 @@
 // is longer than the space. The house view arrives from the API and keeps arriving over its stream, as on HousePage.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useWhenBack, wentDown } from "../../core";
+import { openChat } from "../../conversations";
 import { notices } from "../../notices";
 import { me as session, postJSON, sendJSON } from "../../session";
 import { openStream, type Stream } from "../../stream";
@@ -607,7 +608,7 @@ function rundownEnded() {
       </ul>
 
       <div v-else-if="shownTab === 'channel' && viewer" class="chat-host">
-        <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="viewer.login" :start="chatStart" />
+        <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="viewer.login" :start="chatStart" tools @message="(login) => openChat('dm', { with: login })" />
       </div>
 
       <!-- Reviews (the API's chores): yours first, each a sentence with when it's due and a link to the pull request

@@ -4,12 +4,14 @@
 // depends on who they are and who you are (streetActions in personActions.ts): see their house; invite them to your
 // house's free room; rent a place together; or log in first. A made-up person (a seeded flatmate, or a passer-by
 // the lobby invents) says so, and their invitation is shown disabled; only a real GitHub account gets a profile link.
-// Invitations are structured actions, never messages: the team chose no direct messages.
+// Invitations are structured actions; "Message" opens a direct conversation with them in the chat sheet.
 import { computed, ref } from "vue";
+import { openChat } from "../../conversations";
 import { inviteToHouse, notices, rentTogether, withdrawInvite } from "../../notices";
 import { me } from "../../session";
 import type { CityHouse } from "../../types";
 import { bellWords as bw } from "../bell/words";
+import { messageAction } from "../chat/chat";
 import Icon from "./house/Icon.vue";
 import { type Home, homeLine, roomOf, sentence } from "./cards";
 import LobbyCard from "./LobbyCard.vue";
@@ -61,6 +63,8 @@ const actions = computed(() =>
   ),
 );
 const main = computed(() => actions.value.main);
+// Write to them: a real person, when you're logged in (an example person's key is there, disabled, with why).
+const message = computed(() => messageAction({ isMe: props.isMe, example: madeUp.value }, me.value));
 // The free room to offer, when your house has several: the first until you pick another.
 const pickedRoom = ref<string | null>(null);
 const offered = computed(() => {
@@ -149,7 +153,13 @@ async function send(kind: "invite" | "rent" | "withdraw") {
       </div>
       <RouterLink v-else-if="main?.kind === 'login'" to="/login" class="big primary"><Icon name="login" :size="20" /> {{ bw.logIn }}</RouterLink>
 
-      <div v-if="actions.wave || actions.github || madeUp" class="tiles">
+      <div v-if="actions.wave || actions.github || madeUp || message" class="tiles">
+        <button v-if="message?.kind === 'open'" class="big tile" :aria-label="w.messageName(name)" @click="openChat('dm', { with: login })">
+          <Icon name="chat" :size="22" /><span>{{ w.message }}</span>
+        </button>
+        <button v-else-if="message?.kind === 'example'" class="big tile" disabled :title="w.noMessage">
+          <Icon name="chat" :size="22" /><span>{{ w.message }}<span class="sr-only">. {{ w.noMessage }}</span></span>
+        </button>
         <a v-if="actions.github" class="big tile" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
           <Icon name="profile" :size="22" /><span>{{ w.github }}</span>
         </a>

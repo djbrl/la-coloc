@@ -2,9 +2,13 @@
 // A person picked in the house's crew row: who they are, in one flat card under the faces, and what you can do about
 // them. One main action, reaching out (personActions in crew.ts decides which: write in the channel, knock, see your
 // knock, or log in), then quiet icon buttons: their GitHub profile (only for a real account; an example person's is
-// shown disabled, with why), and a wave from the city. No direct messages: the team chose the channel and knocks.
+// shown disabled, with why), a direct message (in the chat sheet; disabled for an example person) and a wave.
 import { computed, onMounted, ref } from "vue";
+import { openChat } from "../../../conversations";
 import { inviteToHouse } from "../../../notices";
+import { me } from "../../../session";
+import { messageAction } from "../../chat/chat";
+import { cardWords as cw } from "../words";
 import { bellWords as bw } from "../../bell/words";
 import type { Person } from "../../../types";
 import Avatar from "../../Avatar.vue";
@@ -22,6 +26,7 @@ const emit = defineEmits<{ reach: []; wave: []; close: [] }>();
 
 const name = computed(() => props.person.name ?? props.person.login);
 const first = computed(() => name.value.split(" ")[0]);
+const message = computed(() => messageAction({ isMe: me.value?.login === props.person.login, example: props.actions.example }, me.value));
 
 // The main action's icon and words.
 const main = computed(() => {
@@ -87,6 +92,10 @@ onMounted(() => card.value?.focus({ preventScroll: true }));
         <Icon name="key" :size="16" />{{ bw.inviteHome }}
       </button>
       <span v-else-if="actions.invite?.kind === 'invited'" class="done"><Icon name="tick" :size="16" />{{ bw.invited }}</span>
+      <button v-if="message?.kind === 'open'" type="button" class="icon" :aria-label="cw.messageName(name)" :title="cw.messageName(name)" @click="openChat('dm', { with: person.login })">
+        <Icon name="chat" :size="18" />
+      </button>
+      <button v-else-if="message?.kind === 'example'" type="button" class="icon" disabled :aria-label="cw.noMessage" :title="cw.noMessage"><Icon name="chat" :size="18" /></button>
       <a v-if="actions.github" class="button icon" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.person.githubName(person.login)" :title="w.person.githubName(person.login)">
         <Icon name="profile" :size="18" />
       </a>
