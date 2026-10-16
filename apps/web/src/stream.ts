@@ -15,8 +15,37 @@ export interface Stream {
 const RETRY_MS = 3000;
 const GIVE_UP_AFTER = 4;
 
+// A site served from another host than the API (on Vercel, the API behind a Cloudflare quick tunnel: see
+// scripts/share.mjs) can't keep a stream open: the tunnel holds the events back. There, each stream becomes a
+// question asked every few seconds while the tab is visible. Events that carry data (the city, a house) get the
+// answer from the same address without "/stream"; events that only say "something changed" (a city's room and board)
+// are simply fired, and their handlers fetch what they need.
+const POLL_MS = 4000;
+const polling = !!import.meta.env.VITE_LOBBY_WS;
+const NUDGES = new Set(["chat", "board"]);
+
+function poll(url: string, events: Record<string, (e: MessageEvent) => void>): Stream {
+  const base = url.replace(/\/stream$/, "");
+  const needsData = Object.keys(events).some((name) => !NUDGES.has(name));
+  const ask = async () => {
+    if (document.visibilityState !== "visible") return;
+    let data: string | null = null;
+    if (needsData) {
+      const res = await fetch(base).catch(() => null);
+      if (res?.ok) data = await res.text();
+    }
+    for (const [name, handler] of Object.entries(events)) {
+      if (NUDGES.has(name)) handler(new MessageEvent(name, { data: name }));
+      else if (data !== null) handler(new MessageEvent(name, { data }));
+    }
+  };
+  const timer = setInterval(() => void ask(), POLL_MS);
+  return { close: () => clearInterval(timer) };
+}
+
 /** Opens `url` and listens to `events` (name -> handler). `close()` stops it, and everything it was waiting for. */
 export function openStream(url: string, events: Record<string, (e: MessageEvent) => void>): Stream {
+  if (polling) return poll(url, events);
   let source: EventSource | null = null;
   let closed = false;
   let deaths = 0;

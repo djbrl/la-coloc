@@ -80,6 +80,9 @@ To run it locally from scratch, follow [docs/dev.md](docs/dev.md). The site's de
   prints. If the laptop sleeps, the shared site can't reach the API.
 - **GitHub login on the shared site** needs `https://la-coloc.vercel.app/api/auth/github/callback` in the dev GitHub
   App's callback URLs (`la-coloc-dev`).
+- **Live updates on the shared site are polled.** The quick tunnel holds back server-sent event streams, so a site
+  built by `npm run share` asks every 4 s instead (`apps/web/src/stream.ts`). The lobby's WebSocket (people walking,
+  the bell, messages) is not affected. A real server (Datacloud) doesn't need this.
 - **Never turn on `COLOC_DEV_LOGIN`** while sharing: anyone could log in as anyone.
 - **Projects deployed in rooms** answer only on the laptop (`*.coloc.localhost`): a visitor on the shared site can't
   open them. Fixing that needs a real domain (Datacloud).
