@@ -19,6 +19,28 @@ images the first time. Stuck? See [Troubleshooting](#troubleshooting).
 
 `npm ci`, `npm run build`, `npm test` and `npm run licences:check` need no Docker.
 
+## The short way: one command
+
+After the first install (steps 1 to 4 below, once), everything starts with one command:
+
+```bash
+npm run up
+```
+
+and the website in a second terminal: `npm run dev:web` (open http://localhost:5175). In **Multiprise**, just press
+Start on the project: it runs `apps/api`'s `dev` (this same launcher) and `apps/web`'s `dev` (the website), and
+gives them their ports.
+
+`npm run up` (`scripts/up.mjs`) builds what changed, starts the API at once, starts Docker Desktop if needed, then
+Postgres and Traefik, both caretakers (restarted if they crash), the GitHub webhook relay (if `dev/.env.github` has a
+smee channel), and shares the city on Vercel through a tunnel (if `cloudflared` and the Vercel CLI are installed;
+`COLOC_SHARE=0` turns that off). Ctrl+C, or Stop in Multiprise, stops all of it; Docker keeps running. Each line of
+its output is tagged with the piece it comes from (`[api]`, `[sacre-coeur]`, `[share]`…).
+
+While it shares, GitHub login sends people back to the Vercel site, yours included.
+
+The rest of this page is the long way, piece by piece: useful to understand it, or when one piece misbehaves.
+
 ## The terminals
 
 | Terminal | Runs | Port |
@@ -99,7 +121,7 @@ Sacré-Cœur:
 ```bash
 COLOC_HOUSE_ID=sacre-coeur COLOC_AGENT_SECRET=dev-secret-change-me \
 COLOC_USAGE_INTERVAL_MS=5000 COLOC_ALLOW_LOCAL_REPOS=1 \
-  npm run start -w @coloc/agent
+  npm run caretaker -w @coloc/agent
 ```
 
 L'Atelier (the quest needs it to put your page online):
@@ -108,7 +130,7 @@ L'Atelier (the quest needs it to put your page online):
 COLOC_HOUSE_ID=atelier COLOC_AGENT_SECRET=dev-secret-change-me \
 COLOC_HOUSE_DOMAIN=atelier.coloc.localhost COLOC_WORKDIR=/tmp/coloc-agent-atelier \
 COLOC_USAGE_INTERVAL_MS=5000 COLOC_ALLOW_LOCAL_REPOS=1 \
-  npm run start -w @coloc/agent
+  npm run caretaker -w @coloc/agent
 ```
 
 Each says `[link] connected to ws://localhost:4100/agent`, and the API logs `agent online`.
@@ -196,7 +218,7 @@ sharing**, or anyone can log in as anyone.
 | You changed | Do this |
 |---|---|
 | Website code | Nothing: the page reloads |
-| API code | `npm run build -w @coloc/api`, restart terminal 2. (`npm run dev:api` rebuilds on save, but does **not** read `dev/.env.local`) |
+| API code | `npm run build -w @coloc/api`, restart terminal 2 (or restart `npm run up`, which rebuilds what changed). (`npm run dev:api` rebuilds on save, but does **not** read `dev/.env.local`) |
 | Caretaker code | `npm run build -w @coloc/agent`, restart terminals 3 and 4 (or `npm run dev:agent`, same settings) |
 | `packages/*` | `npm run build:packages`, restart the API and caretakers |
 | The database tables | Make a migration ([CONTRIBUTING](../CONTRIBUTING.md#tests-and-database-changes)), `npm run build:packages`, restart the API |

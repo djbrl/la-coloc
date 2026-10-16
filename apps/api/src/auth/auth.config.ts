@@ -5,6 +5,8 @@ export interface AuthConfig {
   // Pages allowed to open the lobby's WebSocket: the public URL's origin, plus any in COLOC_WEB_ORIGIN (a comma
   // list), so the site on Vercel and a laptop's own dev server can both connect.
   origins: string[];
+  // Development (COLOC_DEV_ORIGINS=1, set by scripts/up.mjs): any page on this machine, whatever its port.
+  devOrigins: boolean;
   github: { clientId: string; clientSecret: string } | null;
   // Development only: log in as anyone, no GitHub needed.
   devLogin: boolean;
@@ -29,6 +31,7 @@ export function loadAuthConfig(env = process.env): AuthConfig {
   return {
     publicUrl,
     origins: [...new Set([new URL(publicUrl).origin, ...extra])],
+    devOrigins: env.COLOC_DEV_ORIGINS === "1",
     github: id && secret ? { clientId: id, clientSecret: secret } : null,
     devLogin: env.COLOC_DEV_LOGIN === "1",
     secureCookies: publicUrl.startsWith("https://"),

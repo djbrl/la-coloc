@@ -28,8 +28,9 @@ let tunnel = arg > -1 ? process.argv[arg + 1]?.replace(/\/$/, "") : null;
 let cloudflared = null;
 
 if (!tunnel) {
-  console.log("Opening a tunnel to the API on :4100…");
-  cloudflared = spawn("cloudflared", ["tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:4100"], { stdio: ["ignore", "pipe", "pipe"] });
+  const port = process.env.COLOC_API_PORT ?? "4100";
+  console.log(`Opening a tunnel to the API on :${port}…`);
+  cloudflared = spawn("cloudflared", ["tunnel", "--no-autoupdate", "--url", `http://127.0.0.1:${port}`], { stdio: ["ignore", "pipe", "pipe"] });
   tunnel = await new Promise((resolve, reject) => {
     const seen = (chunk) => {
       const m = chunk.toString().match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);

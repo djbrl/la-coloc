@@ -8,8 +8,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "node --env-file-if-exists=../../dev/.env.local --env-file-if-exists=../../dev/.env.github dist/main.js",
     "seed": "node dist/seed/run.js",
-    "dev": "tsc -p tsconfig.json && (tsc -w -p tsconfig.json --preserveWatchOutput & node --watch dist/main.js)",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:watch": "tsc -p tsconfig.json && (tsc -w -p tsconfig.json --preserveWatchOutput & node --watch dist/main.js)",
+    "dev": "node ../../scripts/up.mjs"
   },
   "dependencies": {
     "@coloc/db": "*",

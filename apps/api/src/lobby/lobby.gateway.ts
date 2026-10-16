@@ -52,7 +52,8 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
   async handleConnection(socket: WebSocket, req: { url?: string; headers: Record<string, string | string[] | undefined> }) {
     const origin = req.headers.origin;
     const allowed = this.auth.config.origins ?? [new URL(this.auth.config.publicUrl).origin];
-    if (origin && !allowed.includes(String(origin))) {
+    const local = this.auth.config.devOrigins && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(String(origin));
+    if (origin && !allowed.includes(String(origin)) && !local) {
       socket.close(4003, "wrong origin");
       return;
     }

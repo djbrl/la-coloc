@@ -63,7 +63,6 @@ The contest needs the project deployed on Datacloud (rules, Art. 6). Until then 
 - **ESLint and Prettier** · M · good first task (agree the rules with Jib first). *Done when:* `npm run lint` runs in CI and passes.
 - **Split `apps/web/src/lobby/Lobby.ts`** (about 2 200 lines) · L. *Done when:* camera, input, people and town are
   separate files with no change in behaviour.
-- **One `npm run dev`** · S · good first task. *Done when:* one command starts the API, both caretakers and the site.
 - **Per-country currency** · S–M · **needs Jib**. Every price is in FCFA, including Kigali, Tunis and Marrakech.
 
 ## Rough edges

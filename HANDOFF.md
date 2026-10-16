@@ -34,7 +34,10 @@ The whole thing runs on Jib's laptop. A public copy of the site is shared throug
 (`COLOC_PUBLIC_URL=https://la-coloc.vercel.app`, `COLOC_WEB_ORIGIN=https://la-coloc.vercel.app,http://localhost:5175`).
 Details and caveats: [docs/dev.md](docs/dev.md#sharing-the-city-from-a-laptop).
 
-To run it locally from scratch, follow [docs/dev.md](docs/dev.md). The site's dev port is **5175**.
+**One command starts it all:** `npm run up` (or Start in Multiprise, which runs `apps/api`'s `dev`, the same
+launcher, plus the website). It builds what changed, then starts the API, Docker, Postgres, Traefik, both caretakers,
+the webhook relay and the Vercel share. To run it from scratch, follow [docs/dev.md](docs/dev.md). The site's dev
+port is **5175**.
 
 ## What to do next (in order)
 

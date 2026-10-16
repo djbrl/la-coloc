@@ -13,12 +13,13 @@
     "dev:seed": "npm run seed -w @coloc/api",
     "dev:github-app": "node scripts/github-app.mjs",
     "dev:webhooks": "node --env-file=dev/.env.github scripts/webhooks.mjs",
-    "dev:api": "npm run dev -w @coloc/api",
-    "dev:agent": "npm run dev -w @coloc/agent",
+    "dev:api": "npm run dev:watch -w @coloc/api",
+    "dev:agent": "cd apps/agent && npx tsx watch src/index.ts",
     "dev:web": "npm run dev -w @coloc/web",
     "licences": "npx --yes license-checker-rseidelsohn --summary --excludePrivatePackages",
     "licences:check": "npx --yes license-checker-rseidelsohn --excludePrivatePackages --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;CC0-1.0;Unlicense;BlueOak-1.0.0;Python-2.0;CC-BY-4.0;OFL-1.1' > /dev/null && echo 'licences OK: no copyleft'",
-    "share": "node scripts/share.mjs"
+    "share": "node scripts/share.mjs",
+    "up": "node scripts/up.mjs"
   },
   "engines": {
     "node": ">=22"

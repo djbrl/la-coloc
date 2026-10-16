@@ -3,7 +3,9 @@ import { defineConfig } from "vite";
 
 // Where the API runs. :4100 by default; COLOC_DEV_API points the dev proxy somewhere else (a stand-in API to test
 // the "core is down" screens against, say). Not COLOC_API_URL: that one is the caretaker's address for the hub.
-const api = process.env.COLOC_DEV_API ?? "http://127.0.0.1:4100";
+// Multiprise starts the API on a port of its choosing and tells the web which (VITE_API_PORT / API_PORT).
+const apiPort = process.env.VITE_API_PORT ?? process.env.API_PORT ?? "4100";
+const api = process.env.COLOC_DEV_API ?? `http://127.0.0.1:${apiPort}`;
 
 export default defineConfig({
   plugins: [vue()],
