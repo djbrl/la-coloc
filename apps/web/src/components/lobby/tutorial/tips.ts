@@ -19,7 +19,7 @@ const TIPS: Record<Tip, { keys: string; touch: string | null }> = {
   walk: { keys: "Click the ground, or use {W} {A} {S} {D}, to walk. {E} goes in at a door.", touch: "Tap the ground to walk there. At a door, tap Go in." },
   dash: { keys: "Tap {Shift} to dash.", touch: "The round arrow button dashes." },
   turn: { keys: "{Q} and {R} turn the view.", touch: "The two round arrows, top right, turn the view." },
-  map: { keys: "{M} opens the big map. Click it to jump anywhere.", touch: "Tap the map to jump somewhere." },
+  map: { keys: "{M} opens the big map. Pick a house there to go to its door.", touch: "Tap the map, then pick a house to go to its door." },
   pick: { keys: "{[} and {]} step through what's around you.", touch: null },
   keys: { keys: "{?} lists every key.", touch: null },
 };
@@ -27,7 +27,7 @@ export const TIP_TEXT = defineWords("tips", TIPS, {
   walk: { keys: "Cliquez sur le sol, ou utilisez {W} {A} {S} {D}, pour marcher. {E} fait entrer par une porte.", touch: "Touchez le sol pour y aller. À une porte, touchez Entrer." },
   dash: { keys: "Appuyez sur {Maj} pour sprinter.", touch: "Le bouton rond à flèche fait sprinter." },
   turn: { keys: "{Q} et {R} font tourner la vue.", touch: "Les deux flèches rondes, en haut à droite, font tourner la vue." },
-  map: { keys: "{M} ouvre la grande carte. Cliquez dessus pour aller n'importe où.", touch: "Touchez la carte pour y aller d'un coup." },
+  map: { keys: "{M} ouvre la grande carte. Choisissez-y une maison pour aller à sa porte.", touch: "Touchez la carte, puis choisissez une maison pour aller à sa porte." },
   pick: { keys: "{[} et {]} passent d'une chose à l'autre autour de vous.", touch: null },
   keys: { keys: "{?} liste toutes les touches.", touch: null },
 });

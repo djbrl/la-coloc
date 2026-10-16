@@ -8,7 +8,7 @@
 defineProps<{
   title: string;
   sub?: string | null;
-  // The viewer's own row: an accent ring.
+  // The viewer's own row: a light orange wash.
   mine?: boolean;
   // A free room, an empty seat: drawn as an outline, no fill.
   open?: boolean;
@@ -45,13 +45,14 @@ defineProps<{
 /* A free room, an empty seat: a dashed outline, nothing inside. */
 .list-row.open { background: none; box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 /* Rows behave like a game menu's entries: the whole row lights under the pointer, and the one holding the keyboard
-   focus is the selected entry. */
+   focus is the selected entry, filled with the soft orange (a fill, never an outline or a stripe). */
 .list-row:hover { background: var(--tile); }
-.list-row:focus-within { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); outline: none; }
-/* Yours: the orange stripe down the left edge, like a pinned entry. */
-.list-row.mine { box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--accent-fill); }
-.list-row.mine:focus-within { box-shadow: inset 0 0 0 2px var(--accent-fill), inset 5px 0 0 var(--accent-fill); }
-.list-row.lit { box-shadow: inset 0 0 0 2px var(--accent-fill), 0 0 0 4px var(--focus); }
+.list-row:focus-within { background: var(--accent-soft); outline: none; }
+/* Yours: a lighter wash of the same orange, like a pinned entry. */
+.list-row.mine { background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
+.list-row.mine:focus-within { background: var(--accent-soft); }
+/* Lit for a moment (picked from the crew above it): the selected fill, a shade stronger. */
+.list-row.lit { background: color-mix(in srgb, var(--accent-fill) 22%, var(--surface)); }
 .lead { flex: none; width: 40px; display: grid; place-items: center; color: var(--muted); }
 .lead:empty { display: none; }
 .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }

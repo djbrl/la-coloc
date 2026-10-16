@@ -1,8 +1,8 @@
 // The minimap's logic without a canvas: its colours come from the city's own grounds, the world fits on the map and
-// back, your arrow points the way you face, and a hover finds the nearest house.
+// back, your arrow points the way you face, a hover finds the nearest house, and a click never moves you to the ground.
 import { describe, expect, it } from "vitest";
 import { styleFor } from "../../lobby/cityStyle";
-import { heading, houseOutline, mapColours, mapFrame, nearest, shade } from "./minimap";
+import { clickOnMap, heading, houseOutline, mapColours, mapFrame, nearest, shade } from "./minimap";
 
 describe("the minimap's colours", () => {
   it("are the city's day grounds: Dakar's sand, Lomé's red earth, Douala's grass", () => {
@@ -73,5 +73,17 @@ describe("a house on the map", () => {
     ];
     expect(nearest(houses, 38, 12, 8)?.name).toBe("Bè Kpota");
     expect(nearest(houses, 25, 30, 8)).toBeNull();
+  });
+});
+
+describe("a click on the map", () => {
+  it("on the small map opens the big one, wherever it lands: it never travels", () => {
+    expect(clickOnMap(false, null)).toEqual({ kind: "open" });
+    expect(clickOnMap(false, { id: "almadies" })).toEqual({ kind: "open" });
+  });
+
+  it("on the big map goes to the door of the house under it, and does nothing on empty ground", () => {
+    expect(clickOnMap(true, { id: "almadies" })).toEqual({ kind: "go", houseId: "almadies" });
+    expect(clickOnMap(true, null)).toBeNull();
   });
 });

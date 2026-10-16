@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { TutorialState } from "../../../types";
 import { qrPath, whatsappLink } from "./share";
-import { nextTip, type Tip, tipParts } from "./tips";
+import { nextTip, type Tip, TIP_TEXT, tipParts } from "./tips";
 import { type Action, CHAPTER_OF, CHAPTERS, HOUSE_CARDS, resumeStep, SETUP, stageOf, STEPS, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
 
 // What GET /api/tutorial says: a room (or not), GitHub linked (or not), the furthest chapter reached.
@@ -370,6 +370,12 @@ describe("the one-time tips", () => {
   it("skips what a touch screen has no keys for", () => {
     expect(nextTip("idle", ["turn", "map"], true)).toBeNull();
     expect(nextTip("walking", [], true)).toBe("dash");
+  });
+
+  it("says the big map takes you to a house's door, not anywhere you click", () => {
+    expect(TIP_TEXT.map.keys).toContain("door");
+    expect(TIP_TEXT.map.touch).toContain("door");
+    expect(`${TIP_TEXT.map.keys} ${TIP_TEXT.map.touch}`).not.toMatch(/jump|anywhere/i);
   });
 
   it("cuts a tip into words and key caps", () => {

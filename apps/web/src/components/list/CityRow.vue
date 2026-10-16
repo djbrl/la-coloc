@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // One house of the city as one row, like a game's server list: its drawing, its name, where it is and what it's
-// about, its state (a coloured dot), its rooms in a few words, a few of its people, and one way in. The whole row is the way in: the button's
+// about, its state (a coloured dot), its people and rooms as icon chips (HouseStats), a few faces, and one way in. The whole row is the way in: the button's
 // target stretches over it, so a click anywhere on the row opens the house, and Tab stops once per row.
 import { computed } from "vue";
 import type { CityHouse } from "../../types";
@@ -8,6 +8,7 @@ import Avatar from "../Avatar.vue";
 import HouseDrawing from "../HouseDrawing.vue";
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
+import HouseStats from "../lobby/HouseStats.vue";
 import StatusDot from "../lobby/panel/StatusDot.vue";
 import { houseState } from "../lobby/panel/words";
 import { faces, flag, roomsSaid, rowLine } from "./city";
@@ -23,17 +24,17 @@ const names = computed(() => props.house.rooms.filter((r) => r.occupant).map((r)
 <template>
   <ListRow class="city-row" :title="house.name" :mine="mine">
     <template #lead><HouseDrawing :house="house" class="drawing" aria-hidden="true" /></template>
-    <!-- On a phone there's no room for the right side: the rooms take the tagline's place under the name. -->
+    <!-- On a phone there's no room for the right side: the rooms' chips take the tagline's place under the name. -->
     <span class="sub" :title="rowLine(house)">
       <span v-if="flag(house.country)" class="flag" aria-hidden="true">{{ flag(house.country) }}</span>{{ house.city }} ·
-      <span class="wide">{{ rowLine(house) }}</span><span class="narrow" aria-hidden="true">{{ roomsSaid(house) }}</span>
+      <span class="wide">{{ rowLine(house) }}</span><span class="narrow" aria-hidden="true"><HouseStats :house="house" :sample="house.demo" /></span>
     </span>
     <!-- What the right side shows, said once for a screen reader whatever the width (the right side hides on a phone). -->
     <span class="sr-only">{{ state.word }}. {{ roomsSaid(house) }}.<template v-if="names.length"> {{ w.livingHere(names.join(", ")) }}</template></span>
     <template #meta>
       <span class="meta-parts" aria-hidden="true">
         <StatusDot :state="state" />
-        <span class="rooms">{{ roomsSaid(house) }}</span>
+        <HouseStats :house="house" :sample="house.demo" />
         <span v-if="crew.people.length" class="faces">
           <Avatar v-for="p in crew.people" :key="p.login" :person="p" :size="24" decorative />
           <span v-if="crew.more" class="extra">+{{ crew.more }}</span>
@@ -53,7 +54,6 @@ const names = computed(() => props.house.rooms.filter((r) => r.occupant).map((r)
 .city-row { position: relative; min-height: 64px; }
 .drawing { width: 40px; }
 .flag { margin-right: 5px; }
-.rooms { white-space: nowrap; }
 .meta-parts { display: flex; align-items: center; gap: 10px; }
 .narrow { display: none; }
 /* Side by side with a little air: overlapped, initials ran into each other ("AN AW MA"). */

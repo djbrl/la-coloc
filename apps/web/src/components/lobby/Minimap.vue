@@ -2,9 +2,10 @@
 // The neighbourhood from above, north up, like a game's minimap: the city in its own day colours (the sand or red
 // earth, the asphalt streets, the market with its parasols, the park's trees, the shops in the city's wall colour),
 // each house as a little house in its colour, a dot per person in their house's colour, and you as a bright yellow
-// arrow pointing the way you face. An orange pin marks the tutorial's goal (`goal`). Click anywhere to go there.
-// With `large` it fills the middle of the screen (the M key), every house named next to it, and the houses listed
-// beside it as a game menu's entries (the panels' rows) that travel to their door.
+// arrow pointing the way you face. An orange pin marks the tutorial's goal (`goal`). Walking is the game: clicking
+// the small map opens the big one, it never moves you. With `large` it fills the middle of the screen (the M key),
+// every house named next to it, and the houses listed beside it as a game menu's entries (the panels' rows). Picking
+// a house, on the map or in the list, is the one fast travel left: it takes you to its door. Empty ground does nothing.
 // The map is always drawn by day, like the 3D city; only its frame and the two counts under it follow the page's day
 // and night. The drawing itself lives in minimap.ts; this file wires it to the lobby.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
@@ -14,9 +15,11 @@ import type { Neighbourhood } from "../../lobby/neighbourhood";
 import { me } from "../../session";
 import { settings } from "../../settings";
 import type { CityHouse } from "../../types";
-import { type Home, type MapState, statusLine } from "./cards";
+import type { Home, MapState } from "./cards";
 import Icon from "./house/Icon.vue";
-import { drawCity, drawHouse, drawName, drawPerson, drawPin, drawYou, hexOf, mapColours, mapFrame, nearest } from "./minimap";
+import HouseBadge from "./HouseBadge.vue";
+import HouseStats from "./HouseStats.vue";
+import { clickOnMap, drawCity, drawHouse, drawName, drawPerson, drawPin, drawYou, hexOf, mapColours, mapFrame, nearest } from "./minimap";
 import { minimapWords as mw } from "./minimapWords";
 import ListRow from "./panel/ListRow.vue";
 import { hudWords as said } from "./words";
@@ -36,13 +39,16 @@ const props = defineProps<{
   // A house the tutorial wants you to walk to: an orange pin over it, with a halo (static with calm motion).
   goal?: string | null;
 }>();
-const emit = defineEmits<{ travel: [x: number, z: number]; close: [] }>();
+// `go`: travel to a house's door (big map only); `open`: the small map was clicked, open the big one.
+const emit = defineEmits<{ go: [houseId: string]; open: []; close: [] }>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 // The house buttons beside the big map (Vue fills the array from the v-for); the first one takes focus.
 const houseButtons = ref<HTMLButtonElement[]>([]);
 // The house under the mouse on the small map, named in a small label (the big map names them all).
 const hover = ref<{ name: string; x: number; y: number } | null>(null);
+// The house under the mouse on the big map: its row lights up, and a click goes there.
+const pointed = ref<string | null>(null);
 const size = ref(pickSize());
 
 // Marker sizes, small map / big map, in CSS pixels across.
@@ -101,10 +107,6 @@ const mapLabel = computed(() => {
   return goalOnMap.value ? `${base} ${said.yourGoal(goalOnMap.value.house.name)}` : base;
 });
 
-// "Sacré-Cœur, 3 rooms free" / "Bè Kpota, full".
-const line = (h: CityHouse) => `${h.name}, ${statusLine(h).replace(/\.$/, "").toLowerCase()}`;
-// Under a house's name in the list: whether it has room, and, in a sentence, whether it's only an example.
-const sub = (h: CityHouse) => (h.demo ? `${statusLine(h)} ${said.exampleHouse}` : statusLine(h));
 
 // Two different counts: the flatmates of this neighbourhood's houses (the dots by the doors stand in for them), and
 // who is actually online and walking around, you included. Under the small map they're two small chips (a house and
@@ -242,21 +244,25 @@ function draw() {
   paintFrame();
 }
 
-// ---- The mouse: a name on hover (small map), travel on click ----
+// ---- The mouse: a house's name on hover (small map), its row lit (big map); a click on the big map's house goes ----
+
+/** The house drawn under the pointer, if any (within a marker's reach). */
+function houseAt(e: MouseEvent) {
+  const { toX, toY } = frame();
+  const points = housesOnMap.value.map((p) => ({ id: p.house.id, name: p.house.name, x: toX(p.x), y: toY(p.z) }));
+  return nearest(points, e.offsetX, e.offsetY, props.large ? HOUSE.big * 0.8 : 8);
+}
 
 function onMove(e: MouseEvent) {
-  if (props.large) return;
-  const { toX, toY } = frame();
-  const points = housesOnMap.value.map((p) => ({ name: p.house.name, x: toX(p.x), y: toY(p.z) }));
-  hover.value = nearest(points, e.offsetX, e.offsetY, 8);
+  const at = houseAt(e);
+  if (props.large) pointed.value = at?.id ?? null;
+  else hover.value = at;
 }
 
 function onClick(e: MouseEvent) {
-  const b = props.neighbourhood.bounds;
-  const { fromX, fromY } = frame();
-  const x = Math.min(b.maxX, Math.max(b.minX, fromX(e.offsetX)));
-  const z = Math.min(b.maxZ, Math.max(b.minZ, fromY(e.offsetY)));
-  emit("travel", x, z);
+  const click = clickOnMap(!!props.large, props.large ? houseAt(e) : null);
+  if (click?.kind === "open") emit("open");
+  else if (click?.kind === "go") emit("go", click.houseId);
 }
 
 const resize = () => (size.value = pickSize());
@@ -298,28 +304,28 @@ function onKey(e: KeyboardEvent) {
       </button>
       <div class="row">
         <div class="holder">
-          <canvas ref="canvas" role="img" :aria-label="mapLabel" :style="{ width: `${size.w}px`, height: `${size.h}px` }" @click="onClick" />
+          <canvas
+            ref="canvas"
+            role="img"
+            :aria-label="mapLabel"
+            :class="{ pointing: !!pointed }"
+            :style="{ width: `${size.w}px`, height: `${size.h}px` }"
+            @mousemove="onMove"
+            @mouseleave="pointed = null"
+            @click="onClick"
+          />
           <span v-if="goalHalo" class="halo" :class="{ calm: settings.reduceMotion }" :style="goalHalo" aria-hidden="true" />
           <span class="compass" :title="mw.northName" aria-hidden="true">{{ mw.north }}</span>
         </div>
-        <!-- Each house is a menu entry: the whole row travels to its door; its one button is what the keyboard reaches. -->
+        <!-- Each house is a menu entry: the whole row travels to its door; its one button is what the keyboard reaches.
+             The house under the mouse on the map lights its row. -->
         <ul class="houses" :style="{ maxHeight: `${size.h}px` }">
-          <ListRow v-for="p in housesOnMap" :key="p.house.id" class="entry" :title="p.house.name" :sub="sub(p.house)">
-            <template #lead>
-              <!-- The same little house as on the map, in its colour; dashed for a sample. -->
-              <span class="badge" aria-hidden="true">
-                <svg viewBox="0 0 20 20" width="22" height="22">
-                  <path
-                    class="swatch"
-                    :class="{ sample: p.house.demo }"
-                    d="M4 17V9.2H2.5L10 2.5l7.5 6.7H16V17z"
-                    :style="{ fill: hexOf(colorFor(p.house.id)) }"
-                  />
-                </svg>
-              </span>
-            </template>
+          <ListRow v-for="p in housesOnMap" :key="p.house.id" class="entry" :title="p.house.name" :lit="pointed === p.house.id">
+            <!-- The same little house as on the map, in its colour; dashed for a sample. -->
+            <template #lead><HouseBadge :id="p.house.id" :sample="p.house.demo" /></template>
+            <HouseStats :house="p.house" :sample="p.house.demo" />
             <template #end>
-              <button ref="houseButtons" class="go" :aria-label="line(p.house)" @click="emit('travel', p.x, p.z)"><Icon name="next" :size="18" /></button>
+              <button ref="houseButtons" class="go" :aria-label="said.goToDoor(p.house.name)" @click="emit('go', p.house.id)"><Icon name="next" :size="18" /></button>
             </template>
           </ListRow>
         </ul>
@@ -377,7 +383,10 @@ function onKey(e: KeyboardEvent) {
   box-shadow: inset 0 0 0 2px var(--line-strong);
   pointer-events: none;
 }
+/* The small map opens the big one; on the big map only a house can be picked. */
 canvas { display: block; flex: none; border-radius: var(--r-md); cursor: pointer; }
+.big canvas { cursor: default; }
+.big canvas.pointing { cursor: pointer; }
 /* The compass: a small round badge on the map's top right corner, an N under a little pointer. */
 .compass {
   position: absolute;
@@ -465,10 +474,6 @@ h2 { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spac
 /* The houses: the panels' rows, the list scrolling inside itself when it's longer than the map is tall. */
 .houses { list-style: none; margin: 0; padding: 2px; flex: 1; min-width: 240px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; line-height: 1.3; }
 .entry { position: relative; cursor: pointer; }
-.badge { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md); background: var(--surface); }
-/* The swatch matches the house on the map: a solid edge, dashed for a sample house. */
-.swatch { stroke: var(--line-strong); stroke-width: 1.6; stroke-linejoin: round; }
-.swatch.sample { stroke: var(--muted); stroke-dasharray: 2.4 2; }
 /* The row's one button covers the whole row, so a click anywhere on it travels. */
 .houses .go { width: 34px; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); }
 .houses .go::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-md); }

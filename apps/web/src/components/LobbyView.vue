@@ -2,7 +2,7 @@
 // The full-screen lobby, one neighbourhood (city) at a time, and everything that sits on top of it: loading, the
 // welcome, the prompt for whatever is in reach, the city's live activity, a card for the house, person,
 // empty plot or chores board you picked, the inside of a house (its page, an application, a room) opened over the
-// city so you never leave it, a minimap you can travel from, the keys in the corner, short news and tips at the
+// city so you never leave it, a minimap (and a big map, from which you can travel to a house's door), the keys in the corner, short news and tips at the
 // top, and sheets to find a house or travel to another city on a map of Africa. The first time someone logged in
 // arrives, the quest "Your first home" takes the city's place: one street with a house at the end, a beacon at its
 // door, a tracker of eight chapters at the top, a coach at the bottom, and the screen empty but for what the step
@@ -27,12 +27,14 @@ import { cityAlert, cityStats } from "./lobby/cityStats";
 import Icon from "./lobby/house/Icon.vue";
 import AfricaMap from "./lobby/AfricaMap.vue";
 import BoardCard from "./lobby/BoardCard.vue";
-import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam, statusLine } from "./lobby/cards";
+import { type CityRoom, freeRooms, type Home, type MapState, parsePlace, placeParam } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
 import HouseCard from "./lobby/HouseCard.vue";
 import Inside from "./lobby/Inside.vue";
 import KeyLegend from "./lobby/KeyLegend.vue";
 import KeysSheet from "./lobby/KeysSheet.vue";
+import HouseBadge from "./lobby/HouseBadge.vue";
+import HouseStats from "./lobby/HouseStats.vue";
 import Minimap from "./lobby/Minimap.vue";
 import TouchDash from "./lobby/TouchDash.vue";
 import PersonCard from "./lobby/PersonCard.vue";
@@ -140,9 +142,9 @@ function travel(to: string) {
   greet(to);
 }
 
-/** Fast travel: the engine lands you on the nearest walkable spot. From the big map, that closes it. */
-function fastTravel(x: number, z: number) {
-  lobby?.teleport(x, z);
+/** The one fast travel: a house picked on the big map (on the map or in its list) puts you at its door. */
+function travelToHouse(id: string) {
+  lobby?.travelTo(id);
   bigMap.value = false;
 }
 
@@ -1058,9 +1060,9 @@ function statsOf(name: string) {
         </Transition>
       </div>
 
-      <!-- Bottom right: the neighbourhood from above. Click it to travel; M opens it big. -->
+      <!-- Bottom right: the neighbourhood from above. Clicking it (or M) opens it big; it never moves you. -->
       <div v-if="neighbourhood && shows('map')" class="hud map" :class="{ covered: !!card, questing: inWorkshop, finding: !!goal }">
-        <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" @travel="fastTravel" />
+        <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" @open="bigMap = true" />
       </div>
       <!-- Phones have no Shift: a round dash button above the minimap, there whenever the round tools are. -->
       <TouchDash v-if="shows('tools') && !place && !card" @dash="lobby?.dash()" />
@@ -1109,7 +1111,7 @@ function statsOf(name: string) {
       <RentSteps v-if="rent" :city="rent.city" :plot="rent.plot" @built="built" @close="rent = null" />
 
       <Transition name="fade">
-        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" large @travel="fastTravel" @close="bigMap = false" />
+        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" large @go="travelToHouse" @close="bigMap = false" />
       </Transition>
       <Transition name="fade">
         <KeysSheet v-if="keysOpen" @close="keysOpen = false" />
@@ -1156,10 +1158,11 @@ function statsOf(name: string) {
         <ul v-if="found.length" class="entries">
           <li v-for="h in found" :key="h.id">
             <button class="entry" @click="findHouse(h)">
-              <span class="lead"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 11l9-8 9 8 M5 9.5V21h14V9.5 M10 21v-6h4v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+              <!-- The house in its own colour (dashed for an example), its city, and its people and rooms as icons. -->
+              <HouseBadge :id="h.id" :sample="h.demo" />
               <span class="text">
                 <span class="title">{{ h.name }}</span>
-                <span class="sub">{{ h.city }}. {{ statusLine(h) }}{{ h.demo ? w.exampleHouse : "" }}</span>
+                <span class="line"><span class="city">{{ h.city }}</span><HouseStats :house="h" :sample="h.demo" /></span>
               </span>
               <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
             </button>
@@ -1302,12 +1305,13 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 /* The same look as the panels' ListRow (a surface row with a 1px edge). Where you are is the orange dot on the map. */
 .sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px 8px 12px; border: 0; border-radius: var(--r-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: inherit; line-height: 1.3; text-align: left; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease); }
 .sheet .entry:hover:not(:disabled) { background: var(--tile); }
-.sheet .entry:focus-visible { outline: none; background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
+/* The selected entry is filled with the soft orange: a fill, never an outline. */
+.sheet .entry:focus-visible { outline: none; background: var(--accent-soft); }
 .sheet .entry:active { transform: translateY(1px); }
-.sheet .lead { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
 .sheet .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
 .sheet .title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet .line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; font-size: 13px; color: var(--muted); }
 .sheet .chev { flex: none; display: grid; color: var(--muted); }
 .sheet .none { margin: 0; padding: 8px 2px; font-size: 15px; color: var(--muted); }
 /* Where to: wider, the map on the left and the cities beside it. */

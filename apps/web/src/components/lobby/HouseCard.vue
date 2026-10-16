@@ -6,6 +6,7 @@ import { me } from "../../session";
 import type { CityHouse } from "../../types";
 import Avatar from "../Avatar.vue";
 import Icon from "./house/Icon.vue";
+import HouseStats from "./HouseStats.vue";
 import { type CityRoom, knockOn, listNames, nameOf, sentence } from "./cards";
 import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
@@ -51,6 +52,8 @@ const hereLine = computed(() => {
     <button class="x" :aria-label="w.close" @click="emit('close')">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
     </button>
+    <!-- Who lives there, its rooms, the free ones: icons, so it reads whatever language the name is in. -->
+    <HouseStats class="stats" :house="house" :sample="house.demo" />
     <p v-if="trouble" class="where small soft">{{ trouble }}</p>
     <p class="what">{{ what }}</p>
     <p v-if="house.demo && !mine" class="soft small">{{ w.nobodyIn }}</p>
@@ -93,6 +96,7 @@ const hereLine = computed(() => {
 
 <style scoped>
 .name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.stats { margin-top: -8px; }
 .where { margin-top: -6px; }
 .rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .rooms li { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 10px; border-radius: var(--r-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); font-size: 15px; }

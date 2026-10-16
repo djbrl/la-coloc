@@ -129,7 +129,16 @@ export function houseOutline(cx: number, cy: number, size: number): { x: number;
   ];
 }
 
-/** The house under a point on the canvas, if one is within `reach` pixels: for the small map's hover label. */
+/** What a click on the map does. Walking is the game, so the map never moves you to a spot on the ground: the small
+ *  map opens the big one, and on the big map only a house (the one under the click, if any) takes you to its door. */
+export type MapClick = { kind: "open" } | { kind: "go"; houseId: string } | null;
+
+export function clickOnMap(large: boolean, houseUnder: { id: string } | null): MapClick {
+  if (!large) return { kind: "open" };
+  return houseUnder ? { kind: "go", houseId: houseUnder.id } : null;
+}
+
+/** The house under a point on the canvas, if one is within `reach` pixels: the small map's hover label, the big map's pick. */
 export function nearest<T extends { x: number; y: number }>(points: T[], px: number, py: number, reach: number): T | null {
   let best: T | null = null;
   let bestDistance = reach;

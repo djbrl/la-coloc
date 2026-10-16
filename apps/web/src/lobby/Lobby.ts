@@ -5,7 +5,7 @@
 // target: walk up to one and press E, click it, or press [ and ] to pick one from afar; whatever the mouse is over
 // gets an outline. Using one is reported to Vue, which draws the card and does the navigating. Anything far away is walked to along a route
 // found on a grid (path.ts), so you can get to a building from whichever side you're on. Shift dashes, and
-// `teleport` is fast travel. For the tutorial, Vue can switch controls off one by one (`setControls`), hears each
+// `travelTo` is fast travel (to a house's door, from the big map). For the tutorial, Vue can switch controls off one by one (`setControls`), hears each
 // one you use (`onAction`), and can send the camera to show you a spot (`showSpot`); `frame` makes room for a
 // window on the right of the screen.
 // Pure three.js; Vue only mounts it and draws what sits on top (cards, the minimap it's fed by `onMap`).
@@ -745,15 +745,13 @@ export class Lobby {
     this.events.onAction("dash");
   }
 
-  /** Fast travel: puts you at the nearest free spot (not inside a building) and snaps the camera to you. */
-  teleport(x: number, z: number) {
-    const spot = this.freeSpotNear(x, z);
-    this.player.position.set(spot.x, 0, spot.z);
-    this.stop();
-    this.dashUntil = 0;
+  /**
+   * Fast travel, the only kind left: from the big map, straight to a house's door (as `arriveAt`), with the arrival's
+   * sound. The minimap no longer travels: walking is the game.
+   */
+  travelTo(houseId: string) {
     this.clearHighlight();
-    this.setHover(null);
-    this.snap = true;
+    this.arriveAt(houseId);
     play("arrive");
   }
 
@@ -1030,21 +1028,6 @@ export class Lobby {
     return out.normalize().add(who.spot).setY(0);
   }
 
-  /** The nearest spot to (x, z) inside the bounds that isn't inside a building: circles outward until one is free. */
-  private freeSpotNear(x: number, z: number): { x: number; z: number } {
-    const b = this.bounds;
-    for (let r = 0; r < 12; r += 0.5) {
-      const tries = r ? Math.ceil(r * 8) : 1;
-      for (let i = 0; i < tries; i++) {
-        const a = (i / tries) * Math.PI * 2;
-        const px = THREE.MathUtils.clamp(x + Math.cos(a) * r, b.minX, b.maxX);
-        const pz = THREE.MathUtils.clamp(z + Math.sin(a) * r, b.minZ, b.maxZ);
-        if (!this.blocked(px, pz)) return { x: px, z: pz };
-      }
-    }
-    return { x: THREE.MathUtils.clamp(x, b.minX, b.maxX), z: THREE.MathUtils.clamp(z, b.minZ, b.maxZ) };
-  }
-
   /** What gets an outline when a thing is hovered or highlighted: its model(s), but not the ring at a person's feet. */
   private outlineOf(thing: Thing): THREE.Object3D[] {
     if (thing.target.kind === "house") return [(thing as Placed).group];
@@ -1208,7 +1191,13 @@ export class Lobby {
     group.rotation.y = yaw(facing);
     group.userData.houseId = house.id;
     group.userData.facing = facing;
-    group.add(this.label(house.name, house.demo ? "lobby-label house demo" : "lobby-label house", 6.4));
+    // Its name on a flag, after a little square in the house's colour (its flatmates' rings, its marker on the map).
+    const flag = this.label(house.name, house.demo ? "lobby-label house demo" : "lobby-label house", 6.4);
+    const swatch = document.createElement("span");
+    swatch.className = "swatch";
+    swatch.style.background = `#${new THREE.Color(colorFor(house.id)).getHexString()}`;
+    flag.element.prepend(swatch);
+    group.add(flag);
     this.town.add(group);
     const box = this.solid(x, z, facing, placeholder.halfWidth * 2, placeholder.halfDepth * 2);
     // The placeholder is its own windows; the face takes over once the model is in.
