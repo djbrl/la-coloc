@@ -13,7 +13,6 @@
 :root, .tone-day {
   /* Surfaces: a warm paper page, white cards on it, soft fills for tracks and quiet buttons. */
   --bg: #f6f4ef;
-  --bg-alt: #efebe3;
   --surface: #ffffff;
   --sunken: #f3f0ea;
   --tile: #f7f5f1;
@@ -135,7 +134,6 @@
 :root[data-theme="dark"], .tone-night {
   color-scheme: dark;
   --bg: #0b0b0c;
-  --bg-alt: #121214;
   --surface: #151517;
   --sunken: #0f0f11;
   --tile: #1b1b1e;
@@ -181,7 +179,6 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #0b0b0c;
-    --bg-alt: #121214;
     --surface: #151517;
     --sunken: #0f0f11;
     --tile: #1b1b1e;
@@ -260,9 +257,6 @@ code { font-family: var(--mono); font-size: 0.86em; }
 .wrap { max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
 .narrow { max-width: calc(640px + 2 * var(--gutter)); }
 .band { padding: 64px 0; }
-.band.alt { background: var(--bg-alt); }
-.band.tight { padding: 40px 0; }
-.band-head { display: grid; gap: 8px; margin-bottom: 32px; }
 .page { max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 32px var(--gutter) 80px; }
 @media (max-width: 734px) {
   :root { --gutter: 16px; }

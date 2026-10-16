@@ -16,13 +16,6 @@ export const nameOf = (p: { name: string | null; login: string }) => p.name ?? p
 
 export const freeRooms = (h: CityHouse): CityRoom[] => h.rooms.filter((r) => !r.occupant);
 
-/** "Still finding its flatmates." / "2 rooms free." / "Full." */
-export function statusLine(h: CityHouse): string {
-  if (h.status === "making") return w.stillFinding;
-  const n = freeRooms(h).length;
-  return n ? w.roomsFree(n) : w.full;
-}
-
 /** Ends a phrase with a full stop, unless it already has one. */
 export const sentence = (s: string) => (/[.!?…]$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
 

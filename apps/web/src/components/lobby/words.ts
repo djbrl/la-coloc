@@ -8,9 +8,6 @@ export const cardWords = defineWords(
   "cards",
   {
     // cards.ts
-    stillFinding: "Still finding its flatmates.",
-    roomsFree: (n: number) => `${plural(n, "room", "rooms")} free.`,
-    full: "Full.",
     and: "and",
     oneRoom: (free: boolean) => `1 room, ${free ? "free" : "taken"}`,
     rooms: (total: number, free: number) => `${plural(total, "room", "rooms")}, ${free ? `${free} free` : "full"}`,
@@ -58,9 +55,6 @@ export const cardWords = defineWords(
     noGithub: "No GitHub profile: an example person",
   },
   {
-    stillFinding: "Cherche encore ses colocs.",
-    roomsFree: (n) => `${pluriel(n, "chambre libre", "chambres libres")}.`,
-    full: "Complète.",
     and: "et",
     oneRoom: (free) => `1 chambre, ${free ? "libre" : "prise"}`,
     rooms: (total, free) => `${pluriel(total, "chambre", "chambres")}, ${free ? pluriel(free, "libre", "libres") : "complète"}`,

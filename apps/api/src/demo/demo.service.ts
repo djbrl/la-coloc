@@ -63,7 +63,8 @@ export class DemoService {
 
     await this.db.transaction(async (tx) => {
       // Deleting the houses takes their rooms, flatmates, knocks and votes, chores, notes, deployments, secrets,
-      // linked repos and usage with them (all cascade). Chat isn't tied to a house in the schema, so it goes by hand.
+      // linked repos and usage with them (all cascade). Chat isn't tied to a house in the schema, so it goes by hand:
+      // every channel is a house's (`house:<id>`) or a knock's (`application:<id>`), and every house goes.
       await tx.delete(messages);
       await tx.delete(houses);
       await tx.update(users).set({ tutorialDoneAt: null });

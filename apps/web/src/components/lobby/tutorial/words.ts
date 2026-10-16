@@ -109,8 +109,6 @@ export const tutorialWords = defineWords(
     opensInTab: "(opens in a new tab)",
 
     // Chapter 7: show it off.
-    shareTitle: "Show it off.",
-    shareWhy: "Send the link to a friend, or scan it with your phone.",
     shareText: (url: string) => `I just moved into La Coloc, a city of dev houses. My first project is online: ${url}`,
     shareTitleText: "My first project on La Coloc",
     copy: "Copy the link",
@@ -230,8 +228,6 @@ export const tutorialWords = defineWords(
     openIt: "L'ouvrir",
     opensInTab: "(s'ouvre dans un nouvel onglet)",
 
-    shareTitle: "Montrez-le.",
-    shareWhy: "Envoyez le lien à un ami, ou scannez-le avec votre téléphone.",
     shareText: (url) => `Je viens d'emménager à La Coloc, une ville de maisons de devs. Mon premier projet est en ligne : ${url}`,
     shareTitleText: "Mon premier projet sur La Coloc",
     copy: "Copier le lien",

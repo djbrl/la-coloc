@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { creditReviews, nextTontineLine, pickReviewer, splitBill, tontineTurn } from "./index";
+import { creditReviews, pickReviewer, splitBill, tontineTurn } from "./index";
 
 const house = [
   { id: "jib", active: true },
@@ -57,19 +57,6 @@ describe("splitBill", () => {
 
   it("refuses fractional francs", () => {
     expect(() => splitBill(10.5, [{ memberId: "jib", reservedMemoryMb: 1, cpuSeconds: 0 }])).toThrow();
-  });
-});
-
-describe("nextTontineLine", () => {
-  it("sends the beneficiary to the back", () => {
-    expect(nextTontineLine(["awa", "jib", "moussa"], {})).toEqual({
-      current: "jib",
-      line: ["jib", "moussa", "awa"],
-    });
-  });
-
-  it("pushes people who skipped too many chores behind everyone else", () => {
-    expect(nextTontineLine(["awa", "jib", "moussa"], { jib: 2 }).line).toEqual(["moussa", "awa", "jib"]);
   });
 });
 

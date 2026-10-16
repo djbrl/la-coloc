@@ -1,4 +1,4 @@
-// coloc.dev's database. The house servers have their own Postgres (the kitchen); this one is the agency's.
+// coloc.dev's database, the agency's: the only Postgres there is (rooms have no database of their own yet).
 // Durable things live here. Live-only things (is the agent online, the latest CPU reading, who's looking at
 // the city right now) stay in the API's memory and are rebuilt when an agent reconnects.
 import { relations } from "drizzle-orm";

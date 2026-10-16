@@ -11,6 +11,7 @@ dist/
 
 # Tool leftovers
 .claude/settings.local.json
+.claude/worktrees/
 *.log
 coverage/
 .vercel-share/
