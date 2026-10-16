@@ -181,6 +181,19 @@ describe("a city's room", () => {
     expect(changes).toEqual(["Dakar:chat"]);
   });
 
+  it("pings the city's stream, with some data (a browser drops an event without any)", async () => {
+    const got: unknown[] = [];
+    const sub = (await controller.stream("Dakar")).subscribe((e) => got.push(e));
+    await chat.postToCity("Lomé", ids.fatou, "elsewhere");
+    await chat.postToCity("Dakar", ids.fatou, "here");
+    await board.create("Dakar", ids.fatou, { tag: "help", title: "t", body: "b" });
+    sub.unsubscribe();
+    expect(got).toEqual([
+      { type: "chat", data: "chat" },
+      { type: "board", data: "board" },
+    ]);
+  });
+
   it("keeps each city to itself, and knows only real cities", async () => {
     await chat.postToCity("Dakar", ids.fatou, "Dakar");
     await chat.postToCity("Lomé", ids.fatou, "Lomé");

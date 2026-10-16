@@ -125,14 +125,15 @@ export class ChatController {
     return this.board.create(city, user.id, { tag: tag as (typeof TAGS)[number], title, body: text });
   }
 
-  // Something new in the city's room ("chat") or on its board ("board"): the page fetches it. Nothing private
-  // travels here (each page fetches with its own login, so what it hides stays hidden).
+  // Something new in the city's room ("chat") or on its board ("board"): the page fetches it. (An event needs some
+  // data, or the browser drops it: the data is just the word again.) Nothing private travels here: each page fetches
+  // with its own login, so what it hides stays hidden.
   @Sse("cities/:city/stream")
   async stream(@Param("city") city: string): Promise<Observable<MessageEvent>> {
     await this.chat.mustBeCity(city);
     const updates = this.chat.changes.pipe(
       filter((c) => c.city === city),
-      map((c) => ({ type: c.what, data: "" }) as MessageEvent),
+      map((c) => ({ type: c.what, data: c.what }) as MessageEvent),
     );
     const heartbeat = interval(25_000).pipe(map(() => ({ type: "ping", data: "" }) as MessageEvent));
     return merge(updates, heartbeat);
