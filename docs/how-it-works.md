@@ -1,188 +1,153 @@
-# La Coloc: how it works
+# How La Coloc works
 
-*02 10 2026, revised the same day around the city. The canonical product explanation, written for a teammate with
-zero context. Stack: [architecture.md](architecture.md) · Plan: [roadmap.md](roadmap.md).*
-
-> **As of 12 10 2026.** This describes the product we are building, as designed on 02 10. Most of it exists; what doesn't is listed here so the
-> text isn't misread. **Not built yet:** team rooms (§4), report and mute, evict and "give notice" (§5, §8), paused rooms for unpaid rent, a per-room
-> database (the "kitchen"), payment *links that move money* (the bill, its split and each person's line are real; paying is a mock, §6), priority
-> reviews for the tontine's turn and its penalty for skipped reviews (§5, §7; the turn is shown and rotates every fortnight), and the Datacloud server. **Built since this was written:** the walkable lobby
-> (the "Later" section at the end happened on 09 10), a tutorial, a list view, a live city, and invitations with a
-> bell (16 10). What's left: [TODO.md](../TODO.md).
+*Rewritten 16 Oct 2026 against the code. The product's ideas in plain words. Words in bold are in the
+[glossary](glossary.md). How the pieces fit: [architecture.md](architecture.md).*
 
 ## In one paragraph
-La Coloc is **a city of dev houses**. You log in with GitHub and see the city: every house, its rooms, who lives
-there, what they're building, and which rooms are free. You knock on a house with a free room, chat with the
-flatmates, and if they vote you in, you move in. A house is **one cloud server rented together**. Each flatmate gets
-a **room**: an isolated slice of the server where their own project runs, live the moment they push. The house
-**splits the bill** by what each room actually used, and everyone pays part of their rent in **chores**: reviewing
-their flatmates' pull requests. Each cycle the house rallies behind **one flatmate's project** (the tontine). Flatmates
-can also **team up** to build one project together. Devs exchange reviews, skills and server space: that's the platform.
 
-## Why it answers the CADEV subject: "an African exchange platform built for devs by devs"
-- **Exchange:** reviews for hosting, skills for help (design for a landing page, a backend for a mobile app),
-  spare server capacity for whoever's launching. The city is where devs find each other to start exchanging.
-- **African, by design:** the tontine is a mutual-aid system people already trust, applied to shipping projects.
-  Bills in FCFA, paid with Wave / Orange Money links. It fixes what kills African side projects: apps hosted on
-  laptops that die with every power cut, free tiers that sleep, a server too expensive for one person.
-  Houses run on Datacloud, an African cloud.
-- **By devs, for devs:** peers review peers, the house governs itself (votes to admit, rules, evictions),
-  and everything plugs into GitHub, where devs already work.
+La Coloc is **a city of dev houses**. You walk a 3D city, find a **house** with a free **room**, and move in. A house
+is one server rented together. Your room is your own walled-off part of it, where your GitHub project is built and
+put online. The house splits the server's **bill**, and every code **review** you do for a flatmate takes money off
+your share. Developers trade reviews, help and server space: that is the "exchange" in the contest's subject, *an
+African exchange platform built for devs by devs*.
 
-## The problem
-- Solo devs in Africa have **nobody to build with**. Finding teammates means Discord servers and WhatsApp groups
-  where nobody can see what you've actually shipped.
-- Side projects that need to **stay on** (bots, scrapers, APIs, backends) die on free tiers that sleep, or on laptops
-  that go down with every power cut.
-- Paying for a server alone is expensive in FCFA, and most of it sits idle.
-- Solo devs **never get code reviews**, so they don't improve, and their projects stall without anyone to push them.
+## The problem it answers
 
-## The cast
-| Who | What they do |
-|---|---|
-| **Wanderer** | Logged-in dev without a house. Walks the city, reads house profiles, knocks on free rooms |
-| **Applicant** | Has knocked on a house. Chats with it in the application thread; the house votes to admit them |
-| **Flatmate** | Has a room, deploys their project, reviews others, pays their share, chats in the house channel |
-| **Chef de coloc** | Rents the server on their Datacloud account, runs the install command, pays the landlord, can evict |
-| **Visitor** | Anyone on the internet using a flatmate's app through its public link |
+- Side projects that must stay on (bots, APIs, scrapers) die on free tiers that sleep, or on laptops that go off in
+  every power cut.
+- One server is expensive for one person, and mostly idle.
+- Solo developers rarely get their code reviewed, and have nobody to build with.
 
-## The objects
-| In the city | In the product | Under the hood |
-|---|---|---|
-| **The city** | The home page of coloc.dev | A stylised neighbourhood, like a fighting-game lobby (not a geographic map): illustrated houses on streets, rooms lit (lived in), dashed (free) or scaffolded (in the making). Filter by city, stack, "looking for". Live presence: who's online, where |
-| **A house profile** | A house's public page, viewable without logging in | Name, city, stack, house rules, floor plan, flatmates (GitHub profiles), projects and their live links, exchange ledger, free rooms. The house channel, chores and bill stay private to flatmates |
-| **A flatmate ad** | Listing on a free room | "Room free: looking for a mobile dev." Shown on the map |
-| **The doorbell** | Application thread | Applicant ↔ house chat, then a vote. Opens when you knock |
-| **The living room** | House channel | One chat per house, for flatmates. Fridge notes show up in it |
-| **The building** | The server | A VPS rented on Datacloud (e.g. 4 vCPU, 8 GB) |
-| **The letting agency** | coloc.dev | Our website + hub. Manages the city and houses, never owns servers, never holds money |
-| **The caretaker** | The agent | Our program on the server. Takes orders from the hub, talks to Docker |
-| **A room** | Your hosting space | Docker container(s) on a private network, with fixed RAM/CPU caps and a subdomain |
-| **The front door** | Your public link | Traefik proxy: `jib.sacre-coeur.coloc.dev`, automatic HTTPS |
-| **The kitchen** | Shared database | One Postgres; each room gets its own database and password, no access to others |
-| **Chores** (shown as **Reviews** in the app, since 15 10) | Code reviews | Each PR gets a flatmate reviewer, assigned on a rotation. Each review done takes 500 FCFA off the reviewer's rent |
-| **The fridge door** (shown as **News** in the app, since 15 10) | Notifications | Automatic notes pinned on the house's notice board: a new version online, hogging, skipped reviews, thanks, someone moving in |
-| **Rent** | Monthly bill | Server cost split by measured usage, paid by Wave/Orange Money link |
-| **Guests** | PR previews | A temporary copy of your app for the reviewer to try. *As built: removed as soon as the PR closes (the plan said 24 hours later)* |
-| **The tontine** | Turn-based focus | Each cycle, one room's project gets priority reviews and launch-week perks |
-| **Teaming up** | A shared project | Two or more flatmates build one project together; it gets a room, all of them deploy to it |
-| **The exchange ledger** | Reviews given / received | On every profile and house page: who helped whom. Your reputation in the city |
+## The city
 
-## The lifecycle
+- Each city (Dakar, Lomé, Abidjan, Douala, Kigali, Tunis, Marrakech, Cotonou) is a walkable street with its own look.
+  "Where to?" is a map of Africa to travel between them.
+- It is always daytime in the city. The day / night switch in settings only changes the panels.
+- A house shows its rooms as windows: lit when a project runs, empty when the room is free. A crane appears while
+  something builds, and fireworks when it goes live.
+- Made-up **passers-by** walk the streets so it feels alive. Eight of the nine houses are **examples** with made-up
+  people, and say so. Only Sacré-Cœur (Dakar) runs real projects today.
+- A **minimap** sits in the corner; M opens the big map, where picking a house takes you to its door.
+- Everything is something you can use: walk up and press E, click it, or press Tab to pick it. **?** lists the keys.
+- A list view (in settings) shows the same city as plain pages.
 
-### The first visit: "Your first home" (built 15 10)
-Before the city, a newcomer plays a short quest in eight chapters, on a street of its own: **arrive** (walk),
-**find a home** (follow a light to L'Atelier, the newcomers' house), **get the keys** (a free room there is theirs, named after
-them), **bring a project** (a ready-made "I just moved in" page in one press, or one of their own repos linked from GitHub),
-**launch it** (fetching → building → starting → live, with a crane and fireworks), **open it** (their address), **show it off**
-(copy, WhatsApp, a QR code) and **meet the house** (flatmates, reviews, news). It ends on "Welcome home", then the city.
-Their workshop room stays theirs; a real house comes later, by knocking. Details: [build-notes](build-notes.md).
+## Houses and rooms
 
-### 0. Finding a house
-1. You log in with GitHub. Your profile is built from it: repos, languages, what you've shipped.
-2. You land on **the city**. Houses with free rooms glow; their ads say what they're looking for.
-3. You open a house's profile: who lives there, their projects, their exchange ledger, their house rules.
-4. You **knock**. That opens the application thread with the house: you say what you'd build in the room.
-5. The flatmates vote. Admitted: you move in (step 2). Not this time: the thread closes politely.
+- The **chef** starts a house on an empty plot ("Start a coloc here"), picks a server size (small, medium or large:
+  7 000, 12 000 or 22 000 FCFA a month) and gets a one-line install command for their server.
+- The command installs the **caretaker**, our small program on the server. When it phones in, the house goes live.
+- Each room has a fixed amount of memory and CPU. If one project eats all its memory, only that room restarts; its
+  neighbours never notice.
+- Every project gets its own address, such as `jib.coloc.localhost:8000` on a laptop.
+- A house picks a rule: **strict** (a merged pull request goes live only if a flatmate approved it) or **relaxed**
+  (it goes live anyway, with a note).
 
-Or you start your own house (step 1) and post ads for the rooms you want filled.
+## Moving in
 
-### Invitations and the bell (built 16 10)
-The other way in is to be invited. Click someone in the city and their card offers one thing to do, depending on
-who they are and who you are:
-- **They live in a house:** "See their house" opens its window, at its door (in its city).
-- **They have no house, and yours has a free room:** "Invite to my house". They get an invitation to that room; saying
-  yes moves them in exactly as if the house had voted yes on a knock (same function, `moveInto`: the room must still
-  be free, they join the back of the tontine line, other knocks on the room close, the fridge door says welcome).
-  Your house is full: no invitation, and the card says so.
-- **Neither of you has a house:** "Rent a place together". Saying yes just tells the other person; renting is the
-  usual "Start a coloc here" on an empty plot, and whoever rents it invites the other.
-- **Logged out:** "Log in to invite". **An example person** (seeded, or a made-up passer-by): the action shows,
-  disabled, with why. Nothing is sent. Then their GitHub profile (real accounts only), and a wave.
+There are two ways in.
 
-These are structured actions, not messages: there are still no direct messages (the house channel and a knock's
-thread are the only conversations). GitHub can't notify a user for us, so La Coloc has its own **bell** in the top
-bar: invitations (Move in / No thanks, I'm in / No thanks), a knock on your house, the answer to your knock, your
-invitation taken. A live nudge on the lobby's WebSocket updates it without a reload. The rules: not yourself, not an
-example person, not someone who already has a house, not to an example house or the workshop, one open invitation
-per person, not again the day they said no, ten a day; unanswered for a week, it lapses. Only the person invited
-answers; only the sender takes it back. "Has a house" means belonging to one that isn't the workshop: the tutorial's
-room is practice.
+1. **Knock.** Walk to a house with a free room and knock, saying what you would build. The house sees your GitHub
+   repos and reviews. Flatmates vote in the knock's thread; more than half decides, yes or no.
+2. **Be invited.** Click a person in the city. Their card offers one thing, depending on who you both are:
+   - they live in a house: **See their house**;
+   - they have no house and yours has a free room: **Invite to my house** (saying yes moves them in, exactly like a
+     yes vote);
+   - neither of you has a house: **Rent a place together** (saying yes tells the other person; one of you then starts
+     a house and invites the other).
 
-### 1. Renting the flat
-1. The chef clicks **Rent a flat**.
-2. They rent a server on Datacloud, then paste one install command into it. The script installs Docker, Traefik,
-   the kitchen and the agent, and turns on Docker's safety settings.
-3. The agent calls the hub: "I'm the server of house Sacré-Cœur." The house appears in the city as **online**.
-4. The chef picks room sizes. The sizes must add up to at most the server's capacity, so nobody can ever hog the house.
+   You can't invite yourself, an example person, someone who already has a house, or into a full house. One open
+   invitation per person, not again the day they said no, ten a day. An invitation lapses after a week.
 
-### 2. Moving in
-1. A flatmate invites someone with no house from their card in the city (built 16 10; see "Invitations and the bell"),
-   or the house admits applicants from the doorbell. *(The plan said the chef invites people they follow on GitHub; not built.)*
-2. A new flatmate picks **one of their own repos** and installs the coloc GitHub App on it.
-3. The app gives the house **review access** to that repo, and gives coloc the right to read the code for building.
-4. The flatmate sets their secrets (API keys, passwords) on their room's page. They're encrypted and only given to their room.
+## Living together
 
-### 3. Daily life: push → review → live
-1. You open a PR in your repo.
-2. coloc picks the next reviewer on the rotation and comments: "Corvée: @moussa, your turn. Due tomorrow 18:00."
-3. The agent builds a **guest** (preview) at `preview-jib.sacre-coeur.coloc.dev` so Moussa can click around.
-4. Moussa reviews in GitHub's normal review screen and approves. The ledger counts it; the house channel gets a 👊.
-5. You merge. The agent builds the new version, checks that it starts, switches the front door to it, stops the old
-   one. **Zero downtime.** If the new version crashes on start, the old one stays up and you're told why.
-6. The PR shows "deployed to jib.sacre-coeur.coloc.dev" (native GitHub deployments).
+- **The channel:** one group chat per house, plus one thread per knock. There are no private messages, on purpose.
+- **News:** notes the house posts by itself (a project went live, a room ran out of memory, a review was late,
+  someone moved in). Called the "fridge" in the code.
+- **Your room's page:** build settings, secret keys (stored encrypted), logs, restart and update.
 
-House rule (switchable): in **strict** mode an unreviewed merge doesn't deploy; in **relaxed** mode it deploys and leaves a fridge note.
+## Reviews pay part of the rent
 
-### 4. Teaming up
-Two flatmates decide to build something together. One of them turns their room into a **team room**: both can
-deploy to it, and their PRs are reviewed by the rest of the house, never by each other. Chores still apply to each
-of them individually. The house profile shows the team project, so the city can see it.
+1. You open a pull request in your repo, which is linked to your room through our **GitHub App**.
+2. La Coloc picks the next flatmate on a rotation, asks them on GitHub to review it within 24 hours, and builds a
+   **preview** of your change for them to try.
+3. When they review, the review counts for them. Late ones get a note ("late, but done" when it comes).
+4. You merge. The caretaker builds the new version, checks it starts, then switches visitors to it. If it fails, the
+   old version keeps running and you see why.
 
-### 5. When things go wrong
-| Situation | What happens |
-|---|---|
-| Your app eats all its memory | Only **your** room is killed and restarted. Fridge note. Others never notice |
-| Your app crashes in a loop | Room marked **down** on the floor plan, logs on your room's page |
-| A bad deploy | The old version keeps running; the failed build's logs are shown |
-| A reviewer is 24h late | Fridge note. *(The tontine penalty for a second skip is not built.)* A review done late is thanked as "late, but done" |
-| Someone runs a crypto miner or hosts illegal content | Chef (or a house vote) **evicts**: room suspended → data export → room removed |
-| Someone is abusive in a channel or thread | Flatmates can report; the chef can mute or evict; coloc can ban from the city |
-| Unpaid rent | Room **paused**, never deleted. Paying unpauses it |
-| The server goes down | Every room is down; the house shows as offline in the city. Code is safe on GitHub, kitchen backed up nightly |
+Each review done this month takes **500 FCFA** off the reviewer's line of the bill. The app calls them "Reviews";
+the code calls them "chores".
 
-### 6. The monthly cycle
-Every 30s the agent records each room's CPU, RAM, disk and bandwidth. At month end coloc computes each
-flatmate's share of the server cost, posts the bill on the house page, and generates a payment link per person.
-The chef pays Datacloud. coloc never touches the money.
+## The bill
 
-### 7. The tontine cycle
-Every [2 weeks], the next room in line gets **its turn**: its PRs jump the review queue, the house profile features it
-in the city, and it gets temporary extra resources if the house has spare capacity. Doing your chores is your
-contribution to the tontine; skipping them pushes you back in the line.
+- The house's monthly cost is split between flatmates: 60 % by room size (like rent), 40 % by the CPU each room
+  really used. The caretaker measures usage every 30 seconds.
+- Your review credits come off your line.
+- Each country's usual ways to pay are named (Wave and Orange Money in Senegal, MTN MoMo in Côte d'Ivoire…).
+- **Paying is a mock today:** "Pay your share" marks your line paid and moves no money.
 
-### 8. Leaving
-Give notice on the house page. Your room is removed at the end of the month and becomes a free room on the map.
-Your code was always on GitHub; you get an export of your kitchen database. Your exchange ledger stays with you.
+## The tontine
 
-## What you can host
-Anything that runs in a container from a repo, at side-project scale: websites, APIs, bots, cron jobs, scrapers,
-small databases. **Not** ML training, video streaming or anything heavy.
+A tontine is a savings circle many people in West Africa already trust. In La Coloc it is a turn: every two weeks the
+next flatmate in line has the house's focus, and their face is shown on the house. Newcomers join the back of the
+line. The perks that should come with a turn (reviews first, extra resources) are **not built yet**.
 
-## What it isn't
-- **Not a cloud provider.** The server is rented from Datacloud; we manage the flat.
-- **Not a payment processor.** We compute who owes what; money moves through Wave/Orange Money.
-- **Not a code editor or a Discord replacement.** You code wherever you like and GitHub is the source of truth;
-  the house channel and doorbell exist so finding and living with flatmates happens in one place.
+## The first visit: "Your first home"
 
-## Later: the walkable lobby (Q3 2027, after the contest)
-The city map becomes an online lobby, like a fighting-game lobby (Guilty Gear, 2XKO): you have an avatar, walk
-through the city, step into a house's living room, emote and chat with whoever's there. Same data as the map
-(houses, rooms, presence, channels), new renderer. Costs mostly art (avatars, animations, rooms) and moderation,
-not code. For the contest we ship the hint of it: online flatmates shown as small avatars in their rooms, with
-meaningful emotes (👊 review approved, ☝️❓ someone knocking).
+A newcomer plays a short **quest** on a quiet street before seeing the city. A tracker at the top shows eight
+chapters, and each one moves on by itself when the game sees it done:
 
-## The 30-second pitch (peer vote, jury)
-"Finding people to build with is hard, your side projects die on free tiers, and nobody reviews your code.
-La Coloc is a city of dev houses: find a house with a free room, move in, and your project's live the moment you push.
-You split the server bill and pay part of the rent in code reviews."
+1. **Arrive:** walk.
+2. **Find a home:** follow a light to L'Atelier, the newcomers' **workshop** house.
+3. **Get the keys:** a free room there becomes yours, named after you.
+4. **Bring a project:** a ready-made "I just moved in" page in one press, or one of your own repos, picked from a list
+   once the GitHub App is installed.
+5. **Launch it:** fetching, building, starting, live; then fireworks.
+6. **Open it:** your page's address.
+7. **Show it off:** copy the link, share on WhatsApp, or scan a QR code.
+8. **Meet the house:** flatmates, reviews, news.
+
+It ends on "Welcome home", then the city. You can leave and come back: it remembers your chapter. Settings can
+restart it. The workshop room stays yours; a real house comes later, by knocking or an invitation.
+
+## Notifications: the bell
+
+GitHub can't message people for us, so La Coloc has a **bell** in the top bar. It holds invitations (Move in or No
+thanks), a knock on your house, the answer to your knock, and whether your invitation was taken or turned down. A
+nudge on the lobby's live connection updates it without reloading.
+
+## Languages
+
+The site speaks English and French. It starts in your browser's language, and the switch is the first row of
+settings. The French says "vous" and still needs a native speaker's read. Sentences written by the API (error
+messages, house news, GitHub comments, the example city's texts) are still in English.
+
+## When the database is down
+
+The site doesn't break. You stay in the city, a card says it can't be reached and retries by itself, and everything
+comes back without a reload when the database returns.
+
+## Not built yet
+
+- Payments that move money (Stripe test mode, then a mobile-money sandbox, are planned).
+- The real server on Datacloud, HTTPS, and a production GitHub App.
+- Leaving a house, evicting, reporting or muting someone (the chef can only empty a room).
+- Team rooms, where several flatmates deploy one project.
+- Tontine perks, and a penalty for skipped reviews.
+- A database per room, and backups.
+- GitHub's own "deployed to" panel (a merged pull request gets a comment instead).
+
+## The 30-second pitch
+
+"Your side projects die on free tiers, a server is too expensive alone, and nobody reviews your code. La Coloc is a
+city of dev houses: move into a room, push, and your project is online. You split the server bill and pay part of the
+rent in code reviews."
+
+## Questions a juror may ask
+
+- *Why not a shared server and branch protection?* You could, but nobody sets up the walls between rooms, the bill
+  split, the review rotation and the reminders. That is the product.
+- *What stops a crypto-miner?* Each room has hard memory and CPU limits, so it can only slow itself; the chef can
+  empty the room.
+- *Who pays the provider if a flatmate doesn't?* The chef pays the provider; the bill shows who owes what. Real
+  payments are not built yet.
+- *What did the AI write, and can you explain it?* See [ai-usage.md](ai-usage.md) and the [build notes](build-notes.md).
