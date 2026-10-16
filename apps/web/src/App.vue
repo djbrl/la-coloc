@@ -5,6 +5,7 @@ import Avatar from "./components/Avatar.vue";
 import Bell from "./components/bell/Bell.vue";
 import CoreStatus from "./components/CoreStatus.vue";
 import SettingsPane from "./components/SettingsPane.vue";
+import Icon from "./components/lobby/house/Icon.vue";
 import { logout, me, meLoaded } from "./session";
 import { lobbyUi, settings, settingsPane } from "./settings";
 import { hudWords as w } from "./components/lobby/words";
@@ -55,13 +56,20 @@ const gear = (() => {
       <div class="side">
         <template v-if="meLoaded">
           <template v-if="me">
-            <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item house">{{ h.name }}</RouterLink>
+            <!-- On a phone, your house and logging out are icons (their words stay for screen readers), so the bar fits. -->
+            <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item house" :title="h.name">
+              <Icon name="house" :size="18" class="narrow" />
+              <span class="word">{{ h.name }}</span>
+            </RouterLink>
             <Bell />
             <span class="item me">
               <Avatar :person="me" :size="26" decorative />
               <span class="sr-only">{{ w.loggedInAs(me.login) }}</span>
             </span>
-            <button class="item text" @click="leave">{{ w.logOut }}</button>
+            <button class="item text" :title="w.logOut" @click="leave">
+              <Icon name="logout" :size="18" class="narrow" />
+              <span class="word">{{ w.logOut }}</span>
+            </button>
           </template>
           <RouterLink v-else to="/login" class="item">{{ w.logIn }}</RouterLink>
         </template>
@@ -109,7 +117,9 @@ const gear = (() => {
 .side { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .item { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; font-size: 14px; font-weight: 500; color: var(--text); opacity: 0.88; white-space: nowrap; }
 .item:hover { opacity: 1; text-decoration: none; }
-.house { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 44px; max-width: 160px; }
+.house { min-width: 0; max-width: 160px; }
+.word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.narrow { display: none; }
 .house.router-link-active { opacity: 1; font-weight: 600; }
 .me { padding: 0 6px; }
 button.item { min-height: 36px; background: none; border-radius: var(--r-sm); }
@@ -119,8 +129,9 @@ button.item:hover:not(:disabled) { background: var(--fill); }
 /* While the core is down, the card under the bar (CoreStatus.vue) takes its place in the page instead of covering it. */
 .flow { min-height: calc(100vh - 48px); padding-top: var(--core-offset, 0px); outline: none; }
 .full { outline: none; }
-@media (max-width: 420px) {
+@media (max-width: 520px) {
   .item { padding: 0 8px; }
-  .house { max-width: 110px; }
+  .narrow { display: block; }
+  .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 </style>
