@@ -216,7 +216,9 @@ export const votes = pgTable(
   (t) => [primaryKey({ columns: [t.applicationId, t.voterId] })],
 );
 
-// Chat. A channel is either a house's living room ("house:<id>") or an application's thread ("application:<id>").
+// Chat. A channel is a house's living room ("house:<id>"), a knock's thread ("application:<id>"), a direct
+// conversation between two people ("dm:<userId>:<userId>", the two ids sorted, so a pair has one channel), a city's
+// public room ("city:<City>"), or the replies under a city board post ("post:<postId>").
 export const messages = pgTable(
   "messages",
   {
@@ -358,6 +360,73 @@ export const notifications = pgTable(
     decidedAt: timestamp("decided_at", { withTimezone: true }),
   },
   (t) => [index("notifications_user_created").on(t.userId, t.createdAt), index("notifications_from_created").on(t.fromId, t.createdAt)],
+);
+
+// Someone blocked someone. Blocks direct messages both ways, and hides the blocked person's words from the blocker
+// (every channel, the city board too). The blocked person isn't told.
+export const blocks = pgTable(
+  "blocks",
+  {
+    blockerId: uuid("blocker_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    blockedId: uuid("blocked_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] })],
+);
+
+// How far someone has read a conversation: the id of the last message they saw there. What comes after, written by
+// the other person, is unread. Only direct conversations keep one.
+export const chatReads = pgTable(
+  "chat_reads",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    lastReadId: bigint("last_read_id", { mode: "number" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.channel] })],
+);
+
+// What a city board post is about. The web says each in its own words.
+export type BoardTag = "house" | "flatmates" | "project" | "help" | "other";
+
+// A post on a city's board (the forum): a tag, a title and a body, plain text. Its replies are messages in the
+// channel "post:<id>". No votes, no edits: the author (or an admin) can only delete it.
+export const boardPosts = pgTable(
+  "board_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    city: text("city").notNull(),
+    authorId: uuid("author_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    tag: text("tag").$type<BoardTag>().notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+    // The post or its latest reply: the board lists the most recently active first.
+    activeAt: timestamp("active_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("board_posts_city_active").on(t.city, t.activeAt)],
+);
+
+export type ReportKind = "message" | "post";
+
+// Someone reported a message or a board post. A copy of the words is kept, so the report still says what was
+// written once the original is deleted. The admins (COLOC_ADMINS) read the list; nothing happens by itself.
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reporterId: uuid("reporter_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<ReportKind>().notNull(),
+    // A message's id, or a post's.
+    targetId: text("target_id").notNull(),
+    // Where it was said: a message's channel, or "city:<City>" for a post.
+    channel: text("channel").notNull(),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    reason: text("reason"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("reports_once").on(t.reporterId, t.kind, t.targetId)],
 );
 
 export const usersRelations = relations(users, ({ many }) => ({ memberships: many(memberships) }));
