@@ -4,6 +4,7 @@
 // Close shuts it; the lobby puts focus back on the stage afterwards. Nothing shows on a touch screen, where there
 // are no keys.
 import { computed, onMounted, ref } from "vue";
+import { caps } from "../../lobby/keys";
 import { hudWords as w } from "./words";
 
 const emit = defineEmits<{ close: [] }>();
@@ -21,15 +22,15 @@ const groups = computed((): { name: string; rows: Control[] }[] => [
   {
     name: w.move,
     rows: [
-      { keys: ["W", "A", "S", "D"], does: w.walk },
+      { keys: [caps.w, caps.a, caps.s, caps.d], does: w.walk },
       { keys: [w.shiftKey], does: w.dash },
-      { keys: ["Q", "R"], does: w.turn, or: true },
+      { keys: [caps.q, caps.r], does: w.turn, or: true },
     ],
   },
   {
     name: w.act,
     rows: [
-      { keys: ["E"], does: w.useOpen },
+      { keys: [caps.e], does: w.useOpen },
       { keys: ["]"], does: w.nextThing },
       { keys: ["["], does: w.previousThing },
     ],

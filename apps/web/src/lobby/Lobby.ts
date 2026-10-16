@@ -27,6 +27,7 @@ import { CityProps, makeBoard, makePins, waxParasols } from "./props";
 import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
 import { keepApart, laneFor, MOST, passerbyCount, passersBy, type SidewalkPoint, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
 import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
+import { cityKey, readLayout } from "./keys";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
 import { dye } from "./tint";
@@ -359,6 +360,8 @@ export class Lobby {
     this.resize.observe(host);
     this.fit();
     window.addEventListener("keydown", this.keydown);
+    // The letters to print on the walk keys' caps, for this keyboard (keys.ts).
+    void readLayout();
     window.addEventListener("keyup", this.keyup);
     this.renderer.domElement.addEventListener("pointerdown", this.touchStage);
     this.renderer.domElement.addEventListener("pointerdown", this.click);
@@ -1754,7 +1757,8 @@ export class Lobby {
     // isn't modal: you can still walk away from it.
     if (t?.closest?.('[aria-modal="true"], dialog')) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const k = e.key.toLowerCase();
+    // W A S D, Q, E and R by their place on the keyboard (AZERTY's Z Q S D walk), the rest as typed (keys.ts).
+    const k = cityKey(e);
     // Single-character shortcuts switched off in settings (WCAG 2.1.4): W A S D, E, Q, R, [ and ] do nothing.
     // The arrows, Enter, Shift and Escape still work.
     if (!this.shortcuts && k.length === 1) return;
@@ -1781,7 +1785,7 @@ export class Lobby {
   };
 
   private keyup = (e: KeyboardEvent) => {
-    const k = e.key.toLowerCase();
+    const k = cityKey(e);
     // Always let go of a key, wherever the focus went meanwhile.
     this.keys.delete(k);
     if (k === "shift" && this.shiftAlone) this.dash();

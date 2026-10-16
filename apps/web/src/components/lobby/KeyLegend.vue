@@ -3,6 +3,7 @@
 // "? keys" button for the full list. The little × folds it to a "?" button. The keys are drawn as small key caps,
 // like a game's button hints in a corner. Nothing shows on a touch screen, where there are no keys.
 import { computed } from "vue";
+import { caps } from "../../lobby/keys";
 import { hudWords as w } from "./words";
 
 defineProps<{ open: boolean }>();
@@ -10,7 +11,7 @@ const emit = defineEmits<{ toggle: []; keys: [] }>();
 
 // Computed, so the words (and the name French gives Shift) follow the language chosen now (words.ts).
 const quick = computed((): { key: string; does: string }[] => [
-  { key: "E", does: w.use },
+  { key: caps.e, does: w.use },
   { key: "]", does: w.next },
   { key: w.shiftKey, does: w.dash },
   { key: "M", does: w.map },

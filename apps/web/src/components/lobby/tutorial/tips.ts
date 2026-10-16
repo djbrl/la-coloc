@@ -3,6 +3,7 @@
 // comes counts as knowing it: that tip never shows. Pure, like tutorial.ts: LobbyView says what happened and
 // remembers which tips were seen (in this browser).
 import { defineWords } from "../../../i18n";
+import { caps } from "../../../lobby/keys";
 
 export type Tip = "walk" | "dash" | "turn" | "map" | "pick" | "keys";
 
@@ -13,8 +14,8 @@ export type Tip = "walk" | "dash" | "turn" | "map" | "pick" | "keys";
 export type TipCue = "arrived" | "walking" | "idle";
 
 // What each tip says, on a keyboard and on a touch screen (null: nothing to say there), in English and French (see
-// i18n.ts). Words in braces are keys, drawn as key caps. The keys are the letters the engine reads, whatever the
-// keyboard's layout; French calls Shift "Maj".
+// i18n.ts). Words in braces are keys, drawn as key caps. {W} {A} {S} {D} {Q} {E} {R} are places on the keyboard, drawn
+// with the letter this keyboard prints there (Z Q S D on AZERTY: lobby/keys.ts); French calls Shift "Maj".
 const TIPS: Record<Tip, { keys: string; touch: string | null }> = {
   walk: { keys: "Click the ground, or use {W} {A} {S} {D}, to walk. {E} goes in at a door.", touch: "Tap the ground to walk there. At a door, tap Go in." },
   dash: { keys: "Tap {Shift} to dash.", touch: "The round arrow button dashes." },
@@ -43,10 +44,16 @@ export function nextTip(cue: TipCue, seen: readonly Tip[], touch: boolean): Tip 
   return IDLE.find(fits) ?? null;
 }
 
-/** A tip's words cut into plain text and key caps: "Tap {Shift} to dash." → text, key, text. */
+/** A tip's words cut into plain text and key caps: "Tap {Shift} to dash." → text, key, text. A key read by its place
+ *  shows what this keyboard prints there. */
 export function tipParts(text: string): { key: boolean; text: string }[] {
   return text
     .split(/(\{[^}]+\})/)
     .filter(Boolean)
-    .map((part) => (part.startsWith("{") ? { key: true, text: part.slice(1, -1) } : { key: false, text: part }));
+    .map((part) => (part.startsWith("{") ? { key: true, text: placed(part.slice(1, -1)) } : { key: false, text: part }));
+}
+
+function placed(key: string): string {
+  const name = key.toLowerCase();
+  return key.length === 1 && name in caps ? caps[name as keyof typeof caps] : key;
 }

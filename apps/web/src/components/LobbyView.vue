@@ -14,6 +14,7 @@ import { styleFor } from "../lobby/cityStyle";
 import { type Emote, Lobby, type Target } from "../lobby/Lobby";
 import { checkCore, core } from "../core";
 import { language } from "../i18n";
+import { caps } from "../lobby/keys";
 import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
@@ -1074,22 +1075,22 @@ function statsOf(name: string) {
                 <strong>{{ near.house.name }}</strong>
                 <span class="soft">{{ freeRooms(near.house).length ? w.roomsFree(freeRooms(near.house).length) : "" }}</span>
               </span>
-              <button class="pill" @click="lobby?.interact()">{{ w.goIn }} <kbd>E</kbd></button>
+              <button class="pill" @click="lobby?.interact()">{{ w.goIn }} <kbd>{{ caps.e }}</kbd></button>
             </template>
             <template v-else-if="near.kind === 'empty'">
               <span>{{ w.emptyLot[near.plot.lot] }}</span>
-              <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>E</kbd></button>
+              <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>{{ caps.e }}</kbd></button>
             </template>
             <template v-else-if="near.kind === 'person'">
               <span>
                 <strong>{{ near.name }}</strong>
                 <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : w.visiting }}</span>
               </span>
-              <button class="pill" @click="lobby?.interact()">{{ w.sayHi }} <kbd>E</kbd></button>
+              <button class="pill" @click="lobby?.interact()">{{ w.sayHi }} <kbd>{{ caps.e }}</kbd></button>
             </template>
             <template v-else>
               <span>{{ w.board }}<span class="soft">{{ w.boardWhere(city) }}</span></span>
-              <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>E</kbd></button>
+              <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>{{ caps.e }}</kbd></button>
             </template>
           </div>
         </Transition>

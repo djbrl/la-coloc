@@ -5,6 +5,7 @@
 // A small × leaves the quest (settings bring it back). The steps themselves live in tutorial.ts; this only shows
 // them. The big moments in the middle of the screen (the keys, "Welcome home") are KeysCard.vue and HomeCard.vue.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { caps } from "../../../lobby/keys";
 import { bare, explain } from "../panel/words";
 import LaunchCard from "./LaunchCard.vue";
 import QuestIcon, { type QuestIconName } from "./QuestIcon.vue";
@@ -48,8 +49,8 @@ const touch = computed(() => props.machine.touch);
 // The steps that talk to the API.
 const needsApi = computed(() => ["room", "project", "launch", "open"].includes(step.value));
 
-// The key caps of the walk step.
-const walkCaps = ["W", "A", "S", "D"];
+// The key caps of the walk step, as this keyboard prints them (Z Q S D on AZERTY: lobby/keys.ts).
+const walkCaps = computed(() => [caps.w, caps.a, caps.s, caps.d]);
 
 const state = computed(() => props.machine.state);
 const room = computed(() => state.value?.room ?? null);
@@ -114,7 +115,7 @@ onBeforeUnmount(() => clearTimeout(timer));
       <template v-else-if="step === 'walk'">
         <p v-if="touch" class="text">{{ w.walkTouch }}</p>
         <template v-else>
-          <p class="text">{{ w.walkKeys }}</p>
+          <p class="text">{{ w.walkKeys(walkCaps.join(" ")) }}</p>
           <p class="caps"><kbd v-for="c in walkCaps" :key="c">{{ c }}</kbd></p>
         </template>
       </template>
@@ -123,7 +124,7 @@ onBeforeUnmount(() => clearTimeout(timer));
       <p v-else-if="step === 'look'" class="text">{{ w.look }}</p>
       <template v-else-if="step === 'go'">
         <p class="text">{{ touch ? w.goTouch : w.goKeys }}</p>
-        <p v-if="!touch" class="caps"><kbd>E</kbd></p>
+        <p v-if="!touch" class="caps"><kbd>{{ caps.e }}</kbd></p>
       </template>
       <template v-else-if="step === 'room'">
         <p class="text">{{ w.room }}</p>
