@@ -51,10 +51,10 @@ export const CHAPTER_OF: Record<Step, Chapter | null> = {
 };
 
 // The pieces of the lobby's screen, besides the city itself: the site's top bar ("chrome"), the city's activity,
-// the place button, the round tools, the keys, the minimap, the emotes, the prompt for what's in reach, and the
-// quest's tracker (the chapter stamps at the top).
-export type Piece = "chrome" | "here" | "place" | "tools" | "keys" | "map" | "emotes" | "prompt" | "quest";
-export const PIECES: Piece[] = ["chrome", "here", "place", "tools", "keys", "map", "emotes", "prompt", "quest"];
+// the place button, the round tools, the keys, the minimap, the prompt for what's in reach, and the quest's tracker
+// (the chapter stamps at the top).
+export type Piece = "chrome" | "here" | "place" | "tools" | "keys" | "map" | "prompt" | "quest";
+export const PIECES: Piece[] = ["chrome", "here", "place", "tools", "keys", "map", "prompt", "quest"];
 // What comes on screen as the quest goes: first nothing, then the tracker, then the map with the goal's pin and the
 // prompt at the door, then the rest of the HUD once you live somewhere.
 const TRACKER: Piece[] = ["quest"];

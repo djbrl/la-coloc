@@ -272,7 +272,7 @@ describe("the quest", () => {
     expect(SETUP.go.reveal).not.toContain("chrome");
     expect(SETUP.keys.controls.walk).toBe(false);
     expect(SETUP.city.reveal).toContain("chrome");
-    expect(SETUP.city.reveal).toContain("emotes");
+    expect(SETUP.city.reveal).toContain("map");
     expect(SETUP.city.reveal).not.toContain("quest");
     expect(STEPS.filter((s) => SETUP[s].poll)).toEqual(["room", "project", "launch", "open"]);
   });
