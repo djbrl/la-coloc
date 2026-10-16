@@ -983,7 +983,6 @@ function statsOf(name: string) {
             :near="nearKey === cardKey"
             @knock="(room) => (knock = { houseId: cardHouse!.id, room })"
             @enter="goInside({ kind: 'house', id: cardHouse!.id })"
-            @walk="lobby?.goTo(cardHouse!.id)"
             @thread="(id) => goInside({ kind: 'application', id })"
             @close="closeCard"
           />

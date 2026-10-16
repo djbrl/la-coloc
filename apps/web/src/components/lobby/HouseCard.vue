@@ -17,12 +17,12 @@ const props = defineProps<{
   house: CityHouse;
   // Everyone online in this neighbourhood, by login.
   others: Set<string>;
-  // Standing at its door already? Then there's nowhere to walk, and E goes in.
+  // Standing at its door already? Then E goes in. (Getting there is walking, or a pick on the big map.)
   near: boolean;
 }>();
-// `enter` opens the house's inside over the city (you never leave the lobby); `walk` sets off for its door;
-// `thread` opens your knock on this house (its id).
-const emit = defineEmits<{ knock: [room: CityRoom]; enter: []; walk: []; thread: [applicationId: string]; close: [] }>();
+// `enter` opens the house's inside over the city (you never leave the lobby); `thread` opens your knock on this
+// house (its id).
+const emit = defineEmits<{ knock: [room: CityRoom]; enter: []; thread: [applicationId: string]; close: [] }>();
 
 const mine = computed(() => me.value?.houses.some((h) => h.id === props.house.id) ?? false);
 const free = computed(() => props.house.rooms.filter((r) => !r.occupant));
@@ -85,10 +85,9 @@ const hereLine = computed(() => {
       <button class="big primary" @click="emit('enter')">
         <Icon name="door" :size="20" /> {{ w.goIn }} <kbd v-if="near" aria-hidden="true">E</kbd>
       </button>
-      <div v-if="knock || !near || (free.length && !me && !house.demo)" class="tiles">
+      <div v-if="knock || (free.length && !me && !house.demo)" class="tiles">
         <button v-if="knock" class="big tile" @click="emit('thread', knock.id)"><Icon name="thread" :size="22" /><span>{{ w.yourKnock }}</span></button>
         <RouterLink v-else-if="free.length && !me && !house.demo" to="/login" class="big tile"><Icon name="login" :size="22" /><span>{{ w.logInToKnock }}</span></RouterLink>
-        <button v-if="!near" class="big tile" @click="emit('walk')"><Icon name="next" :size="22" /><span>{{ w.walkThere }}</span></button>
       </div>
     </div>
   </LobbyCard>

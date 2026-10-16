@@ -31,7 +31,6 @@ export const cardWords = defineWords(
     goIn: "Go in",
     yourKnock: "Your knock",
     logInToKnock: "Log in to knock",
-    walkThere: "Walk there",
     // EmptyCard.vue
     emptyLabel: "An empty plot",
     emptyTitle: { shop: "Empty shop", tower: "Empty tower", trees: "Empty lot" },
@@ -87,7 +86,6 @@ export const cardWords = defineWords(
     goIn: "Entrer",
     yourKnock: "Ma demande",
     logInToKnock: "Se connecter pour frapper",
-    walkThere: "Y aller",
     emptyLabel: "Un terrain vide",
     emptyTitle: { shop: "Boutique vide", tower: "Tour vide", trees: "Terrain vide" },
     nobodyYet: "Personne n'habite ici pour l'instant.",
