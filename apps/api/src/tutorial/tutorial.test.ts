@@ -13,6 +13,7 @@ import type { GithubAppClient } from "../github/github.client";
 import { MembershipsService } from "../auth/memberships.service";
 import { CityController } from "../houses/houses.controller";
 import { HousesService } from "../houses/houses.service";
+import { plainNote } from "../houses/lines";
 import { RoomDeployer } from "../rooms/room-deployer";
 import { RoomsService } from "../rooms/rooms.service";
 import { seedCity } from "../seed/city";
@@ -151,7 +152,8 @@ describe("taking a room in the workshop", () => {
     const notes = await db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, "atelier"));
     const welcome = notes.filter((n) => n.text.includes("Welcome home"));
     expect(welcome).toHaveLength(1);
-    expect(welcome[0]).toMatchObject({ tone: "thanks", room: "fatou", text: "fatou moved in. Welcome home!", count: 1 });
+    expect(welcome[0]).toMatchObject({ tone: "thanks", room: "fatou", count: 1 });
+    expect(plainNote(welcome[0].text)).toBe("fatou moved in. Welcome home!");
   });
 
   it("says when the GitHub repo is linked", async () => {

@@ -19,6 +19,7 @@ import StatusDot from "./panel/StatusDot.vue";
 import { roomLine, roomState } from "./panel/words";
 import { streetActions } from "./personActions";
 import { cardWords as w } from "./words";
+import { seeded } from "../seeded";
 
 const props = defineProps<{
   login: string;
@@ -119,7 +120,7 @@ async function send(kind: "invite" | "rent" | "withdraw") {
           <StatusDot v-if="state && project" :state="state" />
         </p>
         <p v-if="!project" class="soft small desc">{{ w.nothingOnline }}</p>
-        <p v-else class="soft small desc">{{ stateWords }}{{ room?.projectDescription ? ` ${sentence(room.projectDescription)}` : "" }}</p>
+        <p v-else class="soft small desc">{{ stateWords }}{{ room?.projectDescription ? ` ${sentence(seeded(room.projectDescription))}` : "" }}</p>
       </div>
     </div>
 

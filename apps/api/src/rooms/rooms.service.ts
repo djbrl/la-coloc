@@ -94,7 +94,7 @@ export class RoomsService {
     // code can read them. The chef may still name, restart and update a room, from the code it already has.
     const moves = (k: "source" | "branch" | "buildPath") => s[k] !== undefined && (s[k]?.trim() || null) !== (room[k] ?? null);
     if (as === "chef" && room.occupantId && (moves("source") || moves("branch") || moves("buildPath"))) {
-      throw new ForbiddenException("Only the flatmate who lives here can change where the room's code comes from.");
+      throw new ForbiddenException({ message: "Only the flatmate who lives here can change where the room's code comes from.", code: "flatmateOnlySource" });
     }
     await this.db
       .update(rooms)

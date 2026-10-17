@@ -27,13 +27,14 @@ import { noteText } from "../houses/lines";
 import { RoomDeployer } from "./room-deployer";
 import { RoomsService } from "./rooms.service";
 
+const HTTPS_ONLY = "repo must be an https:// URL";
 const REF = /^(?!.*\.\.)[A-Za-z0-9._\/-]{1,100}$/;
 // A repo URL to clone by hand. Never with credentials in it: those come from the GitHub App, fresh each time. Never
 // file:// either: that would be a folder on the house's own disk (the quest's starter page is the server's to pick).
 const RepoUrl = z
   .string()
   .max(300)
-  .regex(/^https:\/\/[^/\s]+\/\S+$/, "repo must be an https:// URL")
+  .regex(/^https:\/\/[^/\s]+\/\S+$/, HTTPS_ONLY)
   .refine((u) => !/^https:\/\/[^/]*@/.test(u), "don't put credentials in the URL: link the repo with the GitHub App instead");
 
 const Settings = z.object({
@@ -56,7 +57,8 @@ const SecretBody = z.object({ value: z.string().max(4096) });
 
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   const r = schema.safeParse(body ?? {});
-  if (!r.success) throw new BadRequestException(r.error.issues[0]?.message ?? "invalid request");
+  const message = r.success ? "" : (r.error.issues[0]?.message ?? "invalid request");
+  if (!r.success) throw new BadRequestException(message === HTTPS_ONLY ? { message, code: "httpsRepo" } : message);
   return r.data;
 }
 

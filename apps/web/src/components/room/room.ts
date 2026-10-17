@@ -5,6 +5,7 @@ import { bare, explain } from "../lobby/panel/words";
 import type { IconName } from "../lobby/house/icons";
 import type { RoomManage, RoomStatus, RoomUsage } from "../../types";
 import { roomWords as w } from "./words";
+import { seeded } from "../seeded";
 
 type Deployment = RoomManage["deployments"][number];
 type Settings = RoomManage["settings"];
@@ -23,7 +24,7 @@ export interface SettingsForm {
 /** The project's name as the room shows it: its name, else its one line, else "Hello" in the tutorial's workshop
  *  (where the sample is a Hello page), else "Untitled project". */
 export function projectTitle(settings: Pick<Settings, "project" | "projectDescription">, tutorial = false): string {
-  return settings.project || settings.projectDescription || (tutorial ? w.hello : w.untitled);
+  return settings.project || seeded(settings.projectDescription) || (tutorial ? w.hello : w.untitled);
 }
 
 /** True while the room has never been online: no update of it ever went live, and nothing is up or stopped now. */

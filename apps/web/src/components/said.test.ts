@@ -29,4 +29,12 @@ describe("sentences the API wrote", () => {
     expect(knockLine({ body: "The house said yes. Welcome home, Fatou!", said: { kind: "yes", params: { name: "Fatou" } } })).toBe("La maison a dit oui. Bienvenue, Fatou !");
     expect(knockLine({ body: "Hi!", said: null })).toBe("Hi!");
   });
+
+  it("say why a deploy failed in French when the caretaker used known words, and keep the rest as it came", () => {
+    language.lang = "fr";
+    const failed = (reason: string) => noteText({ text: "x", said: { kind: "deployFailed", params: { name: "Awa", reason } } });
+    expect(failed("exited with code 1")).toBe("Le déploiement de Awa a échoué : l'app s'est arrêtée avec le code 1. La version d'avant tourne toujours.");
+    expect(failed("build failed: npm ERR! missing script: start")).toContain("la construction s'est arrêtée (npm ERR! missing script: start)");
+    expect(failed("Something new went wrong")).toContain("a échoué : Something new went wrong.");
+  });
 });

@@ -60,9 +60,9 @@ export class RoomDeployer {
         ),
       )
       .limit(1);
-    if (running) throw new ConflictException("This room is already being put online. Wait for it to finish.");
+    if (running) throw new ConflictException({ message: "This room is already being put online. Wait for it to finish.", code: "alreadyDeploying" });
     if (!this.byHand.take(userId, now.getTime())) {
-      throw new HttpException("That's a lot of deploys in a few minutes. Wait a little before the next one.", HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException({ message: "That's a lot of deploys in a few minutes. Wait a little before the next one.", code: "slowDownDeploys" }, HttpStatus.TOO_MANY_REQUESTS);
     }
   }
 

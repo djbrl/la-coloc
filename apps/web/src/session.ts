@@ -1,6 +1,7 @@
 // Who's logged in, shared by every page. The session itself is an HttpOnly cookie the page never sees.
 import { ref } from "vue";
 import { downWords, isOutageError, isOutageResponse } from "./core";
+import { type Refusal, refusalText } from "./refusals";
 import type { Me, ServerConfig } from "./types";
 
 export const me = ref<Me | null>(null);
@@ -69,14 +70,15 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   }
   const text = await res.text().catch(() => "");
   if (!res.ok && isOutageResponse(res.status, text)) return { ok: false, message: downWords.write, down: true };
-  let data: { message?: unknown } = {};
+  let data: Partial<Refusal> = {};
   try {
     data = text.trim() ? JSON.parse(text) : {};
   } catch {
     // Not JSON: the status below says what it can.
   }
   if (res.ok) return { ok: true, data: data as T };
-  const message = typeof data?.message === "string" ? data.message : res.status === 401 ? downWords.logInFirst : downWords.failed;
+  // The API's refusal, in the reader's language when it has a code (refusals.ts).
+  const message = typeof data?.message === "string" ? refusalText(data as Refusal) : res.status === 401 ? downWords.logInFirst : downWords.failed;
   return { ok: false, message };
 }
 

@@ -110,15 +110,15 @@ export class TutorialService {
   async pickRepo(user: User, githubId: number) {
     const house = await this.workshop();
     const room = await this.roomOf(house.id, user.id);
-    if (!room) throw new NotFoundException("Take a room first.");
-    if (!this.client || !user.githubId) throw new ConflictException("Log in with GitHub to bring your own project.");
+    if (!room) throw new NotFoundException({ message: "Take a room first.", code: "takeRoomFirst" });
+    if (!this.client || !user.githubId) throw new ConflictException({ message: "Log in with GitHub to bring your own project.", code: "githubLoginNeeded" });
     const { repos: list } = await this.installed(user, true);
     const repo = list.find((r) => r.id === githubId);
-    if (!repo) throw new NotFoundException("La Coloc can't see that repo. Allow it on GitHub first.");
+    if (!repo) throw new NotFoundException({ message: "La Coloc can't see that repo. Allow it on GitHub first.", code: "repoNotVisible" });
     const installation = repo.installation;
     const [elsewhere] = await this.db.select().from(repos).where(eq(repos.githubId, githubId));
     if (elsewhere && (elsewhere.houseId !== room.houseId || elsewhere.room !== room.name)) {
-      throw new ConflictException(`${repo.full_name} already lives in another room.`);
+      throw new ConflictException({ message: `${repo.full_name} already lives in another room.`, code: "repoTaken", repo: repo.full_name });
     }
     await this.db.transaction(async (tx) => {
       await tx.delete(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name)));
@@ -154,7 +154,7 @@ export class TutorialService {
       return got;
     } catch (e) {
       this.log.warn(`couldn't ask GitHub about ${user.login}'s repos: ${(e as Error).message}`);
-      throw new ServiceUnavailableException("GitHub isn't answering. Try again in a minute.");
+      throw new ServiceUnavailableException({ message: "GitHub isn't answering. Try again in a minute.", code: "githubDown" });
     }
   }
 
@@ -233,11 +233,11 @@ export class TutorialService {
   async deploy(user: User, from?: DeploySource): Promise<{ id: string }> {
     const house = await this.workshop();
     const room = await this.roomOf(house.id, user.id);
-    if (!room) throw new NotFoundException("Take a room in the workshop first.");
-    if (!this.agents.isOnline(house.id)) throw new ConflictException("The workshop's server is offline.");
+    if (!room) throw new NotFoundException({ message: "Take a room in the workshop first.", code: "takeWorkshopRoomFirst" });
+    if (!this.agents.isOnline(house.id)) throw new ConflictException({ message: "The workshop's server is offline.", code: "workshopOffline" });
     const repo = await this.repoOf(room);
     const pick = from ?? (repo ? "github" : "starter");
-    if (pick === "github" && !repo) throw new ConflictException("Link a repo on GitHub first.");
+    if (pick === "github" && !repo) throw new ConflictException({ message: "Link a repo on GitHub first.", code: "linkRepoFirst" });
 
     if (pick === "github") {
       // Their own repo builds from its root: the starter's folder (examples/hello) means nothing in it. It takes
@@ -358,7 +358,7 @@ export class TutorialService {
   // The workshop: the first house flagged `tutorial` (the seed makes one, L'Atelier).
   private async workshop() {
     const [house] = await this.db.select().from(houses).where(eq(houses.tutorial, true)).orderBy(asc(houses.createdAt)).limit(1);
-    if (!house) throw new NotFoundException("There's no workshop on this server.");
+    if (!house) throw new NotFoundException({ message: "There's no workshop on this server.", code: "noWorkshop" });
     return house;
   }
 

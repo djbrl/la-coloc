@@ -32,10 +32,12 @@ export const MESSAGES = { count: 5, perMs: 10_000 };
 // Board posts: a handful an hour.
 export const POSTS = { count: 5, perMs: 3_600_000 };
 
-/** The 429 a refused post gets, in a sentence that says what to do. */
+/** The 429 a refused post gets, in a sentence that says what to do, with a code the web says in French. */
 export function slowDown(what: "messages" | "posts"): HttpException {
   return new HttpException(
-    what === "messages" ? "Slow down a little: wait a few seconds before writing again." : "That's a lot of posts for one hour. Try again later.",
+    what === "messages"
+      ? { message: "Slow down a little: wait a few seconds before writing again.", code: "slowDownMessages" }
+      : { message: "That's a lot of posts for one hour. Try again later.", code: "slowDownPosts" },
     HttpStatus.TOO_MANY_REQUESTS,
   );
 }

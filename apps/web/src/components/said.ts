@@ -1,7 +1,7 @@
 // The sentences the API writes by itself, said in the reader's language: fridge notes ("Awa's app crashed.") and the
 // house's own lines in a knock's thread ("The house said yes."). The API sends each with `said`, its kind and what
 // fills its blanks (apps/api/src/houses/lines.ts holds the English templates); this says it in English or French.
-// A kind this page doesn't know, or a text the API couldn't read (an older wording, a seeded note), shows the API's
+// A kind this page doesn't know, or a text the API couldn't read (an older wording), shows the API's
 // own English text.
 import { defineWords } from "../i18n";
 import type { Said } from "../types";
@@ -26,6 +26,8 @@ const notesEn = {
   reviewedLate: (p: P) => `${p.name} reviewed ${p.ref} (late, but done). Merci!`,
   reviewed: (p: P) => `${p.name} reviewed ${p.ref}. Merci!`,
   reviewLate: (p: P) => `${p.name} hasn't reviewed ${p.ref} yet. It was due ${p.hours}h after it opened.`,
+  paidBill: (p: P) => `${p.name} paid their part of this month's bill.`,
+  firstProject: (p: P) => `${p.name} put their first project online. Welcome!`,
 };
 
 const knockEn = {
@@ -37,12 +39,37 @@ const knockEn = {
   invited: (_p: P) => "They moved in at a flatmate's invitation.",
 };
 
+// Why a deploy failed, in French: the caretaker reports it in English (apps/agent: deploy.ts, docker.ts, git.ts). A
+// reason it gives in known words is said in French, with any technical detail kept as it is, in brackets; any
+// other reason stays as it came, inside the French sentence.
+const FAILURES_FR: [RegExp, (...m: string[]) => string][] = [
+  [/^build failed: (.+)$/s, (detail) => `la construction s'est arrêtée (${detail})`],
+  [/^git clone failed: (.+)$/s, (detail) => `impossible de récupérer le code (${detail})`],
+  [/^ran out of memory while starting$/, () => "plus de mémoire au démarrage"],
+  [/^crashed and restarted while starting$/, () => "l'app a planté au démarrage"],
+  [/^exited with code (\d+)$/, (code) => `l'app s'est arrêtée avec le code ${code}`],
+  [/^health check failed$/, () => "le contrôle de santé a échoué"],
+  [/^did not become healthy in time$/, () => "l'app n'a pas été prête à temps"],
+  [/^repo must be an https:\/\/ URL$/, () => "le dépôt doit être une adresse https://"],
+  [/^path escapes the repo: (.+)$/s, (path) => `le dossier ${path} sort du dépôt`],
+  [/^unknown error$/, () => "erreur inconnue"],
+];
+
+/** A deploy's failure reason in French when it's one the caretaker gives in known words, else as it came. */
+export function failureFr(reason: string): string {
+  for (const [re, say] of FAILURES_FR) {
+    const m = re.exec(reason);
+    if (m) return say(...m.slice(1));
+  }
+  return reason;
+}
+
 const noteWords = defineWords("said.notes", notesEn, {
   oom: (p) => `L'app de ${p.name} a pris toute sa mémoire et a été redémarrée. Les autres chambres n'ont rien senti.`,
   crashed: (p) => `L'app de ${p.name} a planté. Elle redémarre.`,
   backUp: (p) => `L'app de ${p.name} tourne de nouveau.`,
   shipped: (p) => `${p.name} a mis en ligne une nouvelle version.`,
-  deployFailed: (p) => `Le déploiement de ${p.name} a échoué : ${p.reason}. La version d'avant tourne toujours.`,
+  deployFailed: (p) => `Le déploiement de ${p.name} a échoué : ${failureFr(p.reason)}. La version d'avant tourne toujours.`,
   movedIn: (p) => `${p.name} a emménagé. Bienvenue !`,
   reposMoved: (p) => `${p.name} a installé ${p.repos} dans sa chambre.`,
   knocked: (p) => `${p.name} a frappé à une chambre libre. Allez ouvrir !`,
@@ -55,6 +82,8 @@ const noteWords = defineWords("said.notes", notesEn, {
   reviewedLate: (p) => `${p.name} a relu ${p.ref} (en retard, mais c'est fait). Merci !`,
   reviewed: (p) => `${p.name} a relu ${p.ref}. Merci !`,
   reviewLate: (p) => `${p.name} n'a pas encore relu ${p.ref}. C'était à faire dans les ${p.hours} h.`,
+  paidBill: (p) => `${p.name} a payé sa part de la facture du mois.`,
+  firstProject: (p) => `${p.name} a mis en ligne son premier projet. Bienvenue !`,
 });
 
 const knockWords = defineWords("said.knock", knockEn, {

@@ -1,6 +1,7 @@
 // The list view's city page, worked out from the city's houses alone: which houses a filter and a search keep,
 // what each row says, and the few faces it shows. No DOM here, so the rows read the same way in tests.
 import type { CityHouse, Person } from "../../types";
+import { seeded } from "../seeded";
 import { listWords as w } from "./words";
 
 export type Show = "all" | "free" | "making";
@@ -52,9 +53,9 @@ export function roomsSaid(h: Pick<CityHouse, "rooms" | "status" | "demo">): stri
 
 /** The row's line under the name: the tagline, else what a free room is looking for, else what the house is. */
 export function rowLine(h: Pick<CityHouse, "tagline" | "rooms" | "demo">): string {
-  if (h.tagline) return h.tagline;
+  if (h.tagline) return seeded(h.tagline);
   const ad = freeRooms(h).find((r) => r.ad)?.ad;
-  if (ad) return ad;
+  if (ad) return seeded(ad);
   return h.demo ? w.exampleHouse : w.whatHouse;
 }
 

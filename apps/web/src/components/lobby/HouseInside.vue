@@ -36,6 +36,7 @@ import PanelTabs, { type Tab } from "./panel/PanelTabs.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { explain, houseState, houseTrouble, roomLine, roomState } from "./panel/words";
 import type { Place } from "./place";
+import { seeded } from "../seeded";
 
 // The house's parts, one tab each. The keys are the API's names: "chores" shows as Reviews, "fridge" as News.
 type TabKey = "rooms" | "channel" | "chores" | "fridge" | "bill";
@@ -150,7 +151,8 @@ const notes = computed(() => house.value?.notes ?? []);
 const line = computed(() => {
   const h = house.value;
   if (!h) return "";
-  const parts = [houseTrouble(h), h.tagline && h.tagline.length <= 40 ? h.tagline : null];
+  const tagline = seeded(h.tagline);
+  const parts = [houseTrouble(h), tagline && tagline.length <= 40 ? tagline : null];
   return parts.filter(Boolean).join(" ");
 });
 
@@ -386,8 +388,8 @@ function rowTitle(room: Room): string {
 }
 function rowSub(room: Room): string {
   const h = house.value!;
-  if (!room.occupant) return `${w.freeRow(room.limits.memoryMb)} ${room.ad ?? w.knockToAsk}`;
-  const what = room.projectDescription ?? (room.project ? w.noDescription : w.noProject);
+  if (!room.occupant) return `${w.freeRow(room.limits.memoryMb)} ${seeded(room.ad) ?? w.knockToAsk}`;
+  const what = seeded(room.projectDescription) ?? (room.project ? w.noDescription : w.noProject);
   return roomState(room, h.status, h.demo).tone === "live" ? what : `${roomLine(room, h.status, h.demo)} ${what}`;
 }
 const actionOf = (room: Room) => rowAction(room, situation.value, foot.value);

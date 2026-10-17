@@ -39,16 +39,16 @@ export class DoorbellService {
   async knock(houseId: string, roomName: string, applicantId: string, input: { message: string; repo?: string | null }) {
     const [house] = await this.db.select().from(houses).where(eq(houses.id, houseId));
     if (!house) throw new NotFoundException("no such house");
-    if (house.demo) throw new BadRequestException("This is a demo house: nobody lives here to answer.");
+    if (house.demo) throw new BadRequestException({ message: "This is a demo house: nobody lives here to answer.", code: "demoHouseKnock" });
     const [room] = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.name, roomName)));
     if (!room) throw new NotFoundException("no such room");
-    if (room.occupantId) throw new ConflictException("Someone already lives in this room.");
-    if (await this.houses.membership(houseId, applicantId)) throw new ConflictException("You already live here.");
+    if (room.occupantId) throw new ConflictException({ message: "Someone already lives in this room.", code: "roomTaken" });
+    if (await this.houses.membership(houseId, applicantId)) throw new ConflictException({ message: "You already live here.", code: "alreadyLiveHere" });
     const [already] = await this.db
       .select({ id: applications.id })
       .from(applications)
       .where(and(eq(applications.houseId, houseId), eq(applications.applicantId, applicantId), eq(applications.status, "open")));
-    if (already) throw new ConflictException({ message: "You've already knocked on this house.", application: already.id });
+    if (already) throw new ConflictException({ message: "You've already knocked on this house.", code: "alreadyKnocked", application: already.id });
 
     const message = cleanBody(input.message);
     const id = randomUUID().slice(0, 8);
@@ -109,13 +109,13 @@ export class DoorbellService {
   async postToApplication(applicationId: string, authorId: string, body: string) {
     const app = await this.mustFind(applicationId);
     await this.roleIn(app, authorId);
-    if (app.status !== "open") throw new ConflictException("This knock is closed.");
+    if (app.status !== "open") throw new ConflictException({ message: "This knock is closed.", code: "knockClosed" });
     await this.post(applicationChannel(app.id), authorId, body);
     this.changes.next(app.id);
   }
 
   async postToHouse(houseId: string, authorId: string, body: string) {
-    if (!(await this.houses.membership(houseId, authorId))) throw new ForbiddenException("Only flatmates can talk in the living room.");
+    if (!(await this.houses.membership(houseId, authorId))) throw new ForbiddenException({ message: "Only flatmates can talk in the living room.", code: "flatmatesOnlyTalk" });
     await this.post(houseChannel(houseId), authorId, body);
     this.houses.changes.next(houseId);
   }
@@ -126,8 +126,8 @@ export class DoorbellService {
    */
   async vote(applicationId: string, voterId: string, yes: boolean) {
     const app = await this.mustFind(applicationId);
-    if ((await this.roleIn(app, voterId)) !== "flatmate") throw new ForbiddenException("Only flatmates vote.");
-    if (app.status !== "open") throw new ConflictException("This knock is already decided.");
+    if ((await this.roleIn(app, voterId)) !== "flatmate") throw new ForbiddenException({ message: "Only flatmates vote.", code: "flatmatesOnlyVote" });
+    if (app.status !== "open") throw new ConflictException({ message: "This knock is already decided.", code: "knockDecided" });
 
     await this.db
       .insert(votes)
@@ -148,10 +148,10 @@ export class DoorbellService {
 
   async withdraw(applicationId: string, userId: string) {
     const app = await this.mustFind(applicationId);
-    if (app.applicantId !== userId) throw new ForbiddenException("Only the person who knocked can withdraw.");
-    if (app.status !== "open") throw new ConflictException("This knock is already decided.");
+    if (app.applicantId !== userId) throw new ForbiddenException({ message: "Only the person who knocked can withdraw.", code: "knockerOnlyWithdraws" });
+    if (app.status !== "open") throw new ConflictException({ message: "This knock is already decided.", code: "knockDecided" });
     // A vote may have decided it since we read it.
-    if (!(await this.close(app, "withdrawn", knockText("withdrawn")))) throw new ConflictException("This knock is already decided.");
+    if (!(await this.close(app, "withdrawn", knockText("withdrawn")))) throw new ConflictException({ message: "This knock is already decided.", code: "knockDecided" });
     this.changes.next(app.id);
     this.houses.changes.next(app.houseId);
   }
@@ -254,7 +254,7 @@ export class DoorbellService {
   private brake(userId: string) {
     const now = Date.now();
     const times = (this.recent.get(userId) ?? []).filter((t) => now - t < BURST.perMs);
-    if (times.length >= BURST.messages) throw new ConflictException("Slow down a little: too many messages in a minute.");
+    if (times.length >= BURST.messages) throw new ConflictException({ message: "Slow down a little: too many messages in a minute.", code: "slowDownKnock" });
     times.push(now);
     this.recent.set(userId, times);
   }
@@ -279,7 +279,7 @@ export class DoorbellService {
 
 function cleanBody(body: string): string {
   const text = (body ?? "").trim();
-  if (!text) throw new BadRequestException("Write something first.");
-  if (text.length > MAX_MESSAGE) throw new BadRequestException(`Keep it under ${MAX_MESSAGE} characters.`);
+  if (!text) throw new BadRequestException({ message: "Write something first.", code: "writeSomething" });
+  if (text.length > MAX_MESSAGE) throw new BadRequestException({ message: `Keep it under ${MAX_MESSAGE} characters.`, code: "tooLong", max: MAX_MESSAGE });
   return text;
 }

@@ -6,6 +6,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { useWhenBack } from "../../core";
 import { block, chatPing, chatSheet, conversations, loadConversations, unblock } from "../../conversations";
 import { me } from "../../session";
+import { refusalText } from "../../refusals";
 import type { Conversation } from "../../types";
 import Avatar from "../Avatar.vue";
 import ChatPanel from "../ChatPanel.vue";
@@ -31,7 +32,7 @@ async function fetchOpen() {
     const data = await res.json().catch(() => ({}));
     if (chatSheet.with !== login) return;
     if (!res.ok) {
-      error.value = typeof data.message === "string" ? data.message : "";
+      error.value = typeof data.message === "string" ? refusalText(data) : "";
       return;
     }
     error.value = "";
@@ -101,7 +102,7 @@ async function toggleBlock() {
         </button>
       </div>
       <p v-if="error" class="error small" role="alert">{{ error }}</p>
-      <p v-else-if="open && !open.canWrite && open.why" class="soft small">{{ open.why }}</p>
+      <p v-else-if="open && !open.canWrite && open.why" class="soft small">{{ open.with.example ? w.whyExample : open.blocked ? w.whyBlocked : w.whyTheirs }}</p>
       <ChatPanel
         v-if="open"
         :messages="open.messages"
