@@ -274,7 +274,8 @@ describe("the quest", () => {
     expect(SETUP.city.reveal).toContain("chrome");
     expect(SETUP.city.reveal).toContain("map");
     expect(SETUP.city.reveal).not.toContain("quest");
-    expect(STEPS.filter((s) => SETUP[s].poll)).toEqual(["room", "project", "launch", "open"]);
+    // "open" only waits for a click: the launch already saw the page live.
+    expect(STEPS.filter((s) => SETUP[s].poll)).toEqual(["room", "project", "launch"]);
   });
 
   describe("picking up where you left it", () => {

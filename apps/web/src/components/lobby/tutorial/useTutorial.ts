@@ -142,17 +142,33 @@ export function useTutorial() {
     if (machine.active && SETUP[machine.step].poll) void refresh();
   });
 
-  // Only the steps that wait on the API ask it, every two seconds.
+  // Only the steps that wait on the API ask it, every two seconds, and only while the tab is in view: a hidden tab
+  // stops, and asks at once when it's back. A beat is skipped while the last question hasn't come back.
+  let asking = false;
+  async function beat() {
+    if (asking) return;
+    asking = true;
+    try {
+      await refresh();
+    } finally {
+      asking = false;
+    }
+  }
+  function schedule() {
+    clearInterval(timer);
+    timer = 0;
+    if (!machine.active || !SETUP[machine.step].poll || document.visibilityState === "hidden") return;
+    void beat();
+    timer = window.setInterval(() => void beat(), POLL_MS);
+  }
+  const onVisibility = () => schedule();
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+
   watch(
     () => [machine.active, machine.step] as const,
-    ([on, step]) => {
-      clearInterval(timer);
-      timer = 0;
+    () => {
       error.value = "";
-      if (on && SETUP[step].poll) {
-        void refresh();
-        timer = window.setInterval(() => void refresh(), POLL_MS);
-      }
+      schedule();
     },
   );
 
@@ -222,6 +238,7 @@ export function useTutorial() {
 
   function dispose() {
     clearInterval(timer);
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisibility);
     machine.stop();
   }
 
