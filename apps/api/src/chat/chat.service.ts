@@ -82,7 +82,7 @@ export class ChatService {
   async mustBeCity(city: string): Promise<string> {
     if (CITIES.includes(city)) return city;
     const [h] = await this.db.select({ id: houses.id }).from(houses).where(eq(houses.city, city)).limit(1);
-    if (!h) throw new NotFoundException("There's no such city.");
+    if (!h) throw new NotFoundException({ message: "There's no such city.", code: "noCity" });
     return city;
   }
 
@@ -154,10 +154,10 @@ export class ChatService {
   /** A direct message to `login`. Not to yourself, an example person, or anyone either of you blocked. */
   async sendDm(userId: string, login: string, body: string): Promise<{ id: string }> {
     const other = await this.someone(userId, login);
-    if (await this.notifications.isExample(other)) throw new ConflictException("This is an example person: nobody would read your message.");
+    if (await this.notifications.isExample(other)) throw new ConflictException({ message: "This is an example person: nobody would read your message.", code: "examplePersonMessage" });
     const block = await this.blockBetween(userId, other.id);
-    if (block === "mine") throw new ForbiddenException("You blocked them. Unblock them to write.");
-    if (block === "theirs") throw new ForbiddenException("They aren't taking messages from you.");
+    if (block === "mine") throw new ForbiddenException({ message: "You blocked them. Unblock them to write.", code: "youBlocked" });
+    if (block === "theirs") throw new ForbiddenException({ message: "They aren't taking messages from you.", code: "theyBlocked" });
     const channel = dmChannel(userId, other.id);
     const id = await this.write(channel, userId, body);
     // Your own message is read by you.
@@ -201,17 +201,17 @@ export class ChatService {
     let found: { channel: string; authorId: string | null; body: string } | null = null;
     if (input.kind === "message") {
       const id = Number(input.id);
-      if (!Number.isSafeInteger(id) || id <= 0) throw new NotFoundException("There's no such message.");
+      if (!Number.isSafeInteger(id) || id <= 0) throw new NotFoundException({ message: "There's no such message.", code: "noMessage" });
       const [m] = await this.db.select().from(messages).where(eq(messages.id, id));
       if (m && (await this.canRead(m.channel, userId))) found = { channel: m.channel, authorId: m.authorId, body: m.body };
     } else {
-      if (!/^[0-9a-f-]{36}$/.test(input.id)) throw new NotFoundException("There's no such post.");
+      if (!/^[0-9a-f-]{36}$/.test(input.id)) throw new NotFoundException({ message: "There's no such post.", code: "noPost" });
       const [p] = await this.db.select().from(boardPosts).where(eq(boardPosts.id, input.id));
       if (p) found = { channel: cityChannel(p.city), authorId: p.authorId, body: `${p.title}\n\n${p.body}` };
     }
-    if (!found) throw new NotFoundException(input.kind === "message" ? "There's no such message." : "There's no such post.");
-    if (found.authorId === userId) throw new BadRequestException("That's yours: delete it instead.");
-    if (!found.authorId) throw new BadRequestException("That's the house speaking: there's nobody to report.");
+    if (!found) throw new NotFoundException(input.kind === "message" ? { message: "There's no such message.", code: "noMessage" } : { message: "There's no such post.", code: "noPost" });
+    if (found.authorId === userId) throw new BadRequestException({ message: "That's yours: delete it instead.", code: "reportOwn" });
+    if (!found.authorId) throw new BadRequestException({ message: "That's the house speaking: there's nobody to report.", code: "reportHouse" });
     await this.db
       .insert(reports)
       .values({ reporterId: userId, kind: input.kind, targetId: String(input.id), channel: found.channel, authorId: found.authorId, body: found.body, reason: input.reason ?? null })
@@ -274,8 +274,8 @@ export class ChatService {
   // Someone else, by login: not yourself, and someone who exists.
   private async someone(userId: string, login: string): Promise<UserRow> {
     const [other] = await this.db.select().from(users).where(eq(users.login, login));
-    if (!other) throw new NotFoundException("There's nobody by that name in the city.");
-    if (other.id === userId) throw new BadRequestException("That's you.");
+    if (!other) throw new NotFoundException({ message: "There's nobody by that name in the city.", code: "nobodyInCity" });
+    if (other.id === userId) throw new BadRequestException({ message: "That's you.", code: "thatsYou" });
     return other;
   }
 
@@ -299,7 +299,7 @@ export function cleanText(body: string, maxLength: number): string {
   // Control characters (other than new lines and tabs) have no place in a chat, and Postgres refuses a NUL.
   // eslint-disable-next-line no-control-regex
   const text = (body ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
-  if (!text) throw new BadRequestException("Write something first.");
-  if (text.length > maxLength) throw new BadRequestException(`Keep it under ${maxLength} characters.`);
+  if (!text) throw new BadRequestException({ message: "Write something first.", code: "writeSomething" });
+  if (text.length > maxLength) throw new BadRequestException({ message: `Keep it under ${maxLength} characters.`, code: "tooLong", max: maxLength });
   return text;
 }

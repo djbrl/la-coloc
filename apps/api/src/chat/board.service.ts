@@ -51,7 +51,7 @@ export class BoardService {
   /** One post and its replies (oldest first). A post by someone you blocked is, for you, not there. */
   async post(id: string, viewerId: string | null): Promise<{ post: PostView; replies: MessageView[] }> {
     const { p, u } = await this.find(id);
-    if ((await blockedBy(this.db, viewerId)).includes(p.authorId)) throw new NotFoundException("There's no such post.");
+    if ((await blockedBy(this.db, viewerId)).includes(p.authorId)) throw new NotFoundException({ message: "There's no such post.", code: "noPost" });
     const replies = await channelMessages(this.db, postChannel(p.id), 200, viewerId);
     return { post: view(p, u, replies.length), replies };
   }
@@ -78,7 +78,7 @@ export class BoardService {
   /** Deletes a post and its replies. Only its author, or an admin. */
   async deletePost(postId: string, userId: string, admin: boolean) {
     const { p } = await this.find(postId);
-    if (p.authorId !== userId && !admin) throw new ForbiddenException("Only its author can delete a post.");
+    if (p.authorId !== userId && !admin) throw new ForbiddenException({ message: "Only its author can delete a post.", code: "onlyAuthorPost" });
     await this.db.transaction(async (tx) => {
       await tx.delete(messages).where(eq(messages.channel, postChannel(p.id)));
       await tx.delete(boardPosts).where(eq(boardPosts.id, p.id));
@@ -91,16 +91,16 @@ export class BoardService {
     const { p } = await this.find(postId);
     const id = Number(replyId);
     const [m] = Number.isSafeInteger(id) && id > 0 ? await this.db.select().from(messages).where(and(eq(messages.id, id), eq(messages.channel, postChannel(p.id)))) : [];
-    if (!m) throw new NotFoundException("There's no such reply.");
-    if (m.authorId !== userId && !admin) throw new ForbiddenException("Only its author can delete a reply.");
+    if (!m) throw new NotFoundException({ message: "There's no such reply.", code: "noReply" });
+    if (m.authorId !== userId && !admin) throw new ForbiddenException({ message: "Only its author can delete a reply.", code: "onlyAuthorReply" });
     await this.db.delete(messages).where(eq(messages.id, m.id));
     this.chat.changes.next({ city: p.city, what: "board" });
   }
 
   private async find(id: string) {
-    if (!/^[0-9a-f-]{36}$/.test(id)) throw new NotFoundException("There's no such post.");
+    if (!/^[0-9a-f-]{36}$/.test(id)) throw new NotFoundException({ message: "There's no such post.", code: "noPost" });
     const [row] = await this.db.select({ p: boardPosts, u: users }).from(boardPosts).innerJoin(users, eq(users.id, boardPosts.authorId)).where(eq(boardPosts.id, id));
-    if (!row) throw new NotFoundException("There's no such post.");
+    if (!row) throw new NotFoundException({ message: "There's no such post.", code: "noPost" });
     return row;
   }
 

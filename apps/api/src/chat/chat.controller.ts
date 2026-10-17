@@ -38,7 +38,7 @@ export class ChatController {
 
   private async user(req: HttpRequest) {
     const u = await this.auth.userFromRequest(req);
-    if (!u) throw new UnauthorizedException("Log in first.");
+    if (!u) throw new UnauthorizedException({ message: "Log in first.", code: "logInFirst" });
     return u;
   }
 
@@ -93,7 +93,7 @@ export class ChatController {
   @Get("reports")
   async reports(@Req() req: HttpRequest) {
     const user = await this.user(req);
-    if (!isAdmin(this.auth.config, user.login)) throw new ForbiddenException("Only the city's admins can read reports.");
+    if (!isAdmin(this.auth.config, user.login)) throw new ForbiddenException({ message: "Only the city's admins can read reports.", code: "adminsOnly" });
     return { reports: await this.chat.reports() };
   }
 

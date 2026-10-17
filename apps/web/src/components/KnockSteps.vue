@@ -7,6 +7,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { coreDown, downWords, wentDown } from "../core";
 import { loadMe, me } from "../session";
+import { refusalText } from "../refusals";
 import type { Room } from "../types";
 import { knockOn } from "./lobby/cards";
 import { joinWords as w } from "./joinWords";
@@ -74,13 +75,13 @@ async function send() {
     error.value = downWords.write;
     return;
   }
-  if (res?.status === 409 && /already knocked/i.test(String(data.message ?? ""))) {
+  if (res?.status === 409 && (data.code === "alreadyKnocked" || /already knocked/i.test(String(data.message ?? "")))) {
     refused.value = { id: typeof data.application === "string" ? data.application : "" };
     void loadMe();
     return;
   }
   if (!res?.ok) {
-    error.value = typeof data.message === "string" ? data.message : res?.status === 401 ? w.logInFirst : w.didntWork;
+    error.value = typeof data.message === "string" ? refusalText(data) : res?.status === 401 ? w.logInFirst : w.didntWork;
     return;
   }
   // Your list of open knocks now has this one: the cards offer "Your knock" from here on.

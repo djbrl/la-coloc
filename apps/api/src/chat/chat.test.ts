@@ -230,6 +230,14 @@ describe("the brake on posting", () => {
     expect(await status(board.create("Dakar", ids.fatou, { tag: "other", title: "t", body: "b" }))).toBe(429);
   });
 
+  it("says no with a code the web can say in French, and the English sentence", async () => {
+    for (let i = 0; i < 5; i++) await chat.postToCity("Dakar", ids.fatou, `hi ${i}`);
+    const refused = await chat.postToCity("Dakar", ids.fatou, "one too many").catch((e: HttpException) => e.getResponse());
+    expect(refused).toMatchObject({ code: "slowDownMessages", message: expect.stringContaining("Slow down") });
+    const long = await chat.postToCity("Dakar", ids.sam, "x".repeat(5000)).catch((e: HttpException) => e.getResponse());
+    expect(long).toMatchObject({ code: "tooLong", max: expect.any(Number) });
+  });
+
   it("forgets after the window", () => {
     const brake = new Limiter(2, 1000);
     expect([brake.take("a", 0), brake.take("a", 10), brake.take("a", 20)]).toEqual([true, true, false]);

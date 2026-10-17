@@ -30,7 +30,7 @@ export class DoorbellController {
 
   private async user(req: HttpRequest) {
     const u = await this.auth.userFromRequest(req);
-    if (!u) throw new UnauthorizedException("Log in first.");
+    if (!u) throw new UnauthorizedException({ message: "Log in first.", code: "logInFirst" });
     return u;
   }
 

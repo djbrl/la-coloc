@@ -39,12 +39,37 @@ const knockEn = {
   invited: (_p: P) => "They moved in at a flatmate's invitation.",
 };
 
+// Why a deploy failed, in French: the caretaker reports it in English (apps/agent: deploy.ts, docker.ts, git.ts). A
+// reason it gives in known words is said in French, with any technical detail kept as it is, in brackets; any
+// other reason stays as it came, inside the French sentence.
+const FAILURES_FR: [RegExp, (...m: string[]) => string][] = [
+  [/^build failed: (.+)$/s, (detail) => `la construction s'est arrêtée (${detail})`],
+  [/^git clone failed: (.+)$/s, (detail) => `impossible de récupérer le code (${detail})`],
+  [/^ran out of memory while starting$/, () => "plus de mémoire au démarrage"],
+  [/^crashed and restarted while starting$/, () => "l'app a planté au démarrage"],
+  [/^exited with code (\d+)$/, (code) => `l'app s'est arrêtée avec le code ${code}`],
+  [/^health check failed$/, () => "le contrôle de santé a échoué"],
+  [/^did not become healthy in time$/, () => "l'app n'a pas été prête à temps"],
+  [/^repo must be an https:\/\/ URL$/, () => "le dépôt doit être une adresse https://"],
+  [/^path escapes the repo: (.+)$/s, (path) => `le dossier ${path} sort du dépôt`],
+  [/^unknown error$/, () => "erreur inconnue"],
+];
+
+/** A deploy's failure reason in French when it's one the caretaker gives in known words, else as it came. */
+export function failureFr(reason: string): string {
+  for (const [re, say] of FAILURES_FR) {
+    const m = re.exec(reason);
+    if (m) return say(...m.slice(1));
+  }
+  return reason;
+}
+
 const noteWords = defineWords("said.notes", notesEn, {
   oom: (p) => `L'app de ${p.name} a pris toute sa mémoire et a été redémarrée. Les autres chambres n'ont rien senti.`,
   crashed: (p) => `L'app de ${p.name} a planté. Elle redémarre.`,
   backUp: (p) => `L'app de ${p.name} tourne de nouveau.`,
   shipped: (p) => `${p.name} a mis en ligne une nouvelle version.`,
-  deployFailed: (p) => `Le déploiement de ${p.name} a échoué : ${p.reason}. La version d'avant tourne toujours.`,
+  deployFailed: (p) => `Le déploiement de ${p.name} a échoué : ${failureFr(p.reason)}. La version d'avant tourne toujours.`,
   movedIn: (p) => `${p.name} a emménagé. Bienvenue !`,
   reposMoved: (p) => `${p.name} a installé ${p.repos} dans sa chambre.`,
   knocked: (p) => `${p.name} a frappé à une chambre libre. Allez ouvrir !`,

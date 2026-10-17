@@ -38,6 +38,10 @@ export const chatWords = defineWords(
     unblock: "Unblock",
     blockSure: "Block them?",
     blocked: "You blocked them. Their messages are hidden from you.",
+    // Why you can't write (the API says it in English as `why`).
+    whyExample: "This is an example person: nobody would read your message.",
+    whyBlocked: "You blocked them.",
+    whyTheirs: "They aren't taking messages from you.",
     // The city's room.
     cityTitle: (city: string) => `${city}, everyone`,
     sayCity: (city: string) => `Say something to ${city}`,
@@ -87,6 +91,9 @@ export const chatWords = defineWords(
     unblock: "Débloquer",
     blockSure: "Le bloquer ?",
     blocked: "Vous l'avez bloqué. Ses messages vous sont cachés.",
+    whyExample: "C'est une personne d'exemple : personne ne lirait votre message.",
+    whyBlocked: "Vous l'avez bloqué.",
+    whyTheirs: "Cette personne n'accepte pas vos messages.",
     cityTitle: (city: string) => `${city}, tout le monde`,
     sayCity: (city: string) => `Dites quelque chose à ${city}`,
     logInToTalk: "Connectez-vous pour parler.",

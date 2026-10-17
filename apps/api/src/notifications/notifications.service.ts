@@ -30,6 +30,14 @@ export const INVITES_PER_DAY = 10;
 // How many notifications the bell lists.
 const RECENT = 30;
 const DAY_MS = 24 * 3600 * 1000;
+// Why an invitation lapsed, as the code the web says in French (see `expire`).
+const LAPSED: Record<string, string> = {
+  "You already live in a house now.": "youHaveHouseNow",
+  "That house is gone.": "houseGone",
+  "They don't live there any more, so the invitation lapsed.": "senderMovedOut",
+  "Someone else took that room first.": "roomTakenFirst",
+  "This invitation has expired.": "inviteExpired",
+};
 
 type UserRow = typeof users.$inferSelect;
 type Row = typeof notifications.$inferSelect;
@@ -88,18 +96,21 @@ export class NotificationsService {
   async inviteToHouse(senderId: string, toLogin: string, houseId: string, room?: string | null): Promise<{ id: string }> {
     const to = await this.recipient(senderId, toLogin);
     const [house] = await this.db.select().from(houses).where(eq(houses.id, houseId));
-    if (!house) throw new NotFoundException("No such house.");
-    if (!(await this.houses.membership(houseId, senderId))) throw new ForbiddenException("Only the people who live in a house can invite someone to it.");
-    if (house.demo) throw new ConflictException("This is an example house: nobody can move in.");
-    if (house.tutorial) throw new ConflictException("The workshop is for practice. Invite them to a real house.");
-    if (await this.housed(to.id)) throw new ConflictException("They already live in a house.");
+    if (!house) throw new NotFoundException({ message: "No such house.", code: "noHouse" });
+    if (!(await this.houses.membership(houseId, senderId))) throw new ForbiddenException({ message: "Only the people who live in a house can invite someone to it.", code: "inviteMembersOnly" });
+    if (house.demo) throw new ConflictException({ message: "This is an example house: nobody can move in.", code: "exampleHouseInvite" });
+    if (house.tutorial) throw new ConflictException({ message: "The workshop is for practice. Invite them to a real house.", code: "workshopInvite" });
+    if (await this.housed(to.id)) throw new ConflictException({ message: "They already live in a house.", code: "theyHaveHouse" });
     const free = await this.db
       .select({ name: rooms.name })
       .from(rooms)
       .where(and(eq(rooms.houseId, houseId), isNull(rooms.occupantId), eq(rooms.demo, false), room ? eq(rooms.name, room) : undefined))
       .orderBy(asc(rooms.name))
       .limit(1);
-    if (!free.length) throw new ConflictException(room ? "That room isn't free any more." : "Your house is full: there's no free room to offer.");
+    if (!free.length)
+      throw new ConflictException(
+        room ? { message: "That room isn't free any more.", code: "roomNotFree" } : { message: "Your house is full: there's no free room to offer.", code: "houseFull" },
+      );
     await this.brake(senderId, to.id, "house_invite");
     return this.create({ userId: to.id, kind: "house_invite", fromId: senderId, houseId, room: free[0].name, state: "open" });
   }
@@ -107,8 +118,8 @@ export class NotificationsService {
   /** Someone with no house asks `toLogin`, who has none either, to rent a server together. */
   async rentTogether(senderId: string, toLogin: string): Promise<{ id: string }> {
     const to = await this.recipient(senderId, toLogin);
-    if (await this.housed(senderId)) throw new ConflictException("You already live in a house. Invite them to it instead.");
-    if (await this.housed(to.id)) throw new ConflictException("They already live in a house. Knock on theirs instead.");
+    if (await this.housed(senderId)) throw new ConflictException({ message: "You already live in a house. Invite them to it instead.", code: "youHaveHouseInvite" });
+    if (await this.housed(to.id)) throw new ConflictException({ message: "They already live in a house. Knock on theirs instead.", code: "theyHaveHouseKnock" });
     await this.brake(senderId, to.id, "rent_together");
     return this.create({ userId: to.id, kind: "rent_together", fromId: senderId, state: "open" });
   }
@@ -167,8 +178,8 @@ export class NotificationsService {
   /** The sender takes their invitation back, while it's still open. */
   async withdraw(userId: string, id: string) {
     const [n] = await this.db.select().from(notifications).where(eq(notifications.id, id));
-    if (!n || n.fromId !== userId || !isInvite(n.kind)) throw new NotFoundException("No such invitation.");
-    if (n.state !== "open") throw new ConflictException("This invitation has already been answered.");
+    if (!n || n.fromId !== userId || !isInvite(n.kind)) throw new NotFoundException({ message: "No such invitation.", code: "noInvite" });
+    if (n.state !== "open") throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
     await this.db.update(notifications).set({ state: "withdrawn", decidedAt: new Date() }).where(eq(notifications.id, id));
     this.pushes.next(await this.loginOf(n.userId));
   }
@@ -253,9 +264,9 @@ export class NotificationsService {
   // The person an invitation goes to: someone real who isn't you.
   private async recipient(senderId: string, login: string): Promise<UserRow> {
     const [to] = await this.db.select().from(users).where(eq(users.login, login));
-    if (!to) throw new NotFoundException("Nobody by that name lives in La Coloc.");
-    if (to.id === senderId) throw new BadRequestException("You can't invite yourself.");
-    if (await this.isExample(to)) throw new ConflictException("This is an example person: nobody would get the invitation.");
+    if (!to) throw new NotFoundException({ message: "Nobody by that name lives in La Coloc.", code: "nobodyByLogin" });
+    if (to.id === senderId) throw new BadRequestException({ message: "You can't invite yourself.", code: "inviteYourself" });
+    if (await this.isExample(to)) throw new ConflictException({ message: "This is an example person: nobody would get the invitation.", code: "examplePersonInvite" });
     return to;
   }
 
@@ -263,19 +274,19 @@ export class NotificationsService {
   private async brake(senderId: string, toId: string, kind: "house_invite" | "rent_together") {
     const pair = and(eq(notifications.fromId, senderId), eq(notifications.userId, toId), eq(notifications.kind, kind));
     const [open] = await this.db.select({ id: notifications.id }).from(notifications).where(and(pair, eq(notifications.state, "open"))).limit(1);
-    if (open) throw new ConflictException("You've already invited them. They'll see it under their bell.");
+    if (open) throw new ConflictException({ message: "You've already invited them. They'll see it under their bell.", code: "alreadyInvited" });
     const today = new Date(Date.now() - DAY_MS);
     const [no] = await this.db
       .select({ id: notifications.id })
       .from(notifications)
       .where(and(pair, eq(notifications.state, "declined"), gte(notifications.decidedAt, today)))
       .limit(1);
-    if (no) throw new ConflictException("They said no today. Try again another day.");
+    if (no) throw new ConflictException({ message: "They said no today. Try again another day.", code: "saidNoToday" });
     const [{ sent }] = await this.db
       .select({ sent: count() })
       .from(notifications)
       .where(and(eq(notifications.fromId, senderId), inArray(notifications.kind, ["house_invite", "rent_together"]), gte(notifications.createdAt, today)));
-    if (sent >= INVITES_PER_DAY) throw new HttpException("That's a lot of invitations for one day. Try again tomorrow.", HttpStatus.TOO_MANY_REQUESTS);
+    if (sent >= INVITES_PER_DAY) throw new HttpException({ message: "That's a lot of invitations for one day. Try again tomorrow.", code: "tooManyInvites" }, HttpStatus.TOO_MANY_REQUESTS);
   }
 
   // ---- The doorbell's news ----
@@ -302,10 +313,13 @@ export class NotificationsService {
   // An invitation for `userId` that's still open. Anyone else's is "no such invitation", like a knock.
   private async openInvite(userId: string, id: string): Promise<Row> {
     const [n] = id.match(/^[0-9a-f-]{36}$/i) ? await this.db.select().from(notifications).where(eq(notifications.id, id)) : [];
-    if (!n || n.userId !== userId) throw new NotFoundException("No such invitation.");
-    if (!isInvite(n.kind)) throw new ConflictException("There's nothing to answer here.");
+    if (!n || n.userId !== userId) throw new NotFoundException({ message: "No such invitation.", code: "noInvite" });
+    if (!isInvite(n.kind)) throw new ConflictException({ message: "There's nothing to answer here.", code: "nothingToAnswer" });
     if (n.state === "open" && n.createdAt.getTime() < Date.now() - INVITE_DAYS * DAY_MS) return this.expire(n, "This invitation has expired.");
-    if (n.state !== "open") throw new ConflictException(n.state === "withdrawn" ? "They took this invitation back." : "This invitation has already been answered.");
+    if (n.state !== "open")
+      throw new ConflictException(
+        n.state === "withdrawn" ? { message: "They took this invitation back.", code: "inviteWithdrawn" } : { message: "This invitation has already been answered.", code: "inviteAnswered" },
+      );
     return n;
   }
 
@@ -316,7 +330,7 @@ export class NotificationsService {
   // Marks an invitation expired, then refuses with why. Returns `never`: callers `return` it to stop there.
   private async expire(n: Row, why: string): Promise<never> {
     await this.decide(n, "expired");
-    throw new ConflictException(why);
+    throw new ConflictException({ message: why, code: LAPSED[why] ?? "inviteLapsed" });
   }
 
   private async usersById(ids: string[]): Promise<Map<string, UserRow>> {
