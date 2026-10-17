@@ -45,18 +45,20 @@ export class DemoService {
   }
 
   private async replant(): Promise<{ ok: true }> {
-    // The rooms the seed plants. Those keep running; every other room is about to disappear.
-    const seeded = new Set(CITY.flatMap((h) => h.rooms.map((r) => `${h.id}/${r.name}`)));
-    // Of those, the ones someone lives in: a free room is empty after the reset, whatever ran there.
+    // The rooms the seed plants with someone in them: those keep running. Every other room is about to disappear,
+    // or to be free (a free room is empty after the reset, whatever ran there).
     const lived = new Set(CITY.flatMap((h) => h.rooms.filter((r) => r.who).map((r) => `${h.id}/${r.name}`)));
     const seededHouses = new Set(CITY.map((h) => h.id));
+    // Demo houses have no server: nothing ever runs in their rooms.
+    const demoHouses = new Set(CITY.filter((h) => h.demo).map((h) => h.id));
     const before = await this.db.select().from(rooms);
     const oldHouses = (await this.db.select({ id: houses.id }).from(houses)).map((h) => h.id);
 
     // First the agents: each online one removes the containers of its rooms that won't exist after the reset
-    // (tutorial rooms, rooms of houses people started).
+    // (tutorial rooms, rooms of houses people started), and of the seeded rooms that are free after it (someone
+    // may have moved into one and put a project online): an empty room serves nothing.
     for (const r of before) {
-      if (!seeded.has(`${r.houseId}/${r.name}`) && this.agents.isOnline(r.houseId)) this.agents.send(r.houseId, { type: "remove_room", room: r.name });
+      if (!r.demo && !demoHouses.has(r.houseId) && !lived.has(`${r.houseId}/${r.name}`) && this.agents.isOnline(r.houseId)) this.agents.send(r.houseId, { type: "remove_room", room: r.name });
     }
     // A house the seed doesn't have loses its key with it: its agent is hung up.
     for (const id of oldHouses) if (!seededHouses.has(id)) this.agents.hangUp(id, "the city was reset");

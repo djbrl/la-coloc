@@ -93,9 +93,10 @@ describe("the demo reset", () => {
     const [jibRoom] = await db.select().from(rooms).where(eq(rooms.name, "jib"));
     expect(jibRoom).toMatchObject({ project: "Kër Bot", status: "live", url: "http://jib.coloc.localhost:8000" });
 
-    // The agents removed every room that's gone, and only those; the new house's agent was hung up.
+    // The agents removed every room that's gone or free again (Sacré-Cœur's room-4), and only those; the new house's
+    // agent was hung up.
     expect(sent.map((s) => `${s.house}/${(s.cmd as { room: string }).room}`).sort()).toEqual(
-      ["atelier/fatou-home", "medina-lab/fatou", "medina-lab/room-2", "medina-lab/room-3", "medina-lab/room-4"].sort(),
+      ["atelier/fatou-home", "medina-lab/fatou", "medina-lab/room-2", "medina-lab/room-3", "medina-lab/room-4", "sacre-coeur/room-4"].sort(),
     );
     expect(hungUp).toEqual(["medina-lab"]);
     expect(changed).toEqual(expect.arrayContaining(["medina-lab", "atelier", "sacre-coeur"]));
