@@ -5,6 +5,7 @@
 import { applications, arenaChallenges, billPayments, chores, type Db, deployments, fridgeNotes, houses, memberships, messages, notifications, repos, rooms, sessions, usageSamples, users, votes } from "@coloc/db";
 import { eq } from "drizzle-orm";
 import { hashSecret } from "../houses/houses.service";
+import { plantArena } from "./arena";
 import { plantLife } from "./life";
 
 interface SeedRoom {
@@ -336,7 +337,7 @@ export async function plantCity(db: Db, opts: SeedOptions) {
     );
   }
 
-  // A month of life on top: reviews, chat, notes, deploy history, bill payments.
+  // A month of life on top: reviews, chat, notes, deploy history, bill payments, and the Arena's last week.
   if (!opts.life) return;
   await plantLife(
     db,
@@ -352,6 +353,8 @@ export async function plantCity(db: Db, opts: SeedOptions) {
     })),
     id,
   );
+  // And last week's Arena in Dakar and Abidjan, finished, so titles show from the first visit (seed/arena.ts).
+  await plantArena(db, id);
 }
 
 /**

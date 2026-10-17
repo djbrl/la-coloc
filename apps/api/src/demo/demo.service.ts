@@ -67,7 +67,8 @@ export class DemoService {
       // Deleting the houses takes their rooms, flatmates, knocks and votes, chores, notes, deployments, secrets,
       // linked repos and usage with them (all cascade). Chat isn't tied to a house in the schema, so a house's channel
       // (`house:<id>`) and a knock's (`application:<id>`) go by hand. People's direct messages, the cities' rooms and
-      // their boards belong to people, not houses: they stay.
+      // their boards belong to people, not houses: they stay. So do real people's Arena entries, pull requests and
+      // titles; the seeded people's are planted again with the city (seed/arena.ts).
       await tx.delete(messages).where(or(like(messages.channel, "house:%"), like(messages.channel, "application:%")));
       await tx.delete(houses);
       await tx.update(users).set({ tutorialDoneAt: null });

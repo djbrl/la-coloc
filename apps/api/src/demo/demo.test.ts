@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { type Db, houses as houseRows, messages, rooms, sessions, users } from "@coloc/db";
+import { arenaAwards, arenaChallenges, type Db, houses as houseRows, messages, rooms, sessions, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import type { ApiToAgent } from "@coloc/protocol";
 import { HttpException } from "@nestjs/common";
@@ -107,6 +107,22 @@ describe("the demo reset", () => {
     expect((await me.me(req)).user).toMatchObject({ login: "fatou", tutorialDone: false, houses: [] });
     // The seeded people are the same rows as before, not new ones.
     expect(await db.select().from(users).where(eq(users.login, "jib"))).toHaveLength(1);
+  });
+
+  it("keeps the Arena's titles: the seeded ones planted again, a real person's untouched", async () => {
+    const req = await loggedIn("fatou");
+    const awaBefore = (await db.select().from(users).where(eq(users.login, "awa")))[0].badge;
+    expect(awaBefore).toMatchObject({ key: "eagle-eye", city: "Dakar" });
+    // Fatou (a real GitHub account here) won a week in Tunis.
+    const fatou = (await auth.userFromRequest(req))!;
+    await db.update(users).set({ githubId: 101 }).where(eq(users.id, fatou.id));
+    await db.insert(arenaChallenges).values({ id: "Tunis:2026-01-05", city: "Tunis", weekStart: "2026-01-05", startsAt: new Date("2026-01-05"), endsAt: new Date("2026-01-12"), slug: "test-pilot", kind: "challenge", repo: "https://github.com/Djbrl/la-coloc", path: "challenges/test-pilot", prizeFcfa: 15_000, closedAt: new Date("2026-01-12") });
+    const [award] = await db.insert(arenaAwards).values({ challengeId: "Tunis:2026-01-05", userId: fatou.id, place: 1, key: "test-pilot", titleEn: "Test pilot", titleFr: "Pilote d'essai", city: "Tunis", week: "2026-01-05" }).returning();
+    await db.update(users).set({ wornAwardId: award.id, badge: { key: "test-pilot", title: { en: "Test pilot", fr: "Pilote d'essai" }, place: 1, city: "Tunis", week: "2026-01-05" } }).where(eq(users.id, fatou.id));
+
+    await demo.reset(req);
+    expect((await db.select().from(users).where(eq(users.login, "awa")))[0].badge).toEqual(awaBefore);
+    expect((await me.me(req)).user).toMatchObject({ badge: { key: "test-pilot", city: "Tunis" }, badges: [{ id: award.id }] });
   });
 
   it("can run twice in a row once the cooldown is over", async () => {

@@ -13,7 +13,7 @@
 // Subject as the city chat, chat.service.ts); the page then fetches the arena again.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { arenaAwards, arenaChallenges, arenaEntries, arenaSubmissions, type Badge, type Db, users } from "@coloc/db";
-import { and, asc, count, desc, eq, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { DB } from "../db/db.module";
 import { channelMessages, person } from "../doorbell/queries";
 import { GITHUB_CLIENT, type GhEvent } from "../github/chores.service";
@@ -23,6 +23,7 @@ import { arenaChannel, CITY_HISTORY } from "../chat/channels";
 import { ChatService } from "../chat/chat.service";
 import { Limiter } from "../chat/limiter";
 import { awardOf, badgeOf, wear } from "./badges";
+import { closeWeek, standings } from "./podium";
 import { catalogueEntry, type PointsRow, type Text } from "./catalogue";
 import { type ArenaRepo, arenaRepo, fetchPull, GithubDown, isAuthor, parsePrUrl, type PullFacts, readPull, scoreOf } from "./scoring";
 import { challengeId, entryFor, isoDate, WEEK_MS, weekStartOf } from "./weeks";
@@ -35,9 +36,8 @@ type SubmissionRow = typeof arenaSubmissions.$inferSelect;
 export const SUBMISSIONS = { count: 5, perMs: 3_600_000 };
 // The viewer's own open pull requests are asked about again when they look, at most this often.
 export const RECHECK_MS = 5 * 60_000;
-// How many people the leaderboard shows, and how many get a title.
+// How many people the leaderboard shows.
 export const LEADERBOARD = 10;
-const PODIUM = 3;
 // PR actions that can change what a submission is worth.
 const PR_ACTIONS = new Set(["opened", "reopened", "closed", "edited", "labeled", "unlabeled", "synchronize", "ready_for_review"]);
 
@@ -143,36 +143,7 @@ export class ArenaService {
    * Only the call that closes it awards, so calling it twice (or twice at once) awards once. Returns the awards made.
    */
   async closeAndAward(id: string): Promise<(typeof arenaAwards.$inferSelect)[]> {
-    const result = await this.db.transaction(async (tx) => {
-      const [closed] = await tx
-        .update(arenaChallenges)
-        .set({ closedAt: this.clock() })
-        .where(and(eq(arenaChallenges.id, id), isNull(arenaChallenges.closedAt)))
-        .returning();
-      if (!closed) return null;
-      const entry = catalogueEntry(closed.slug, closed.kind);
-      const podium = (await standings(tx, id, PODIUM)).filter((s) => s.points > 0);
-      if (!podium.length) return { city: closed.city, awards: [] };
-      const awards = await tx
-        .insert(arenaAwards)
-        .values(
-          podium.map((s, i) => ({
-            challengeId: id,
-            userId: s.user.id,
-            place: i + 1,
-            key: i === 0 ? entry.award.key : "podium",
-            titleEn: i === 0 ? entry.award.title.en : `Podium · ${entry.title.en}`,
-            titleFr: i === 0 ? entry.award.title.fr : `Podium · ${entry.title.fr}`,
-            city: closed.city,
-            week: closed.weekStart,
-          })),
-        )
-        .onConflictDoNothing()
-        .returning();
-      // A title just won goes on: it's their most recent.
-      for (const a of awards) await wear(tx, a.userId, a);
-      return { city: closed.city, awards };
-    });
+    const result = await this.db.transaction((tx) => closeWeek(tx, id, this.clock()));
     if (!result) return [];
     this.changed(result.city);
     if (result.awards.length) this.log.log(`${id}: awarded ${result.awards.length} title${result.awards.length === 1 ? "" : "s"}`);
@@ -475,22 +446,6 @@ export class ArenaService {
   private changed(city: string) {
     this.chat.changes.next({ city, what: "arena" });
   }
-}
-
-/** A challenge's standings: everyone who joined, most points first; a tie goes to whoever scored last earlier. */
-export async function standings(db: Db, id: string, limit: number): Promise<{ user: UserRow; points: number; prs: number }[]> {
-  const points = sql<number>`coalesce(sum(${arenaSubmissions.points}), 0)::int`;
-  const prs = sql<number>`count(${arenaSubmissions.id})::int`;
-  const lastScored = sql`max(${arenaSubmissions.scoredAt}) filter (where ${arenaSubmissions.points} > 0)`;
-  return db
-    .select({ user: users, points, prs })
-    .from(arenaEntries)
-    .innerJoin(users, eq(users.id, arenaEntries.userId))
-    .leftJoin(arenaSubmissions, and(eq(arenaSubmissions.challengeId, arenaEntries.challengeId), eq(arenaSubmissions.userId, arenaEntries.userId)))
-    .where(eq(arenaEntries.challengeId, id))
-    .groupBy(users.id, arenaEntries.joinedAt)
-    .orderBy(desc(points), sql`${lastScored} asc nulls last`, asc(arenaEntries.joinedAt), asc(users.id))
-    .limit(limit);
 }
 
 function submissionView(s: SubmissionRow): ArenaSubmissionView {
