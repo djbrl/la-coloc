@@ -1,0 +1,114 @@
+// The lobby's live line on the shared site (VITE_LOBBY_WS set). From the 16 Oct review: a server that accepts and
+// then hangs up doesn't get a reconnect every second, and a failed pass is retried instead of making a logged-in
+// person a visitor.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// A socket the test scripts: what the server does once it's open.
+class FakeSocket {
+  static OPEN = 1;
+  static all: FakeSocket[] = [];
+  static script: (s: FakeSocket) => void = () => undefined;
+  readyState = 0;
+  sent: string[] = [];
+  onopen: (() => void) | null = null;
+  onclose: (() => void) | null = null;
+  onmessage: ((e: { data: string }) => void) | null = null;
+  constructor(public url: string) {
+    FakeSocket.all.push(this);
+    setTimeout(() => {
+      this.readyState = 1;
+      this.onopen?.();
+      FakeSocket.script(this);
+    }, 10);
+  }
+  hangUp() {
+    this.readyState = 3;
+    this.onclose?.();
+  }
+  say(msg: object) {
+    this.onmessage?.({ data: JSON.stringify(msg) });
+  }
+  send(m: string) {
+    this.sent.push(m);
+  }
+  close() {}
+}
+
+const noop = () => undefined;
+const events = { onSnapshot: noop, onJoin: noop, onMove: noop, onEmote: noop, onLeave: noop, onStatus: noop, onCensus: noop };
+const ticketJson = (ticket: string | null, status = 200) => new Response(JSON.stringify({ ticket }), { status });
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.resetModules();
+  FakeSocket.all = [];
+  FakeSocket.script = () => undefined;
+  vi.stubGlobal("WebSocket", FakeSocket);
+  vi.stubGlobal("window", globalThis);
+  vi.stubEnv("VITE_LOBBY_WS", "wss://example.test/lobby-ws");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+describe("reconnecting", () => {
+  it("backs off when the server accepts and then hangs up straight away", async () => {
+    FakeSocket.script = (s) => s.hangUp();
+    const tickets = vi.fn(async () => ticketJson(null));
+    vi.stubGlobal("fetch", tickets);
+    const { LobbyLink } = await import("./link");
+    const link = new LobbyLink(events);
+    await vi.advanceTimersByTimeAsync(60_000);
+    link.close();
+    // 1, 2, 4, 8, 15, 15, 15 s...: about 8 tries in a minute, not 60.
+    expect(FakeSocket.all.length).toBeLessThanOrEqual(9);
+  });
+
+  it("starts the waits over once the server has spoken", async () => {
+    // The first line is cut before the server says anything, the next one works, then drops.
+    FakeSocket.script = (s) => {
+      if (FakeSocket.all.length === 1) s.hangUp();
+      else {
+        s.say({ type: "census", counts: {} });
+        setTimeout(() => s.hangUp(), 100);
+      }
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => ticketJson(null)));
+    const { LobbyLink } = await import("./link");
+    const link = new LobbyLink(events);
+    await vi.advanceTimersByTimeAsync(4_200);
+    link.close();
+    // Tries at about 0, 1, 2.1 and 3.2 s: each line that spoke starts the wait over at 1 s. Without the reset the
+    // waits would be 1, 2, then 4 s, and only three tries would fit.
+    expect(FakeSocket.all.length).toBe(4);
+  });
+});
+
+describe("the pass on the shared site", () => {
+  it("doesn't connect as a visitor when the pass can't be had: it tries again, and comes in with one", async () => {
+    FakeSocket.script = (s) => s.say({ type: "census", counts: {} });
+    const tickets = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: "core_down" }), { status: 503 }))
+      .mockResolvedValue(ticketJson("t1"));
+    vi.stubGlobal("fetch", tickets);
+    const { LobbyLink } = await import("./link");
+    const link = new LobbyLink(events);
+    await vi.advanceTimersByTimeAsync(5_000);
+    link.close();
+    expect(tickets).toHaveBeenCalledTimes(2);
+    expect(FakeSocket.all).toHaveLength(1);
+    expect(FakeSocket.all[0].url).toContain("t1");
+  });
+
+  it("a visitor (no pass, but the API answered) connects without one", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ticketJson(null)));
+    const { LobbyLink } = await import("./link");
+    const link = new LobbyLink(events);
+    await vi.advanceTimersByTimeAsync(100);
+    link.close();
+    expect(FakeSocket.all.map((s) => s.url)).toEqual(["wss://example.test/lobby-ws"]);
+  });
+});
