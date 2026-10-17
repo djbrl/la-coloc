@@ -49,17 +49,14 @@ export const cardWords = defineWords(
     thatsYou: " · That's you.",
     message: "Message",
     messageName: (name: string) => `Write to ${name}`,
-    noMessage: "An example person: nobody would read your message.",
     nothingOnline: "Nothing online in this room yet.",
     sayHi: "Say hi",
     // The same tile for a moment after you waved.
     waved: "Waved",
-    // A made-up person (a seeded flatmate, a passer-by): said honestly, and their GitHub never linked.
-    example: "example person",
-    exampleWhy: "Made up so the city isn't empty. No GitHub account.",
+    // A made-up person (a seeded flatmate, a passer-by): said once, plainly, and their GitHub never linked.
+    exampleLine: "An example person, here to show what the city is like.",
     github: "GitHub",
     githubName: (login: string) => `@${login} on GitHub (opens a new tab)`,
-    noGithub: "No GitHub profile: an example person",
   },
   {
     and: "et",
@@ -99,15 +96,12 @@ export const cardWords = defineWords(
     thatsYou: " · C'est vous.",
     message: "Message",
     messageName: (name) => `Écrire à ${name}`,
-    noMessage: "Une personne d'exemple : personne ne lirait votre message.",
     nothingOnline: "Rien en ligne dans cette chambre pour l'instant.",
     sayHi: "Dire bonjour",
     waved: "Salué",
-    example: "personne d'exemple",
-    exampleWhy: "Inventée pour que la ville ne soit pas vide. Pas de compte GitHub.",
+    exampleLine: "Personne d'exemple : elle est là pour montrer la ville.",
     github: "GitHub",
     githubName: (login) => `@${login} sur GitHub (nouvel onglet)`,
-    noGithub: "Pas de profil GitHub : une personne d'exemple",
   },
 );
 
