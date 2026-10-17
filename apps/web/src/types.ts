@@ -10,6 +10,8 @@ export interface Person {
   // Has a real GitHub account, so their profile can be linked. Only the house views send it (an older API doesn't):
   // missing means "don't link".
   github?: boolean;
+  // The title they wear, won in a city's arena (docs/arena.md). An older API leaves it out: missing means none.
+  badge?: Badge | null;
 }
 
 export interface RoomUsage {
@@ -239,6 +241,9 @@ export interface Me {
   tutorialDone?: boolean;
   // Your knocks still waiting for a vote, one per house at most: the lobby offers "Your knock" instead of "Knock".
   knocks?: { id: string; houseId: string; room: string }[];
+  // The title you wear, and every one you've won (pick which to wear: PUT /api/me/badge). An older API leaves both out.
+  badge?: Badge | null;
+  badges?: (Badge & { id: string })[];
 }
 
 // The tutorial as the API sees it: GET /api/tutorial. The workshop is the house "atelier"; your room in it appears
@@ -378,4 +383,66 @@ export interface BoardPost {
   createdAt: string;
   activeAt: string;
   replies: number;
+}
+
+// ---- The arena (docs/arena.md): a stadium in every city, the week's challenge, and titles for the winners ----
+
+/** The same words in both languages, as the API stores what it writes itself (a challenge, a title). */
+export interface Text {
+  en: string;
+  fr: string;
+}
+
+/** A title won in an arena: the challenge's own for first place, a podium one for second and third. `week` is the
+ *  Monday it started ("2026-10-12"). */
+export interface Badge {
+  key: string;
+  title: Text;
+  place: 1 | 2 | 3;
+  city: string;
+  week: string;
+}
+
+export type ArenaKind = "bounty" | "hackathon" | "challenge";
+
+export interface ArenaChallenge {
+  id: string;
+  slug: string;
+  kind: ArenaKind;
+  title: Text;
+  summary: Text;
+  rules: { en: string[]; fr: string[] };
+  // The arena repo ("https://github.com/Djbrl/la-coloc") and the challenge's folder in it ("challenges/bug-bounty").
+  repo: string;
+  path: string;
+  startsAt: string;
+  endsAt: string;
+  prizeFcfa: number;
+  // The title the winner gets.
+  award: { key: string; title: Text };
+  // What a merged pull request is worth, by label.
+  points: { label: string; points: number }[];
+}
+
+/** One of your pull requests sent to this week's challenge. "open": waiting for a merge (0 points so far). */
+export interface ArenaSubmission {
+  id: string;
+  url: string;
+  number: number;
+  title: string | null;
+  state: "open" | "merged" | "closed";
+  points: number;
+}
+
+/** A city's arena this week: GET /api/cities/:city/arena (no login needed; `joined` and `mine` are the viewer's). */
+export interface ArenaView {
+  city: string;
+  challenge: ArenaChallenge;
+  entrants: number;
+  joined: boolean;
+  mine: ArenaSubmission[];
+  // The top ten, points first.
+  leaderboard: { person: Person; points: number; prs: number }[];
+  // Last week's winner in this city.
+  champion: { person: Person; badge: Badge } | null;
 }
