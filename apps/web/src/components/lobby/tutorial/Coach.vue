@@ -11,6 +11,7 @@ import LaunchCard from "./LaunchCard.vue";
 import QuestIcon, { type QuestIconName } from "./QuestIcon.vue";
 import RepoPicker from "./RepoPicker.vue";
 import ShareCard from "./ShareCard.vue";
+import { opensAnywhere } from "./share";
 import { CHAPTERS, HOUSE_CARDS, isLive, type TutorialMachine } from "./tutorial";
 import { tutorialWords as w } from "./words";
 import type { RepoChoices } from "../../../types";
@@ -181,7 +182,7 @@ onBeforeUnmount(() => clearTimeout(timer));
       <template v-else-if="step === 'open'">
         <p class="text">{{ w.openTitle }}</p>
         <p v-if="url" class="url">{{ bare(url) }}</p>
-        <p class="sub">{{ w.openWhy }}</p>
+        <p class="sub">{{ url && !opensAnywhere(url) ? w.openWhyHere : w.openWhy }}</p>
       </template>
 
       <!-- 7 · Show it off. -->

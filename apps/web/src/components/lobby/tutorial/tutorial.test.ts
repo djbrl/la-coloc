@@ -2,7 +2,7 @@
 // the stamps, picking up where you left it, and the launch's stages. Then the share helpers and the one-time tips.
 import { describe, expect, it } from "vitest";
 import type { TutorialState } from "../../../types";
-import { qrPath, whatsappLink } from "./share";
+import { opensAnywhere, qrPath, whatsappLink } from "./share";
 import { nextTip, type Tip, TIP_TEXT, tipParts } from "./tips";
 import { type Action, CHAPTER_OF, CHAPTERS, HOUSE_CARDS, resumeStep, SETUP, stageOf, STEPS, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
 
@@ -385,5 +385,15 @@ describe("the one-time tips", () => {
       { key: true, text: "Shift" },
       { key: false, text: " to dash." },
     ]);
+  });
+});
+
+describe("where an address opens", () => {
+  it("knows a laptop's demo address opens nowhere else, and a real one opens anywhere", () => {
+    expect(opensAnywhere("http://nadia-dev.atelier.coloc.localhost:8000")).toBe(false);
+    expect(opensAnywhere("http://localhost:5175")).toBe(false);
+    expect(opensAnywhere("http://192.168.1.20:8000")).toBe(false);
+    expect(opensAnywhere("https://nadia.sacre-coeur.coloc.dev")).toBe(true);
+    expect(opensAnywhere("not a url")).toBe(false);
   });
 });

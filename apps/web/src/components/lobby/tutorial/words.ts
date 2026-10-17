@@ -105,6 +105,7 @@ export const tutorialWords = defineWords(
     // Chapter 6: open it.
     openTitle: "Your project has an address.",
     openWhy: "Anyone with it can open your page, from anywhere.",
+    openWhyHere: "On this demo server, it opens on the machine that runs the city. Online for real, anyone could open it.",
     openIt: "Open it",
     opensInTab: "(opens in a new tab)",
 
@@ -118,6 +119,7 @@ export const tutorialWords = defineWords(
     shareMore: "Share…",
     qrName: (address: string) => `QR code for ${address}. Scan it with your phone's camera.`,
     scan: "Scan with your phone",
+    onlyHere: "This address opens on the demo server's machine only: copy it to open it there.",
     postcardFrom: (house: string, city: string) => `From ${house}, ${city}`,
     later: "Later",
 
@@ -225,6 +227,7 @@ export const tutorialWords = defineWords(
 
     openTitle: "Votre projet a une adresse.",
     openWhy: "Avec elle, n'importe qui peut ouvrir votre page, de n'importe où.",
+    openWhyHere: "Sur ce serveur de démo, elle s'ouvre sur la machine qui fait tourner la ville. En ligne pour de vrai, n'importe qui pourrait l'ouvrir.",
     openIt: "L'ouvrir",
     opensInTab: "(s'ouvre dans un nouvel onglet)",
 
@@ -237,6 +240,7 @@ export const tutorialWords = defineWords(
     shareMore: "Partager…",
     qrName: (address) => `QR code de ${address}. Scannez-le avec l'appareil photo de votre téléphone.`,
     scan: "Scannez avec votre téléphone",
+    onlyHere: "Cette adresse ne s'ouvre que sur la machine du serveur de démo : copiez-la pour l'y ouvrir.",
     postcardFrom: (house, city) => `Depuis ${house}, ${city}`,
     later: "Plus tard",
 

@@ -7,7 +7,7 @@ import { computed, ref } from "vue";
 import { bare } from "../panel/words";
 import HouseArt from "./HouseArt.vue";
 import QuestIcon from "./QuestIcon.vue";
-import { canShareNatively, qrPath, whatsappLink } from "./share";
+import { canShareNatively, opensAnywhere, qrPath, whatsappLink } from "./share";
 import { tutorialWords as w } from "./words";
 
 const props = defineProps<{ url: string; room: string; house: string; city: string; touch: boolean }>();
@@ -16,6 +16,8 @@ const emit = defineEmits<{ shared: []; later: [] }>();
 const address = computed(() => bare(props.url));
 const message = computed(() => w.shareText(props.url));
 const qr = computed(() => qrPath(props.url));
+// A laptop's demo address opens nowhere else: no QR, no WhatsApp, no share sheet for it, only the copy.
+const anywhere = computed(() => opensAnywhere(props.url));
 const native = canShareNatively();
 
 const copied = ref(false);
@@ -48,7 +50,7 @@ async function shareNatively() {
         <p class="from">{{ w.postcardFrom(house, city) }}</p>
         <p class="address">{{ address }}</p>
       </div>
-      <figure v-if="!touch" class="qr">
+      <figure v-if="!touch && anywhere" class="qr">
         <svg :viewBox="`0 0 ${qr.size} ${qr.size}`" role="img" :aria-label="w.qrName(address)" shape-rendering="crispEdges">
           <rect :width="qr.size" :height="qr.size" class="qr-paper" />
           <path :d="qr.d" class="qr-ink" />
@@ -59,12 +61,13 @@ async function shareNatively() {
           <button type="button" class="way" :class="{ done: copied }" @click="copy">
             <QuestIcon :name="copied ? 'tick' : 'copy'" :size="18" /><span>{{ copied ? w.copied : w.copy }}</span>
           </button>
-          <a class="way" :href="whatsappLink(message)" target="_blank" rel="noopener" :aria-label="w.whatsappName" @click="emit('shared')" @auxclick="emit('shared')">
+          <a v-if="anywhere" class="way" :href="whatsappLink(message)" target="_blank" rel="noopener" :aria-label="w.whatsappName" @click="emit('shared')" @auxclick="emit('shared')">
             <QuestIcon name="chat" :size="18" /><span>{{ w.whatsapp }}</span>
           </a>
-          <button v-if="native" type="button" class="way" @click="shareNatively"><QuestIcon name="share" :size="18" /><span>{{ w.shareMore }}</span></button>
+          <button v-if="native && anywhere" type="button" class="way" @click="shareNatively"><QuestIcon name="share" :size="18" /><span>{{ w.shareMore }}</span></button>
       </div>
     </div>
+    <p v-if="!anywhere" class="here">{{ w.onlyHere }}</p>
     <span class="sr-only" aria-live="polite">{{ copied ? w.copied : "" }}</span>
   </div>
 </template>
@@ -83,6 +86,7 @@ async function shareNatively() {
 .way:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
 .way:active { transform: translateY(1px); }
 .way.done { color: var(--live); }
+.here { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
 .qr { display: grid; justify-items: center; gap: 4px; margin: 0; }
 .qr > svg { width: 96px; height: 96px; border-radius: var(--r-xs); }
 /* A QR code reads best dark on light, whatever the theme: the logs' two colours are that in both. */

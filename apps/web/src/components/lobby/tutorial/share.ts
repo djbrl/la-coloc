@@ -3,6 +3,22 @@
 // rather than taking the library's SVG string, keeps it in our colours (currentColor) and out of v-html.
 import { encode } from "uqr";
 
+/**
+ * Whether an address opens from anywhere, or only on the machine that serves it: a demo server on a laptop gives its
+ * rooms <room>.coloc.localhost addresses, which no phone or friend can open. Those get no QR code, no WhatsApp and
+ * no "anyone can open it" (the 16 Oct review: a juror scanning it got nothing).
+ */
+export function opensAnywhere(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".test")) return false;
+    if (/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) || host === "[::1]") return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** A WhatsApp link that opens the app (or WhatsApp Web) with the message ready to send, to whoever you pick. */
 export function whatsappLink(text: string): string {
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
