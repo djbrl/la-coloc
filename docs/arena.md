@@ -1,0 +1,87 @@
+# The Arena: shared contract (17 Oct 2026)
+
+Every city (not the tutorial's workshop map) gets a landmark, **the Arena**, a stadium on the block that used to be
+the park. Players gather there, chat in the arena's own room, and take part in **the week's challenge**: a GitHub repo
+folder you clone and send pull requests to (a security bug bounty, a hackathon, a coding challenge). Each week has a
+new challenge per city, with a prize. **Prizes include a custom title and badge shown next to the winner's name**
+everywhere a name shows (3D name tags, person cards, chat, leaderboard).
+
+## Weeks
+- A week starts Monday 00:00 UTC and ends 7 days later. `weekStart` = that Monday, ISO date `YYYY-MM-DD`.
+- A city's challenge for a week is created lazily the first time anyone asks (no cron): catalogue entry
+  `CATALOGUE[(weekIndex + cityIndex) % CATALOGUE.length]` where weekIndex = weeks since 2026-01-05 and cityIndex is
+  the city's index in `CITIES` (apps/api/src/chat/channels.ts). So cities differ in a given week.
+- When a city's new week is created, the previous week's challenge (if any) is **closed and awarded**, idempotently.
+
+## Challenges (catalogue in apps/api/src/arena/catalogue.ts, both languages)
+Each: `slug`, `kind: "bounty" | "hackathon" | "challenge"`, `title {en,fr}`, `summary {en,fr}`, `rules {en: string[], fr: string[]}`,
+`path` (folder in the arena repo, e.g. `challenges/bug-bounty`), `prizeFcfa`, `points` table, and the prize
+`award: { key, title: {en, fr} }` (the winner's title). French titles must be epicene (same for anyone), e.g.
+bounty "Œil de lynx" / "Eagle eye", hackathon "As du hackathon" / "Hackathon ace".
+Repo: env `COLOC_ARENA_REPO`, default `https://github.com/Djbrl/la-coloc`. Each catalogue folder has a README in this
+repo under `challenges/<slug>/README.md` explaining the task and how points work.
+
+Points: a submission is a pull request to the arena repo by the submitter (PR author login == their GitHub login,
+case-insensitive), opened after the week started. Merged → points (by label for bounties: `arena:low` 10,
+`arena:medium` 25, `arena:high` 50, `arena:critical` 100, default 10; hackathon merged 30; challenge merged 20).
+Open → 0 ("waiting"), closed unmerged → 0.
+
+## Badges (titles)
+- At award time: 1st place gets the challenge's `award` title, place 1; 2nd and 3rd get a podium badge (key
+  `podium`, title {en: "Podium · <challenge title>", fr: "Podium · <titre>"}), places 2 and 3. Ties: earlier last
+  scoring time wins. Nobody with 0 points is awarded.
+- A person's **worn badge** = their most recent award unless they picked another (`PUT /api/me/badge {awardId|null}`).
+- `Badge` (JSON everywhere): `{ key: string, title: { en: string, fr: string }, place: 1 | 2 | 3, city: string, week: string }`.
+- `PersonView` (apps/api/src/houses/house.types.ts, built by `person()` in doorbell/queries.ts) gains
+  `badge: Badge | null`. Chat authors, person cards and leaderboards get it through that.
+- The lobby WebSocket's `join` payload for a logged-in person gains `badge: Badge | null`.
+- `/api/me` user gains `badge: Badge | null` and `badges: (Badge & { id: string })[]` (all their awards).
+- The seed plants a finished previous week in Dakar with awards, so the demo city already shows badges (e.g. awa
+  wears "Œil de lynx · Dakar").
+
+## API
+`GET /api/cities/:city/arena` (no login needed; viewer optional) → `ArenaView`:
+```ts
+type Text = { en: string; fr: string };
+type ArenaView = {
+  city: string;
+  challenge: {
+    id: string; slug: string; kind: "bounty" | "hackathon" | "challenge";
+    title: Text; summary: Text; rules: { en: string[]; fr: string[] };
+    repo: string; path: string; startsAt: string; endsAt: string; prizeFcfa: number;
+    award: { key: string; title: Text };
+    points: { label: string; points: number }[];
+  };
+  entrants: number;
+  joined: boolean;                         // the viewer joined this week
+  mine: { id: string; url: string; number: number; title: string | null; state: "open" | "merged" | "closed"; points: number }[];
+  leaderboard: { person: PersonView; points: number; prs: number }[];   // top 10, points desc
+  champion: { person: PersonView; badge: Badge } | null;                // last week's winner in this city
+};
+```
+`POST /api/cities/:city/arena/join` (login) → `ArenaView`.
+`POST /api/cities/:city/arena/submissions` body `{ url }` (login; joins if not yet) → `ArenaView`. The API checks the
+PR via GitHub (the App client if configured, else unauthenticated public API): right repo, author == user's GitHub
+login, created after the week started. Refusals carry codes (French in apps/web/src/refusals.ts):
+`arenaBadUrl`, `arenaWrongRepo`, `arenaNotYourPr`, `arenaPrTooOld`, `arenaPrNotFound`, `arenaAlreadySubmitted`,
+`arenaGithubDown`, `arenaGithubNeeded` (dev-login users without a GitHub login), `slowDownArena` (5 submissions/hour).
+`DELETE /api/cities/:city/arena/submissions/:id` (own) → `ArenaView`.
+Statuses refresh: on GitHub `pull_request` webhooks for the arena repo (opened/closed/labeled/synchronize) and lazily
+on `GET` for the viewer's own open submissions not checked in the last 5 minutes.
+Arena chat: channel `arena:<City>` in `messages`: `GET /api/cities/:city/arena/chat` → `{ messages: MessageView[] }`,
+`POST /api/cities/:city/arena/chat` `{ body }` (same rules, blocks and limiter as the city room). The existing city
+stream `GET /api/cities/:city/stream` also emits `what: "arena"` when the arena chat, entrants, leaderboard or
+challenge change.
+`PUT /api/me/badge` `{ id: string | null }` → `{ badge: Badge | null }` (wear one of your awards, or none).
+
+## 3D (apps/web/src/lobby)
+- `Neighbourhood.blocks[].kind` gains `"arena"` (replaces `"park"` in generated cities; the tutorial map keeps its
+  park). `Neighbourhood.arena?: { x: number; z: number; width: number; depth: number; facing: Facing }` (the block,
+  and which side its entrance faces: towards the market).
+- Lobby target kind `{ kind: "arena"; city: string }`, raised like the board's (E/Enter at the entrance, or a click).
+- `lobby.setArena(display: ArenaDisplay | null)` with
+  `ArenaDisplay = { title: string; kind: "bounty" | "hackathon" | "challenge"; endsAt: string; champion: string | null; entrants: number }`
+  (already in the chosen language; the big screen redraws at most once a minute).
+- `lobby.goToArena()` walks/travels you to the entrance. Event `onArenaCrowd(n)` when the number of people
+  (you, others online, passers-by) inside the arena changes.
+- Name tags show the badge: a small chip with a trophy and the title, gold/silver/bronze by place, next to the name.
