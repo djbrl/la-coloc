@@ -110,6 +110,8 @@ export interface Resident {
   houseName: string;
   room: string;
   project: string | null;
+  // The Arena title they wear, as the city lists them: the flatmates out front carry it on their tags too.
+  badge?: Badge | null;
 }
 
 export interface LobbyEvents {
@@ -1946,12 +1948,18 @@ export class Lobby {
     const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
     el.style.color = luminance > 0.25 ? "#1d1d1f" : "#fff";
     tag.append(el);
+    // Their Arena title, as the city lists them, unless the live line already told us (people online, and you).
+    const won = home.badge ?? null;
+    if (login && login !== this.opts.login && !this.remotes.has(login) && JSON.stringify(this.tagBadges.get(tag) ?? null) !== JSON.stringify(won)) {
+      this.tagBadges.set(tag, won);
+      this.trophy(tag);
+    }
   }
 
   /**
    * The title someone won in the Arena, right after their name: a trophy and the title in the chosen language, gold,
-   * silver or bronze by place (badge.ts). Only people really online (and you) have one; passers-by and the flatmates
-   * out front never do. Like the house chip, it goes when the tag is crowded (style.css), and it's redrawn when the
+   * silver or bronze by place (badge.ts). People online and you, from the live line; the flatmates out front, from the
+   * city's listing; passers-by never. Like the house chip, it goes when the tag is crowded (style.css), and it's redrawn when the
    * language changes.
    */
   private trophy(tag: HTMLElement) {

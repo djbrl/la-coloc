@@ -134,7 +134,8 @@ const here = computed(() => props.houses.filter((h) => h.city === city.value));
 const residents = computed(() => {
   const map = new Map<string, Home>();
   for (const h of props.houses)
-    for (const r of h.rooms) if (r.occupant) map.set(r.occupant.login, { houseId: h.id, houseName: h.name, city: h.city, room: r.name, project: r.project });
+    for (const r of h.rooms)
+      if (r.occupant) map.set(r.occupant.login, { houseId: h.id, houseName: h.name, city: h.city, room: r.name, project: r.project, badge: r.occupant.badge ?? null });
   return map;
 });
 
@@ -150,6 +151,7 @@ function build() {
   lobby.setResidents(residents.value);
   shownArena = "";
   showArenaScreen();
+  wearMyBadge();
   if (awaiting && here.value.some((h) => h.id === awaiting)) {
     lobby.goTo(awaiting);
     awaiting = null;
@@ -727,10 +729,20 @@ function showArenaScreen() {
 }
 watch(arenaDisplay, showArenaScreen);
 
+// Your own title on your own name tag: the live line's snapshot lists everyone but you, so it comes from /api/me
+// (and follows a change in Settings).
+function wearMyBadge() {
+  const login = me.value?.login;
+  if (login) lobby?.setBadge(login, me.value?.badge ?? null);
+}
+watch(() => JSON.stringify(me.value?.badge ?? null), wearMyBadge);
+
 // The HUD's way in: you walk (or travel) to the stadium's entrance, where its panel opens.
 function goToArena() {
   closeCard();
   stadium()?.goToArena?.();
+  // Back to the city: E at the gate opens the Arena straight away, not the round tool that brought you.
+  focusStage();
 }
 const arenaOpen = computed(() => card.value?.kind === "arena");
 // The panel docks on the right like a house's window: the camera puts you on the left half meanwhile.
