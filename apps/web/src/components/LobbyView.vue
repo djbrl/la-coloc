@@ -1327,7 +1327,7 @@ function statsOf(name: string) {
       <RentSteps v-if="rent" :city="rent.city" :plot="rent.plot" @built="built" @close="rent = null" />
 
       <Transition name="fade">
-        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" large @go="travelToHouse" @close="bigMap = false" />
+        <Minimap v-if="bigMap && neighbourhood" :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" large @go="travelToHouse" @arena="bigMap = false; goToArena()" @close="bigMap = false" />
       </Transition>
       <Transition name="fade">
         <KeysSheet v-if="keysOpen" @close="keysOpen = false" />
