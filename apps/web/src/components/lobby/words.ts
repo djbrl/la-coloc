@@ -183,6 +183,14 @@ export const hudWords = defineWords(
     knocking: (house: string) => `Someone is knocking at ${house}`,
     waves: "waves hello",
     thumbsDown: "thumbs down",
+    // The Arena (arena.ts): its flag, and its big screen over the entrance, a word or a number per line.
+    arena: "Arena",
+    arenaKind: { bounty: "Bug bounty", hackathon: "Hackathon", challenge: "Challenge" },
+    arenaLeft: (days: number, hours: number, minutes: number) => (days ? `${days}d ${hours}h` : hours ? `${hours}h ${minutes}m` : `${minutes}m`),
+    arenaOver: "Over",
+    arenaWeek: "This week's challenge",
+    // A title won in the Arena, after a name on its tag (hidden name of the chip).
+    wonTitle: (title: string) => `Title: ${title}`,
     // Inside.vue: the window a house, a knock or a room opens in.
     insideHouse: "Inside a house",
     aKnock: "A knock",
@@ -260,6 +268,12 @@ export const hudWords = defineWords(
     knocking: (house) => `Quelqu'un frappe à ${house}`,
     waves: "fait coucou",
     thumbsDown: "pouce vers le bas",
+    arena: "Arène",
+    arenaKind: { bounty: "Chasse aux bugs", hackathon: "Hackathon", challenge: "Défi" },
+    arenaLeft: (days, hours, minutes) => (days ? `${days} j ${hours} h` : hours ? `${hours} h ${minutes} min` : `${minutes} min`),
+    arenaOver: "Terminé",
+    arenaWeek: "Le défi de la semaine",
+    wonTitle: (title) => `Titre : ${title}`,
     insideHouse: "Dans une maison",
     aKnock: "Une demande",
     aRoom: "Une chambre",
