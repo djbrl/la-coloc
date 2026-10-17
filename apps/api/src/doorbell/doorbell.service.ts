@@ -137,10 +137,10 @@ export class DoorbellService {
     const all = await this.db.select().from(votes).where(eq(votes.applicationId, applicationId));
     const verdict = tallyVotes(await this.flatmateCount(app.houseId), all);
     if (verdict === "admitted") await this.admit(app);
-    if (verdict === "declined") {
-      await this.close(app, "declined", knockText("no"));
+    // Two votes landing together can both see a majority: close() and admit() only act on a knock that's still
+    // open, so the second one stops quietly instead of answering twice.
+    if (verdict === "declined" && (await this.close(app, "declined", knockText("no"))))
       await this.tell({ type: "answered", applicationId: app.id, houseId: app.houseId, room: app.room, applicantId: app.applicantId, verdict: "declined" });
-    }
     this.changes.next(app.id);
     this.houses.changes.next(app.houseId);
     return { verdict };
@@ -150,7 +150,8 @@ export class DoorbellService {
     const app = await this.mustFind(applicationId);
     if (app.applicantId !== userId) throw new ForbiddenException("Only the person who knocked can withdraw.");
     if (app.status !== "open") throw new ConflictException("This knock is already decided.");
-    await this.close(app, "withdrawn", knockText("withdrawn"));
+    // A vote may have decided it since we read it.
+    if (!(await this.close(app, "withdrawn", knockText("withdrawn")))) throw new ConflictException("This knock is already decided.");
     this.changes.next(app.id);
     this.houses.changes.next(app.houseId);
   }
@@ -158,15 +159,26 @@ export class DoorbellService {
   private async admit(app: typeof applications.$inferSelect) {
     const [applicant] = await this.db.select().from(users).where(eq(users.id, app.applicantId));
     const name = applicant.name ?? applicant.login;
-    const moved = await this.db.transaction(async (tx) => {
+    const outcome = await this.db.transaction(async (tx) => {
+      // Claim the knock first: only one vote (or a withdraw) can close it. Losing that race means someone else
+      // already answered, so there's nothing left to do.
+      const claimed = await tx
+        .update(applications)
+        .set({ status: "admitted", decidedAt: new Date() })
+        .where(and(eq(applications.id, app.id), eq(applications.status, "open")))
+        .returning({ id: applications.id });
+      if (!claimed.length) return "lost";
       // Only if the room is still free: two knocks on one room can't both move in (moveInto checks).
-      if (!(await moveInto(tx, app.houseId, app.room, app.applicantId))) return false;
-      await tx.update(applications).set({ status: "admitted", decidedAt: new Date() }).where(eq(applications.id, app.id));
+      if (!(await moveInto(tx, app.houseId, app.room, app.applicantId))) {
+        await tx.update(applications).set({ status: "declined" }).where(eq(applications.id, app.id));
+        await tx.insert(messages).values({ channel: applicationChannel(app.id), authorId: null, body: knockText("taken") });
+        return "taken";
+      }
       await tx.insert(messages).values({ channel: applicationChannel(app.id), authorId: null, body: knockText("yes", { name }) });
-      return true;
+      return "moved";
     });
-    if (!moved) {
-      await this.close(app, "declined", knockText("taken"));
+    if (outcome === "lost") return;
+    if (outcome === "taken") {
       await this.tell({ type: "answered", applicationId: app.id, houseId: app.houseId, room: app.room, applicantId: app.applicantId, verdict: "declined" });
       return;
     }
@@ -191,7 +203,7 @@ export class DoorbellService {
         ),
       );
     for (const other of others) {
-      await this.close(other, "declined", knockText("taken"));
+      if (!(await this.close(other, "declined", knockText("taken")))) continue;
       this.changes.next(other.id);
       await this.tell({ type: "answered", applicationId: other.id, houseId, room, applicantId: other.applicantId, verdict: "declined" });
     }
@@ -204,10 +216,7 @@ export class DoorbellService {
       .select()
       .from(applications)
       .where(and(eq(applications.houseId, houseId), eq(applications.applicantId, applicantId), eq(applications.status, "open")));
-    for (const app of open) {
-      await this.close(app, "withdrawn", knockText("invited"));
-      this.changes.next(app.id);
-    }
+    for (const app of open) if (await this.close(app, "withdrawn", knockText("invited"))) this.changes.next(app.id);
   }
 
   /** Listens to the doorbell: a knock, and a knock answered. The notifications use it; nothing else needs to. */
@@ -220,10 +229,18 @@ export class DoorbellService {
     for (const l of this.listeners) await l(e).catch((err: Error) => this.log.warn(`a doorbell listener failed: ${err.message}`));
   }
 
-  private async close(app: typeof applications.$inferSelect, status: "declined" | "withdrawn", why: string) {
-    await this.db.transaction(async (tx) => {
-      await tx.update(applications).set({ status, decidedAt: new Date() }).where(eq(applications.id, app.id));
+  // Closes a knock that's still open. False when it was already closed (a vote or a withdraw got there first): the
+  // caller then says nothing, so nobody gets two answers.
+  private async close(app: typeof applications.$inferSelect, status: "declined" | "withdrawn", why: string): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const closed = await tx
+        .update(applications)
+        .set({ status, decidedAt: new Date() })
+        .where(and(eq(applications.id, app.id), eq(applications.status, "open")))
+        .returning({ id: applications.id });
+      if (!closed.length) return false;
       await tx.insert(messages).values({ channel: applicationChannel(app.id), authorId: null, body: why });
+      return true;
     });
   }
 
