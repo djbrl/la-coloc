@@ -81,15 +81,16 @@ export class LobbyLink {
   }
 
   // The lobby's address: the page's own host, or (site and API on different hosts) VITE_LOBBY_WS with a one-minute
-  // pass asked through /api, where the session cookie goes; a visitor connects without one. Null when the pass
-  // couldn't be asked for: connecting anyway would make a logged-in person a visitor until the line drops.
-  private async address(): Promise<string | null> {
+  // pass asked through /api, where the session cookie goes; a visitor has none. The pass is sent as the first
+  // message, never in the address, where tunnel and proxy logs would keep it. Null when the pass couldn't be asked
+  // for: connecting anyway would make a logged-in person a visitor until the line drops.
+  private async address(): Promise<{ url: string; ticket: string | null } | null> {
     const remote = import.meta.env.VITE_LOBBY_WS;
-    if (!remote) return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/lobby-ws`;
+    if (!remote) return { url: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/lobby-ws`, ticket: null };
     const res = await fetch("/api/lobby/ticket").catch(() => null);
     if (!res?.ok) return null;
     const ticket = ((await res.json().catch(() => ({ ticket: null }))) as { ticket: string | null }).ticket;
-    return ticket ? `${remote}?ticket=${encodeURIComponent(ticket)}` : remote;
+    return { url: remote, ticket };
   }
 
   // Waits a little longer each time (1 s, doubling to 15 s), then tries again.
@@ -99,13 +100,15 @@ export class LobbyLink {
   }
 
   private async open() {
-    const url = await this.address();
+    const where = await this.address();
     if (this.closed) return;
-    if (url === null) return this.again();
-    const ws = new WebSocket(url);
+    if (where === null) return this.again();
+    const ws = new WebSocket(where.url);
     this.ws = ws;
     ws.onopen = () => {
       this.events.onStatus(true);
+      // The pass first: the server only takes it as the very first message.
+      if (where.ticket) this.send({ type: "ticket", ticket: where.ticket });
       if (this.place) this.send({ type: "place", place: this.place });
     };
     ws.onmessage = (e) => {

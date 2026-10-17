@@ -2,12 +2,16 @@ import { Logger, type OnModuleDestroy, Optional } from "@nestjs/common";
 import { OnGatewayConnection, WebSocketGateway } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
 import type WebSocket from "ws";
+import { z } from "zod";
 import { AuthService, SESSION_COOKIE, type User } from "../auth/auth.service";
 import { parseCookies } from "../auth/http";
 import { Core, CoreDownError, isCoreDown } from "../core/core";
 import { ChatService } from "../chat/chat.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { type Out, Presence, type ServerMessage } from "./presence";
+
+// The pass a page on another host sends as its first message: { type: "ticket", ticket }.
+const Pass = z.object({ type: z.literal("ticket"), ticket: z.string().min(1).max(100) });
 
 // The lobby's live line: positions and emotes, relayed between everyone walking around. Logged-in people appear;
 // visitors only watch. Only pages from our own site may connect (a WebSocket ignores CORS, so we check Origin).
@@ -59,9 +63,14 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
     }
     const conn = randomUUID();
     // Looking up who this is needs the database, which can take a moment (or fail). Meanwhile the visitor may
-    // already speak or leave, so listen first and handle what was said once they have joined.
+    // already speak or leave, so listen first and handle what was said once they have joined (and, after a pass,
+    // once they've been recognised).
     let joined = false;
+    let checking = false;
     let left = false;
+    // A page served from elsewhere (the site on Vercel) has no cookie here: its first message may be a pass from
+    // /api/lobby/ticket. Only the first, and only without a cookie; until it's checked, the socket is a visitor.
+    let passAllowed = !parseCookies(req.headers.cookie)[SESSION_COOKIE];
     const early: Buffer[] = [];
     const handle = (raw: { toString(): string }) => {
       if (raw.toString().length > 512) return;
@@ -71,9 +80,36 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
       } catch {
         return;
       }
+      const first = passAllowed;
+      passAllowed = false;
+      const pass = Pass.safeParse(data);
+      if (pass.success) {
+        if (first) void signIn(pass.data.ticket);
+        return;
+      }
       this.send(this.presence.receive(conn, data));
     };
-    socket.on("message", (raw) => (joined ? handle(raw as Buffer) : early.push(raw as Buffer)));
+    const drain = () => {
+      while (joined && !checking && early.length) handle(early.shift()!);
+    };
+    const signIn = async (ticket: string) => {
+      checking = true;
+      const user = await this.fromTicket(ticket, socket);
+      if (user === "try-later" || left) return;
+      if (user) {
+        const example = await this.isExample(user);
+        if (left) return;
+        // The same connection, now as that person: the visitor goes, they arrive.
+        this.send(this.presence.leave(conn));
+        this.send(this.presence.join(conn, { login: user.login, name: user.name, avatar: user.avatar, github: user.githubId !== null, example }));
+      }
+      checking = false;
+      drain();
+    };
+    socket.on("message", (raw) => {
+      early.push(raw as Buffer);
+      drain();
+    });
     socket.on("close", () => {
       left = true;
       if (!joined) return;
@@ -89,7 +125,7 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
     this.sockets.set(conn, socket);
     this.send(this.presence.join(conn, user ? { login: user.login, name: user.name, avatar: user.avatar, github: user.githubId !== null, example } : null));
     joined = true;
-    early.forEach(handle);
+    drain();
   }
 
   /**
@@ -99,12 +135,19 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
    * lives in memory, not in the database.
    */
   private async whoIs(req: { url?: string; headers: Record<string, string | string[] | undefined> }, socket: WebSocket) {
-    // A page served from elsewhere (the site on Vercel) brings a pass from /api/lobby/ticket instead of a cookie.
-    const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket");
-    if (!ticket && !parseCookies(req.headers.cookie)[SESSION_COOKIE]) return null;
+    if (!parseCookies(req.headers.cookie)[SESSION_COOKIE]) return null;
+    return this.recognise(() => this.auth.userFromRequest(req), socket);
+  }
+
+  /** The same for a pass sent as the first message (never in the address, where proxies and tunnels log it). */
+  private fromTicket(ticket: string, socket: WebSocket) {
+    return this.recognise(() => this.auth.userFromTicket(ticket), socket);
+  }
+
+  private async recognise(lookup: () => Promise<User | null>, socket: WebSocket) {
     try {
       if (!this.core.ready) throw new CoreDownError();
-      return ticket ? await this.auth.userFromTicket(ticket) : await this.auth.userFromRequest(req);
+      return await lookup();
     } catch (e) {
       if (!isCoreDown(e)) return null;
       this.core.reportDown(e);

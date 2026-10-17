@@ -100,7 +100,20 @@ describe("the pass on the shared site", () => {
     link.close();
     expect(tickets).toHaveBeenCalledTimes(2);
     expect(FakeSocket.all).toHaveLength(1);
-    expect(FakeSocket.all[0].url).toContain("t1");
+  });
+
+  it("sends the pass as the first message, never in the address, before saying where we are", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ticketJson("t1")));
+    const { LobbyLink } = await import("./link");
+    const link = new LobbyLink(events);
+    link.enter("dakar");
+    await vi.advanceTimersByTimeAsync(100);
+    link.close();
+    expect(FakeSocket.all.map((s) => s.url)).toEqual(["wss://example.test/lobby-ws"]);
+    expect(FakeSocket.all[0].sent.map((m) => JSON.parse(m))).toEqual([
+      { type: "ticket", ticket: "t1" },
+      { type: "place", place: "dakar" },
+    ]);
   });
 
   it("a visitor (no pass, but the API answered) connects without one", async () => {
@@ -110,5 +123,6 @@ describe("the pass on the shared site", () => {
     await vi.advanceTimersByTimeAsync(100);
     link.close();
     expect(FakeSocket.all.map((s) => s.url)).toEqual(["wss://example.test/lobby-ws"]);
+    expect(FakeSocket.all[0].sent).toEqual([]);
   });
 });
