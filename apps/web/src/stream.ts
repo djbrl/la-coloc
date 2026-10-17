@@ -18,14 +18,14 @@ const GIVE_UP_AFTER = 4;
 // A site served from another host than the API (on Vercel, the API behind a Cloudflare quick tunnel: see
 // scripts/share.mjs) can't keep a stream open: the tunnel holds the events back. There, each stream becomes a
 // question asked every few seconds while the tab is visible. Events that carry data (the city, a house) get the
-// answer from the same address without "/stream"; events that only say "something changed" (a city's room and board)
-// are simply fired, and their handlers fetch what they need.
+// answer from the same address without "/stream"; events that only say "something changed" (a city's room, board
+// and arena) are simply fired, and their handlers fetch what they need.
 // The questions stay polite to a slow laptop: a tick is skipped while the last question hasn't come back, and while
 // the core is down (the core's recovery asks once, right away); a tab coming back into view asks at once. Several
 // panels listening to the same address (a house page, its room, its chat) share one poller.
 const POLL_MS = 4000;
 const polling = !!import.meta.env.VITE_LOBBY_WS;
-const NUDGES = new Set(["chat", "board"]);
+const NUDGES = new Set(["chat", "board", "arena"]);
 
 type Events = Record<string, (e: MessageEvent) => void>;
 interface Poller {

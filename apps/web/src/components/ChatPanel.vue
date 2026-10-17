@@ -16,6 +16,7 @@ import { block, blockedLogins, report, unblock } from "../conversations";
 import { postJSON } from "../session";
 import type { Message } from "../types";
 import Avatar from "./Avatar.vue";
+import BadgeChip from "./arena/BadgeChip.vue";
 import { linkParts } from "./chat/chat";
 import { chatWords as cw } from "./chat/words";
 import Icon from "./lobby/house/Icon.vue";
@@ -147,7 +148,7 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
           <Avatar v-if="m.author.login !== me" :person="m.author" :size="28" decorative />
           <div class="body">
             <p class="meta">
-              <template v-if="m.author.login !== me">{{ nameOf(m) }} · </template>
+              <template v-if="m.author.login !== me">{{ nameOf(m) }}<BadgeChip v-if="m.author.badge" class="worn" :badge="m.author.badge" /> · </template>
               <span v-else class="sr-only">{{ w.you }} · </span>{{ time(m.at) }}
             </p>
             <p class="bubble"><template v-for="(part, i) in linkParts(m.body)" :key="i"><a v-if="part.href" :href="part.href" target="_blank" rel="noopener noreferrer nofollow ugc">{{ part.text }}</a><template v-else>{{ part.text }}</template></template></p>
@@ -206,6 +207,7 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
 .body { display: grid; gap: 4px; min-width: 0; }
 .mine .body { justify-items: end; }
 .meta { font-size: 12px; color: var(--muted); padding: 0 14px; }
+.meta .worn { margin: -2px 0 0 6px; height: 18px; font-size: 11px; }
 .bubble { padding: 10px 16px; border-radius: var(--r-xl); background: var(--fill); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
 .bubble a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .mine .bubble { background: var(--accent-fill); color: var(--on-accent); }

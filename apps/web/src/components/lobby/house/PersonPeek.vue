@@ -12,6 +12,7 @@ import { cardWords as cw } from "../words";
 import { bellWords as bw } from "../../bell/words";
 import type { Person } from "../../../types";
 import Avatar from "../../Avatar.vue";
+import BadgeChip from "../../arena/BadgeChip.vue";
 import type { PersonActions } from "./crew";
 import Icon from "./Icon.vue";
 import { houseWords as w } from "./words";
@@ -76,6 +77,7 @@ onMounted(() => card.value?.focus({ preventScroll: true }));
     <div class="who">
       <p class="name">
         <strong>{{ name }}</strong>
+        <BadgeChip v-if="person.badge" :badge="person.badge" />
         <span v-if="actions.example" class="tag" :title="w.person.exampleWhy">{{ w.person.example }}<span class="sr-only">. {{ w.person.exampleWhy }}</span></span>
       </p>
       <p class="line">

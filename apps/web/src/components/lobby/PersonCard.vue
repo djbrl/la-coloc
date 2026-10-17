@@ -10,7 +10,8 @@ import { computed, onBeforeUnmount, ref } from "vue";
 import { openChat } from "../../conversations";
 import { inviteToHouse, notices, rentTogether, withdrawInvite } from "../../notices";
 import { me } from "../../session";
-import type { CityHouse } from "../../types";
+import type { Badge, CityHouse } from "../../types";
+import BadgeChip from "../arena/BadgeChip.vue";
 import { bellWords as bw } from "../bell/words";
 import { messageAction } from "../chat/chat";
 import Icon from "./house/Icon.vue";
@@ -37,6 +38,8 @@ const props = defineProps<{
   example?: boolean;
   // What the live line says about someone walking around: whether they logged in with GitHub.
   github?: boolean;
+  // The title they wear, won in an arena.
+  badge?: Badge | null;
 }>();
 // `see` opens their house's window (the lobby takes you to its door first, in its city).
 const emit = defineEmits<{ see: [houseId: string]; wave: []; close: [] }>();
@@ -115,6 +118,7 @@ async function send(kind: "invite" | "rent" | "withdraw") {
 <template>
   <LobbyCard :label="w.personLabel(name)">
     <h2>{{ name }}</h2>
+    <BadgeChip v-if="badge" class="worn" :badge="badge" />
     <button class="x" :aria-label="w.close" @click="emit('close')">
       <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
     </button>
@@ -187,6 +191,7 @@ async function send(kind: "invite" | "rent" | "withdraw") {
 
 <style scoped>
 .who { margin-top: -6px; overflow-wrap: anywhere; }
+.worn { justify-self: start; margin-top: -4px; }
 /* Their project, as a small block: what it's called, whether it's online, and what it does. */
 .project { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-md); background: var(--tile); }
 .ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--surface); color: var(--muted); }
