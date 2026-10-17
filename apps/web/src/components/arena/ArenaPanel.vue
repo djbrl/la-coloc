@@ -342,6 +342,8 @@ a.key:hover { background: var(--tile); text-decoration: none; }
 a.go:hover { text-decoration: none; }
 .send { flex: 1 1 auto; display: flex; gap: 8px; min-width: 0; }
 .send input { flex: 1 1 auto; min-width: 0; border-radius: var(--r-pill); padding-left: 18px; font-family: var(--mono); font-size: 14px; }
+/* A challenge's name is a sentence, not a house's one word: two lines rather than an ellipsis. */
+.arena :deep(.title) { font-size: 22px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .send button { flex: none; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 
 @keyframes pop-in {
