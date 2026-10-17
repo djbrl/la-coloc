@@ -4,9 +4,10 @@
 const NETWORK_CODES = new Set(["ECONNREFUSED", "ECONNRESET", "ECONNABORTED", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "EPIPE", "EHOSTUNREACH", "EHOSTDOWN", "ENETUNREACH"]);
 
 // Postgres's own codes: 08xxx = connection problems, 57P01/02/03 = the server is shutting down, crashed or starting
-// up, 53300 = too many connections.
+// up, 53300 = too many connections, 28P01/28000 = it won't let us in (in development, for the few seconds between
+// the database starting and `npm run up` giving it this laptop's own password).
 function isPostgresConnectionCode(code: string): boolean {
-  return code.startsWith("08") || ["57P01", "57P02", "57P03", "53300"].includes(code);
+  return code.startsWith("08") || ["57P01", "57P02", "57P03", "53300", "28P01", "28000"].includes(code);
 }
 
 // What the pg driver says in words when it has no code to give.

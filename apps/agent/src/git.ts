@@ -7,10 +7,15 @@ import path from "node:path";
 const SAFE_REF = /^[A-Za-z0-9._\/-]+$/;
 
 // file:// reads straight from the house server's disk, so a flatmate could build an image out of any
-// folder on it. Only local development turns it on.
-export function assertSafeRepo(repo: string, allowLocal = false): void {
+// folder on it. Only local development turns it on, and then only for the repos it names (the tutorial's
+// starter page): `true` lets any local repo in, a list lets in only those.
+export type LocalRepos = boolean | readonly string[];
+
+export function assertSafeRepo(repo: string, allowLocal: LocalRepos = false): void {
   if (repo.startsWith("file://")) {
-    if (!allowLocal) throw new Error("local file:// repos are only allowed in development (COLOC_ALLOW_LOCAL_REPOS=1)");
+    const same = (a: string) => a.replace(/\/+$/, "") === repo.replace(/\/+$/, "");
+    const allowed = allowLocal === true || (Array.isArray(allowLocal) && allowLocal.some(same));
+    if (!allowed) throw new Error("this local file:// repo isn't allowed here (COLOC_ALLOW_LOCAL_REPOS)");
     return;
   }
   if (!repo.startsWith("https://")) throw new Error("repo must be an https:// URL");
@@ -45,7 +50,7 @@ export interface Checkout {
   cleanup: () => Promise<void>;
 }
 
-export async function shallowClone(workDir: string, repo: string, ref: string, allowLocal = false): Promise<Checkout> {
+export async function shallowClone(workDir: string, repo: string, ref: string, allowLocal: LocalRepos = false): Promise<Checkout> {
   assertSafeRepo(repo, allowLocal);
   assertSafeRef(ref);
   const dir = await mkdtemp(path.join(workDir, "checkout-"));

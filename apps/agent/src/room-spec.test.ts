@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetwork, roomRoute } from "./room-spec";
+import { NOBODY, isRoomNetwork, resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetwork, roomNetworks, roomRoute, runAs } from "./room-spec";
 
-const spec = roomContainerSpec({
+const input = {
   houseId: "sacre-coeur",
   room: "jib",
   kind: "prod",
@@ -11,7 +11,8 @@ const spec = roomContainerSpec({
   limits: { memoryMb: 256, cpus: 0.5 },
   env: { GREETING: "salut" },
   houseDomain: "sacre-coeur.coloc.dev",
-});
+} as const;
+const spec = roomContainerSpec({ ...input, limits: { ...input.limits }, env: { ...input.env } });
 
 describe("room walls", () => {
   it("caps memory with no swap, and CPU", () => {
@@ -32,8 +33,28 @@ describe("room walls", () => {
     expect(spec.HostConfig?.Mounts).toBeUndefined();
   });
 
-  it("lives on its own network", () => {
-    expect(spec.HostConfig?.NetworkMode).toBe("coloc-room-sacre-coeur--jib");
+  it("lives on its own network, sealed unless the house opens it", () => {
+    expect(spec.HostConfig?.NetworkMode).toBe("coloc-sealed-sacre-coeur--jib");
+    const open = roomContainerSpec({ ...input, sealed: false });
+    expect(open.HostConfig?.NetworkMode).toBe("coloc-room-sacre-coeur--jib");
+  });
+
+  it("moves to the other kind of network on its next deploy, and drops the old ones", () => {
+    expect(roomNetworks("sacre-coeur", "jib", true)).toEqual({
+      current: "coloc-sealed-sacre-coeur--jib",
+      old: ["coloc-room-sacre-coeur--jib", "coloc-room-jib"],
+    });
+    expect(isRoomNetwork("coloc-sealed-a--b")).toBe(true);
+    expect(isRoomNetwork("coloc-room-b")).toBe(true);
+    expect(isRoomNetwork("bridge")).toBe(false);
+  });
+
+  it("runs as nobody unless the image picked a user of its own", () => {
+    expect(spec.User).toBe(NOBODY);
+    expect(runAs("root")).toBe(NOBODY);
+    expect(runAs("0:0")).toBe(NOBODY);
+    expect(runAs("node")).toBeUndefined();
+    expect(roomContainerSpec({ ...input, imageUser: "node" }).User).toBeUndefined();
   });
 
   it("keeps two houses' rooms with the same name on different networks", () => {

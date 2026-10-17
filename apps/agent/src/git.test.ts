@@ -10,6 +10,15 @@ describe("checkout safety", () => {
     expect(() => assertSafeRepo("ssh://evil/repo")).toThrow();
   });
 
+  it("with a list, lets in only the local repos it names", () => {
+    const only = ["file:///Users/me/la-coloc"];
+    expect(() => assertSafeRepo("file:///Users/me/la-coloc", only)).not.toThrow();
+    expect(() => assertSafeRepo("file:///Users/me/la-coloc/", only)).not.toThrow();
+    expect(() => assertSafeRepo("file:///Users/me/secret-project", only)).toThrow();
+    expect(() => assertSafeRepo("file:///Users/me/la-coloc/../secret", only)).toThrow();
+    expect(() => assertSafeRepo("file:///Users/me", [])).toThrow();
+  });
+
   it("refuses refs that look like git options", () => {
     expect(() => assertSafeRef("main")).not.toThrow();
     expect(() => assertSafeRef("feature/login")).not.toThrow();

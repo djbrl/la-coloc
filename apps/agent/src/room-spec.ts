@@ -13,12 +13,37 @@ export const LABEL = {
 // Named after the house too: two caretakers on one machine (in development, the workshop's next to Sacré-Cœur's)
 // may each have a room called "jib". Networks made before 16 Oct are named after the room only; containers on one
 // keep it until their next deploy (syncRoutes plugs the proxy into whatever network a container is on).
-export function roomNetwork(houseId: string, room: string): string {
-  return `coloc-room-${houseId}--${room}`;
+//
+// A sealed room (the default) is on an internal network: only the proxy reaches it, and it reaches nothing, not the
+// internet and not the machine it runs on (on Docker Desktop, host.docker.internal leads to the laptop's database
+// and API). A house that runs bots or apps calling other services opens it with COLOC_ROOM_INTERNET=1; Docker can't
+// turn an existing network internal, so the two kinds have different names and a room moves on its next deploy.
+export function roomNetwork(houseId: string, room: string, sealed = true): string {
+  return `coloc-${sealed ? "sealed" : "room"}-${houseId}--${room}`;
 }
 
 export function legacyRoomNetwork(room: string): string {
   return `coloc-room-${room}`;
+}
+
+/** Whether a network is one of ours for rooms, of any age or kind. */
+export function isRoomNetwork(name: string | undefined): name is string {
+  return !!name && (name.startsWith("coloc-room-") || name.startsWith("coloc-sealed-"));
+}
+
+/** Every name a room's network has had: the one it should be on now first, then the ones to drop once empty. */
+export function roomNetworks(houseId: string, room: string, sealed: boolean): { current: string; old: string[] } {
+  const current = roomNetwork(houseId, room, sealed);
+  return { current, old: [roomNetwork(houseId, room, !sealed), legacyRoomNetwork(room)] };
+}
+
+// Nobody, unless the image picked its own user: an app that needs root on a read-only disk with no capabilities
+// has no business being root.
+export const NOBODY = "65534:65534";
+
+export function runAs(imageUser: string | undefined): string | undefined {
+  const u = (imageUser ?? "").trim();
+  return !u || u === "root" || u === "0" || u.startsWith("0:") || u.startsWith("root:") ? NOBODY : undefined;
 }
 
 // Docker label filters for this house's room containers: all of them, one room's, or one room's prod or preview.
@@ -46,6 +71,10 @@ export interface RoomContainerInput {
   env: Record<string, string>;
   houseDomain: string;
   readOnlyRootfs?: boolean;
+  // Sealed (the default): its network reaches nothing but the proxy. See roomNetwork.
+  sealed?: boolean;
+  // The user the image asked for (its USER), if any: root or nothing runs as nobody instead.
+  imageUser?: string;
 }
 
 export function containerName(room: string, kind: DeployKind, deployId: string): string {
@@ -53,13 +82,15 @@ export function containerName(room: string, kind: DeployKind, deployId: string):
 }
 
 export function roomContainerSpec(i: RoomContainerInput): Docker.ContainerCreateOptions {
-  const network = roomNetwork(i.houseId, i.room);
+  const network = roomNetwork(i.houseId, i.room, i.sealed ?? true);
+  const user = runAs(i.imageUser);
   const memoryBytes = i.limits.memoryMb * 1024 * 1024;
 
   return {
     name: containerName(i.room, i.kind, i.deployId),
     Image: i.image,
     Env: [...Object.entries(i.env).map(([k, v]) => `${k}=${v}`), `PORT=${i.port}`],
+    ...(user ? { User: user } : {}),
     // No routing labels: the agent tells the proxy where to send visitors (see roomRoute), so the
     // proxy never needs the Docker socket.
     Labels: {
@@ -82,7 +113,7 @@ export function roomContainerSpec(i: RoomContainerInput): Docker.ContainerCreate
       Privileged: false,
       ReadonlyRootfs: i.readOnlyRootfs ?? true,
       Tmpfs: { "/tmp": "rw,noexec,nosuid,size=64m" },
-      // Its own network: other rooms can't reach it, only the proxy can.
+      // Its own network: other rooms can't reach it, only the proxy can. Sealed, it can't reach out either.
       NetworkMode: network,
       // An app that runs out of memory restarts on its own, alone.
       RestartPolicy: { Name: "unless-stopped" },

@@ -6,7 +6,7 @@ import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentConfig } from "./config";
 import { docker, ensureRoomNetwork } from "./docker";
-import { LABEL, roomFilter, roomRoute } from "./room-spec";
+import { LABEL, isRoomNetwork, roomFilter, roomRoute } from "./room-spec";
 
 // One file per room, named after the house too: several caretakers may share one proxy folder (in development
 // the workshop's runs next to Sacré-Cœur's), and each only ever touches its own files.
@@ -62,7 +62,7 @@ export async function syncRoutes(cfg: AgentConfig): Promise<void> {
     if (!port) continue;
     // The network the container is really on: an older one may still be on a network named after the room only.
     const network = c.HostConfig?.NetworkMode;
-    await ensureRoomNetwork(cfg.houseId, room, cfg.proxyContainer, network?.startsWith("coloc-room-") ? network : undefined);
+    await ensureRoomNetwork(cfg.houseId, room, cfg.proxyContainer, isRoomNetwork(network) ? network : undefined);
     wanted.add(routeName(cfg.houseId, room, kind));
     const route = roomRoute(room, kind, cfg.houseDomain, c.Names[0].replace(/^\//, ""), port);
     await writeFile(routeFile(cfg, room, kind), JSON.stringify(route, null, 2));

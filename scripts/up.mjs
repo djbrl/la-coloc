@@ -17,6 +17,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { databaseRunning, ensureDevKeys, secureDatabase } from "./dev-keys.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.PORT ?? 4100);
@@ -91,6 +92,26 @@ if (toBuild.length) {
 
 // ---- 2. The API, at once (from apps/api: node's --env-file paths are relative to it) ----
 
+// This laptop's own database password and caretaker key (scripts/dev-keys.mjs), made on the first run. If the database
+// already runs, it gets them now, before the API dials it; otherwise once Docker is up (the API waits calmly meanwhile).
+const keys = ensureDevKeys(root);
+if (keys.made.length) say("up", `made ${keys.made.join(", ")} in dev/.env.local (this laptop's own keys)`);
+let secured = false;
+function secure() {
+  if (secured || !databaseRunning()) return;
+  const why = secureDatabase(keys);
+  if (why) say("docker", `couldn't set the database's password: ${why}`);
+  else secured = true;
+}
+secure();
+
+// While the city is shared, the internet reaches this API: everything that is only for one developer at their own
+// laptop goes off, whatever dev/.env.local says. Child env beats --env-file in Node, so these win.
+const sharing = share
+  ? { COLOC_DEV_LOGIN: "0", COLOC_DEV_ORIGINS: "0" }
+  : // Any page on this machine (Multiprise picks the web's port) may open the lobby's socket.
+    { COLOC_DEV_ORIGINS: "1" };
+
 run(
   "api",
   "node",
@@ -98,10 +119,12 @@ run(
   {
     env: {
       PORT: String(PORT),
-      // Any page on this machine (Multiprise picks the web's port) may open the lobby's socket.
-      COLOC_DEV_ORIGINS: "1",
+      ...sharing,
       COLOC_PUBLIC_URL: process.env.COLOC_PUBLIC_URL ?? (share ? SITE : "http://localhost:5175"),
-      COLOC_WEB_ORIGIN: process.env.COLOC_WEB_ORIGIN ?? (share ? `${SITE},http://localhost:5175` : "http://localhost:5175"),
+      // While sharing, the dev origins are off: name this machine's own site, on Multiprise's port too.
+      COLOC_WEB_ORIGIN:
+        process.env.COLOC_WEB_ORIGIN ??
+        (share ? [SITE, "http://localhost:5175", ...(process.env.FRONTEND_PORT ? [`http://localhost:${process.env.FRONTEND_PORT}`] : [])].join(",") : "http://localhost:5175"),
     },
     cwd: "apps/api",
   },
@@ -137,8 +160,7 @@ const caretaker = (house, extra = {}) =>
     {
       env: {
         COLOC_HOUSE_ID: house,
-        COLOC_AGENT_SECRET: "dev-secret-change-me",
-        COLOC_ALLOW_LOCAL_REPOS: "1",
+        COLOC_AGENT_SECRET: keys.agentSecret,
         COLOC_API_URL: `ws://localhost:${PORT}/agent`,
         ...extra,
       },
@@ -149,8 +171,16 @@ const caretaker = (house, extra = {}) =>
 
 const dockerUp = await docker();
 if (dockerUp) {
+  // A database that just started may need a few seconds before psql gets in.
+  for (let i = 0; i < 30 && !secured; i++) {
+    secure();
+    if (!secured) await new Promise((r) => setTimeout(r, 1000));
+  }
   caretaker("sacre-coeur", { COLOC_USAGE_INTERVAL_MS: "5000" });
-  caretaker("atelier", { COLOC_USAGE_INTERVAL_MS: "30000" });
+  // The workshop builds the quest's starter page from this clone (COLOC_TUTORIAL_REPO=file://…): that one local repo,
+  // and no other folder on the laptop.
+  const starter = /^COLOC_TUTORIAL_REPO=(file:\/\/\S+)/m.exec(env("dev/.env.local"))?.[1];
+  caretaker("atelier", { COLOC_USAGE_INTERVAL_MS: "30000", ...(starter ? { COLOC_ALLOW_LOCAL_REPOS: starter } : {}) });
 } else {
   say("up", "no Docker: the caretakers wait. Rooms won't build until Docker runs and this restarts.");
 }

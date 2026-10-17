@@ -1,6 +1,7 @@
 import { Logger } from "@nestjs/common";
 import { OnGatewayConnection, WebSocketGateway } from "@nestjs/websockets";
 import { parseAgentToApi } from "@coloc/protocol";
+import type { IncomingMessage } from "node:http";
 import type WebSocket from "ws";
 import { Core, isCoreDown } from "../core/core";
 import { HousesService } from "../houses/houses.service";
@@ -11,6 +12,12 @@ const HELLO_TIMEOUT_MS = 5000;
 // WebSocket close code 1013, "try again later": what we say when the database can't take the call right now.
 // The agent redials by itself (and sends its full snapshot again when it does), so nothing is lost.
 export const TRY_AGAIN_LATER = 1013;
+
+// Headers Cloudflare (the tunnel that shares a laptop's API, and any CDN in front of a real one) adds to every request.
+const TUNNEL_HEADERS = ["cf-connecting-ip", "cf-ray", "cdn-loop"];
+export function viaTunnel(req: Pick<IncomingMessage, "headers">): boolean {
+  return TUNNEL_HEADERS.some((h) => req.headers[h] !== undefined);
+}
 
 // The phone lines. An agent must say hello with its house's secret within 5 seconds,
 // or the line is cut. Every message after that is validated before it touches anything.
@@ -25,7 +32,13 @@ export class AgentsGateway implements OnGatewayConnection {
     private readonly core: Core,
   ) {}
 
-  handleConnection(socket: WebSocket) {
+  handleConnection(socket: WebSocket, req?: IncomingMessage) {
+    // A caretaker dials the API directly (on its own machine, or over wss to the real server). One that comes in
+    // through a public tunnel or CDN is someone else trying their luck with a house key: the line is never offered there.
+    if (req && viaTunnel(req)) {
+      socket.close(4003, "not here");
+      return;
+    }
     // Not ready yet (the database hasn't answered since we started): we can't check anybody's secret. Politely refuse.
     if (!this.core.ready) {
       socket.close(TRY_AGAIN_LATER, "try again later");

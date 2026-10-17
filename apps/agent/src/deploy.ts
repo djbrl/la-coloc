@@ -4,9 +4,9 @@ import { roomUrl, type AgentConfig } from "./config";
 import {
   buildImage,
   docker,
-  dropLegacyNetwork,
+  dropOldNetworks,
   ensureRoomNetwork,
-  imageExposedPorts,
+  imageConfig,
   lastLogs,
   removeContainer,
   retiring,
@@ -15,7 +15,7 @@ import {
 } from "./docker";
 import { resolveInside, shallowClone } from "./git";
 import { routeTo, unroute, unrouteRoom } from "./proxy";
-import { LABEL, containerName, resolvePort, roomContainerSpec, roomFilter, roomHost } from "./room-spec";
+import { LABEL, containerName, resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetworks } from "./room-spec";
 
 type Report = (s: Omit<DeployStatus, "type" | "deployId" | "room">) => void;
 
@@ -35,14 +35,16 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
     report({ status: "building", detail: `commit ${shortSha}` });
     const buildLog: string[] = [];
     try {
-      await buildImage(resolveInside(checkout.dir, cmd.path), tag, (l) => buildLog.push(l));
+      await buildImage(resolveInside(checkout.dir, cmd.path), tag, (l) => buildLog.push(l), cfg.buildOffline);
     } catch (e) {
       throw new Error(`build failed: ${(e as Error).message}\n${buildLog.slice(-20).join("\n")}`);
     }
 
     report({ status: "starting" });
-    await ensureRoomNetwork(cfg.houseId, cmd.room, cfg.proxyContainer);
-    const port = resolvePort(cmd.port, await imageExposedPorts(tag));
+    const networks = roomNetworks(cfg.houseId, cmd.room, !cfg.roomInternet);
+    await ensureRoomNetwork(cfg.houseId, cmd.room, cfg.proxyContainer, networks.current);
+    const image = await imageConfig(tag);
+    const port = resolvePort(cmd.port, image.exposedPorts);
     const spec = roomContainerSpec({
       houseId: cfg.houseId,
       room: cmd.room,
@@ -53,6 +55,8 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
       limits: cmd.limits,
       env: cmd.env,
       houseDomain: cfg.houseDomain,
+      sealed: !cfg.roomInternet,
+      imageUser: image.user,
     });
     const container = await docker.createContainer(spec);
     newContainerId = container.id;
@@ -74,7 +78,7 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
     await Promise.all(others.map((c) => removeContainer(c.Id))).catch((e) =>
       console.error(`[deploy] ${cmd.room}: couldn't remove an old version: ${(e as Error).message}`),
     );
-    await dropLegacyNetwork(cfg.houseId, cmd.room, cfg.proxyContainer).catch((e) =>
+    await dropOldNetworks(cfg.houseId, networks.old, cfg.proxyContainer).catch((e) =>
       console.error(`[deploy] ${cmd.room}: couldn't remove its old network: ${(e as Error).message}`),
     );
 
@@ -92,7 +96,8 @@ export async function removeRoom(cfg: AgentConfig, room: string): Promise<void> 
   await unrouteRoom(cfg, room);
   const containers = await roomContainers(cfg.houseId, room);
   await Promise.all(containers.map((c) => removeContainer(c.Id)));
-  await dropLegacyNetwork(cfg.houseId, room, cfg.proxyContainer).catch(() => undefined);
+  const networks = roomNetworks(cfg.houseId, room, !cfg.roomInternet);
+  await dropOldNetworks(cfg.houseId, [networks.current, ...networks.old], cfg.proxyContainer).catch(() => undefined);
 }
 
 /** The pull request closed: its preview leaves. The room's real app isn't touched. */

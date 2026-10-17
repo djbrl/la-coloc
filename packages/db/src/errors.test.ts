@@ -21,7 +21,7 @@ describe("which failures mean 'the database is unreachable'", () => {
   });
 
   it("knows Postgres shutting down or starting up", () => {
-    for (const code of ["57P01", "57P02", "57P03", "08006", "08001", "53300"]) expect(isConnectionError(wrapped(withCode(code, "boom")))).toBe(true);
+    for (const code of ["57P01", "57P02", "57P03", "08006", "08001", "53300", "28P01", "28000"]) expect(isConnectionError(wrapped(withCode(code, "boom")))).toBe(true);
   });
 
   it("knows the pg driver's words", () => {

@@ -44,7 +44,7 @@
   <li><span class="what">The API, directly</span><a href="http://127.0.0.1:4100/api/city">127.0.0.1:4100/api</a></li>
   <li><span class="what">Rooms, through Traefik <span class="soft">(<code>*.coloc.localhost</code>)</span></span><a href="http://jib.coloc.localhost:8000">jib.coloc.localhost:8000</a></li>
   <li><span class="what">The GitHub App setup page <span class="soft">(<code>npm run dev:github-app</code>)</span></span><a href="http://localhost:4101">localhost:4101</a></li>
-  <li><span class="what">Postgres</span><span class="soft"><code>postgres://coloc:coloc-dev-only@127.0.0.1:5433/coloc</code></span></li>
+  <li><span class="what">Postgres</span><span class="soft"><code>COLOC_DATABASE_URL</code> in <code>dev/.env.local</code> (made by <code>npm run up</code>)</span></li>
   <li><span class="what">Traefik's route files</span><span class="soft"><code>/tmp/coloc-agent/proxy</code></span></li>
 </ul>
 

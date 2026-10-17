@@ -4,16 +4,18 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import tar from "tar-fs";
 import type { DeployKind } from "@coloc/protocol";
-import { LABEL, legacyRoomNetwork, roomFilter, roomNetwork } from "./room-spec";
+import { LABEL, roomFilter, roomNetwork } from "./room-spec";
 
 export const docker = new Docker();
 
 // The proxy must sit on every room's network to route to it; rooms never share one with each other.
-// `name` is the room's network by default; syncRoutes passes the one an existing container is on.
+// `name` is the room's network by default; syncRoutes passes the one an existing container is on. A sealed network
+// (coloc-sealed-…) is internal: no way out, the laptop included.
 export async function ensureRoomNetwork(houseId: string, room: string, proxyContainer: string, name = roomNetwork(houseId, room)): Promise<void> {
   const existing = await docker.listNetworks({ filters: { name: [name] } });
   if (!existing.some((n) => n.Name === name)) {
-    await docker.createNetwork({ Name: name, Driver: "bridge", Labels: { [LABEL.house]: houseId, [LABEL.room]: room } });
+    const Internal = name.startsWith("coloc-sealed-");
+    await docker.createNetwork({ Name: name, Driver: "bridge", Internal, Labels: { [LABEL.house]: houseId, [LABEL.room]: room } });
   }
   const proxy = docker.getContainer(proxyContainer);
   const info = await proxy.inspect();
@@ -22,10 +24,14 @@ export async function ensureRoomNetwork(houseId: string, room: string, proxyCont
   }
 }
 
-// Once a room's last container on its pre-16-Oct network (named after the room only) is gone, that network goes too,
-// so they don't pile up. Only a network this house made, and only when nothing but the proxy is left on it.
-export async function dropLegacyNetwork(houseId: string, room: string, proxyContainer: string): Promise<void> {
-  const name = legacyRoomNetwork(room);
+// Once a room's last container on an older network is gone (one named after the room only, from before 16 Oct, or
+// the other kind, sealed or open, from before a house changed its mind), that network goes too, so they don't pile
+// up. Only a network this house made, and only when nothing but the proxy is left on it.
+export async function dropOldNetworks(houseId: string, names: string[], proxyContainer: string): Promise<void> {
+  for (const name of names) await dropNetwork(houseId, name, proxyContainer);
+}
+
+async function dropNetwork(houseId: string, name: string, proxyContainer: string): Promise<void> {
   const found = (await docker.listNetworks({ filters: { name: [name] } })).find((n) => n.Name === name);
   if (!found || found.Labels?.[LABEL.house] !== houseId) return;
   const network = docker.getNetwork(found.Id);
@@ -49,7 +55,7 @@ async function dockerignore(dir: string): Promise<string[]> {
 }
 
 // Builds an image from a folder. Builds are capped too, so a heavy build can't starve the rooms.
-export async function buildImage(contextDir: string, tag: string, onLine: (line: string) => void): Promise<void> {
+export async function buildImage(contextDir: string, tag: string, onLine: (line: string) => void, offline = false): Promise<void> {
   const ignored = new Set([".git", ...(await dockerignore(contextDir))]);
   const context = tar.pack(contextDir, {
     ignore: (name) => {
@@ -60,6 +66,9 @@ export async function buildImage(contextDir: string, tag: string, onLine: (line:
   // tar-fs's Pack is a Node stream; its types just don't line up with dockerode's.
   const stream = await docker.buildImage(context as unknown as NodeJS.ReadableStream, {
     t: tag,
+    // Offline builds (COLOC_BUILD_OFFLINE=1) can't reach anything, the laptop included; most real Dockerfiles need
+    // the internet to install packages, so it's the house's choice.
+    ...(offline ? { networkmode: "none" } : {}),
     forcerm: true,
     memory: 2 * 1024 * 1024 * 1024,
     cpuperiod: 100_000,
@@ -81,9 +90,9 @@ export async function buildImage(contextDir: string, tag: string, onLine: (line:
   });
 }
 
-export async function imageExposedPorts(tag: string): Promise<Record<string, unknown> | undefined> {
+export async function imageConfig(tag: string): Promise<{ exposedPorts?: Record<string, unknown>; user?: string }> {
   const info = await docker.getImage(tag).inspect();
-  return info.Config?.ExposedPorts;
+  return { exposedPorts: info.Config?.ExposedPorts, user: info.Config?.User };
 }
 
 // This house's containers for one room. Another caretaker on the same machine may have a room with the same name.

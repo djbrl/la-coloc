@@ -137,3 +137,18 @@ describe("dev login", () => {
     await expect(auth.devLogin("../etc")).rejects.toThrow();
   });
 });
+
+describe("a site served over https (shared or real)", () => {
+  it("never turns the dev login, the dev origins or the dev admins on, whatever the environment says", () => {
+    const cfg = loadAuthConfig({ COLOC_PUBLIC_URL: "https://la-coloc.vercel.app", COLOC_DEV_LOGIN: "1", COLOC_DEV_ORIGINS: "1" });
+    expect(cfg.devLogin).toBe(false);
+    expect(cfg.devOrigins).toBe(false);
+    expect(cfg.admins).toEqual([]);
+  });
+
+  it("keeps them on a laptop's own http site", () => {
+    const cfg = loadAuthConfig({ COLOC_PUBLIC_URL: "http://localhost:5175", COLOC_DEV_LOGIN: "1", COLOC_DEV_ORIGINS: "1" });
+    expect(cfg.devLogin).toBe(true);
+    expect(cfg.devOrigins).toBe(true);
+  });
+});

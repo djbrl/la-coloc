@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node --env-file-if-exists=../../dev/.env.local --env-file-if-exists=../../dev/.env.github dist/main.js",
-    "seed": "node dist/seed/run.js",
+    "seed": "node --env-file-if-exists=../../dev/.env.local dist/seed/run.js",
     "test": "vitest run",
     "dev:watch": "tsc -p tsconfig.json && (tsc -w -p tsconfig.json --preserveWatchOutput & node --watch dist/main.js)",
     "dev": "node ../../scripts/up.mjs"

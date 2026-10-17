@@ -8,13 +8,14 @@ export interface AuthConfig {
   // Development (COLOC_DEV_ORIGINS=1, set by scripts/up.mjs): any page on this machine, whatever its port.
   devOrigins: boolean;
   github: { clientId: string; clientSecret: string } | null;
-  // Development only: log in as anyone, no GitHub needed.
+  // Development only: log in as anyone, no GitHub needed. Never on a site served over https (a shared or real one),
+  // whatever the environment says: there, it would let anyone on the internet be anyone.
   devLogin: boolean;
   secureCookies: boolean;
   // Demo servers only: a button puts the whole city back to the seed (COLOC_DEMO_RESET=1).
   demoReset: boolean;
   // Who may press it: GitHub logins, from COLOC_ADMINS (a comma list). With the dev login on and no list given,
-  // Jib's logins ("jib", "Djbrl"); otherwise nobody.
+  // the seeded "jib" and Jib's GitHub login "Djbrl"; otherwise nobody.
   admins: string[];
 }
 
@@ -27,16 +28,17 @@ export function loadAuthConfig(env = process.env): AuthConfig {
   const publicUrl = (env.COLOC_PUBLIC_URL ?? "http://localhost:5175").replace(/\/$/, "");
   const id = env.COLOC_GITHUB_CLIENT_ID;
   const secret = env.COLOC_GITHUB_CLIENT_SECRET;
+  const devLogin = env.COLOC_DEV_LOGIN === "1" && !publicUrl.startsWith("https://");
   const extra = (env.COLOC_WEB_ORIGIN ?? "").split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean);
   return {
     publicUrl,
     origins: [...new Set([new URL(publicUrl).origin, ...extra])],
-    devOrigins: env.COLOC_DEV_ORIGINS === "1",
+    devOrigins: env.COLOC_DEV_ORIGINS === "1" && !publicUrl.startsWith("https://"),
     github: id && secret ? { clientId: id, clientSecret: secret } : null,
-    devLogin: env.COLOC_DEV_LOGIN === "1",
+    devLogin,
     secureCookies: publicUrl.startsWith("https://"),
     demoReset: env.COLOC_DEMO_RESET === "1",
-    admins: (env.COLOC_ADMINS ?? (env.COLOC_DEV_LOGIN === "1" ? "jib,Djbrl" : ""))
+    admins: (env.COLOC_ADMINS ?? (devLogin ? "jib,Djbrl" : ""))
       .split(",")
       .map((a) => a.trim())
       .filter(Boolean),

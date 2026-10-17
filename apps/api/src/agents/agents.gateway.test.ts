@@ -50,3 +50,22 @@ describe("an agent calling while the database is down", () => {
     expect(registry.register).toHaveBeenCalledWith("atelier", socket);
   });
 });
+
+describe("an agent calling through the public tunnel", () => {
+  it("is refused before it can say hello, even with the right key", async () => {
+    const { gateway, socket, registry } = setup();
+    gateway.handleConnection(socket as never, { headers: { "cf-connecting-ip": "203.0.113.7" } } as never);
+    expect(socket.close).toHaveBeenCalledWith(4003, "not here");
+    socket.emit("message", Buffer.from(hello));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(registry.register).not.toHaveBeenCalled();
+  });
+
+  it("is let in when it dials the API directly", async () => {
+    const { gateway, socket, registry } = setup();
+    gateway.handleConnection(socket as never, { headers: { host: "localhost:4100" } } as never);
+    socket.emit("message", Buffer.from(hello));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(registry.register).toHaveBeenCalledWith("atelier", socket);
+  });
+});
