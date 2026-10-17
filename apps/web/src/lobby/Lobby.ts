@@ -32,6 +32,7 @@ import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
 import { dye } from "./tint";
 import { HouseFace } from "./windows";
+import { hudWords as words } from "../components/lobby/words";
 
 const SPEED = 6; // units per second
 // A dash (Shift): an instant hop forward, a burst at 4.5 times the speed, then a breather before the next one.
@@ -351,7 +352,7 @@ export class Lobby {
     this.scene.background = texture;
     this.scene.add(this.town, this.ring, this.fireworks.object);
 
-    const you = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : "you", "lobby-label you");
+    const you = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : words.youTag, "lobby-label you");
     this.player = you.avatar;
     this.playerTag = you.tag;
     this.scene.add(this.player);
@@ -573,6 +574,15 @@ export class Lobby {
         this.dress(this.player, p);
       })
       .catch(() => undefined);
+  }
+
+  /** The language changed: the words drawn in the city follow (a visitor's own tag, the knock bubbles' names). */
+  relabel() {
+    const name = this.playerTag.querySelector(".name");
+    if (name && !this.opts.login) name.textContent = words.youTag;
+    for (const p of this.placed) p.knocker?.traverse((o) => {
+      if (o instanceof CSS2DObject) o.element.setAttribute("aria-label", words.knocking(p.house.name));
+    });
   }
 
   setQuality(quality: "high" | "low", reduceMotion: boolean) {
@@ -1488,7 +1498,7 @@ export class Lobby {
     el.className = "lobby-emote knock";
     el.textContent = "☝️";
     el.setAttribute("role", "img");
-    el.setAttribute("aria-label", `Someone is knocking at ${p.house.name}`);
+    el.setAttribute("aria-label", words.knocking(p.house.name));
     const bubble = new CSS2DObject(el);
     bubble.position.set(0, 2.1, 0);
     visitor.add(bubble);
@@ -1636,7 +1646,7 @@ export class Lobby {
     // "yes" is the wave (the HUD's thumbs are gone, 15 10): a hand. "no" stays a thumbs down.
     el.textContent = name === "yes" ? "👋" : "👎";
     el.setAttribute("role", "img");
-    el.setAttribute("aria-label", name === "yes" ? "waves hello" : "thumbs down");
+    el.setAttribute("aria-label", name === "yes" ? words.waves : words.thumbsDown);
     const obj = new CSS2DObject(el);
     obj.position.set(0, 2.25, 0);
     avatar.add(obj);

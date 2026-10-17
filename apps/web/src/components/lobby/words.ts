@@ -185,6 +185,11 @@ export const hudWords = defineWords(
     hide: "Hide",
     // TouchDash.vue
     dashName: "Dash",
+    // Lobby.ts: words drawn in the 3D city. A visitor's own name tag, and the hidden names of the bubbles over heads.
+    youTag: "you",
+    knocking: (house: string) => `Someone is knocking at ${house}`,
+    waves: "waves hello",
+    thumbsDown: "thumbs down",
     // Inside.vue: the window a house, a knock or a room opens in.
     insideHouse: "Inside a house",
     aKnock: "A knock",
@@ -259,6 +264,10 @@ export const hudWords = defineWords(
     tryNow: "Essayer",
     hide: "Masquer",
     dashName: "Sprint",
+    youTag: "vous",
+    knocking: (house) => `Quelqu'un frappe à ${house}`,
+    waves: "fait coucou",
+    thumbsDown: "pouce vers le bas",
     insideHouse: "Dans une maison",
     aKnock: "Une demande",
     aRoom: "Une chambre",

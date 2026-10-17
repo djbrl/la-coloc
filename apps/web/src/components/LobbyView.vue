@@ -656,6 +656,10 @@ watch(
   () => settings.shortcuts,
   (on) => lobby?.setShortcuts(on),
 );
+watch(
+  () => language.lang,
+  () => lobby?.relabel(),
+);
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
