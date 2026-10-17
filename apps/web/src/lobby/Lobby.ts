@@ -19,7 +19,7 @@ import type { CityHouse } from "../types";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
 import { type CityStyle, styleFor } from "./cityStyle";
 import { daylight } from "./daylight";
-import { type EdgeArrow, placeArrow } from "./arrow";
+import { type Box as ScreenBox, clearOf, type EdgeArrow, placeArrow } from "./arrow";
 import { Beacon } from "./beacon";
 import { Fireworks } from "./fireworks";
 import { liveKey, liveState } from "./live";
@@ -247,6 +247,9 @@ export class Lobby {
   private arrow: HTMLElement;
   private arrowAt: EdgeArrow = { shown: false, x: 0, y: 0, angle: 0 };
   private arrowKey = "";
+  // Where the HUD sits over the stage (the minimap, the coach), so the arrow never hides under it; read twice a second.
+  private hudBoxes: ScreenBox[] = [];
+  private hudReadAt = 0;
   private pointHouse: string | null = null;
   // The stage's size in pixels, set by `fit`.
   private width = 1;
@@ -2163,6 +2166,20 @@ export class Lobby {
     }
   }
 
+  /** The HUD's boxes over the stage, in the stage's pixels: the minimap, the round tools, the keys, the place, the quest and the coach. */
+  private hud(): ScreenBox[] {
+    const now = performance.now();
+    if (now - this.hudReadAt < 500) return this.hudBoxes;
+    this.hudReadAt = now;
+    const stage = this.host.getBoundingClientRect();
+    const root = this.host.parentElement ?? document.body;
+    this.hudBoxes = Array.from(root.querySelectorAll<HTMLElement>(".hud.map, .hud.tools, .hud.dock, .hud.place, .hud.quest, .coach"))
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => ({ left: r.left - stage.left, top: r.top - stage.top, right: r.right - stage.left, bottom: r.bottom - stage.top }));
+    return this.hudBoxes;
+  }
+
   /**
    * The arrow at the screen's edge: towards the door of the beacon's house, else of the house you picked, while
    * that door is off screen. Hidden while the camera is away on a tour or a window is open. The element is only
@@ -2181,7 +2198,9 @@ export class Lobby {
     const at = this.arrowAt;
     if (goal && !this.tour && this.framing !== "left") {
       const v = this.scratch.copy(goal.door).project(this.camera);
-      if (placeArrow(v.x, v.y, this.width, this.height, ARROW_MARGIN, at).shown) key = `${at.x.toFixed(0)},${at.y.toFixed(0)},${at.angle.toFixed(2)}`;
+      placeArrow(v.x, v.y, this.width, this.height, ARROW_MARGIN, at);
+      if (at.shown) clearOf(at, this.hud(), this.width, this.height, ARROW_MARGIN);
+      if (at.shown) key = `${at.x.toFixed(0)},${at.y.toFixed(0)},${at.angle.toFixed(2)}`;
     }
     if (key === this.arrowKey) return;
     this.arrowKey = key;
