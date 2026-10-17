@@ -31,6 +31,7 @@ import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestO
 import { cityKey, cityOwnsKeys, readLayout } from "./keys";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
+import { declutter, type TagSpot } from "./tags";
 import { dye } from "./tint";
 import { HouseFace } from "./windows";
 import { hudWords as words } from "../components/lobby/words";
@@ -67,6 +68,7 @@ const SPACING = 0.9;
 // How much nearer than a building a person must be to win "in reach" (see `reach`).
 const PEOPLE_MARGIN = 0.8; // the closest two people standing at a door may get (R39)
 const TAG_CHECKS = 8; // name tags checked for a building in the way, per check (a few each time, round and round)
+const NARROW_TAGS = 600; // under this width (pixels), only your tag and the nearest person's show
 const ARROW_MARGIN = 56; // how far in from the screen's edge the arrow towards an off-screen goal sits, in pixels
 
 export type Emote = "yes" | "no";
@@ -330,6 +332,10 @@ export class Lobby {
   private skyline: THREE.Object3D[] = [];
   // Buildings that could stand between the camera and you: they fade while they do.
   private occluders: { box: THREE.Box3; materials: THREE.Material[]; faded: boolean }[] = [];
+  // Name tags piling up (tags.ts): a pool of spots reused on every check, and each tag's width, measured once (and
+  // again when its house chip changes).
+  private tagSpots: TagSpot[] = [];
+  private tagWidths = new WeakMap<HTMLElement, number>();
 
   constructor(
     private host: HTMLElement,
@@ -1643,6 +1649,7 @@ export class Lobby {
    */
   private badge(tag: HTMLElement, login: string | null) {
     tag.querySelector(".home")?.remove();
+    this.tagWidths.delete(tag);
     const home = login ? this.residents.get(login) : undefined;
     if (!home) return;
     const el = document.createElement("span");
@@ -2082,6 +2089,7 @@ export class Lobby {
       const tagRange = this.viewHalf < 9 ? this.viewHalf * 2 : TAG_RANGE;
       for (const n of this.npcs) n.tag.style.visibility = n === h || (n.avatar.position.distanceTo(centre) < tagRange && !n.hidden) ? "" : "hidden";
       for (const r of this.remotes.values()) r.tag.style.visibility = r === h || (r.avatar.position.distanceTo(centre) < tagRange * 1.6 && !r.hidden) ? "" : "hidden";
+      this.declutterTags(h);
     }
 
     // The camera follows from the isometric angle, turned and gliding (or snapping, for calm motion). It looks at
@@ -2182,6 +2190,48 @@ export class Lobby {
     // The key moves; only the chevron turns, so the key's lip stays underneath.
     this.arrow.style.transform = `translate(${at.x.toFixed(0)}px, ${at.y.toFixed(0)}px)`;
     (this.arrow.firstElementChild as SVGElement | null)?.style.setProperty("transform", `rotate(${at.angle.toFixed(2)}rad)`);
+  }
+
+  /**
+   * Name tags that overlap on screen (people bunched at a door): the nearest stays as it is and the others fade back
+   * without their house chip; on a narrow screen only yours and the nearest person's show at all (tags.ts). Runs with
+   * the tags' range check, a few times a second, over a reused pool: nothing new is made per check.
+   */
+  private declutterTags(h: Thing | null) {
+    const you = this.player.position;
+    let n = this.tagSpot(0, this.playerTag, you, -1, true);
+    for (const p of this.npcs) if (p.avatar.visible && p.tag.style.visibility === "") n = this.tagSpot(n, p.tag, p.avatar.position, apart(p.avatar.position, you), p === h);
+    for (const r of this.remotes.values()) if (r.tag.style.visibility === "") n = this.tagSpot(n, r.tag, r.avatar.position, apart(r.avatar.position, you), r === h);
+    declutter(this.tagSpots, n, this.width < NARROW_TAGS);
+    for (let i = 0; i < n; i++) {
+      const spot = this.tagSpots[i];
+      if (!spot.el) continue;
+      if (!spot.shown) spot.el.style.visibility = "hidden";
+      spot.el.classList.toggle("crowded", spot.crowded);
+    }
+  }
+
+  /** Fills the pool's spot `i` with a tag on screen (its head's point, projected) and returns the next index. */
+  private tagSpot(i: number, el: HTMLElement, at: THREE.Vector3, d: number, keep: boolean): number {
+    const v = this.scratch.copy(at).setY(at.y + 1.9).project(this.camera);
+    if (Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) return i;
+    let spot = this.tagSpots[i];
+    if (!spot) {
+      spot = { x: 0, y: 0, w: 0, d: 0, keep: false, shown: true, crowded: false, el: null };
+      this.tagSpots.push(spot);
+    }
+    let w = this.tagWidths.get(el);
+    if (w === undefined) {
+      w = el.offsetWidth || 80;
+      this.tagWidths.set(el, w);
+    }
+    spot.x = ((v.x + 1) / 2) * this.width;
+    spot.y = ((1 - v.y) / 2) * this.height;
+    spot.w = w;
+    spot.d = d;
+    spot.keep = keep;
+    spot.el = el;
+    return i + 1;
   }
 
   /**

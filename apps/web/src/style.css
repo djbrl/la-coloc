@@ -486,6 +486,10 @@ button.toggle[role="switch"][aria-checked][aria-checked="true"] .knob { transfor
 .lobby-label.small { font: 600 11px/1.2 var(--font); padding: 2px 6px; border-radius: var(--r-xs); }
 .lobby-label.small::after { width: 6px; height: 6px; bottom: -3px; }
 .lobby-label.you { background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 2px 0 var(--accent-lip); }
+/* A tag behind a nearer one (people bunched at a door, Lobby.ts): it fades back, without its house chip. */
+.lobby-label { transition: opacity var(--dur) var(--ease); }
+.lobby-label.crowded { opacity: 0.35; }
+.lobby-label.crowded .home { display: none; }
 /* After a name, their house, on the house's colour (the same as the ring at their feet). Colours are set inline. */
 .lobby-label .home { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; font: 600 9px/14px var(--font); letter-spacing: 0.02em; vertical-align: 1px; }
 .lobby-label.small .home { margin-left: 4px; padding: 0 5px; font-size: 8px; line-height: 12px; }
