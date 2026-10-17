@@ -85,10 +85,17 @@ export function repoName(repo: string): string {
 }
 
 /** The one command that gets you to the challenge's folder: clone the repo, then step into the folder. */
-export function cloneCommand(repo: string, path: string): string {
+export function cloneCommand(repo: string, path: string, login?: string | null): string {
   const dir = repoName(repo).split("/").pop() ?? "repo";
   const folder = path.replace(/^\/+|\/+$/g, "");
-  return folder ? `git clone ${repo} && cd ${dir}/${folder}` : `git clone ${repo} && cd ${dir}`;
+  // Contestants can't push to the arena's repo: they fork it, clone their fork, and open a pull request from it.
+  const from = login ? `https://github.com/${login}/${dir}` : repo;
+  return folder ? `git clone ${from} && cd ${dir}/${folder}` : `git clone ${from} && cd ${dir}`;
+}
+
+/** GitHub's page that forks the arena's repo into your account: the first step before cloning. */
+export function forkUrl(repo: string): string {
+  return `${repo.replace(/\/+$/, "")}/fork`;
 }
 
 /** The challenge's folder on GitHub (on the default branch, whatever it's called). */
@@ -129,10 +136,12 @@ export function prProblemText(problem: PrProblem, repo: string): string {
 // ---- What the panel offers ----
 
 /** The challenge tab's next step: log in, join, or (once in) send a pull request. Over: nothing more to do. */
-export type ArenaStage = "login" | "join" | "joined" | "over";
+export type ArenaStage = "login" | "join" | "joined" | "over" | "soon";
 
 export function arenaStage(view: Pick<ArenaView, "joined" | "challenge">, viewer: { login: string } | null, now: number = Date.now()): ArenaStage {
   if (ended(view.challenge.endsAt, now)) return "over";
+  // Its repo is private or the folder isn't pushed: joining would lead nowhere.
+  if (view.challenge.open === false) return "soon";
   if (!viewer) return "login";
   return view.joined ? "joined" : "join";
 }

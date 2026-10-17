@@ -78,10 +78,24 @@ export function followArena(city: string | null) {
   stream = openStream(`/api/cities/${encodeURIComponent(city)}/stream`, {
     arena: () => {
       arena.tick++;
-      void loadArena(true);
+      refresh();
+    },
+    // A message in the arena's room: only the room fetches again.
+    arenaChat: () => {
+      arena.tick++;
     },
   });
   offBack ??= onRecovered(() => void loadArena(!!arena.view));
+}
+
+// On the shared site the stream is a question every few seconds, and every answer says "arena": the whole view is
+// fetched again at most every 20 s there (the room still follows each tick). A real stream only says it on a change.
+const polled = !!import.meta.env.VITE_LOBBY_WS;
+let lastRefresh = 0;
+function refresh(now = Date.now()) {
+  if (polled && now - lastRefresh < 20_000) return;
+  lastRefresh = now;
+  void loadArena(true);
 }
 
 /** Stops following (the lobby went away). */

@@ -13,7 +13,7 @@
 // Subject as the city chat, chat.service.ts); the page then fetches the arena again.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { arenaAwards, arenaChallenges, arenaEntries, arenaSubmissions, type Badge, type Db, users } from "@coloc/db";
-import { and, asc, count, eq, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull, lt, lte, ne, sql } from "drizzle-orm";
 import { DB } from "../db/db.module";
 import { channelMessages, person } from "../doorbell/queries";
 import { GITHUB_CLIENT, type GhEvent } from "../github/chores.service";
@@ -25,7 +25,7 @@ import { Limiter } from "../chat/limiter";
 import { awardOf, badgeOf, wear } from "./badges";
 import { closeWeek, standings } from "./podium";
 import { catalogueEntry, type PointsRow, type Text } from "./catalogue";
-import { type ArenaRepo, arenaRepo, fetchPull, GithubDown, isAuthor, parsePrUrl, type PullFacts, readPull, scoreOf } from "./scoring";
+import { arenaJudges, type ArenaRepo, arenaRepo, fetchPull, folderIsOpen, GithubDown, isAuthor, parsePrUrl, type PullFacts, readPull, scoreOf } from "./scoring";
 import { challengeId, entryFor, isoDate, WEEK_MS, weekStartOf } from "./weeks";
 
 type UserRow = typeof users.$inferSelect;
@@ -64,6 +64,8 @@ export interface ArenaView {
     startsAt: string;
     endsAt: string;
     prizeFcfa: number;
+    // Whether anyone can open the challenge's folder (public repo, folder pushed); null: GitHub couldn't say.
+    open: boolean | null;
     award: { key: string; title: Text };
     points: PointsRow[];
   };
@@ -79,11 +81,16 @@ export class ArenaService {
   private readonly log = new Logger("arena");
   readonly repo: ArenaRepo = arenaRepo();
   readonly submitBrake = new Limiter(SUBMISSIONS.count, SUBMISSIONS.perMs);
+  readonly judges = arenaJudges();
   // Tests move time and answer for GitHub.
   clock = () => new Date();
   fetch: typeof globalThis.fetch = (...args) => globalThis.fetch(...args);
   // "<City>:<weekStart>" of the weeks whose past has already been closed by this process: saves a query per look.
   private settled = new Set<string>();
+  // Whether each challenge folder opens for anyone (folderIsOpen), for ten minutes; and pull requests GitHub just
+  // described, for two: GitHub's public API allows 60 calls an hour, and the panel is opened often.
+  private openFolders = new Map<string, { open: boolean | null; until: number }>();
+  private pulls = new Map<string, { facts: PullFacts | null; until: number }>();
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -143,11 +150,24 @@ export class ArenaService {
    * Only the call that closes it awards, so calling it twice (or twice at once) awards once. Returns the awards made.
    */
   async closeAndAward(id: string): Promise<(typeof arenaAwards.$inferSelect)[]> {
+    await this.lastLook(id);
     const result = await this.db.transaction((tx) => closeWeek(tx, id, this.clock()));
     if (!result) return [];
     this.changed(result.city);
     if (result.awards.length) this.log.log(`${id}: awarded ${result.awards.length} title${result.awards.length === 1 ? "" : "s"}`);
     return result.awards;
+  }
+
+  /** Whether the challenge's folder opens for anyone (repo public, folder pushed), remembered for ten minutes. */
+  private async folderOpen(repoUrl: string, path: string): Promise<boolean | null> {
+    const key = `${repoUrl}#${path}`;
+    const known = this.openFolders.get(key);
+    if (known && known.until > Date.now()) return known.open;
+    const fullName = repoUrl.replace(/^https:\/\/github\.com\//, "");
+    const open = await folderIsOpen(fullName, path, this.fetch);
+    // Not knowing (GitHub slow, or refusing us) waits as long: asking sooner would only spend the allowance.
+    this.openFolders.set(key, { open, until: Date.now() + 600_000 });
+    return open;
   }
 
   // ---- What the arena shows ----
@@ -187,6 +207,7 @@ export class ArenaService {
         startsAt: c.startsAt.toISOString(),
         endsAt: c.endsAt.toISOString(),
         prizeFcfa: c.prizeFcfa,
+        open: await this.folderOpen(c.repo, c.path),
         award: entry.award,
         points: entry.points,
       },
@@ -275,7 +296,8 @@ export class ArenaService {
   async say(city: string, userId: string, body: string): Promise<{ id: string }> {
     await this.chat.mustBeCity(city);
     const id = await this.chat.write(arenaChannel(city), userId, body);
-    this.changed(city);
+    // Only the room: the panel's challenge and leaderboard don't need fetching again for a message.
+    this.chat.changes.next({ city, what: "arenaChat" });
     return { id };
   }
 
@@ -359,6 +381,20 @@ export class ArenaService {
   // ---- Inside ----
 
   private async enter(c: ChallengeRow, userId: string) {
+    const [u] = await this.db.select({ login: users.login }).from(users).where(eq(users.id, userId));
+    if (u && this.judges.has(u.login.toLowerCase())) {
+      throw new ForbiddenException({ message: "You judge the Arena (you merge and label its pull requests), so you can't take part.", code: "arenaJudge" });
+    }
+    // One arena a week: a pull request then counts in one city, and nobody collects every podium with it.
+    const [elsewhere] = await this.db
+      .select({ city: arenaChallenges.city })
+      .from(arenaEntries)
+      .innerJoin(arenaChallenges, eq(arenaChallenges.id, arenaEntries.challengeId))
+      .where(and(eq(arenaEntries.userId, userId), eq(arenaChallenges.weekStart, c.weekStart), ne(arenaChallenges.city, c.city)))
+      .limit(1);
+    if (elsewhere) {
+      throw new ConflictException({ message: `You're in ${elsewhere.city}'s arena this week: one arena a week.`, code: "arenaOtherCity", city: elsewhere.city });
+    }
     const [made] = await this.db.insert(arenaEntries).values({ challengeId: c.id, userId }).onConflictDoNothing().returning();
     if (made) this.changed(c.city);
   }
@@ -369,6 +405,44 @@ export class ArenaService {
       .from(arenaSubmissions)
       .where(and(eq(arenaSubmissions.challengeId, id), eq(arenaSubmissions.repo, repo), eq(arenaSubmissions.number, number)));
     return !!s;
+  }
+
+  /** GitHub's facts about a pull request for a look at the panel: what we asked under two minutes ago, else GitHub. */
+  private async pullFresh(repo: string, number: number): Promise<PullFacts | null> {
+    const key = `${repo}#${number}`;
+    const now = this.clock().getTime();
+    const known = this.pulls.get(key);
+    if (known && known.until > now) return known.facts;
+    const facts = await fetchPull(repo, number, { client: this.github, fetch: this.fetch });
+    this.pulls.set(key, { facts, until: now + 120_000 });
+    if (this.pulls.size > 2000) for (const [k, v] of this.pulls) if (v.until <= now) this.pulls.delete(k);
+    return facts;
+  }
+
+  /**
+   * Before a week closes, GitHub is asked once more about its pull requests still open (a few dozen at most), so a
+   * merge on Sunday evening counts even if no webhook told us. Quietly: GitHub down means we close with what we know.
+   */
+  private async lastLook(id: string) {
+    const [c] = await this.db.select().from(arenaChallenges).where(eq(arenaChallenges.id, id));
+    if (!c || c.closedAt) return;
+    const open = await this.db
+      .select()
+      .from(arenaSubmissions)
+      .where(and(eq(arenaSubmissions.challengeId, id), eq(arenaSubmissions.state, "open")))
+      .limit(30);
+    // A few seconds at most: this runs inside the first look at the new week, someone is waiting for the page.
+    const until = Date.now() + 6000;
+    for (const s of open) {
+      if (Date.now() > until) return;
+      try {
+        const facts = await fetchPull(s.repo, s.number, { client: this.github, fetch: this.fetch });
+        if (facts) await this.apply(s, c, facts);
+      } catch (e) {
+        if (!(e instanceof GithubDown)) throw e;
+        return;
+      }
+    }
   }
 
   /** GitHub's facts about a pull request, or null if there's none; a 503 with a code when GitHub is down. */
@@ -385,7 +459,9 @@ export class ArenaService {
   /** Writes what GitHub says about a pull request onto a submission. Points only move while its challenge is open. */
   private async apply(s: SubmissionRow, c: ChallengeRow, facts: PullFacts) {
     const open = c.closedAt === null;
-    const score = scoreOf(c.slug, c.kind, facts);
+    // A merge after the week's end scores nothing, even if we only hear of it while closing the week.
+    const late = !!facts.mergedAt && facts.mergedAt.getTime() > c.endsAt.getTime();
+    const score = late ? { points: 0, label: null } : scoreOf(c.slug, c.kind, facts);
     await this.db
       .update(arenaSubmissions)
       .set({
@@ -415,12 +491,16 @@ export class ArenaService {
           lt(arenaSubmissions.checkedAt, new Date(this.clock().getTime() - RECHECK_MS)),
         ),
       )
-      .limit(5);
+      .limit(2);
     let moved = false;
     for (const s of stale) {
       try {
-        const facts = await fetchPull(s.repo, s.number, { client: this.github, fetch: this.fetch });
-        if (!facts) continue;
+        const facts = await this.pullFresh(s.repo, s.number);
+        if (!facts) {
+          // GitHub doesn't find it (a private repo, a deleted PR): not asked again for a while either.
+          await this.db.update(arenaSubmissions).set({ checkedAt: this.clock() }).where(eq(arenaSubmissions.id, s.id));
+          continue;
+        }
         await this.apply(s, c, facts);
         moved ||= facts.state !== s.state || facts.title !== s.title;
       } catch (e) {

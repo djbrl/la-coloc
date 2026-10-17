@@ -15,4 +15,4 @@ the edge cases, the wrong inputs, the thing that broke once already.
 
 ## Points
 
-A merged pull request scores **20**. Open: 0 (waiting). Closed without a merge: 0.
+A merged pull request the judges label `arena:entry` scores **20** (merged before Monday 00:00 UTC). Open: 0 (waiting). Closed without a merge: 0.

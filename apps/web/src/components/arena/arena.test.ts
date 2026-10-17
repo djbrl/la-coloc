@@ -145,6 +145,8 @@ describe("the repo", () => {
     expect(repoName("https://github.com/Djbrl/la-coloc.git")).toBe("Djbrl/la-coloc");
     expect(cloneCommand("https://github.com/Djbrl/la-coloc", "challenges/bug-bounty")).toBe("git clone https://github.com/Djbrl/la-coloc && cd la-coloc/challenges/bug-bounty");
     expect(cloneCommand("https://github.com/Djbrl/la-coloc", "")).toBe("git clone https://github.com/Djbrl/la-coloc && cd la-coloc");
+    // With a GitHub login: their fork, which is what they push to.
+    expect(cloneCommand("https://github.com/Djbrl/la-coloc", "challenges/bug-bounty", "fatou")).toBe("git clone https://github.com/fatou/la-coloc && cd la-coloc/challenges/bug-bounty");
     expect(folderUrl("https://github.com/Djbrl/la-coloc/", "/challenges/bug-bounty/")).toBe("https://github.com/Djbrl/la-coloc/tree/HEAD/challenges/bug-bounty");
   });
 });
@@ -168,5 +170,15 @@ describe("what the challenge tab offers", () => {
     expect(submissionState("merged")).toEqual({ word: "Merged", tone: "live" });
     language.lang = "fr";
     expect(submissionState("closed")).toEqual({ word: "Fermée", tone: "neutral" });
+  });
+});
+
+describe("a challenge whose repo nobody can open", () => {
+  it("can't be joined: there's nothing to clone", async () => {
+    const { arenaStage } = await import("./arena");
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const base = { joined: false, challenge: { endsAt: future, open: false } } as never;
+    expect(arenaStage(base, { login: "fatou" })).toBe("soon");
+    expect(arenaStage({ joined: false, challenge: { endsAt: future, open: null } } as never, { login: "fatou" })).toBe("join");
   });
 });

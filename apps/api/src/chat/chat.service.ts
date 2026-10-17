@@ -59,7 +59,8 @@ export interface ReportView {
 }
 
 // "arena": the arena's room, entrants, leaderboard or challenge changed (arena/arena.service.ts).
-export type CityChange = { city: string; what: "chat" | "board" | "arena" };
+// "arenaChat": only a new message in the arena's room.
+export type CityChange = { city: string; what: "chat" | "board" | "arena" | "arenaChat" };
 
 @Injectable()
 export class ChatService {

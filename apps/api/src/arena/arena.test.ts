@@ -53,7 +53,8 @@ function pr(n: number, o: { by?: string; id?: number; merged?: boolean; closed?:
     merged_at: merged ? (o.mergedAt ?? "2026-10-14T10:00:00Z") : null,
     created_at: o.created ?? "2026-10-13T09:00:00Z",
     user: { login: o.by ?? "fatou", id: o.id ?? 101 },
-    labels: (o.labels ?? []).map((name) => ({ name })),
+    // As the judges label an accepted entry, unless a test says otherwise: an entry, or a low-severity fix.
+    labels: (o.labels ?? ["arena:entry", "arena:low"]).map((name) => ({ name })),
   };
 }
 
@@ -339,24 +340,32 @@ describe("GitHub's webhooks", () => {
     prs.set(3, pr(3));
     const view = await arena.submit("Dakar", await user("fatou"), `${REPO}/pull/3`);
     changes = [];
-    const merged = { ...pr(3, { merged: true, labels: ["arena:critical"] }), title: "Fix the login check" };
+    const merged = { ...pr(3, { merged: true, labels: ["arena:entry", "arena:critical"] }), title: "Fix the login check" };
     expect(await arena.handle("pull_request", event("closed", merged))).toMatch(/^arena: #3 updated 1/);
     const [s] = await db.select().from(arenaSubmissions);
-    expect(s).toMatchObject({ state: "merged", title: "Fix the login check", points: scoreOf(view.challenge.slug, view.challenge.kind, { state: "merged", labels: ["arena:critical"] }).points });
+    expect(s).toMatchObject({ state: "merged", title: "Fix the login check", points: scoreOf(view.challenge.slug, view.challenge.kind, { state: "merged", labels: ["arena:entry", "arena:critical"] }).points });
     expect(s.scoredAt).toEqual(new Date("2026-10-14T10:00:00Z"));
     expect(changes).toEqual(["Dakar:arena"]);
   });
 
-  it("send a new pull request for its author in every challenge they joined this week", async () => {
+  it("send a new pull request for its author in the one arena they joined this week", async () => {
     await arena.join("Dakar", ids.fatou);
-    await arena.join("Tunis", ids.fatou);
+    // One arena a week: a second city is refused, so one pull request can't win every podium.
+    expect(await refusal(arena.join("Tunis", ids.fatou))).toEqual({ status: 409, code: "arenaOtherCity" });
     await arena.join("Lomé", ids.sam);
-    expect(await arena.handle("pull_request", event("opened", pr(11)))).toBe("arena: #11 updated 0, added 2");
+    expect(await arena.handle("pull_request", event("opened", pr(11)))).toBe("arena: #11 updated 0, added 1");
     const rows = await db.select().from(arenaSubmissions);
-    expect(rows.map((r) => r.challengeId).sort()).toEqual(["Dakar:2026-10-12", "Tunis:2026-10-12"]);
+    expect(rows.map((r) => r.challengeId)).toEqual(["Dakar:2026-10-12"]);
     expect(rows.every((r) => r.userId === ids.fatou && r.state === "open")).toBe(true);
-    // Labelled later: both are updated, nothing is added twice.
-    expect(await arena.handle("pull_request", event("labeled", pr(11, { labels: ["arena:low"] })))).toBe("arena: #11 updated 2, added 0");
+    // Labelled later: updated, nothing added twice.
+    expect(await arena.handle("pull_request", event("labeled", pr(11, { labels: ["arena:low"] })))).toBe("arena: #11 updated 1, added 0");
+  });
+
+  it("is closed to its judges, who merge and label its pull requests", async () => {
+    const judged = new ArenaService(db, chat, null);
+    (judged as unknown as { judges: Set<string> }).judges = new Set(["fatou"]);
+    judged.clock = arena.clock;
+    expect(await refusal(judged.join("Dakar", ids.fatou))).toEqual({ status: 403, code: "arenaJudge" });
   });
 
   it("ignore other repos, other events, strangers, and pull requests from before the week", async () => {
@@ -429,7 +438,8 @@ describe("the arena's chat room", () => {
   it("is the city's own, readable by anyone, written by people logged in, and pings the stream", async () => {
     as = "fatou";
     await controller.say("Dakar", { body: "Qui fait le bug bounty ?" }, req);
-    expect(changes).toContain("Dakar:arena");
+    // A message only nudges the room: the challenge and the leaderboard aren't fetched again for it.
+    expect(changes).toContain("Dakar:arenaChat");
     expect((await controller.messages("Dakar", req)).messages.map((m) => m.body)).toEqual(["Qui fait le bug bounty ?"]);
     expect((await chat.cityChat("Dakar", null)).messages).toEqual([]);
     expect((await arena.messages("Tunis", null)).messages).toEqual([]);
@@ -465,12 +475,72 @@ describe("addresses", () => {
     expect(parsePrUrl("javascript:alert(1)")).toBeNull();
   });
 
-  it("score bounties by their best label, and the rest when merged", () => {
+  it("score only merged pull requests the judges labelled: bounties by their best label, the rest as entries", () => {
     expect(scoreOf("bug-bounty", "bounty", { state: "merged", labels: ["arena:medium", "arena:critical"] })).toEqual({ points: 100, label: "arena:critical" });
-    expect(scoreOf("bug-bounty", "bounty", { state: "merged", labels: ["good first issue"] })).toEqual({ points: 10, label: null });
+    // An ordinary contribution to the repo, merged but not labelled for the arena, isn't an entry.
+    expect(scoreOf("bug-bounty", "bounty", { state: "merged", labels: ["good first issue"] })).toEqual({ points: 0, label: null });
     expect(scoreOf("bug-bounty", "bounty", { state: "open", labels: ["arena:high"] })).toEqual({ points: 0, label: null });
-    expect(scoreOf("offline-hackathon", "hackathon", { state: "merged", labels: ["arena:high"] })).toEqual({ points: 30, label: null });
-    expect(scoreOf("test-pilot", "challenge", { state: "merged", labels: [] })).toEqual({ points: 20, label: null });
-    expect(scoreOf("test-pilot", "challenge", { state: "closed", labels: [] })).toEqual({ points: 0, label: null });
+    expect(scoreOf("offline-hackathon", "hackathon", { state: "merged", labels: ["arena:high"] })).toEqual({ points: 0, label: null });
+    expect(scoreOf("offline-hackathon", "hackathon", { state: "merged", labels: ["arena:entry"] })).toEqual({ points: 30, label: "arena:entry" });
+    expect(scoreOf("test-pilot", "challenge", { state: "merged", labels: [] })).toEqual({ points: 0, label: null });
+    expect(scoreOf("test-pilot", "challenge", { state: "closed", labels: ["arena:entry"] })).toEqual({ points: 0, label: null });
+  });
+});
+
+describe("the edges of a week", () => {
+  it("asks GitHub once more before closing, so a Sunday merge counts and a Monday one doesn't", async () => {
+    as = "fatou";
+    prs.set(3, pr(3));
+    prs.set(4, pr(4));
+    await controller.submit("Dakar", { url: `${REPO}/pull/3` }, req);
+    await controller.submit("Dakar", { url: `${REPO}/pull/4` }, req);
+    // Merged on Sunday evening and on Monday morning; no webhook told us about either.
+    prs.set(3, pr(3, { merged: true, mergedAt: "2026-10-18T22:00:00Z" }));
+    prs.set(4, pr(4, { merged: true, mergedAt: "2026-10-19T08:00:00Z" }));
+    now = NEXT_WEEK;
+    await arena.current("Dakar");
+    const subs = await db.select().from(arenaSubmissions);
+    expect(Object.fromEntries(subs.map((s) => [s.number, s.points]))).toEqual({ 3: 20, 4: 0 });
+    expect((await db.select().from(arenaAwards)).map((a) => a.place)).toEqual([1]);
+  });
+
+  it("says when the challenge's folder doesn't open for anyone (a private repo, or not pushed)", async () => {
+    expect((await controller.view("Dakar", req)).challenge.open).toBe(false);
+    const before = arena.fetch;
+    arena.fetch = async (url, init) => (String(url).includes("/contents/") ? new Response("[]", { status: 200 }) : before(url, init));
+    // Remembered for ten minutes: a fresh service asks again.
+    const fresh = new ArenaService(db, chat, null);
+    fresh.clock = arena.clock;
+    fresh.fetch = arena.fetch;
+    expect((await fresh.view("Dakar", null)).challenge.open).toBe(true);
+  });
+});
+
+describe("a title picked by hand", () => {
+  async function winTwoWeeks(chooseNoneBetween: boolean) {
+    as = "fatou";
+    prs.set(3, pr(3, { merged: true }));
+    await controller.submit("Dakar", { url: `${REPO}/pull/3` }, req);
+    now = NEXT_WEEK;
+    await arena.current("Dakar");
+    const first = await user("fatou");
+    expect(first.badge?.place).toBe(1);
+    if (chooseNoneBetween) await arena.wearBadge(first.id, null);
+    // A second win, the week after.
+    prs.set(30, pr(30, { merged: true, created: "2026-10-20T09:00:00Z", mergedAt: "2026-10-20T10:00:00Z" }));
+    await controller.submit("Dakar", { url: `${REPO}/pull/30` }, req);
+    now = new Date("2026-10-28T12:00:00Z");
+    await arena.current("Dakar");
+    return user("fatou");
+  }
+
+  it("is replaced by a new win when they wore their latest", async () => {
+    const u = await winTwoWeeks(false);
+    expect(u.badge?.week).toBe("2026-10-19");
+  });
+
+  it("stays when they had chosen none since", async () => {
+    const u = await winTwoWeeks(true);
+    expect(u.badge).toBeNull();
   });
 });

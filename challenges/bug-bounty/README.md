@@ -18,7 +18,7 @@ Only `examples/` counts. Never test anything on a real house, a real room or som
 
 ## Points
 
-When a maintainer merges it, they add one label for how serious the bug was:
+When a judge merges it, they add one label for how serious the bug was (no label, no points):
 
 | Label | Points |
 | --- | --- |
@@ -26,6 +26,5 @@ When a maintainer merges it, they add one label for how serious the bug was:
 | `arena:medium` | 25 |
 | `arena:high` | 50 |
 | `arena:critical` | 100 |
-| no label | 10 |
 
 Open: 0 (waiting). Closed without a merge: 0.

@@ -18,4 +18,4 @@ Put everything in `challenges/market-hackathon/<your GitHub login>/`.
 
 ## Points
 
-A merged entry scores **30**. Open: 0 (waiting). Closed without a merge: 0.
+A merged entry the judges label `arena:entry` scores **30** (merged before Monday 00:00 UTC). Open: 0 (waiting). Closed without a merge: 0.

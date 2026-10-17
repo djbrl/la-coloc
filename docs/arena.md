@@ -21,10 +21,24 @@ bounty "Œil de lynx" / "Eagle eye", hackathon "As du hackathon" / "Hackathon ac
 Repo: env `COLOC_ARENA_REPO`, default `https://github.com/Djbrl/la-coloc`. Each catalogue folder has a README in this
 repo under `challenges/<slug>/README.md` explaining the task and how points work.
 
-Points: a submission is a pull request to the arena repo by the submitter (PR author login == their GitHub login,
-case-insensitive), opened after the week started. Merged → points (by label for bounties: `arena:low` 10,
-`arena:medium` 25, `arena:high` 50, `arena:critical` 100, default 10; hackathon merged 30; challenge merged 20).
-Open → 0 ("waiting"), closed unmerged → 0.
+Points: a submission is a pull request to the arena repo by the submitter (matched by GitHub id, else login ignoring
+case), opened after the week started. **Merged and labelled by the judges** → points (bounties by label: `arena:low`
+10, `arena:medium` 25, `arena:high` 50, `arena:critical` 100; hackathons `arena:entry` 30; challenges `arena:entry`
+20). No `arena:` label → 0 (an ordinary contribution). Open → 0 ("waiting"), closed unmerged → 0. A merge after the
+week's end scores 0. Before a week closes, the API asks GitHub once more about its open pull requests (a few seconds
+at most), so a Sunday-evening merge counts without a webhook.
+
+Rules added after the 17 Oct review (docs: challenges/README.md):
+- **Judges** (`COLOC_ARENA_JUDGES`, else `COLOC_ADMINS`) merge and label; they can't join (`arenaJudge`).
+- **One arena a week**: joining a second city's arena that week is refused (`arenaOtherCity`), so a pull request
+  counts in one city.
+- **The prize** (1st place's FCFA) comes off the winner's line of their house bill in the month they win it, paid by
+  La Coloc: `BillLineView.prize`.
+- **The repo must be public.** `ArenaView.challenge.open` says whether anyone can open the challenge's folder (asked
+  without credentials, remembered 10 minutes); when false the panel says it opens soon and offers no join. Use a
+  dedicated public repo (`COLOC_ARENA_REPO`) rather than the private product repo.
+- Contestants fork, clone their fork and open a pull request from it: the panel's command clones `<login>/<repo>`.
+- A message in the arena's room sends `what: "arenaChat"` on the city stream (only the room reloads).
 
 ## Badges (titles)
 - At award time: 1st place gets the challenge's `award` title, place 1; 2nd and 3rd get a podium badge (key

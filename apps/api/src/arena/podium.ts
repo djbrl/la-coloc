@@ -2,7 +2,7 @@
 // week it plants exactly as the API awards a real one.
 import { arenaAwards, arenaChallenges, arenaEntries, arenaSubmissions, type Db, users } from "@coloc/db";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
-import { wear } from "./badges";
+import { wearNew } from "./badges";
 import { catalogueEntry } from "./catalogue";
 
 type UserRow = typeof users.$inferSelect;
@@ -58,6 +58,6 @@ export async function closeWeek(tx: Db, id: string, at: Date): Promise<{ city: s
     )
     .onConflictDoNothing()
     .returning();
-  for (const a of awards) await wear(tx, a.userId, a);
+  for (const a of awards) await wearNew(tx, a);
   return { city: closed.city, awards };
 }

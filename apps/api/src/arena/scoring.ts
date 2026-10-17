@@ -5,7 +5,7 @@
 import type { ArenaKind, ArenaPrState } from "@coloc/db";
 import { z } from "zod";
 import type { GithubAppClient } from "../github/github.client";
-import { catalogueEntry, MERGED } from "./catalogue";
+import { catalogueEntry } from "./catalogue";
 
 const DEFAULT_REPO = "https://github.com/Djbrl/la-coloc";
 // How long GitHub gets to answer before we say it's down.
@@ -77,13 +77,25 @@ export function readPull(raw: unknown): PullFacts | null {
   };
 }
 
-/** What a pull request is worth in a challenge: nothing until it's merged; then its best label's points, or `merged`'s. */
+/**
+ * What a pull request is worth in a challenge: nothing until it's merged, and then only with one of the challenge's
+ * labels, which the judges put on (its best one counts). A merged pull request with no arena label is an ordinary
+ * contribution to the repo, not an entry.
+ */
 export function scoreOf(slug: string, kind: ArenaKind, pull: Pick<PullFacts, "state" | "labels">): { points: number; label: string | null } {
   if (pull.state !== "merged") return { points: 0, label: null };
   const table = catalogueEntry(slug, kind).points;
-  const labelled = table.filter((row) => row.label !== MERGED && pull.labels.includes(row.label)).sort((a, b) => b.points - a.points)[0];
-  if (labelled) return { points: labelled.points, label: labelled.label };
-  return { points: table.find((row) => row.label === MERGED)?.points ?? 0, label: null };
+  const labelled = table.filter((row) => pull.labels.includes(row.label)).sort((a, b) => b.points - a.points)[0];
+  return labelled ? { points: labelled.points, label: labelled.label } : { points: 0, label: null };
+}
+
+/**
+ * The judges: they merge and label the arena's pull requests, so they don't play. COLOC_ARENA_JUDGES (GitHub
+ * logins, comma list), else the admins (COLOC_ADMINS). Lower case.
+ */
+export function arenaJudges(env = process.env): Set<string> {
+  const raw = env.COLOC_ARENA_JUDGES ?? env.COLOC_ADMINS ?? "";
+  return new Set(raw.split(",").map((l) => l.trim().toLowerCase()).filter(Boolean));
 }
 
 /** Did this person open it? By GitHub's numeric id when both are known (logins change), else by login, ignoring case. */
@@ -118,4 +130,25 @@ export async function fetchPull(repo: string, n: number, via: { client: GithubAp
   const facts = readPull(answer.body);
   if (!facts) throw new GithubDown("GitHub's answer wasn't a pull request");
   return facts;
+}
+
+/**
+ * Whether anyone can open a challenge's folder on GitHub: the repo is public and the folder is pushed. Asked without
+ * credentials on purpose (the App sees private repos; contestants don't). True, false, or null when GitHub can't
+ * say right now.
+ */
+export async function folderIsOpen(repo: string, path: string, fetch: typeof globalThis.fetch): Promise<boolean | null> {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`, {
+      method: "GET",
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "coloc.dev", "X-GitHub-Api-Version": "2022-11-28" },
+      signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
+    });
+    if (res.ok) return true;
+    // 404 is both "private repo" and "folder not pushed": either way, nobody but its owner can take part.
+    if (res.status === 404) return false;
+    return null;
+  } catch {
+    return null;
+  }
 }

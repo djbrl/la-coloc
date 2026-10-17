@@ -11,13 +11,14 @@ import { wearLatest } from "../arena/badges";
 import { catalogueEntry } from "../arena/catalogue";
 import { closeWeek } from "../arena/podium";
 import { arenaRepo, scoreOf } from "../arena/scoring";
-import { challengeId, isoDate, WEEK_MS, weekStartOf } from "../arena/weeks";
+import { challengeId, entryFor, isoDate, WEEK_MS, weekStartOf } from "../arena/weeks";
 
 interface SeedWeek {
   city: string;
   // Not the rotation's pick: the seed chooses, so the demo shows a bounty title in Dakar.
   slug: string;
-  // Who took part, in the order they joined, and their merged pull requests (the label each got, if any).
+  // Who took part, in the order they joined, and their merged pull requests (the label each got; null: the
+  // challenge's first label).
   people: { login: string; merged: (string | null)[] }[];
 }
 
@@ -45,6 +46,14 @@ export const ARENA_PAST: SeedWeek[] = [
       { login: "serge", merged: [] },
     ],
   },
+];
+
+// This week, already under way, so the leaderboard isn't empty on a Monday visit: who joined and what got merged so
+// far. The challenge is the rotation's own (the one the API makes), and every pull request is merged (an open one
+// would make the API ask GitHub about a number that never existed).
+export const ARENA_NOW: { city: string; people: { login: string; merged: (string | null)[] }[] }[] = [
+  { city: "Dakar", people: [{ login: "cheikh", merged: [null, null] }, { login: "moussa", merged: [null] }, { login: "aminata", merged: [] }, { login: "jib", merged: [] }] },
+  { city: "Abidjan", people: [{ login: "mariam", merged: [null] }, { login: "yao", merged: [] }] },
 ];
 
 /** Plants last week's finished challenges (see the top of the file). `id`: the seeded people's ids by login. */
@@ -78,7 +87,8 @@ export async function plantArena(db: Db, id: Record<string, string>, now = new D
       for (const [k, label] of p.merged.entries()) {
         const n = number++;
         const mergedAt = new Date(start.getTime() + (24 + i * 6 + k * 30) * 3_600_000);
-        const score = scoreOf(c.slug, c.kind, { state: "merged", labels: label ? [label] : [] });
+        // No label named: the challenge's first (an entry, or a low-severity fix), as the judges would label it.
+        const score = scoreOf(c.slug, c.kind, { state: "merged", labels: [label ?? catalogueEntry(c.slug, c.kind).points[0].label] });
         await db.insert(arenaSubmissions).values({
           challengeId: cid,
           userId: id[p.login],
@@ -100,4 +110,53 @@ export async function plantArena(db: Db, id: Record<string, string>, now = new D
     await closeWeek(db, cid, end);
   }
   await wearLatest(db, seeded);
+  await plantThisWeek(db, id, now, number);
+}
+
+/** This week's entrants and merges so far (ARENA_NOW), each merge between Monday and now. */
+async function plantThisWeek(db: Db, id: Record<string, string>, now: Date, first: number) {
+  const start = weekStartOf(now);
+  const end = new Date(start.getTime() + WEEK_MS);
+  const elapsed = Math.max(0, now.getTime() - start.getTime());
+  const repo = arenaRepo();
+  let number = first;
+  for (const week of ARENA_NOW) {
+    const cid = challengeId(week.city, isoDate(start));
+    const entry = entryFor(week.city, start);
+    await db
+      .insert(arenaChallenges)
+      .values({ id: cid, city: week.city, weekStart: isoDate(start), startsAt: start, endsAt: end, slug: entry.slug, kind: entry.kind, repo: repo.url, path: entry.path, prizeFcfa: entry.prizeFcfa })
+      .onConflictDoNothing();
+    const [c] = await db.select().from(arenaChallenges).where(eq(arenaChallenges.id, cid));
+    if (c.closedAt) continue;
+    for (const [i, p] of week.people.entries()) {
+      if (!id[p.login]) continue;
+      const joinedAt = new Date(start.getTime() + Math.min(elapsed, (i + 1) * 3_600_000) * 0.5);
+      await db.insert(arenaEntries).values({ challengeId: cid, userId: id[p.login], joinedAt }).onConflictDoNothing();
+      for (const [k, label] of p.merged.entries()) {
+        const n = number++;
+        // Spread over the time gone by this week, never in the future.
+        const mergedAt = new Date(start.getTime() + elapsed * ((i + 1) * 0.15 + k * 0.1));
+        // No label named: the challenge's first (an entry, or a low-severity fix), as the judges would label it.
+        const score = scoreOf(c.slug, c.kind, { state: "merged", labels: [label ?? catalogueEntry(c.slug, c.kind).points[0].label] });
+        await db
+          .insert(arenaSubmissions)
+          .values({
+            challengeId: cid,
+            userId: id[p.login],
+            url: `${repo.url}/pull/${n}`,
+            repo: repo.fullName,
+            number: n,
+            title: `Fix ${k + 1} by ${p.login}`,
+            state: "merged",
+            points: score.points,
+            label: score.label,
+            scoredAt: mergedAt,
+            checkedAt: now,
+            createdAt: new Date(Math.max(start.getTime(), mergedAt.getTime() - 3_600_000)),
+          })
+          .onConflictDoNothing();
+      }
+    }
+  }
 }

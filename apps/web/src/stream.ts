@@ -25,7 +25,7 @@ const GIVE_UP_AFTER = 4;
 // panels listening to the same address (a house page, its room, its chat) share one poller.
 const POLL_MS = 4000;
 const polling = !!import.meta.env.VITE_LOBBY_WS;
-const NUDGES = new Set(["chat", "board", "arena"]);
+const NUDGES = new Set(["chat", "board", "arena", "arenaChat"]);
 
 type Events = Record<string, (e: MessageEvent) => void>;
 interface Poller {

@@ -3,8 +3,9 @@
 // lobby) carries its title without asking the database again. Only the functions here change either column, so the
 // two stay in step.
 //
-// Which one is worn: a new title goes on when it's won (it's the most recent); after that, whichever they pick, or
-// none (PUT /api/me/badge).
+// Which one is worn: a new title goes on when it's won, unless they chose otherwise in Settings (an older title, or
+// none) since their last win: a choice made by hand is never overridden. After that, whichever they pick
+// (PUT /api/me/badge).
 import { arenaAwards, type Badge, type Db, users } from "@coloc/db";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
@@ -20,6 +21,18 @@ export async function wear(db: Db, userId: string, award: AwardRow | null): Prom
   const badge = award ? badgeOf(award) : null;
   await db.update(users).set({ wornAwardId: award?.id ?? null, badge }).where(eq(users.id, userId));
   return badge;
+}
+
+/**
+ * A title just won: it goes on if they wore their latest title before (or had none at all), so a newer win shows
+ * at once; if they had picked an older one, or none, by hand, their choice stays.
+ */
+export async function wearNew(db: Db, award: AwardRow): Promise<void> {
+  const [u] = await db.select({ worn: users.wornAwardId }).from(users).where(eq(users.id, award.userId));
+  const before = (await db.select().from(arenaAwards).where(eq(arenaAwards.userId, award.userId)).orderBy(desc(arenaAwards.week), desc(arenaAwards.createdAt))).filter(
+    (a) => a.id !== award.id,
+  );
+  if (!before.length || u?.worn === before[0].id) await wear(db, award.userId, award);
 }
 
 /** Puts each of these people's most recent award on (or none, if they have none left). */

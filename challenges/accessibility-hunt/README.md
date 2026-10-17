@@ -17,7 +17,7 @@ reach with the keyboard, text too pale to read, an icon with no name for screen 
 
 ## Points
 
-When a maintainer merges it, they label it by how many people it kept out:
+When a judge merges it, they label it by how many people it kept out (no label, no points):
 
 | Label | Points |
 | --- | --- |
@@ -25,6 +25,5 @@ When a maintainer merges it, they label it by how many people it kept out:
 | `arena:medium` | 25 |
 | `arena:high` | 50 |
 | `arena:critical` | 100 |
-| no label | 10 |
 
 Open: 0 (waiting). Closed without a merge: 0.

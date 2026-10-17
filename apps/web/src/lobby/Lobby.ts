@@ -1959,8 +1959,8 @@ export class Lobby {
   /**
    * The title someone won in the Arena, right after their name: a trophy and the title in the chosen language, gold,
    * silver or bronze by place (badge.ts). People online and you, from the live line; the flatmates out front, from the
-   * city's listing; passers-by never. Like the house chip, it goes when the tag is crowded (style.css), and it's redrawn when the
-   * language changes.
+   * city's listing; passers-by never. When the tag is crowded its words go but the trophy stays, in its colour
+   * (style.css); it's redrawn when the language changes.
    */
   private trophy(tag: HTMLElement) {
     tag.querySelector(".won")?.remove();
@@ -1973,7 +1973,11 @@ export class Lobby {
     el.setAttribute("role", "img");
     el.setAttribute("aria-label", words.wonTitle(chip.full));
     el.innerHTML = TROPHY;
-    el.append(chip.text);
+    // The words in their own span: a crowded tag keeps the trophy in its colour and drops only the words.
+    const words_ = document.createElement("span");
+    words_.className = "t";
+    words_.textContent = chip.text;
+    el.append(words_);
     tag.querySelector(".name")?.after(el);
   }
 

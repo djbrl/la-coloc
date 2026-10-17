@@ -18,4 +18,4 @@ Any language. Put it in `challenges/fcfa-in-words/<your GitHub login>/`, with it
 
 ## Points
 
-A merged solution scores **20**. Open: 0 (waiting). Closed without a merge: 0.
+A merged solution the judges label `arena:entry` scores **20** (merged before Monday 00:00 UTC). Open: 0 (waiting). Closed without a merge: 0.

@@ -489,7 +489,9 @@ button.toggle[role="switch"][aria-checked][aria-checked="true"] .knob { transfor
 /* A tag behind a nearer one (people bunched at a door, Lobby.ts): it fades back, without its house chip. */
 .lobby-label { transition: opacity var(--dur) var(--ease); }
 .lobby-label.crowded { opacity: 0.35; }
-.lobby-label.crowded .home, .lobby-label.crowded .won { display: none; }
+.lobby-label.crowded .home, .lobby-label.crowded .won .t { display: none; }
+/* A crowded tag keeps its title's trophy, in gold, silver or bronze: who won still shows at a busy door. */
+.lobby-label.crowded .won { padding: 0 3px; }
 /* Right after a name, a title won in the Arena: a trophy and the title, gold, silver or bronze by place (Lobby.ts). */
 .lobby-label .won { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 0 6px 0 4px; border-radius: 4px; font: 700 9px/14px var(--font); letter-spacing: 0.02em; vertical-align: 1px; }
 .lobby-label.small .won { margin-left: 4px; padding: 0 5px 0 3px; font-size: 8px; line-height: 12px; }

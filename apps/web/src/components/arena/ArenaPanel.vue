@@ -7,6 +7,7 @@
 // fresh over the city's stream; a join or a pull request sent gives a newer view back at once.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useWhenBack } from "../../core";
+import { language } from "../../i18n";
 import { me, postJSON, sendJSON } from "../../session";
 import type { ArenaView, Badge } from "../../types";
 import Waiting from "../Waiting.vue";
@@ -18,7 +19,7 @@ import Panel from "../lobby/panel/Panel.vue";
 import PanelHead from "../lobby/panel/PanelHead.vue";
 import PanelTabs, { type Tab } from "../lobby/panel/PanelTabs.vue";
 import StatusPill from "../lobby/panel/StatusPill.vue";
-import { arenaStage, checkPrUrl, cloneCommand, countdown, ended, folderUrl, KINDS, prProblemText, repoName, say, submissionState } from "./arena";
+import { arenaStage, checkPrUrl, cloneCommand, countdown, ended, folderUrl, forkUrl, KINDS, prProblemText, repoName, say, submissionState } from "./arena";
 import ArenaBoard from "./ArenaBoard.vue";
 import ArenaRoom from "./ArenaRoom.vue";
 import BadgeChip from "./BadgeChip.vue";
@@ -66,7 +67,7 @@ const prize = computed((): Badge | null => {
 
 // ---- The repo ----
 
-const clone = computed(() => (challenge.value ? cloneCommand(challenge.value.repo, challenge.value.path) : ""));
+const clone = computed(() => (challenge.value ? cloneCommand(challenge.value.repo, challenge.value.path, me.value?.login ?? null) : ""));
 const copied = ref(false);
 let copiedTimer = 0;
 async function copyClone() {
@@ -85,6 +86,12 @@ const rules = computed(() => (challenge.value ? say(challenge.value.rules) : [])
 
 // ---- Taking part ----
 
+// The week's end, in the reader's language and their own time zone ("dimanche 18 octobre, 23:59").
+const deadline = computed(() =>
+  challenge.value
+    ? new Date(new Date(challenge.value.endsAt).getTime() - 60_000).toLocaleString(language.lang, { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })
+    : "",
+);
 const stage = computed(() => (view.value ? arenaStage(view.value, me.value, now.value) : null));
 const busy = ref(false);
 const error = ref("");
@@ -204,11 +211,19 @@ function onKey(e: KeyboardEvent) {
               </li>
             </ul>
 
-            <ul class="rows">
+            <ul v-if="stage === 'soon'" class="rows">
+              <ListRow :title="w.notOpenTitle" :sub="w.notOpen" class="repo">
+                <template #lead><Icon name="code" :size="20" /></template>
+              </ListRow>
+            </ul>
+            <ul v-else class="rows">
               <ListRow :title="`${repoName(challenge.repo)}/${challenge.path}`" class="repo">
                 <template #lead><Icon name="code" :size="20" /></template>
                 <code class="sub cmd">{{ clone }}</code>
                 <template #end>
+                  <a class="button key" :href="forkUrl(challenge.repo)" target="_blank" rel="noopener noreferrer" :aria-label="w.forkName" :title="w.forkName">
+                    <Icon name="code" :size="16" />{{ w.fork }}
+                  </a>
                   <button type="button" class="key" :aria-label="copied ? w.copied : w.copyName" @click="copyClone">
                     <Icon :name="copied ? 'tick' : 'copy'" :size="16" />{{ copied ? w.copied : w.copy }}
                   </button>
@@ -227,6 +242,7 @@ function onKey(e: KeyboardEvent) {
               <ul v-if="challenge.points.length" class="points">
                 <li v-for="p in challenge.points" :key="p.label"><code>{{ p.label }}</code><span>{{ w.points(p.points) }}</span></li>
               </ul>
+              <p class="scoring">{{ w.scoring(deadline) }}</p>
             </details>
 
             <ul v-if="view.mine.length" class="rows" :aria-label="w.mineName">
@@ -254,7 +270,7 @@ function onKey(e: KeyboardEvent) {
           <ArenaBoard v-else-if="tab === 'board'" :view="view" :me="me?.login ?? null" />
           <ArenaRoom v-else :city="city" />
 
-          <template v-if="tab === 'challenge' && stage && stage !== 'over'" #foot>
+          <template v-if="tab === 'challenge' && stage && stage !== 'over' && stage !== 'soon'" #foot>
             <div class="foot">
               <RouterLink v-if="stage === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />{{ w.logIn }}</RouterLink>
               <button v-else-if="stage === 'join'" type="button" class="primary go" :disabled="busy" @click="join"><Icon name="trophy" :size="20" />{{ w.join }}</button>
@@ -344,6 +360,7 @@ a.go:hover { text-decoration: none; }
 .send input { flex: 1 1 auto; min-width: 0; border-radius: var(--r-pill); padding-left: 18px; font-family: var(--mono); font-size: 14px; }
 /* A challenge's name is a sentence, not a house's one word: two lines rather than an ellipsis. */
 .arena :deep(.title) { font-size: 22px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.scoring { margin: 8px 0 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
 .send button { flex: none; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 
 @keyframes pop-in {

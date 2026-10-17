@@ -39,6 +39,8 @@ const fr: Record<string, (r: Refusal) => string> = {
   arenaPrNotFound: () => "GitHub ne trouve pas cette pull request. Vérifiez l'adresse.",
   arenaAlreadySubmitted: () => "Cette pull request est déjà inscrite au défi de la semaine.",
   arenaGithubDown: () => "GitHub ne répond pas. Réessayez dans une minute.",
+  arenaOtherCity: (r) => (typeof r.city === "string" ? `Vous êtes déjà dans l'arène de ${r.city} cette semaine : une arène par semaine.` : "Vous êtes déjà dans une autre arène cette semaine : une arène par semaine."),
+  arenaJudge: () => "Vous êtes juge de l'arène (vous mergez et étiquetez ses pull requests) : vous ne pouvez pas y participer.",
   arenaGithubNeeded: () => "Connectez-vous avec GitHub pour envoyer des pull requests : c'est ainsi qu'on sait qu'elles sont à vous.",
   arenaNoSubmission: () => "Vous n'avez pas cette pull request dans le défi de la semaine.",
   arenaNoAward: () => "Ce titre n'est pas à vous.",

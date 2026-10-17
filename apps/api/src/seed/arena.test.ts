@@ -28,10 +28,12 @@ beforeEach(async () => {
 describe("the Arena's seeded past", () => {
   it("has finished podiums last week in Dakar and Abidjan, and awa wears Eagle eye", async () => {
     const challenges = await db.select().from(arenaChallenges);
-    expect(challenges.map((c) => [c.id, c.slug, c.closedAt !== null]).sort()).toEqual([
-      [`Abidjan:${lastWeek}`, "market-hackathon", true],
-      [`Dakar:${lastWeek}`, "bug-bounty", true],
+    expect(challenges.filter((c) => c.closedAt !== null).map((c) => [c.id, c.slug]).sort()).toEqual([
+      [`Abidjan:${lastWeek}`, "market-hackathon"],
+      [`Dakar:${lastWeek}`, "bug-bounty"],
     ]);
+    // This week is under way in both, with entrants and merges so far.
+    expect(challenges.filter((c) => c.closedAt === null).map((c) => c.city).sort()).toEqual(["Abidjan", "Dakar"]);
     expect((await user("awa")).badge).toEqual({ key: "eagle-eye", title: { en: "Eagle eye", fr: "Œil de lynx" }, place: 1, city: "Dakar", week: lastWeek });
     expect((await user("moussa")).badge).toMatchObject({ key: "podium", place: 2 });
     expect((await user("aminata")).badge).toMatchObject({ key: "podium", place: 3 });
@@ -42,6 +44,8 @@ describe("the Arena's seeded past", () => {
     const arena = new ArenaService(db, new ChatService(db, {} as never, {} as never), null);
     const view = await arena.view("Dakar", null);
     expect(view.champion).toMatchObject({ person: { login: "awa", badge: { key: "eagle-eye" } }, badge: { key: "eagle-eye" } });
+    expect(view.entrants).toBe(4);
+    expect(view.leaderboard[0]?.person.login).toBe("cheikh");
   });
 
   it("plants again without doubling, and leaves real people's titles and weeks alone", async () => {
@@ -85,5 +89,18 @@ describe("the Arena's seeded past", () => {
     expect((await user("awa")).badge).toBeNull();
     // Abidjan, which nobody real played, is planted as before.
     expect((await user("yao")).badge).toMatchObject({ key: "night-owl" });
+  });
+});
+
+describe("the winner's prize", () => {
+  it("comes off their own line of the house bill that month, and nobody else's", async () => {
+    const { HousesService } = await import("../houses/houses.service");
+    const awa = await user("awa");
+    const view = await new HousesService(db).view("sacre-coeur", awa.id);
+    const lines = view!.bill!.lines;
+    const mine = lines.find((l) => l.login === "awa")!;
+    expect(mine.prize).toBeGreaterThan(0);
+    expect(mine.due).toBe(Math.max(0, mine.share - mine.credit + mine.surcharge - mine.prize));
+    expect(lines.filter((l) => l.login !== "awa").every((l) => l.prize === 0)).toBe(true);
   });
 });

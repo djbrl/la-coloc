@@ -23,19 +23,19 @@ export interface CatalogueEntry {
   award: { key: string; title: Text };
 }
 
-// The label with no label: what a merged pull request is worth when none of the labels says otherwise.
-export const MERGED = "merged";
+// The label that makes a hackathon or challenge pull request an entry: the judges put it on what they accept. A
+// merged pull request without an arena label scores nothing (the arena repo also takes ordinary contributions).
+export const ENTRY = "arena:entry";
 
-// Bounties: the maintainers label a fix by how serious the bug was. Unlabelled, a merged fix is still worth 10.
+// Bounties: the judges label a fix by how serious the bug was. No label, no points.
 const BOUNTY_POINTS: PointsRow[] = [
   { label: "arena:low", points: 10 },
   { label: "arena:medium", points: 25 },
   { label: "arena:high", points: 50 },
   { label: "arena:critical", points: 100 },
-  { label: MERGED, points: 10 },
 ];
-const HACKATHON_POINTS: PointsRow[] = [{ label: MERGED, points: 30 }];
-const CHALLENGE_POINTS: PointsRow[] = [{ label: MERGED, points: 20 }];
+const HACKATHON_POINTS: PointsRow[] = [{ label: ENTRY, points: 30 }];
+const CHALLENGE_POINTS: PointsRow[] = [{ label: ENTRY, points: 20 }];
 
 export const CATALOGUE: CatalogueEntry[] = [
   {

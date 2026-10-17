@@ -6,13 +6,15 @@ get the same one in the same week), with a prize and a title for the winner.
 
 ## How a week works
 
-1. A week runs from Monday 00:00 UTC to the next Monday.
-2. In the Arena, join the week's challenge, read its folder's README, and fork this repo.
-3. Open a pull request to this repo **after the week started**, from your own GitHub account, and paste its address
-   in the Arena (or just open it: if you joined, the Arena picks it up from GitHub by itself).
-4. It scores once it's **merged**: an open pull request is waiting (0 points), a closed one scores nothing.
-5. When the week ends, the podium is awarded. 1st place gets the challenge's title; 2nd and 3rd a podium badge.
-   With a tie, whoever scored their last points first wins. Nobody with 0 points is awarded.
+1. A week runs from Monday 00:00 UTC to the next Monday. **Only merges before Monday 00:00 UTC count.**
+2. In one city's Arena (one arena a week), join the week's challenge, read its folder's README, and fork this repo.
+3. Clone your fork, open a pull request to this repo **after the week started**, from your own GitHub account, and
+   paste its address in the Arena (or just open it: if you joined, the Arena picks it up from GitHub by itself).
+4. It scores once it's **merged and labelled** by the judges (below): an open pull request is waiting (0 points), a
+   closed one scores nothing, and a merged one without an `arena:` label is an ordinary contribution, not an entry.
+5. When the week ends, the podium is awarded. 1st place gets the challenge's title and its prize in FCFA, taken off
+   their line of their house's bill that month (La Coloc pays it, not the house); 2nd and 3rd a podium badge. With a
+   tie, whoever scored their last points first wins. Nobody with 0 points is awarded.
 
 Your title shows next to your name everywhere in La Coloc. You can pick which one to wear, or none.
 
@@ -20,11 +22,12 @@ Your title shows next to your name everywhere in La Coloc. You can pick which on
 
 | Kind | What scores |
 | --- | --- |
-| Bug bounty | A merged fix: by its label, `arena:low` 10, `arena:medium` 25, `arena:high` 50, `arena:critical` 100; no label 10 |
-| Hackathon | A merged entry: 30 |
-| Coding challenge | A merged solution: 20 |
+| Bug bounty | A merged fix, by its label: `arena:low` 10, `arena:medium` 25, `arena:high` 50, `arena:critical` 100 |
+| Hackathon | A merged entry labelled `arena:entry`: 30 |
+| Coding challenge | A merged solution labelled `arena:entry`: 20 |
 
-Only the maintainers add `arena:*` labels. A pull request counts once per challenge.
+**The judges** merge pull requests and add the `arena:` labels: the logins in `COLOC_ARENA_JUDGES` (else the city's
+admins, `COLOC_ADMINS`). They can't take part. A pull request counts once, in one city.
 
 ## The challenges
 
