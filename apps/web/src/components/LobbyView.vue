@@ -23,7 +23,7 @@ import { chatPinged, chatSheet, openChat } from "../conversations";
 import { loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
-import type { CityHouse } from "../types";
+import type { CityHouse, HouseView } from "../types";
 import KnockSteps from "./KnockSteps.vue";
 import { localTime } from "./lobby/africa";
 import { cityAlert, cityStats } from "./lobby/cityStats";
@@ -33,6 +33,7 @@ import BoardCard from "./lobby/BoardCard.vue";
 import { type CityRoom, freeRooms, type Home, type MapState, nearestEmptyPlot, parsePlace, placeParam } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
 import HouseCard from "./lobby/HouseCard.vue";
+import { findHouses, homePlace, workshopRow } from "./lobby/home";
 import Inside from "./lobby/Inside.vue";
 import KeyLegend from "./lobby/KeyLegend.vue";
 import KeysSheet from "./lobby/KeysSheet.vue";
@@ -955,18 +956,44 @@ function waveAt(login: string, name: string) {
   say(hw.person.waved(name.split(" ")[0]), { ms: 2200 });
 }
 
-// A house from Find: its city, then its door, and its card.
+// The workshop as its house view, for someone logged in: it isn't on the city's list, so this says whether you have
+// a room there (for the home button) and gives Find its row. Asked once you're out of the quest; a failure (the core
+// down, an API without it) just leaves it out.
+const workshop = shallowRef<HouseView | null>(null);
+watch(
+  () => [me.value?.login, inWorkshop.value] as const,
+  async ([login, questing]) => {
+    if (!login || questing) return;
+    const res = await fetch(`/api/houses/${TUTORIAL_HOUSE}`).catch(() => null);
+    workshop.value = res?.ok ? await res.json().catch(() => null) : null;
+  },
+  { immediate: true },
+);
+// The HUD's home button: your room (home.ts), opened over the city, at your house's door when it's in the city.
+const home = computed(() => homePlace(me.value, workshop.value));
+function goHome() {
+  const p = home.value;
+  if (!p) return;
+  arriveFor(p);
+  goInside(p);
+}
+
+// A house from Find: its city, then its door, and its card. The workshop isn't in any city: its window opens.
 function findHouse(h: CityHouse) {
+  if (h.id === TUTORIAL_HOUSE) {
+    goInside({ kind: "house", id: h.id });
+    return;
+  }
   travel(h.city);
   lobby?.arriveAt(h.id);
   lobby?.pointAt(h.id);
   card.value = { kind: "house", house: h };
 }
 
+// Find's rows: the city's houses, and the workshop if you live there; matched by house, project or person (home.ts).
 const found = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  if (!q) return props.houses;
-  return props.houses.filter((h) => [h.name, h.city, h.tagline, ...h.rooms.flatMap((r) => [r.project, r.ad, r.occupant?.login])].join(" ").toLowerCase().includes(q));
+  const row = workshopRow(workshop.value);
+  return findHouses(row ? [...props.houses, row] : props.houses, query.value);
 });
 
 // The top chip: only when something in this city needs attention (a real house's server down, a failed build;
@@ -1051,6 +1078,10 @@ function statsOf(name: string) {
       </div>
 
       <div v-if="shows('tools')" class="hud tools" :class="{ questing: inWorkshop }">
+        <!-- Home: your room, in one press, for someone who has one (never during the quest). -->
+        <button v-if="home && !inWorkshop" :aria-label="w.home" :title="w.home" @click="goHome">
+          <Icon name="house" :size="20" />
+        </button>
         <button :aria-label="w.cityBoard(city)" :title="w.cityBoard(city)" @click="openChat('board', {})">
           <Icon name="board" :size="20" />
         </button>
