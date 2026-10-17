@@ -44,4 +44,4 @@ The list, in English and French, lives in `apps/api/src/arena/catalogue.ts`; eac
 
 Be kind in reviews and in the arena's room. Never test anything on a real house, a real room or a real person's
 data. Anything that copies someone else's work, or breaks the repo's licence rules (no copyleft code: see
-CONTRIBUTING.md), is closed without points.
+CONTRIBUTING.md), is closed without points. By sending a pull request, you agree it's published under this repo's MIT licence.
