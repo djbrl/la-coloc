@@ -6,6 +6,8 @@ import { arenaAwards, arenaChallenges, arenaSubmissions, type Db, users } from "
 import { testDb } from "@coloc/db/dist/testing";
 import { HttpException } from "@nestjs/common";
 import { eq } from "drizzle-orm";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AuthController } from "../auth/auth.controller";
 import type { AuthService } from "../auth/auth.service";
@@ -138,6 +140,8 @@ describe("weeks", () => {
     for (const e of CATALOGUE) {
       expect(e.title.fr && e.summary.fr && e.award.title.fr).toBeTruthy();
       expect(e.rules.fr.length).toBe(e.rules.en.length);
+      // Its folder explains it in this repo.
+      expect(existsSync(join(__dirname, "../../../../", e.path, "README.md"))).toBe(true);
     }
   });
 });

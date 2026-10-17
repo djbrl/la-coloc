@@ -1,0 +1,21 @@
+0	zéro franc CFA
+1	un franc CFA
+2	deux francs CFA
+16	seize francs CFA
+17	dix-sept francs CFA
+21	vingt et un francs CFA
+71	soixante et onze francs CFA
+80	quatre-vingts francs CFA
+81	quatre-vingt-un francs CFA
+91	quatre-vingt-onze francs CFA
+100	cent francs CFA
+200	deux cents francs CFA
+250	deux cent cinquante francs CFA
+1000	mille francs CFA
+1250	mille deux cent cinquante francs CFA
+2000	deux mille francs CFA
+80000	quatre-vingt mille francs CFA
+200000	deux cent mille francs CFA
+1000000	un million de francs CFA
+2500000	deux millions cinq cent mille francs CFA
+999999999	neuf cent quatre-vingt-dix-neuf millions neuf cent quatre-vingt-dix-neuf mille neuf cent quatre-vingt-dix-neuf francs CFA
