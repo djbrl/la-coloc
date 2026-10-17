@@ -10,6 +10,7 @@ import { me, postJSON, sendJSON } from "../../session";
 import { openStream, type Stream } from "../../stream";
 import type { BoardPost, Message } from "../../types";
 import Avatar from "../Avatar.vue";
+import BadgeChip from "../arena/BadgeChip.vue";
 import ChatPanel from "../ChatPanel.vue";
 import Icon from "../lobby/house/Icon.vue";
 import { noteWhen } from "../lobby/house/notes";
@@ -202,7 +203,7 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
       </div>
       <article class="post">
         <h3>{{ stripBidi(open.post.title) }}</h3>
-        <p class="by soft small"><Avatar :person="open.post.author" :size="20" decorative />{{ w.by(nameOf(open.post), noteWhen(open.post.createdAt)) }}</p>
+        <p class="by soft small"><Avatar :person="open.post.author" :size="20" decorative />{{ w.by(nameOf(open.post), noteWhen(open.post.createdAt)) }}<BadgeChip v-if="open.post.author.badge" :badge="open.post.author.badge" /></p>
         <p class="text"><template v-for="(part, i) in linkParts(open.post.body)" :key="i"><a v-if="part.href" :href="part.href" target="_blank" rel="noopener noreferrer nofollow ugc">{{ part.text }}</a><template v-else>{{ part.text }}</template></template></p>
       </article>
       <p v-if="error" class="error small" role="alert">{{ error }}</p>

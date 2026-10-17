@@ -1,11 +1,12 @@
 // The minimap's drawing, kept out of Minimap.vue so it can be read (and tested) on its own: which colours the
 // neighbourhood has from above, how the world fits on the canvas, and how each thing is drawn (the ground, the
-// blocks and what stands on their plots, the houses as little house shapes, people as dots, you as an arrow).
+// blocks and what stands on their plots, the Arena as a little stadium, the houses as little house shapes, people as
+// dots, you as an arrow).
 // The colours are the 3D city's own, in its day look, because the city is always drawn by day: the same sand, red
 // earth or grass under your feet, the same asphalt, the same wall colour on the shops. The page's day and night
 // theme only changes the frame around the map, never the map.
 import type { CityStyle } from "../../lobby/cityStyle";
-import { type Neighbourhood, seeded } from "../../lobby/neighbourhood";
+import { FACING_DIR, type Neighbourhood, seeded } from "../../lobby/neighbourhood";
 
 // ---- Colours ----
 
@@ -24,6 +25,11 @@ export interface MapColours {
   sea: string;
   // The wax-print parasols on the market square: a handful of bright dots.
   parasols: string[];
+  // The Arena: its stands (the city's trim colour, as in 3D), its pitch, the ring in the middle and the floodlights.
+  stands: string;
+  pitch: string;
+  ring: string;
+  floodlight: string;
 }
 
 // The base colours of the 3D grounds (lobby/textures.ts), as they look from above.
@@ -60,6 +66,10 @@ export function mapColours(style: Pick<CityStyle, "ground" | "grassy" | "palette
     beach: SAND,
     sea: "#2e8b9a",
     parasols: ["#f2c230", "#c2187a", "#1f5fa8", "#e8562a", "#2e8b9a", "#3c8d2f"],
+    stands: style.palette.trim,
+    pitch: "#5fae4b",
+    ring: "#e2463b",
+    floodlight: "#ffd23f",
   };
 }
 
@@ -236,6 +246,7 @@ export function drawCity(ctx: CanvasRenderingContext2D, n: Neighbourhood, colour
       for (let i = 0; i < 9; i++) tree(ctx, cx + (rand() - 0.5) * (block.width - 3) * scale, cy + (rand() - 0.5) * (block.depth - 3) * scale, scale * 1.5, colours.tree);
     }
   }
+  if (n.arena) drawArena(ctx, n.arena, colours, f);
 
   // What stands on the plots that aren't houses: shops, towers and trees.
   for (const p of n.plots) {
@@ -261,6 +272,53 @@ export function drawCity(ctx: CanvasRenderingContext2D, n: Neighbourhood, colour
       for (let i = 0; i < lot.count; i++) tree(ctx, cx + (rand() - 0.5) * 5 * scale, cy + (rand() - 0.5) * 5 * scale, scale * 1.4, colours.tree);
     }
   }
+}
+
+/**
+ * The Arena from above, as a game map would mark a stadium: a ring of stands in the city's colour with a white rim,
+ * open on the side of its entrance, a green pitch, the red boxing ring in the middle, and a yellow floodlight on each
+ * corner of its block.
+ */
+export function drawArena(ctx: CanvasRenderingContext2D, a: NonNullable<Neighbourhood["arena"]>, colours: MapColours, f: MapFrame) {
+  const { scale, toX, toY } = f;
+  const cx = toX(a.x);
+  const cy = toY(a.z);
+  const rx = (a.width / 2 - 0.5) * scale;
+  const ry = (a.depth / 2 - 0.5) * scale;
+  const thick = Math.max(2.5, 2.2 * scale);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fillStyle = colours.stands;
+  ctx.fill();
+  ctx.strokeStyle = WHITE;
+  ctx.lineWidth = Math.max(1.2, scale * 0.5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, Math.max(1, rx - thick), Math.max(1, ry - thick), 0, 0, Math.PI * 2);
+  ctx.fillStyle = colours.pitch;
+  ctx.fill();
+  // The entrance: a gap in the stands, the pitch's green out to the edge.
+  const d = FACING_DIR[a.facing];
+  const gate = Math.max(2, 3.8 * scale);
+  const reach = d.x !== 0 ? rx : ry;
+  ctx.fillRect(cx + (d.x ? (d.x > 0 ? reach - thick - 1 : -reach) : -gate / 2), cy + (d.z ? (d.z > 0 ? reach - thick - 1 : -reach) : -gate / 2), d.x ? thick + 1 : gate, d.z ? thick + 1 : gate);
+  // The ring, and the floodlights.
+  const ring = Math.max(2.5, 2.8 * scale);
+  ctx.fillStyle = colours.ring;
+  ctx.fillRect(cx - ring / 2, cy - ring / 2, ring, ring);
+  ctx.strokeStyle = WHITE;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - ring / 2, cy - ring / 2, ring, ring);
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(toX(a.x + sx * (a.width / 2 - 1)), toY(a.z + sz * (a.depth / 2 - 1)), Math.max(1.4, scale * 0.7), 0, Math.PI * 2);
+      ctx.fillStyle = colours.floodlight;
+      ctx.fill();
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
 }
 
 /** A tree from above: a dark green disc with a lighter spot where the sun catches it. */

@@ -4,7 +4,11 @@
 // this server allows it, the whole demo) as big buttons. The arrow keys move a choice inside a row, as in a game.
 import { computed, type FunctionalComponent, h, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { config, loadConfig, loadMe, logout, me, postJSON } from "../session";
+import { config, loadConfig, loadMe, logout, me, postJSON, sendJSON } from "../session";
+import type { Badge } from "../types";
+import { say } from "./arena/arena";
+import BadgeChip from "./arena/BadgeChip.vue";
+import { arenaWords as aw } from "./arena/words";
 import { type Lang, language, setLang } from "../i18n";
 import { settings, settingsPane } from "../settings";
 import Avatar from "./Avatar.vue";
@@ -146,6 +150,31 @@ async function takeTutorialAgain() {
   settingsPane.tutorialRequested = Date.now();
   close();
   goHome();
+}
+
+// ---- The title you wear ----
+
+// The titles you won in arenas, and the one shown next to your name (the most recent unless you picked another).
+// Picking "None" wears none.
+const badges = computed(() => me.value?.badges ?? []);
+const sameBadge = (a: Badge, b: Badge) => a.key === b.key && a.city === b.city && a.week === b.week && a.place === b.place;
+const wornId = computed(() => {
+  const worn = me.value?.badge;
+  return worn ? (badges.value.find((b) => sameBadge(b, worn))?.id ?? "") : "";
+});
+const wearing = ref(false);
+const wearError = ref("");
+async function wear(id: string | null) {
+  if (wearing.value) return;
+  wearing.value = true;
+  wearError.value = "";
+  const res = await sendJSON<{ badge: Badge | null }>("PUT", "/api/me/badge", { id });
+  wearing.value = false;
+  if (!res.ok) {
+    wearError.value = res.message;
+    return;
+  }
+  if (me.value) me.value = { ...me.value, badge: res.data.badge ?? null };
 }
 
 // ---- Logging out ----
@@ -298,6 +327,18 @@ async function resetDemo() {
           </template>
         </ListRow>
 
+        <!-- The title you wear, once you've won one: the chip itself, and the pick among yours (or none). -->
+        <ListRow v-if="me && badges.length" :title="aw.titleWorn">
+          <template #lead><span class="ic"><Icon name="trophy" :size="20" /></span></template>
+          <span v-if="me.badge" class="sub"><BadgeChip :badge="me.badge" /></span>
+          <template #end>
+            <select class="pick" :value="wornId" :aria-label="aw.titleGroup" :disabled="wearing" @change="wear(($event.target as HTMLSelectElement).value || null)">
+              <option value="">{{ aw.noTitle }}</option>
+              <option v-for="b in badges" :key="b.id" :value="b.id">{{ say(b.title) }} · {{ b.city }}</option>
+            </select>
+          </template>
+        </ListRow>
+
         <!-- Your account, last: your face, who you're logged in as, and the key to log out. -->
         <ListRow v-if="me" :title="w.signedIn(me.login)">
           <template #lead><Avatar :person="me" :size="32" decorative /></template>
@@ -321,6 +362,7 @@ async function resetDemo() {
           <button class="danger-fill" :disabled="resetBusy" @click="resetDemo"><Icon name="spin" :size="18" />{{ w.reset }}</button>
         </div>
       </div>
+      <p v-if="wearError" class="error" role="alert">{{ wearError }}</p>
       <p v-if="tutorialError" class="error" role="alert">{{ tutorialError }}</p>
       <p v-if="resetError" class="error" role="alert">{{ resetError }}</p>
     </aside>
@@ -363,6 +405,8 @@ h2 { margin: 0; padding-right: 48px; font-size: 28px; line-height: 1.05; }
 /* Logging out: a quiet key at the end of your account's row. */
 .leave { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--text); font-size: 14px; font-weight: 600; white-space: nowrap; }
 .leave:hover:not(:disabled) { background: var(--tile); }
+/* The title to wear: a plain menu, the size of the row's other keys. */
+.pick { min-height: 36px; max-width: 13em; padding: 0 10px; border-radius: var(--r-sm); border: 0; background: var(--surface); box-shadow: var(--quiet-edge); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 
 /* The segmented controls (.segmented) and the ON/OFF switches (.toggle) are the shared ones in style.css. */
 

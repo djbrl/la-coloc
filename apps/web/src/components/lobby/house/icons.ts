@@ -93,6 +93,12 @@ export const icons = {
   globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3 12h18 M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z",
   // A back arrow.
   back: "M15 6l-6 6 6 6",
+  // A cup with two handles on a stand: the arena, a title won there.
+  trophy: "M8 4h8v5a4 4 0 0 1-8 0z M8 6H5a3 3 0 0 0 3 4 M16 6h3a3 3 0 0 1-3 4 M12 13v4 M8 21h8 M9.5 17h5v4h-5z",
+  // A bug: a security bug bounty.
+  bug: "M9 7a3 3 0 0 1 6 0 M7 10h10v4a5 5 0 0 1-10 0z M12 10v9 M4 12h3 M17 12h3 M5 18l2.5-2 M19 18l-2.5-2 M5 6l2.5 2.5 M19 6l-2.5 2.5",
+  // An eye: someone watching, people here now.
+  eye: "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
 } as const;
 
 export type IconName = keyof typeof icons;

@@ -7,7 +7,8 @@
 // found on a grid (path.ts), so you can get to a building from whichever side you're on. Shift dashes, and
 // `travelTo` is fast travel (to a house's door, from the big map). For the tutorial, Vue can switch controls off one by one (`setControls`), hears each
 // one you use (`onAction`), and can send the camera to show you a spot (`showSpot`); `frame` makes room for a
-// window on the right of the screen.
+// window on the right of the screen. The Arena, a stadium on its own block (arena.ts), is a target too: its big screen
+// shows the week's challenge (`setArena`), a few passers-by go and watch, and Vue hears how many are in (`onArenaCrowd`).
 // Pure three.js; Vue only mounts it and draws what sits on top (cards, the minimap it's fed by `onMap`).
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -16,10 +17,13 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import type { CityHouse } from "../types";
+import { type ArenaDisplay, ArenaModel } from "./arena";
+import { type ArenaPlan, arenaPlan, insideBowl } from "./arenaPlan";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
 import { type CityStyle, styleFor } from "./cityStyle";
 import { daylight } from "./daylight";
 import { type Box as ScreenBox, clearOf, type EdgeArrow, placeArrow } from "./arrow";
+import { type Badge, badgeChip } from "./badge";
 import { Beacon } from "./beacon";
 import { Fireworks } from "./fireworks";
 import { liveKey, liveState } from "./live";
@@ -35,6 +39,10 @@ import { declutter, type TagSpot } from "./tags";
 import { dye } from "./tint";
 import { HouseFace } from "./windows";
 import { hudWords as words } from "../components/lobby/words";
+import { language } from "../i18n";
+
+export type { ArenaDisplay } from "./arena";
+export type { Badge } from "./badge";
 
 const SPEED = 6; // units per second
 // A dash (Shift): an instant hop forward, a burst at 4.5 times the speed, then a breather before the next one.
@@ -70,6 +78,10 @@ const PEOPLE_MARGIN = 0.8; // the closest two people standing at a door may get 
 const TAG_CHECKS = 8; // name tags checked for a building in the way, per check (a few each time, round and round)
 const NARROW_TAGS = 600; // under this width (pixels), only your tag and the nearest person's show
 const ARROW_MARGIN = 56; // how far in from the screen's edge the arrow towards an off-screen goal sits, in pixels
+const CROWD_EVERY = 250; // milliseconds between two counts of who's inside the Arena
+// Passers-by who go to the Arena (see `fanStep`): how long they stay out in the streets before going (again), and how
+// long they stay on the pitch, in seconds (a base and a random extra).
+const FAN = { street: [25, 40], inside: [15, 25] } as const;
 
 export type Emote = "yes" | "no";
 // The controls you use, as Vue hears about them (see `onAction`).
@@ -88,7 +100,9 @@ export type Target =
   // `example`: a passer-by the lobby made up (passersby.ts), with no house and no GitHub account.
   | { kind: "person"; login: string; name: string; example?: boolean }
   // The chores board on the market square: Vue lists the houses with reviews waiting.
-  | { kind: "board"; city: string };
+  | { kind: "board"; city: string }
+  // The Arena's entrance: Vue opens the week's challenge.
+  | { kind: "arena"; city: string };
 
 // Who someone is, for their ring colour and the card you get by clicking them.
 export interface Resident {
@@ -114,6 +128,9 @@ export interface LobbyEvents {
   // You used a control that's switched on: a walk key went down (not a key held down repeating), a dash happened
   // (Shift, or `dash()`), or the camera turned (Q, R, or `rotate()`). The tutorial ticks its steps off with this.
   onAction(name: Action): void;
+  // How many people are inside the Arena (you, others online, passers-by), when that changes. Checked a few times a
+  // second; 0 in a city without one.
+  onArenaCrowd?(n: number): void;
 }
 
 export interface LobbyOptions {
@@ -172,7 +189,18 @@ interface Npc extends Thing {
   hidden?: boolean;
   // A passer-by (passersby.ts): walks round the blocks on the sidewalks (`stroll`, towards `next`, at `speed`) instead
   // of hanging around a door.
-  passerby?: { stroll: Stroll; next: THREE.Vector3 | null; speed: number; dressing: boolean };
+  passerby?: { stroll: Stroll; next: THREE.Vector3 | null; speed: number; dressing: boolean; fan?: Fan };
+}
+
+// A passer-by who goes to the Arena: one who stays in the stands (`seat`), or one who walks over from the street now
+// and then, stands around on the pitch a while, and walks back out. `route` is the way they're walking, `until` when
+// they set off again (seconds on the clock), `spot` their place round the stage (ArenaPlan.spots).
+interface Fan {
+  seat: boolean;
+  phase: "street" | "going" | "inside" | "leaving";
+  until: number;
+  route: THREE.Vector3[];
+  spot: number;
 }
 
 interface Remote extends Thing {
@@ -194,6 +222,19 @@ interface Board extends Thing {
   pins: THREE.Group;
 }
 
+// The Arena (arena.ts): a target at its entrance (`box` is the passage through the stands), with its model and layout.
+interface Arena extends Thing {
+  model: ArenaModel;
+  plan: ArenaPlan;
+  box: Box;
+  door: THREE.Vector3;
+  label: CSS2DObject;
+  // Its block's sidewalk (an index into `sidewalks`), and the point of it in front of the entrance: where fans leaving
+  // the Arena go back to walking round the blocks.
+  ring: number;
+  exit: number;
+}
+
 // The walk keys, and the action each one reports.
 const WALK_KEYS = new Map<string, Action>([
   ["w", "walk-up"],
@@ -207,6 +248,9 @@ const WALK_KEYS = new Map<string, Action>([
 ]);
 
 const yaw = (f: Facing) => (f * Math.PI) / 2;
+// The trophy on a title chip (see `trophy`): a cup on a stem, two handles, in the chip's ink.
+const TROPHY =
+  '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path fill="currentColor" d="M4 1.5h8V3h2.5v1.8a3.2 3.2 0 0 1-3 3.2A4 4 0 0 1 9 10.2V12h2.2v2.5H4.8V12H7v-1.8A4 4 0 0 1 4.5 8a3.2 3.2 0 0 1-3-3.2V3H4zm8 2.9V6.4a1.6 1.6 0 0 0 1-1.6v-.4zM4 4.4H3v.4a1.6 1.6 0 0 0 1 1.6z"/></svg>';
 // (x, z) turned by angle `a` around y, the same way three.js turns an object by rotation.y = a.
 const rotate = (x: number, z: number, a: number) => new THREE.Vector3(x * Math.cos(a) + z * Math.sin(a), 0, -x * Math.sin(a) + z * Math.cos(a));
 // How far apart two points are on the ground, ignoring height.
@@ -232,6 +276,12 @@ export class Lobby {
   private remotes = new Map<string, Remote>();
   private residents = new Map<string, Resident>();
   private board: Board | null = null;
+  // The Arena, in a city that has one; what its big screen shows (kept across cities), and the last head count told to Vue.
+  private arena: Arena | null = null;
+  private arenaDisplay: ArenaDisplay | null = null;
+  private crowd = { n: 0, at: 0 };
+  // The titles worn on name tags (yours and others online), by tag.
+  private tagBadges = new WeakMap<HTMLElement, Badge | null>();
   private props: CityProps | null = null;
   // The city's look (colours, grounds, props), and the light of its local time.
   private style: CityStyle = styleFor("");
@@ -442,6 +492,8 @@ export class Lobby {
     }
     this.builtFrom = key;
     const gen = ++this.generation;
+    this.arena?.model.dispose();
+    this.arena = null;
     removeLabels(this.town);
     disposeTree(this.town);
     this.town.clear();
@@ -481,12 +533,19 @@ export class Lobby {
       curb.receiveShadow = true;
       curb.name = "ground";
       this.town.add(curb);
-      const surface = b.kind === "market" ? ground.market : b.kind === "park" ? ground.park : ground.lawn;
+      // The Arena stands on a paved forecourt, like the market.
+      const surface = b.kind === "market" || b.kind === "arena" ? ground.market : b.kind === "park" ? ground.park : ground.lawn;
       this.flat(surface, b.x, b.z, b.width - 0.4, b.depth - 0.4, b.kind === "market" ? 4 : 5, 0.145).name = "ground";
       if (b.kind === "market") this.market(b, rand, gen);
       if (b.kind === "park") for (let i = 0; i < 9; i++) this.tree(b.x + (rand() - 0.5) * (b.width - 3), b.z + (rand() - 0.5) * (b.depth - 3), rand, gen);
+      if (b.kind === "arena") {
+        // The Arena took the park's block. The decor's dice still roll for the park's nine trees (five rolls each), so
+        // every tree lot in town keeps its trees where they were.
+        for (let i = 0; i < 45; i++) rand();
+        if (n.arena) this.addArena(n.arena, n.city);
+      }
       // Palms on two corners of each block's sidewalk (the other two have a lamp and a traffic light).
-      if (style.props.includes("palms") && b.kind !== "park") {
+      if (style.props.includes("palms") && b.kind !== "park" && b.kind !== "arena") {
         if (dice() < 0.7) props.palm(b.x + b.width / 2 + 0.35, b.z - b.depth / 2 - 0.35, dice);
         if (dice() < 0.7) props.palm(b.x - b.width / 2 - 0.35, b.z + b.depth / 2 + 0.35, dice);
       }
@@ -608,6 +667,14 @@ export class Lobby {
     for (const p of this.placed) p.knocker?.traverse((o) => {
       if (o instanceof CSS2DObject) o.element.setAttribute("aria-label", words.knocking(p.house.name));
     });
+    const a = this.arena;
+    if (a) {
+      const flag = a.label.element.querySelector(".name");
+      if (flag) flag.textContent = words.arena;
+      a.model.redraw();
+    }
+    this.trophy(this.playerTag);
+    for (const r of this.remotes.values()) this.trophy(r.tag);
   }
 
   setQuality(quality: "high" | "low", reduceMotion: boolean) {
@@ -843,6 +910,46 @@ export class Lobby {
     if (who) this.walkToward(who);
   }
 
+  /** What the Arena's big screen shows (null: just its name). Kept for the next city's Arena too. */
+  setArena(display: ArenaDisplay | null) {
+    this.arenaDisplay = display;
+    this.arena?.model.setDisplay(display);
+  }
+
+  /**
+   * To the Arena's entrance. By default at once (fast travel, like `travelTo`): in the street in front of the gate,
+   * facing it, the camera turned to see it, the entrance in reach. `"walk"` walks there instead, and uses it on
+   * arrival. Nothing in a city without one.
+   */
+  goToArena(how: "travel" | "walk" = "travel") {
+    const a = this.arena;
+    if (!a) return;
+    if (how === "walk") {
+      if (this.controls.walk) this.walkToward(a);
+      return;
+    }
+    const at = facingFront({ ...a.plan.gate.outerEdge, facing: a.plan.facing }, 1, this.turn);
+    this.player.position.set(at.x, 0, at.z);
+    this.player.rotation.y = at.ry;
+    this.turn = at.turn;
+    this.angle = (at.turn * Math.PI) / 2;
+    this.stop();
+    this.dashUntil = 0;
+    this.arrival = null;
+    this.setHover(null);
+    this.clearHighlight();
+    this.snap = true;
+    play("arrive");
+  }
+
+  /** Someone's title, worn on their name tag (yours too), when it changed after they arrived. Null takes it off. */
+  setBadge(login: string, badge: Badge | null) {
+    const tag = login === this.opts.login ? this.playerTag : this.remotes.get(login)?.tag;
+    if (!tag) return;
+    this.tagBadges.set(tag, badge);
+    this.trophy(tag);
+  }
+
   /** Uses what you highlighted, else what you're standing next to. Something far away: walk there first. */
   interact() {
     const thing = this.highlighted ?? this.near;
@@ -899,10 +1006,14 @@ export class Lobby {
 
   // ---- Everyone else who's online here ----
 
-  addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean }) {
+  addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean; badge?: Badge | null }) {
+    // The line says who we are too: that's where your own title comes from.
+    if (p.login === this.opts.login) this.setBadge(p.login, p.badge ?? null);
     if (p.login === this.opts.login || this.remotes.has(p.login)) return;
     const name = p.name ?? p.login;
     const { avatar, tag } = this.makePerson(p.login, name, "lobby-label online");
+    this.tagBadges.set(tag, p.badge ?? null);
+    this.trophy(tag);
     // Someone who just arrived stands at the neighbourhood's entrance, next to where you came in.
     const start = p.x || p.z ? new THREE.Vector3(p.x, 0, p.z) : this.player.position.clone().add(new THREE.Vector3(1.5, 0, 1));
     avatar.position.copy(start);
@@ -963,6 +1074,7 @@ export class Lobby {
     this.fireworks.dispose();
     this.setBeacon(null);
     for (const p of this.placed) p.face.dispose();
+    this.arena?.model.dispose();
     this.renderer.domElement.removeEventListener("pointerdown", this.touchStage);
     this.renderer.domElement.removeEventListener("pointerdown", this.click);
     this.renderer.domElement.removeEventListener("pointermove", this.pointerMove);
@@ -982,7 +1094,7 @@ export class Lobby {
   /** Every target in the neighbourhood right now. */
   private things(): Thing[] {
     if (this.controls.targets === "houses") return [...this.placed];
-    return [...this.placed, ...this.plots, ...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values(), ...(this.board ? [this.board] : [])];
+    return [...this.placed, ...this.plots, ...this.npcs.filter((n) => n.avatar.visible), ...this.remotes.values(), ...(this.board ? [this.board] : []), ...(this.arena ? [this.arena] : [])];
   }
 
   /** Whether a thing is a target at all right now: everything is, unless only houses are (see `setControls`). */
@@ -1039,7 +1151,7 @@ export class Lobby {
     };
     // Only houses are targets: skip straight to them.
     const all = this.controls.targets === "all";
-    const [building, db] = nearest(all ? [...this.placed, ...this.plots, ...(this.board ? [this.board] : [])] : this.placed);
+    const [building, db] = nearest(all ? [...this.placed, ...this.plots, ...(this.board ? [this.board] : []), ...(this.arena ? [this.arena] : [])] : this.placed);
     if (!all) return building;
     const [person, dp] = nearest([...this.npcs.filter((n) => n.avatar.visible && !n.passerby), ...this.remotes.values()]);
     if (person && (!building || dp + PEOPLE_MARGIN < db)) return person;
@@ -1130,6 +1242,7 @@ export class Lobby {
     if (thing.target.kind === "house") return [(thing as Placed).group];
     if (thing.target.kind === "empty") return (thing as EmptyPlot).objects;
     if (thing.target.kind === "board") return [(thing as Board).group];
+    if (thing.target.kind === "arena") return [(thing as Arena).model.group];
     return (thing as Npc | Remote).avatar.children.filter((c) => c.name !== "ring");
   }
 
@@ -1420,7 +1533,132 @@ export class Lobby {
       this.npcs.push(walker);
       this.walkers.push(walker);
     }
+    if (this.arena) this.addFans(n, this.arena);
     this.showPassersBy();
+  }
+
+  /**
+   * Some passers-by go to the Arena: one in eight stays in the stands, one in four walks over now and then and stands
+   * round the stage a while (half of those start there, so the Arena is never empty when you arrive). Picked by their
+   * place in the list, so a few still go on low quality (see `showPassersBy`).
+   */
+  private addFans(n: Neighbourhood, a: Arena) {
+    a.ring = n.blocks.findIndex((b) => b.kind === "arena");
+    const ring = this.sidewalks[a.ring];
+    if (!ring) return;
+    // The point of the Arena's sidewalk in front of the entrance: where fans walk back out to.
+    let best = Infinity;
+    ring.forEach((p, i) => {
+      const d = Math.hypot(p.x - a.door.x, p.z - a.door.z);
+      if (d < best) [best, a.exit] = [d, i];
+    });
+    const rand = seeded(`fans:${n.city}`);
+    const { seats, spots } = a.plan;
+    const now = this.clock.elapsedTime;
+    let visitors = 0;
+    this.walkers.forEach((w, i) => {
+      const walk = w.passerby!;
+      const pos = w.avatar.position;
+      if (i % 8 === 3) {
+        const seat = seats[(i * 11 + Math.floor(rand() * 5)) % seats.length];
+        pos.set(seat.x, seat.y + 0.15, seat.z);
+        w.avatar.rotation.y = seat.ry;
+        walk.fan = { seat: true, phase: "inside", until: Infinity, route: [], spot: 0 };
+      } else if (i % 4 === 1) {
+        const inside = visitors++ % 2 === 0;
+        const spot = (i + Math.floor(rand() * 3)) % spots.length;
+        if (inside) pos.set(spots[spot].x, 0, spots[spot].z);
+        walk.fan = { seat: false, phase: inside ? "inside" : "street", until: now + rand() * (inside ? FAN.inside[1] : FAN.street[1]), route: [], spot };
+      }
+    });
+  }
+
+  /** A fan whose time in the streets is up sets off for a spot round the stage, through the entrance. False: no way there. */
+  private setOff(fan: Fan, from: THREE.Vector3): boolean {
+    const a = this.arena;
+    if (!a) return false;
+    fan.spot = Math.floor(Math.random() * a.plan.spots.length);
+    fan.route = this.routeFor(from, a.plan.spots[fan.spot]);
+    if (!fan.route.length) {
+      fan.until = this.clock.elapsedTime + 10;
+      return false;
+    }
+    fan.phase = "going";
+    return true;
+  }
+
+  /**
+   * A fan's step at the Arena: walking in along their route, standing round the stage watching (now and then a spot
+   * along), walking back out to the sidewalk once their time is up, then off round the blocks again. One in the stands
+   * just watches.
+   */
+  private fanStep(n: Npc, walk: NonNullable<Npc["passerby"]>, fan: Fan, dt: number) {
+    const a = this.arena;
+    const pos = n.avatar.position;
+    if (fan.seat || !a) {
+      n.person?.play("idle");
+      return;
+    }
+    if (fan.route.length) {
+      // On the way: straight at the route's next point, then the one after.
+      const next = fan.route[0];
+      const dx = next.x - pos.x;
+      const dz = next.z - pos.z;
+      const d = Math.hypot(dx, dz);
+      const step = walk.speed * dt;
+      if (d <= step) {
+        pos.set(next.x, 0, next.z);
+        fan.route.shift();
+      } else {
+        pos.x += (dx / d) * step;
+        pos.z += (dz / d) * step;
+        n.avatar.rotation.y = Math.atan2(dx, dz);
+      }
+      n.person?.play("walk");
+      return;
+    }
+    const now = this.clock.elapsedTime;
+    if (fan.phase === "leaving") {
+      // Back on the sidewalk in front of the entrance: round the blocks again, for a while.
+      fan.phase = "street";
+      fan.until = now + FAN.street[0] + Math.random() * FAN.street[1];
+      walk.stroll = { block: a.ring, at: a.exit, dir: walk.stroll.dir, lane: walk.stroll.lane };
+      walk.next = null;
+      return;
+    }
+    if (fan.phase === "going") {
+      fan.phase = "inside";
+      fan.until = now + FAN.inside[0] + Math.random() * FAN.inside[1];
+    }
+    if (n.wait > 0) {
+      // Watching the ring.
+      n.wait -= dt;
+      n.avatar.rotation.y = Math.atan2(a.plan.centre.x - pos.x, a.plan.centre.z - pos.z);
+      n.person?.play("idle");
+      return;
+    }
+    if (now > fan.until && this.sidewalks[a.ring]) {
+      const route = this.routeFor(pos, a.plan.gate.door);
+      if (route.length) {
+        const out = standAt(this.sidewalks[a.ring][a.exit], walk.stroll.lane);
+        route.push(new THREE.Vector3(out.x, 0, out.z));
+        fan.route = route;
+        fan.phase = "leaving";
+        return;
+      }
+    }
+    // A spot along, one way or the other, then a while watching.
+    const spots = a.plan.spots;
+    fan.spot = (fan.spot + (Math.random() < 0.5 ? 1 : spots.length - 1)) % spots.length;
+    fan.route = [new THREE.Vector3(spots[fan.spot].x, 0, spots[fan.spot].z)];
+    n.wait = 3 + Math.random() * 6;
+  }
+
+  /** A route on the walk grid between two points, without its first point (where you are). Empty when there's no way. */
+  private routeFor(from: THREE.Vector3, to: Point): THREE.Vector3[] {
+    const grid = this.grid();
+    const found = findPath(grid, { x: from.x, z: from.z }, to);
+    return found ? smooth(grid, found).slice(1).map((p) => new THREE.Vector3(p.x, 0, p.z)) : [];
   }
 
   /** As many passers-by as the quality allows (fewer on low, and on a phone's small screen); the first time one shows, it's dressed. */
@@ -1452,12 +1690,17 @@ export class Lobby {
       n.person?.play("idle");
       return;
     }
+    // A fan at the Arena, or on their way there or back (see `fanStep`).
+    const fan = walk.fan;
+    if (fan && fan.phase !== "street") return this.fanStep(n, walk, fan, dt);
     if (n.wait > 0) {
       n.person?.play("idle");
       n.wait -= dt;
       return;
     }
     if (!walk.next) {
+      // A fan whose time in the streets is up heads for the Arena from here.
+      if (fan && this.clock.elapsedTime > fan.until && this.setOff(fan, pos)) return;
       walk.stroll = walkAhead(this.sidewalks, walk.stroll, Math.random);
       const p = standAt(this.sidewalks[walk.stroll.block][walk.stroll.at], walk.stroll.lane);
       walk.next = new THREE.Vector3(p.x, 0, p.z);
@@ -1580,6 +1823,45 @@ export class Lobby {
     this.board = { group, pins, box, door, spot: door.clone(), target: { kind: "board", city } };
   }
 
+  /**
+   * The Arena (arena.ts) on its block: the stadium and its pitch; its stands are walls with the entrance left open (the
+   * walk grid follows), each piece fading on its own when it stands between the camera and you; its name on a flag
+   * over the middle, like a house's. A target at the entrance: in reach anywhere in the passage or just outside it.
+   */
+  private addArena(site: NonNullable<Neighbourhood["arena"]>, city: string) {
+    const plan = arenaPlan(site);
+    const model = new ArenaModel(plan, this.style, this.opts.quality);
+    this.town.add(model.group, model.ground);
+    this.solids.push(...plan.colliders);
+    model.group.updateMatrixWorld(true);
+    for (const piece of model.stands) this.occluder(piece);
+    const label = this.label("", "lobby-label house arena", 7.6);
+    label.element.innerHTML = '<span class="cup" aria-hidden="true">🏆</span><span class="name"></span>';
+    label.element.querySelector(".name")!.textContent = words.arena;
+    model.group.add(label);
+    model.setDisplay(this.arenaDisplay);
+    const door = new THREE.Vector3(plan.gate.door.x, 0, plan.gate.door.z);
+    this.arena = { model, plan, box: plan.gate.box, door, label, spot: door.clone(), target: { kind: "arena", city }, ring: -1, exit: 0 };
+  }
+
+  /**
+   * Who's inside the Arena (you, others online, passers-by who show), told to Vue when it changes. A few times a
+   * second, over the lists as they are: nothing new is made.
+   */
+  private countCrowd() {
+    const a = this.arena;
+    let n = 0;
+    if (a) {
+      const plan = a.plan;
+      if (insideBowl(plan, this.player.position.x, this.player.position.z)) n++;
+      for (const r of this.remotes.values()) if (insideBowl(plan, r.avatar.position.x, r.avatar.position.z)) n++;
+      for (const w of this.walkers) if (w.avatar.visible && insideBowl(plan, w.avatar.position.x, w.avatar.position.z)) n++;
+    }
+    if (n === this.crowd.n) return;
+    this.crowd.n = n;
+    this.events.onArenaCrowd?.(n);
+  }
+
   /** A pin on the board for each house with reviews waiting; red when one is late. */
   private pinBoard() {
     const b = this.board;
@@ -1664,6 +1946,27 @@ export class Lobby {
     const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
     el.style.color = luminance > 0.25 ? "#1d1d1f" : "#fff";
     tag.append(el);
+  }
+
+  /**
+   * The title someone won in the Arena, right after their name: a trophy and the title in the chosen language, gold,
+   * silver or bronze by place (badge.ts). Only people really online (and you) have one; passers-by and the flatmates
+   * out front never do. Like the house chip, it goes when the tag is crowded (style.css), and it's redrawn when the
+   * language changes.
+   */
+  private trophy(tag: HTMLElement) {
+    tag.querySelector(".won")?.remove();
+    this.tagWidths.delete(tag);
+    const badge = this.tagBadges.get(tag);
+    if (!badge) return;
+    const chip = badgeChip(badge, language.lang);
+    const el = document.createElement("span");
+    el.className = `won ${chip.tone}`;
+    el.setAttribute("role", "img");
+    el.setAttribute("aria-label", words.wonTitle(chip.full));
+    el.innerHTML = TROPHY;
+    el.append(chip.text);
+    tag.querySelector(".name")?.after(el);
   }
 
   /** Puts a loaded person in place of a placeholder avatar (keeping its name tag and ring). */
@@ -1880,7 +2183,7 @@ export class Lobby {
     this.zoom = THREE.MathUtils.clamp(this.zoom + Math.sign(e.deltaY) * 1.2, ZOOM.min, ZOOM.max);
   };
 
-  /** What the mouse is on: a thing (a person, a house, an empty plot, the board), a point on the ground, or nothing. */
+  /** What the mouse is on: a thing (a person, a house, an empty plot, the board, the Arena), a point on the ground, or nothing. */
   private aim(e: PointerEvent): { thing: Thing | null; ground: THREE.Vector3 | null } {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const pointer = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
@@ -1894,15 +2197,17 @@ export class Lobby {
       .sort((x, y) => x.d - y.d)[0];
     if (hitPerson) return { thing: hitPerson.who, ground: null };
     for (const hit of this.ray.intersectObjects(this.town.children, true)) {
-      // A house, an empty plot or the board: its model (or forecourt) carries the id, somewhere up the tree.
+      // A house, an empty plot, the board or the Arena: its model (or forecourt) carries the id, somewhere up the tree.
+      // The Arena's pitch is ground: a click there walks you in.
       let o: THREE.Object3D | null = hit.object;
-      while (o && !o.userData.houseId && !o.userData.plotKey && !o.userData.board) o = o.parent;
-      const { houseId, plotKey, board } = o?.userData ?? {};
-      // Only houses are targets: look past a plot or the board, to whatever is behind it (the ground, usually).
-      if (!all && !houseId && (plotKey || board)) continue;
+      while (o && !o.userData.houseId && !o.userData.plotKey && !o.userData.board && !o.userData.arena) o = o.parent;
+      const { houseId, plotKey, board, arena } = o?.userData ?? {};
+      // Only houses are targets: look past a plot, the board or the Arena, to whatever is behind it (the ground, usually).
+      if (!all && !houseId && (plotKey || board || arena)) continue;
       if (houseId) return { thing: this.placed.find((p) => p.house.id === houseId) ?? null, ground: null };
       if (plotKey) return { thing: this.plots.find((p) => p.key === plotKey) ?? null, ground: null };
       if (board) return { thing: this.board, ground: null };
+      if (arena) return { thing: this.arena, ground: null };
       if (hit.object.name === "ground") {
         const b = this.bounds;
         return { thing: null, ground: new THREE.Vector3(THREE.MathUtils.clamp(hit.point.x, b.minX, b.maxX), 0, THREE.MathUtils.clamp(hit.point.z, b.minZ, b.maxZ)) };
@@ -2163,6 +2468,12 @@ export class Lobby {
       const people = this.npcs.filter((n) => n.avatar.visible).map((n) => ({ login: n.login, x: n.avatar.position.x, z: n.avatar.position.z }));
       for (const [login, r] of this.remotes) people.push({ login, x: r.avatar.position.x, z: r.avatar.position.z });
       this.events.onMap({ you: { x: you.x, z: you.z, ry: this.player.rotation.y }, people, angle: this.angle });
+    }
+    // Who's inside the Arena, a few times a second; its screen's countdown moves on once a minute.
+    if (now - this.crowd.at >= CROWD_EVERY) {
+      this.crowd.at = now;
+      this.countCrowd();
+      this.arena?.model.tick(Date.now());
     }
   }
 

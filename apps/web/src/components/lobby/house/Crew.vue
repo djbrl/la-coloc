@@ -4,6 +4,7 @@
 // room. Picking a face asks the parent to show that person's room (or open their knock). With more faces than
 // fit, the line scrolls sideways inside itself.
 import Avatar from "../../Avatar.vue";
+import BadgeChip from "../../arena/BadgeChip.vue";
 import type { Seat } from "./crew";
 import Icon from "./Icon.vue";
 import { houseWords as w } from "./words";
@@ -31,6 +32,7 @@ function said(s: Seat): string {
         <span class="face">
           <Avatar :person="s.person" :size="44" decorative />
           <span v-if="s.chef" class="badge crown" aria-hidden="true"><Icon name="crown" :size="12" /></span>
+          <BadgeChip v-if="s.person.badge" class="trophy" compact :badge="s.person.badge" />
         </span>
         <span class="name">{{ first(s.person) }}</span>
         <span class="sr-only">{{ s.chef ? `, ${w.seatChef}` : "" }}{{ s.you ? `, ${w.seatYou}` : "" }}</span>
@@ -48,6 +50,7 @@ function said(s: Seat): string {
           <span v-if="s.kind === 'free'" class="hole" />
           <Avatar v-else :person="s.person" :size="44" decorative />
           <span v-if="s.kind === 'person' && s.chef" class="badge crown"><Icon name="crown" :size="12" /></span>
+          <BadgeChip v-if="s.kind === 'person' && s.person.badge" class="trophy" compact :badge="s.person.badge" />
           <span v-if="s.kind === 'knock'" class="badge bell"><Icon name="knock" :size="12" /></span>
         </span>
         <!-- No label under an empty seat or a knock: the dashed circle and the bell say it, the hidden name in words. -->
@@ -100,6 +103,8 @@ button.free:hover .hole { border-color: var(--accent-fill); }
   box-shadow: 0 0 0 2px var(--surface);
 }
 .crown { top: -6px; right: -6px; background: var(--warn-soft); color: var(--warn); }
+/* A title won in an arena: its trophy on the face's other corner. */
+.trophy { position: absolute; left: -5px; bottom: -4px; box-shadow: 0 0 0 2px var(--surface); }
 .bell { right: -4px; bottom: -4px; background: var(--accent-fill); color: var(--on-accent); }
 .name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .you .name { font-weight: 700; }

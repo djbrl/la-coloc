@@ -17,6 +17,10 @@ describe("the minimap's colours", () => {
     expect(dakar.tower).not.toBe(dakar.shop);
   });
 
+  it("paint the Arena's stands in the city's trim colour, as in the city", () => {
+    expect(mapColours(styleFor("Dakar")).stands).toBe(styleFor("Dakar").palette.trim);
+  });
+
   it("lighten towards white and darken towards black", () => {
     expect(shade("#808080", 1)).toBe("#ffffff");
     expect(shade("#808080", -1)).toBe("#000000");
