@@ -102,18 +102,27 @@ export interface CodeRow {
   unset?: boolean;
 }
 
-/** What the Code tab lists: where the code comes from, which branch, which folder, which port. */
+// The port a room gets when none is set: the caretaker uses the one the Dockerfile EXPOSEs, else this one
+// (resolvePort in apps/agent/src/room-spec.ts), and passes it to the app as PORT.
+export const DEFAULT_PORT = 3000;
+
+/**
+ * What the Code tab lists: where the code comes from, which branch, which folder, which port. A `file://` source is
+ * the tutorial's starter page on the host machine: it's called that, never shown as a path on someone's laptop.
+ */
 export function codeRows(settings: Pick<Settings, "source" | "branch" | "buildPath" | "port">, github: Github): CodeRow[] {
   const repo: CodeRow = github
     ? { term: "GitHub", value: github.fullName, href: github.url }
-    : settings.source
-      ? { term: w.repo, value: bare(settings.source).replace(/\.git$/, ""), href: settings.source }
-      : { term: w.repo, value: w.notSetYet, unset: true };
+    : settings.source?.startsWith("file:")
+      ? { term: w.repo, value: w.starterPage }
+      : settings.source
+        ? { term: w.repo, value: bare(settings.source).replace(/\.git$/, ""), href: settings.source }
+        : { term: w.repo, value: w.notSetYet, unset: true };
   return [
     repo,
     settings.branch ? { term: w.branch, value: settings.branch } : { term: w.branch, value: github ? w.defaultBranch : "main", unset: true },
     { term: w.folder, value: settings.buildPath && settings.buildPath !== "." ? settings.buildPath : w.repoRoot, unset: !settings.buildPath || settings.buildPath === "." },
-    settings.port ? { term: w.port, value: String(settings.port) } : { term: w.port, value: w.notSet, unset: true },
+    settings.port ? { term: w.port, value: String(settings.port) } : { term: w.port, value: w.defaultPort(DEFAULT_PORT), unset: true },
   ];
 }
 

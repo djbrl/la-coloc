@@ -41,7 +41,9 @@ export const roomWords = defineWords(
     notSetYet: "Not set yet",
     defaultBranch: "The default branch",
     repoRoot: "The repo's root",
-    notSet: "Not set",
+    defaultPort: (port: number) => `Default (${port})`,
+    // The tutorial's starter, cloned from the host machine: never its path.
+    starterPage: "Starter page",
 
     // room.ts: a build in the history, and its steps.
     previewOf: (ref: string) => `Preview of ${ref}`,
@@ -196,7 +198,8 @@ export const roomWords = defineWords(
     notSetYet: "Pas encore choisi",
     defaultBranch: "La branche par défaut",
     repoRoot: "La racine du dépôt",
-    notSet: "Aucun",
+    defaultPort: (port) => `Par défaut (${port})`,
+    starterPage: "Page de départ",
 
     previewOf: (ref) => `Aperçu de ${ref}`,
     updateOf: (ref) => `Mise à jour de ${ref}`,

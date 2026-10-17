@@ -95,7 +95,7 @@ describe("the Code tab", () => {
       { term: "Repo", value: "Not set yet", unset: true },
       { term: "Branch", value: "main", unset: true },
       { term: "Folder", value: "The repo's root", unset: true },
-      { term: "Port", value: "Not set", unset: true },
+      { term: "Port", value: "Default (3000)", unset: true },
     ]);
   });
 
@@ -106,6 +106,11 @@ describe("the Code tab", () => {
     const linked = codeRows(settings, { fullName: "jib/site", url: "https://github.com/jib/site" });
     expect(linked[0]).toEqual({ term: "GitHub", value: "jib/site", href: "https://github.com/jib/site" });
     expect(linked[1].value).toBe("The default branch");
+  });
+
+  it("calls the tutorial's local starter the starter page, never a path on the laptop", () => {
+    const rows = codeRows({ ...settings, source: "file:///Users/dsy/la-coloc" }, null);
+    expect(rows[0]).toEqual({ term: "Repo", value: "Starter page" });
   });
 
   it("previews a draft before it's saved", () => {
