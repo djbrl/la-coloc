@@ -122,4 +122,15 @@ describe("polling mode", () => {
     await vi.advanceTimersByTimeAsync(8_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("fires the arena's nudge without asking anything (its handler fetches the arena itself)", async () => {
+    const fetchMock = vi.fn(async () => ok());
+    vi.stubGlobal("fetch", fetchMock);
+    const arena = vi.fn();
+    const s = stream.openStream("/api/cities/Dakar/stream", { arena });
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(arena).toHaveBeenCalledTimes(1);
+    s.close();
+  });
 });
