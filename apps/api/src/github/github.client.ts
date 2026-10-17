@@ -76,6 +76,31 @@ export class GithubAppClient {
     return ((await res.json()) as { repositories: GhRepoInfo[] }).repositories;
   }
 
+  /**
+   * A pull request as GitHub's API returns it (`status`, and the JSON when it's found), read with the App's token,
+   * which has a far bigger allowance than asking with none. Null when the App isn't installed on that repo: the
+   * caller asks the public API instead. Throws when GitHub doesn't answer in time.
+   */
+  async pullRequest(repo: string, n: number, timeoutMs = 8000): Promise<{ status: number; body: unknown } | null> {
+    const installationId = await this.repoInstallation(repo, timeoutMs);
+    if (installationId === null) return null;
+    const token = await this.installationToken(installationId);
+    const res = await this.fetch(`${API}/repos/${repo}/pulls/${n}`, { headers: this.headers(`token ${token}`), signal: AbortSignal.timeout(timeoutMs) });
+    return { status: res.status, body: res.ok ? await res.json() : null };
+  }
+
+  // The App's installation on a repo, or null if it isn't installed there. Remembered for ten minutes either way.
+  private repoInstallations = new Map<string, { id: number | null; until: number }>();
+  private async repoInstallation(repo: string, timeoutMs: number): Promise<number | null> {
+    const cached = this.repoInstallations.get(repo);
+    if (cached && cached.until > Date.now()) return cached.id;
+    const res = await this.fetch(`${API}/repos/${repo}/installation`, { headers: this.headers(`Bearer ${appJwt(this.cfg)}`), signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok && res.status !== 404) throw new Error(`couldn't look up the App on ${repo} (${res.status})`);
+    const id = res.ok ? ((await res.json()) as { id: number }).id : null;
+    this.repoInstallations.set(repo, { id, until: Date.now() + 10 * 60_000 });
+    return id;
+  }
+
   async comment(installationId: number, repo: string, issue: number, text: string): Promise<void> {
     await this.call(installationId, "POST", `/repos/${repo}/issues/${issue}/comments`, { body: text });
   }

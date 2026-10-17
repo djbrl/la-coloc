@@ -31,6 +31,19 @@ const fr: Record<string, (r: Refusal) => string> = {
   slowDownMessages: () => "Doucement : attendez quelques secondes avant de réécrire.",
   slowDownPosts: () => "Ça fait beaucoup d'annonces pour une heure. Réessayez plus tard.",
 
+  // The Arena: the week's challenge, its pull requests and the titles won.
+  arenaBadUrl: () => "Collez l'adresse d'une pull request, comme https://github.com/compte/depot/pull/12.",
+  arenaWrongRepo: (r) => (typeof r.repo === "string" ? `Envoyez-la au dépôt de l'arène, ${r.repo}.` : "Envoyez-la au dépôt de l'arène."),
+  arenaNotYourPr: () => "Cette pull request a été ouverte par quelqu'un d'autre. Envoyez une des vôtres.",
+  arenaPrTooOld: () => "Cette pull request date d'avant le début du défi de la semaine. Ouvrez-en une nouvelle.",
+  arenaPrNotFound: () => "GitHub ne trouve pas cette pull request. Vérifiez l'adresse.",
+  arenaAlreadySubmitted: () => "Cette pull request est déjà inscrite au défi de la semaine.",
+  arenaGithubDown: () => "GitHub ne répond pas. Réessayez dans une minute.",
+  arenaGithubNeeded: () => "Connectez-vous avec GitHub pour envoyer des pull requests : c'est ainsi qu'on sait qu'elles sont à vous.",
+  arenaNoSubmission: () => "Vous n'avez pas cette pull request dans le défi de la semaine.",
+  arenaNoAward: () => "Ce titre n'est pas à vous.",
+  slowDownArena: () => "Ça fait beaucoup de pull requests pour une heure. Réessayez plus tard.",
+
   // Knocking on a house.
   demoHouseKnock: () => "C'est une maison d'exemple : personne n'habite ici pour vous ouvrir.",
   roomTaken: () => "Quelqu'un habite déjà cette chambre.",

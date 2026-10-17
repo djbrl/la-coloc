@@ -4,9 +4,11 @@
 //   dm:<userId>:<userId>  two people, the ids sorted so a pair always lands on the same channel
 //   city:<City>           a city's public room: anyone reads, logged-in people write
 //   post:<postId>         the replies under a city board post: same as the city
+//   arena:<City>          the room inside a city's Arena (arena/arena.service.ts): same as the city
 export const dmChannel = (a: string, b: string) => `dm:${[a, b].sort().join(":")}`;
 export const cityChannel = (city: string) => `city:${city}`;
 export const postChannel = (postId: string) => `post:${postId}`;
+export const arenaChannel = (city: string) => `arena:${city}`;
 
 /** The two people of a direct channel, or null for any other channel. */
 export function dmPeople(channel: string): [string, string] | null {

@@ -58,13 +58,14 @@ export interface ReportView {
   createdAt: string;
 }
 
-export type CityChange = { city: string; what: "chat" | "board" };
+// "arena": the arena's room, entrants, leaderboard or challenge changed (arena/arena.service.ts).
+export type CityChange = { city: string; what: "chat" | "board" | "arena" };
 
 @Injectable()
 export class ChatService {
   // The login of someone with a new direct message (and the sender, for their other tabs).
   readonly pushes = new Subject<string>();
-  // Something new in a city's room or on its board.
+  // Something new in a city's room, on its board, or in its Arena.
   readonly changes = new Subject<CityChange>();
   // The brakes: messages (a DM, the city's room, a reply) and board posts, per person.
   readonly messageBrake = new Limiter(MESSAGES.count, MESSAGES.perMs);
@@ -274,10 +275,10 @@ export class ChatService {
     return other;
   }
 
-  // Whether `userId` may read a channel: a city's room and a post's replies are public; a DM is its two people's;
+  // Whether `userId` may read a channel: a city's room, its arena's and a post's replies are public; a DM is its two people's;
   // a house's living room is its flatmates'; a knock's thread, the applicant's and the house's.
   private async canRead(channel: string, userId: string): Promise<boolean> {
-    if (channel.startsWith("city:") || channel.startsWith("post:")) return true;
+    if (channel.startsWith("city:") || channel.startsWith("arena:") || channel.startsWith("post:")) return true;
     const pair = dmPeople(channel);
     if (pair) return pair.includes(userId);
     if (channel.startsWith("house:")) return !!(await this.houses.membership(channel.slice(6), userId));

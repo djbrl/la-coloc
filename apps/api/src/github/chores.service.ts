@@ -51,6 +51,11 @@ export interface GhEvent {
     base?: { ref: string };
     // Where the changes come from. A different repo id than `repository` means a fork.
     head?: { ref: string; sha?: string; repo?: { id: number } | null };
+    // What the Arena reads too (arena/scoring.ts checks them again).
+    state?: string;
+    created_at?: string;
+    merged_at?: string | null;
+    labels?: { name: string }[];
   };
   review?: { state: string; user: GhUser };
 }

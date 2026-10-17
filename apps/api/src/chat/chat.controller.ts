@@ -125,7 +125,7 @@ export class ChatController {
     return this.board.create(city, user.id, { tag: tag as (typeof TAGS)[number], title, body: text });
   }
 
-  // Something new in the city's room ("chat") or on its board ("board"): the page fetches it. (An event needs some
+  // Something new in the city's room ("chat"), on its board ("board") or in its Arena ("arena"): the page fetches it. (An event needs some
   // data, or the browser drops it: the data is just the word again.) Nothing private travels here: each page fetches
   // with its own login, so what it hides stays hidden.
   @Sse("cities/:city/stream")
