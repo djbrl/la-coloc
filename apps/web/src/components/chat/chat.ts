@@ -40,20 +40,40 @@ export interface TextPart {
 // An address, until a space or something that can't be part of one. Only http and https: never javascript: or data:.
 const URL_RE = /\bhttps?:\/\/[^\s<>"']+/gi;
 
-/** Cuts a message into text and links. A link's trailing punctuation (a full stop, a closing bracket) stays text. */
-export function linkParts(text: string): TextPart[] {
+// Unicode's invisible direction controls (embeddings, overrides, isolates, marks). One can make text read backwards
+// ("…/‮fdp.exe" shows as "…/exe.pdf"), so what people type is drawn without them.
+const BIDI_RE = /[‎‏‪-‮⁦-⁩]/g;
+export const stripBidi = (text: string) => text.replace(BIDI_RE, "");
+
+/**
+ * Cuts a message into text and links, without direction controls. A link's trailing punctuation (a full stop, a
+ * closing bracket) stays text, and a link shows the host the browser will really go to (see `shownAddress`).
+ */
+export function linkParts(raw: string): TextPart[] {
+  const text = stripBidi(raw);
   const parts: TextPart[] = [];
   let at = 0;
   for (const m of text.matchAll(URL_RE)) {
     const href = trimEnd(m[0]);
     const start = m.index ?? 0;
     if (start > at) parts.push({ text: text.slice(at, start) });
-    if (isHttp(href)) parts.push({ text: href, href });
+    if (isHttp(href)) parts.push({ text: shownAddress(href), href });
     else parts.push({ text: href });
     at = start + href.length;
   }
   if (at < text.length) parts.push({ text: text.slice(at) });
   return parts;
+}
+
+// The address as typed, unless its host isn't what the browser will read: then with the real host, in its
+// punycode form. "https://gооgle.com" (Cyrillic о's) shows as "https://xn--ggle-55da.com", and
+// "https://google.com@evil.example" as "https://evil.example".
+function shownAddress(href: string): string {
+  const start = href.indexOf("//") + 2;
+  const rest = href.slice(start).search(/[/?#]/);
+  const end = rest === -1 ? href.length : start + rest;
+  const host = new URL(href).host;
+  return href.slice(start, end).toLowerCase() === host ? href : `${href.slice(0, start)}${host}${href.slice(end)}`;
 }
 
 // "See https://x.dev." keeps the full stop out; a closing bracket stays only if the address opened one
