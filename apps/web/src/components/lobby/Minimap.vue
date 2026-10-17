@@ -40,7 +40,8 @@ const props = defineProps<{
   goal?: string | null;
 }>();
 // `go`: travel to a house's door (big map only); `open`: the small map was clicked, open the big one.
-const emit = defineEmits<{ go: [houseId: string]; open: []; close: [] }>();
+// `arena`: travel to the Arena's entrance (big map only).
+const emit = defineEmits<{ go: [houseId: string]; arena: []; open: []; close: [] }>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 // The house buttons beside the big map (Vue fills the array from the v-for); the first one takes focus.
@@ -320,6 +321,19 @@ function onKey(e: KeyboardEvent) {
         <!-- Each house is a menu entry: the whole row travels to its door; its one button is what the keyboard reaches.
              The house under the mouse on the map lights its row. -->
         <ul class="houses" :style="{ maxHeight: `${size.h}px` }">
+          <!-- The Arena first, a stadium in its colours like on the map. -->
+          <ListRow v-if="neighbourhood.arena" class="entry" :title="said.arena">
+            <template #lead>
+              <svg class="stadium" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                <ellipse cx="12" cy="12" rx="10.5" ry="8.5" :fill="colours.stands" stroke="#fff" stroke-width="1.5" />
+                <ellipse cx="12" cy="12" rx="6.5" ry="4.8" :fill="colours.pitch" />
+                <rect x="10" y="10.2" width="4" height="3.6" :fill="colours.ring" stroke="#fff" stroke-width="0.8" />
+              </svg>
+            </template>
+            <template #end>
+              <button class="go" :aria-label="said.goToArena" @click="emit('arena')"><Icon name="next" :size="18" /></button>
+            </template>
+          </ListRow>
           <ListRow v-for="p in housesOnMap" :key="p.house.id" class="entry" :title="p.house.name" :lit="pointed === p.house.id">
             <!-- The same little house as on the map, in its colour; dashed for a sample. -->
             <template #lead><HouseBadge :id="p.house.id" :sample="p.house.demo" /></template>
