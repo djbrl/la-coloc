@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { arenaWords } from "./components/arena/words";
 import { commonWords, lobbyWords, settingsWords, welcomeWords } from "./components/words";
 import { billHead, dayName, lineWords, reviewsLine, tontineLine } from "./components/lobby/house/exchange";
 import { fcfa } from "./components/lobby/house/server";
@@ -15,7 +16,7 @@ import { downWords } from "./core";
 import { defineWords, dictionaries, langFrom, language, nbsp, startingLang, type Words } from "./i18n";
 
 // Every dictionary the site has. Importing the modules above registers them; a new one belongs in this list.
-const AREAS = ["explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common", "cards", "hud", "join", "rent", "list", "login", "room", "down"];
+const AREAS = ["explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common", "cards", "hud", "join", "rent", "list", "login", "room", "down", "arena"];
 
 // Every path to a leaf ("tour.next", "room.live"), with what's there.
 function leaves(words: object, path = ""): Map<string, unknown> {
@@ -127,7 +128,7 @@ describe("reading words", () => {
     expect(lobbyWords.online(2)).toBe("2 projets en ligne");
     expect(cardWords.rooms(4, 1)).toBe("4 chambres, 1 libre");
     expect(hudWords.loadingTips).toHaveLength(6);
-    for (const words of [joinWords, rentWords, listWords, loginWords, roomWords, downWords]) expect(Object.keys(words).length).toBeGreaterThan(0);
+    for (const words of [joinWords, rentWords, listWords, loginWords, roomWords, downWords, arenaWords]) expect(Object.keys(words).length).toBeGreaterThan(0);
   });
 
   it("says the bill and the tontine in French, with French dates", () => {
