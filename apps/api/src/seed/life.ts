@@ -4,6 +4,7 @@
 // here calls GitHub, and no message @-mentions anyone.
 import { billPayments, chores, type Db, deployments, fridgeNotes, messages } from "@coloc/db";
 import { CHORE_HOURS } from "../github/chores.service";
+import { noteText } from "../houses/lines";
 import { monthOf, monthStart } from "../houses/money";
 
 const HOUR = 3600_000;
@@ -284,27 +285,29 @@ export async function plantLife(db: Db, city: LifeHouse[], ids: Record<string, s
       if (rows.length) await db.insert(deployments).values(rows);
     }
 
-    // Notes on the fridge: thanks for reviews, a ship or two, and the late review in Sacré-Cœur.
+    // Notes on the fridge: thanks for reviews, a ship or two, and the late review in Sacré-Cœur. Written with the
+    // house's own templates (houses/lines.ts), so the web says them in the reader's language.
     const notes: { tone: "info" | "warning" | "thanks"; text: string; room?: string; hoursAgo: number }[] = [];
     if (h.id === "sacre-coeur") {
       notes.push(
-        { tone: "thanks", text: `Awa reviewed ${TEST_REPO.fullName}#6. Merci!`, hoursAgo: 70 },
-        { tone: "thanks", text: "Moussa shipped a new version.", room: "moussa", hoursAgo: 50 },
-        { tone: "thanks", text: `Jib reviewed ${TEST_REPO.fullName}#11. Merci!`, hoursAgo: 26 },
+        { tone: "thanks", text: noteText("reviewed", { name: "Awa", ref: `${TEST_REPO.fullName}#6` }), hoursAgo: 70 },
+        { tone: "thanks", text: noteText("shipped", { name: "Moussa" }), room: "moussa", hoursAgo: 50 },
+        { tone: "thanks", text: noteText("reviewed", { name: "Jib", ref: `${TEST_REPO.fullName}#11` }), hoursAgo: 26 },
         {
           tone: "warning",
-          text: `Moussa hasn't reviewed ${TEST_REPO.fullName}#${SACRE_COEUR_DONE.length + 2} yet. It was due ${CHORE_HOURS}h after it opened.`,
+          text: noteText("reviewLate", { name: "Moussa", ref: `${TEST_REPO.fullName}#${SACRE_COEUR_DONE.length + 2}`, hours: String(CHORE_HOURS) }),
           hoursAgo: 5,
         },
-        { tone: "thanks", text: "Awa paid her part of this month's bill.", hoursAgo: 3 },
+        { tone: "thanks", text: noteText("paidBill", { name: "Awa" }), hoursAgo: 3 },
       );
     } else if (h.id === "atelier") {
-      notes.push({ tone: "info", text: "Aïssatou put her first project online. Welcome!", room: "aissatou", hoursAgo: 30 });
+      notes.push({ tone: "info", text: noteText("firstProject", { name: "Aïssatou" }), room: "aissatou", hoursAgo: 30 });
     } else if (real.length >= 2) {
-      notes.push(
-        { tone: "thanks", text: `${nameOf(real[1].login)} reviewed ${nameOf(real[0].login)}'s pull request. Merci!`, hoursAgo: 40 },
-        { tone: "thanks", text: `${nameOf(real[0].login)} shipped a new version.`, room: real[0].room, hoursAgo: 12 },
-      );
+      // One of the reviews planted above: a flatmate's review of the first room's pull request.
+      const done = demoDone(h, salt);
+      const k = done.findIndex(([reviewer, author]) => author === real[0].login && real.some((f) => f.login === reviewer));
+      if (k >= 0) notes.push({ tone: "thanks", text: noteText("reviewed", { name: nameOf(done[k][0]), ref: `example/${h.id}#${k + 1}` }), hoursAgo: 40 });
+      notes.push({ tone: "thanks", text: noteText("shipped", { name: nameOf(real[0].login) }), room: real[0].room, hoursAgo: 12 });
     }
     if (notes.length) {
       await db.insert(fridgeNotes).values(

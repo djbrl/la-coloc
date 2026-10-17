@@ -1,7 +1,7 @@
 // The sentences the API writes by itself, said in the reader's language: fridge notes ("Awa's app crashed.") and the
 // house's own lines in a knock's thread ("The house said yes."). The API sends each with `said`, its kind and what
 // fills its blanks (apps/api/src/houses/lines.ts holds the English templates); this says it in English or French.
-// A kind this page doesn't know, or a text the API couldn't read (an older wording, a seeded note), shows the API's
+// A kind this page doesn't know, or a text the API couldn't read (an older wording), shows the API's
 // own English text.
 import { defineWords } from "../i18n";
 import type { Said } from "../types";
@@ -26,6 +26,8 @@ const notesEn = {
   reviewedLate: (p: P) => `${p.name} reviewed ${p.ref} (late, but done). Merci!`,
   reviewed: (p: P) => `${p.name} reviewed ${p.ref}. Merci!`,
   reviewLate: (p: P) => `${p.name} hasn't reviewed ${p.ref} yet. It was due ${p.hours}h after it opened.`,
+  paidBill: (p: P) => `${p.name} paid their part of this month's bill.`,
+  firstProject: (p: P) => `${p.name} put their first project online. Welcome!`,
 };
 
 const knockEn = {
@@ -55,6 +57,8 @@ const noteWords = defineWords("said.notes", notesEn, {
   reviewedLate: (p) => `${p.name} a relu ${p.ref} (en retard, mais c'est fait). Merci !`,
   reviewed: (p) => `${p.name} a relu ${p.ref}. Merci !`,
   reviewLate: (p) => `${p.name} n'a pas encore relu ${p.ref}. C'était à faire dans les ${p.hours} h.`,
+  paidBill: (p) => `${p.name} a payé sa part de la facture du mois.`,
+  firstProject: (p) => `${p.name} a mis en ligne son premier projet. Bienvenue !`,
 });
 
 const knockWords = defineWords("said.knock", knockEn, {

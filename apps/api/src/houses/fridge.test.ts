@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { noteForDeploy, noteForRoomEvent } from "./fridge";
 import { redactToken } from "./houses.service";
+import { plainNote } from "./lines";
 
 describe("fridge notes", () => {
   it("tells the house when a room ran out of memory", () => {
@@ -11,7 +12,7 @@ describe("fridge notes", () => {
 
   it("only mentions the first line of a failed deploy", () => {
     const n = noteForDeploy({ type: "deploy_status", deployId: "1", room: "jib", status: "failed", detail: "build failed\nstep 3/7..." }, "Jib");
-    expect(n?.text).toBe("Jib's deploy failed: build failed. The previous version is still running.");
+    expect(plainNote(n!.text)).toBe("Jib's deploy failed: build failed. The previous version is still running.");
   });
 
   it("stays quiet for intermediate steps", () => {

@@ -2,8 +2,14 @@
 // lines in a knock's thread ("The house said yes. Welcome home, Fatou!"). Each is a template with named blanks,
 // written once here, so the same template both writes the English text that's stored and reads it back into a
 // kind and its blanks (`readNote`, `readKnockLine`). The views send the kind and the blanks along with the text, and
-// the web says the sentence in the reader's language; a text no template matches (an old wording, a seeded note)
-// is shown as it is. Nothing to migrate: old rows are read the same way.
+// the web says the sentence in the reader's language; a text no template matches (an old wording) is shown as it is.
+//
+// A note's blanks hold free text (a display name, a build's error), which may contain the template's own words:
+// "Bob's deploy failed: lol" is a possible name. So each blank of a note is written between two invisible marks,
+// Unicode's isolates (U+2068 and U+2069, the standard way to put someone's text inside a sentence), and the marks
+// are first taken out of the value itself. Reading a note finds its blanks between the marks, with no guessing.
+// Notes written before the marks are read the old way, refs and hours held to their shape. Knock lines have one
+// blank at most, so they need no marks.
 
 // Order matters where one template could swallow another: the longer, more specific one comes first.
 const NOTES = {
@@ -24,6 +30,8 @@ const NOTES = {
   reviewedLate: "{name} reviewed {ref} (late, but done). Merci!",
   reviewed: "{name} reviewed {ref}. Merci!",
   reviewLate: "{name} hasn't reviewed {ref} yet. It was due {hours}h after it opened.",
+  paidBill: "{name} paid their part of this month's bill.",
+  firstProject: "{name} put their first project online. Welcome!",
 } as const;
 
 const KNOCK = {
@@ -45,15 +53,28 @@ export interface Said {
   params: Blanks;
 }
 
-const fill = (template: string, params: Blanks) => template.replace(/\{(\w+)\}/g, (_, k: string) => params[k] ?? "");
+const OPEN = "⁨";
+const CLOSE = "⁩";
+const MARKS = /[⁨⁩]/g;
 
-/** A fridge note's English text, from its kind and blanks. */
-export const noteText = (kind: NoteKind, params: Blanks = {}) => fill(NOTES[kind], params);
+const fill = (template: string, params: Blanks, blank: (value: string) => string) =>
+  template.replace(/\{(\w+)\}/g, (_, k: string) => blank(params[k] ?? ""));
+
+/** A fridge note's English text, from its kind and blanks, each blank between isolates. */
+export const noteText = (kind: NoteKind, params: Blanks = {}) => fill(NOTES[kind], params, (v) => OPEN + v.replace(MARKS, "") + CLOSE);
 /** A knock thread's house line, in English, from its kind and blanks. */
-export const knockText = (kind: KnockLine, params: Blanks = {}) => fill(KNOCK[kind], params);
+export const knockText = (kind: KnockLine, params: Blanks = {}) => fill(KNOCK[kind], params, (v) => v);
+/** A stored note as people read it: without its marks. */
+export const plainNote = (text: string) => text.replace(MARKS, "");
 
-// Each template as a pattern: the words as they are, each blank any text (as little as will do).
-function patterns(templates: Record<string, string>) {
+// How a blank is found. Between the marks: anything but a mark. In a text written before the marks: a ref is
+// "owner/repo#12" and hours a number, so a seeded "Jib reviewed Moussa's pull request." isn't taken for a review
+// note; the rest is any text, as little as will do.
+const MARKED_BLANK = `${OPEN}([^${OPEN}${CLOSE}]*)${CLOSE}`;
+const OLD_BLANK: Record<string, string> = { ref: "(\\S+#\\d+)", hours: "(\\d+)" };
+
+// Each template as a pattern: the words as they are, each blank as above.
+function patterns(templates: Record<string, string>, marked: boolean) {
   return Object.entries(templates).map(([kind, template]) => {
     const names: string[] = [];
     const source = template
@@ -62,14 +83,15 @@ function patterns(templates: Record<string, string>) {
         const blank = /^\{(\w+)\}$/.exec(part);
         if (!blank) return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         names.push(blank[1]);
-        return "([\\s\\S]+?)";
+        return marked ? MARKED_BLANK : (OLD_BLANK[blank[1]] ?? "([\\s\\S]+?)");
       })
       .join("");
     return { kind, names, re: new RegExp(`^${source}$`) };
   });
 }
-const NOTE_PATTERNS = patterns(NOTES);
-const KNOCK_PATTERNS = patterns(KNOCK);
+const NOTE_PATTERNS = patterns(NOTES, true);
+const OLD_NOTE_PATTERNS = patterns(NOTES, false);
+const KNOCK_PATTERNS = patterns(KNOCK, false);
 
 function read(text: string, list: ReturnType<typeof patterns>): Said | null {
   for (const { kind, names, re } of list) {
@@ -80,6 +102,6 @@ function read(text: string, list: ReturnType<typeof patterns>): Said | null {
 }
 
 /** What a stored fridge note says, as a kind and its blanks; null for a text no template wrote. */
-export const readNote = (text: string) => read(text, NOTE_PATTERNS);
+export const readNote = (text: string) => read(text, text.includes(OPEN) ? NOTE_PATTERNS : OLD_NOTE_PATTERNS);
 /** What a house line in a knock's thread says; null for anything else. */
 export const readKnockLine = (text: string) => read(text, KNOCK_PATTERNS);
