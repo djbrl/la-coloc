@@ -27,11 +27,13 @@ Needs Node 22.9+ and Docker Desktop. The full guide, with what you should see at
 npm ci && npm run build
 cp dev/.env.example dev/.env.local    # then add the two lines from docs/dev.md, step 2
 npm run dev:proxy && npm run dev:seed # Traefik and Postgres in Docker, then the example city
-npm run start -w @coloc/api           # the API, then the two caretakers (docs/dev.md, step 6)
+npm run up                            # the API, both caretakers and this laptop's own keys
 npm run dev:web                       # open http://localhost:5175/login
 ```
 
-To let someone try it from your laptop: `npm run share` ([how](docs/dev.md#sharing-the-city-from-a-laptop)).
+`npm run up` also shares the city on Vercel through a tunnel when `cloudflared` and the Vercel CLI are installed
+(`COLOC_SHARE=0` keeps it on your laptop), with the dev login turned off
+([how](docs/dev.md#sharing-the-city-from-a-laptop)).
 
 ## Read next
 

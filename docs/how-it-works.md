@@ -1,7 +1,7 @@
 # How La Coloc works
 
-*Rewritten 16 Oct 2026 against the code. The product's ideas in plain words. Words in bold are in the
-[glossary](glossary.md). How the pieces fit: [architecture.md](architecture.md).*
+*Rewritten 16 Oct 2026 against the code, updated 17 Oct 2026. The product's ideas in plain words. Words in bold are
+in the [glossary](glossary.md). How the pieces fit: [architecture.md](architecture.md).*
 
 ## In one paragraph
 
@@ -25,8 +25,9 @@ African exchange platform built for devs by devs*.
 - It is always daytime in the city. The day / night switch in settings only changes the panels.
 - A house shows its rooms as windows: lit when a project runs, empty when the room is free. A crane appears while
   something builds, and fireworks when it goes live.
-- Made-up **passers-by** walk the streets so it feels alive. Eight of the nine houses are **examples** with made-up
-  people, and say so. Only Sacré-Cœur (Dakar) runs real projects today.
+- Made-up **passers-by** walk the streets so it feels alive. Their handles have an underscore, which GitHub never
+  allows, so none can be a real person's. Eight of the nine houses are **examples** with made-up people, and say so.
+  Only Sacré-Cœur (Dakar) runs real projects today.
 - A **minimap** sits in the corner; M opens the big map, where picking a house takes you to its door.
 - Everything is something you can use: walk up and press E, click it, or press Tab to pick it. **?** lists the keys.
 - A list view (in settings) shows the same city as plain pages.
@@ -38,7 +39,14 @@ African exchange platform built for devs by devs*.
 - The command installs the **caretaker**, our small program on the server. When it phones in, the house goes live.
 - Each room has a fixed amount of memory and CPU. If one project eats all its memory, only that room restarts; its
   neighbours never notice.
-- Every project gets its own address, such as `jib.coloc.localhost:8000` on a laptop.
+- A room is sealed: visitors reach it, but its project reaches nothing, not the other rooms, the internet or the
+  server itself. A house can open its rooms to the internet (for a bot that calls an outside service). Builds take
+  turns, one at a time per house.
+- A room's code comes from a GitHub repo (`https://` only). Only the flatmate who lives there chooses which repo,
+  branch and folder, since the build gets the room's secret keys; the chef can still update or restart it. Deploys
+  by hand have a brake: one at a time per room, five per person in ten minutes.
+- Every project gets its own address, such as `jib.coloc.localhost:8000` on a laptop. On a laptop that address only
+  opens on that laptop.
 - A house picks a rule: **strict** (a merged pull request goes live only if a flatmate approved it) or **relaxed**
   (it goes live anyway, with a note).
 
@@ -62,7 +70,8 @@ There are two ways in.
 
 - **The channel:** one group chat per house, flatmates only, plus one thread per knock.
 - **News:** notes the house posts by itself (a project went live, a room ran out of memory, a review was late,
-  someone moved in). Called the "fridge" in the code.
+  someone moved in, someone linked repos). Only public repos are named; private ones are only counted ("+2"). Called
+  the "fridge" in the code.
 - **Your room's page:** build settings, secret keys (stored encrypted), logs, restart and update.
 
 ## Reviews pay part of the rent
@@ -103,7 +112,8 @@ chapters, and each one moves on by itself when the game sees it done:
    once the GitHub App is installed.
 5. **Launch it:** fetching, building, starting, live; then fireworks.
 6. **Open it:** your page's address.
-7. **Show it off:** copy the link, share on WhatsApp, or scan a QR code.
+7. **Show it off:** copy the link, share on WhatsApp, or scan a QR code. For an address that only opens on the demo
+   machine (`*.coloc.localhost`), the quest says so and only offers to copy it.
 8. **Meet the house:** flatmates, reviews, news.
 
 It ends on "Welcome home", then the city. You can leave and come back: it remembers your chapter. Settings can
@@ -119,8 +129,8 @@ A chat key in the top bar opens a card over the city (you never leave the game).
 - **City:** one public room per city, the last hundred messages. Anyone can read, visitors too; you write once logged in.
 - **Board:** the city's small forum. A post has a tag (looking for a house, looking for flatmates, starting a
   project, help, other), a title and a few lines; replies go under it, and the most recently active post comes
-  first. Only its author can delete a post or a reply. "Message" writes to the author. The chores board on the
-  market square, and a key in the city's corner, open it too.
+  first. Only its author, or an admin, can delete a post or a reply. "Message" writes to the author. The chores board
+  on the market square, and a key in the city's corner, open it too.
 - **House:** your house's channel, the same as in its window, flatmates only.
 
 Keeping it safe: **block** someone (no messages either way, and you stop seeing what they write anywhere);
@@ -136,8 +146,10 @@ nudge on the lobby's live connection updates it without reloading.
 ## Languages
 
 The site speaks English and French. It starts in your browser's language, and the switch is the first row of
-settings. The French says "vous" and still needs a native speaker's read. Sentences written by the API (error
-messages, house news, GitHub comments, the example city's texts) are still in English.
+settings. The French says "vous" and still needs a native speaker's read. House news, the house's lines in a knock's
+thread, the example city's texts (taglines, project lines, free rooms' ads) and the refusals people meet (chat, board,
+knocks, invitations, deploys, the quest) read in French too: the API sends a kind or a `code`, and the site picks the
+words. Other API error messages and the comments on GitHub are still in English. What people write stays as written.
 
 ## When the database is down
 
