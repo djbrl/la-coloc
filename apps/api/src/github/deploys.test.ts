@@ -29,7 +29,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await seedCity(db, { agentSecret: "s", domain: (id) => id });
+  await seedCity(db, { agentSecret: "s", domain: (id) => (id === "sacre-coeur" ? "coloc.localhost" : id) });
   await db.update(users).set({ githubId: 1 }).where(eq(users.login, "jib"));
   await db.update(users).set({ githubId: 2 }).where(eq(users.login, "awa"));
   sent = [];
@@ -174,10 +174,10 @@ describe("previews", () => {
     for (const _ of [1, 2]) {
       await deploys.handle("pull_request", opened());
       const id = (sent.at(-1) as { deployId: string }).deployId;
-      await houses_.recordDeployStatus("sacre-coeur", { type: "deploy_status", deployId: id, room: "awa", status: "live", url: "http://preview-awa.x" });
+      await houses_.recordDeployStatus("sacre-coeur", { type: "deploy_status", deployId: id, room: "awa", status: "live", url: "http://preview-awa.coloc.localhost:8000" });
       await new Promise((r) => setTimeout(r, 10));
     }
-    expect(comments.filter((c) => c.includes("**Preview** ready at http://preview-awa.x"))).toHaveLength(1);
+    expect(comments.filter((c) => c.includes("**Preview** ready at http://preview-awa.coloc.localhost:8000"))).toHaveLength(1);
   });
 
   it("doesn't touch the room's real status", async () => {

@@ -14,7 +14,8 @@
 // The website itself is apps/web's own `npm run dev` (Multiprise starts it next to this one), or `npm run dev:web`.
 // Docker keeps running after a stop: the database and the rooms stay up.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { databaseRunning, ensureDevKeys, secureDatabase } from "./dev-keys.mjs";
@@ -33,9 +34,13 @@ function say(tag, line) {
   for (const l of String(line).split("\n")) if (l.trim()) console.log(`\x1b[${COLOURS[tag] ?? 37}m[${tag}]\x1b[0m ${l}`);
 }
 
-/** Runs a long-lived child with its output tagged; `again` restarts it (after a pause) if it dies on its own. */
-function run(tag, cmd, args, opts = {}, again = false) {
+/**
+ * Runs a long-lived child with its output tagged; `again` restarts it if it dies on its own: after 5 s, then twice as
+ * long each time it dies within a minute of starting (up to 5 min), so a piece that can't start doesn't spin.
+ */
+function run(tag, cmd, args, opts = {}, again = false, pause = 5000) {
   if (stopping) return;
+  const started = Date.now();
   const child = spawn(cmd, args, { cwd: join(root, opts.cwd ?? "."), env: { ...process.env, ...opts.env }, stdio: ["ignore", "pipe", "pipe"], detached: true });
   children.add(child);
   child.stdout.on("data", (d) => say(tag, d));
@@ -43,8 +48,9 @@ function run(tag, cmd, args, opts = {}, again = false) {
   child.on("exit", (code) => {
     children.delete(child);
     if (stopping) return;
-    say(tag, `stopped (${code ?? "signal"})${again ? ", starting it again in 5 s" : ""}`);
-    if (again) setTimeout(() => run(tag, cmd, args, opts, again), 5000);
+    const wait = Date.now() - started < 60_000 ? pause : 5000;
+    say(tag, `stopped (${code ?? "signal"})${again ? `, starting it again in ${Math.round(wait / 1000)} s` : ""}`);
+    if (again) setTimeout(() => run(tag, cmd, args, opts, again, Math.min(wait * 2, 300_000)), wait);
   });
   return child;
 }
@@ -62,6 +68,30 @@ function stop() {
 }
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
+// Closing the terminal window: the children are in their own process groups (detached), so they'd outlive it.
+process.on("SIGHUP", stop);
+
+// One launcher at a time: two would run four caretakers for two houses on one database, and fight over the port.
+const LOCK = join(root, "dev/.up.lock");
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const holder = Number(existsSync(LOCK) ? readFileSync(LOCK, "utf8").trim() : 0);
+if (holder && holder !== process.pid && alive(holder)) {
+  say("up", `La Coloc already runs from another launcher (process ${holder}). Stop that one first (Ctrl+C there, or Stop in Multiprise).`);
+  process.exit(1);
+}
+writeFileSync(LOCK, String(process.pid));
+process.on("exit", () => {
+  try {
+    if (readFileSync(LOCK, "utf8").trim() === String(process.pid)) rmSync(LOCK);
+  } catch {}
+});
 
 // ---- 1. Build what changed ----
 
@@ -84,6 +114,8 @@ if (toBuild.length) {
   for (const pkg of order.slice(from)) {
     const r = spawnSync("npx", ["tsc", "-p", "tsconfig.json"], { cwd: join(root, pkg), stdio: "inherit" });
     if (r.status !== 0) {
+      // tsc writes dist/ even when it fails: drop it, or the next start would think it up to date and run it.
+      rmSync(join(root, pkg, "dist"), { recursive: true, force: true });
       say("up", `${pkg} doesn't build: fix it and start again.`);
       process.exit(1);
     }
@@ -91,6 +123,18 @@ if (toBuild.length) {
 }
 
 // ---- 2. The API, at once (from apps/api: node's --env-file paths are relative to it) ----
+
+// A port already taken (an API left over from a closed terminal, another app) would make the API die and restart
+// every few seconds for ever: say who has it, and stop.
+const free = await new Promise((resolve) => {
+  const probe = createServer().once("error", () => resolve(false)).once("listening", () => probe.close(() => resolve(true)));
+  probe.listen(PORT, "127.0.0.1");
+});
+if (!free) {
+  const who = spawnSync("lsof", ["-nP", `-iTCP:${PORT}`, "-sTCP:LISTEN"], { encoding: "utf8" }).stdout?.split("\n")[1]?.split(/\s+/).slice(0, 2).join(" process ");
+  say("up", `port ${PORT} is taken${who ? ` (by ${who})` : ""}: stop it, or start with PORT=<another>.`);
+  process.exit(1);
+}
 
 // This laptop's own database password and caretaker key (scripts/dev-keys.mjs), made on the first run. If the database
 // already runs, it gets them now, before the API dials it; otherwise once Docker is up (the API waits calmly meanwhile).
@@ -180,7 +224,9 @@ if (dockerUp) {
   // The workshop builds the quest's starter page from this clone (COLOC_TUTORIAL_REPO=file://…): that one local repo,
   // and no other folder on the laptop.
   const starter = /^COLOC_TUTORIAL_REPO=(file:\/\/\S+)/m.exec(env("dev/.env.local"))?.[1];
-  caretaker("atelier", { COLOC_USAGE_INTERVAL_MS: "30000", ...(starter ? { COLOC_ALLOW_LOCAL_REPOS: starter } : {}) });
+  // Its rooms at <room>.atelier.coloc.localhost, as the seed says (the house's domain), so two houses' rooms with the
+  // same name never share an address.
+  caretaker("atelier", { COLOC_USAGE_INTERVAL_MS: "30000", COLOC_HOUSE_DOMAIN: "atelier.coloc.localhost", ...(starter ? { COLOC_ALLOW_LOCAL_REPOS: starter } : {}) });
 } else {
   say("up", "no Docker: the caretakers wait. Rooms won't build until Docker runs and this restarts.");
 }
@@ -192,7 +238,8 @@ if (/^COLOC_GITHUB_WEBHOOK_PROXY=\S+/m.test(env("dev/.env.github"))) {
 }
 
 if (share) {
-  run("share", "node", ["scripts/share.mjs"], { env: { COLOC_API_PORT: String(PORT) } });
+  // share.mjs stops when its tunnel dies or stops answering: it starts again (a new tunnel, so a new deploy).
+  run("share", "node", ["scripts/share.mjs"], { env: { COLOC_API_PORT: String(PORT) } }, true, 30_000);
 } else {
   say("up", "not sharing (COLOC_SHARE=0, or cloudflared / the Vercel CLI missing): the city is on this machine only.");
 }

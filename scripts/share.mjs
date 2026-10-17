@@ -96,8 +96,30 @@ and add ${domain}/api/auth/github/callback to the GitHub App's callback URLs.`);
 
 if (cloudflared) {
   console.log("\nKeeping the tunnel open. Ctrl+C closes it (the site then can't reach the API).");
-  process.on("SIGINT", () => {
+  const close = () => {
     cloudflared.kill();
     process.exit(0);
+  };
+  process.on("SIGINT", close);
+  process.on("SIGTERM", close);
+  // A quick tunnel can die on its own (the laptop slept, the network changed). Then the public site silently can't
+  // reach the API, so say it and stop: `npm run up` starts sharing again, with a new tunnel and a new deploy.
+  cloudflared.on("exit", (code) => {
+    console.error(`The tunnel closed (${code ?? "signal"}): the site can't reach the API until sharing starts again.`);
+    process.exit(1);
   });
+  // Alive but not answering counts too. Any answer from the API (a 503 while the database is down included) means the
+  // tunnel works; no answer, or Cloudflare's own 52x/530, three times in a row, means it doesn't.
+  let misses = 0;
+  setInterval(async () => {
+    const ok = await fetch(`${tunnel}/api/health`, { signal: AbortSignal.timeout(10_000) })
+      .then((r) => r.status < 520)
+      .catch(() => false);
+    misses = ok ? 0 : misses + 1;
+    if (misses >= 3) {
+      console.error("The tunnel stopped answering: closing it, so sharing starts again.");
+      cloudflared.kill();
+      process.exit(1);
+    }
+  }, 60_000);
 }

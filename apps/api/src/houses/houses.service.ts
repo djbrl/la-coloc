@@ -49,6 +49,23 @@ const IN_FLIGHT = ["queued", "cloning", "building", "starting"] as const;
 
 type UserRow = typeof users.$inferSelect;
 
+/**
+ * A room's address as its house's caretaker reports it, if it's one the house may give: http(s), and the room's own
+ * name (or its preview's) under the house's domain. Anything else (a javascript: link, another site) is dropped: a
+ * caretaker is a program on somebody else's server, and the address is shown to everyone as a link.
+ */
+export function roomAddress(url: string | null | undefined, room: string, domain: string): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    const ours = host === `${room}.${domain}`.toLowerCase() || host === `preview-${room}.${domain}`.toLowerCase();
+    return (u.protocol === "http:" || u.protocol === "https:") && ours && !u.username && !u.password ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export function hashSecret(secret: string): string {
   return createHash("sha256").update(secret).digest("hex");
 }
@@ -227,6 +244,11 @@ export class HousesService {
     return deploymentView(d);
   }
 
+  private async domainOf(houseId: string): Promise<string> {
+    const [h] = await this.db.select({ domain: houses.domain }).from(houses).where(eq(houses.id, houseId));
+    return h?.domain ?? "";
+  }
+
   async recordDeployStatus(houseId: string, s: DeployStatus) {
     const [d] = await this.db
       .update(deployments)
@@ -234,9 +256,10 @@ export class HousesService {
       .where(and(eq(deployments.id, s.deployId), eq(deployments.houseId, houseId)))
       .returning();
     const room = await this.room(houseId, s.room);
+    const url = s.url ? roomAddress(s.url, s.room, await this.domainOf(houseId)) : null;
     if (room && d?.kind === "prod") {
       if (s.status === "live") {
-        await this.db.update(rooms).set({ status: "live", url: s.url ?? null }).where(eq(rooms.id, room.id));
+        await this.db.update(rooms).set({ status: "live", url }).where(eq(rooms.id, room.id));
       } else if (s.status === "failed" && room.status !== "live") {
         await this.db.update(rooms).set({ status: "failed" }).where(eq(rooms.id, room.id));
       }
@@ -244,7 +267,7 @@ export class HousesService {
     const note = room ? noteForDeploy(s, await this.occupantName(room.occupantId)) : null;
     if (note) await this.addNote(houseId, note);
     this.changes.next(houseId);
-    if (d && (s.status === "live" || s.status === "failed")) this.deployFinished.next({ houseId, deployment: d, url: s.url ?? null });
+    if (d && (s.status === "live" || s.status === "failed")) this.deployFinished.next({ houseId, deployment: d, url });
   }
 
   async recordUsage(houseId: string, u: Usage) {
@@ -287,6 +310,7 @@ export class HousesService {
   // caller can ask the agent to clear them out (a leftover from someone who moved out).
   async applySnapshot(houseId: string, snap: RoomsSnapshot): Promise<string[]> {
     const all = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.demo, false)));
+    const domain = await this.domainOf(houseId);
     const leftovers: string[] = [];
     for (const room of all) {
       const prod = snap.rooms.find((r) => r.room === room.name && r.kind === "prod");
@@ -296,7 +320,7 @@ export class HousesService {
         next = { status: "empty", url: null };
       } else {
         next = prod
-          ? { status: prod.state === "running" ? "live" : "down", url: prod.url }
+          ? { status: prod.state === "running" ? "live" : "down", url: roomAddress(prod.url, room.name, domain) }
           : { status: room.status === "deploying" ? "deploying" : "empty", url: null };
       }
       if (next.status !== room.status || next.url !== room.url) await this.db.update(rooms).set(next).where(eq(rooms.id, room.id));

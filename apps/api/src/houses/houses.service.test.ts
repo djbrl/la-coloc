@@ -77,10 +77,10 @@ describe("HousesService", () => {
       await svc.recordDeployStatus("sacre-coeur", { type: "deploy_status", deployId: d.id, room: "awa", status });
     }
     expect((await svc.room("sacre-coeur", "awa"))!.status).toBe("deploying");
-    await svc.recordDeployStatus("sacre-coeur", { type: "deploy_status", deployId: d.id, room: "awa", status: "live", url: "http://awa.x" });
+    await svc.recordDeployStatus("sacre-coeur", { type: "deploy_status", deployId: d.id, room: "awa", status: "live", url: "http://awa.sacre-coeur.coloc.dev" });
     const awa = (await svc.room("sacre-coeur", "awa"))!;
     expect(awa.status).toBe("live");
-    expect(awa.url).toBe("http://awa.x");
+    expect(awa.url).toBe("http://awa.sacre-coeur.coloc.dev");
   });
 
   it("never stores a token that came in a repo URL", async () => {
@@ -183,5 +183,17 @@ describe("the city", () => {
     const jib = houses.find((h) => h.id === "sacre-coeur")!.rooms.find((r) => r.name === "jib")!;
     expect(jib).toMatchObject({ project: "Kër Bot", projectDescription: "A Discord bot for the neighbourhood's football league." });
     expect(houses.find((h) => h.id === "sacre-coeur")!.rooms.find((r) => r.name === "room-4")!.projectDescription).toBeNull();
+  });
+});
+
+describe("a room's address, as a caretaker reports it", () => {
+  it("is kept only when it's the room's own name under its house's domain, over http(s)", async () => {
+    const { roomAddress } = await import("./houses.service");
+    expect(roomAddress("http://awa.coloc.localhost:8000", "awa", "coloc.localhost")).toBe("http://awa.coloc.localhost:8000");
+    expect(roomAddress("https://preview-awa.h.coloc.dev", "awa", "h.coloc.dev")).toBe("https://preview-awa.h.coloc.dev");
+    expect(roomAddress("javascript:alert(1)", "awa", "coloc.localhost")).toBeNull();
+    expect(roomAddress("https://evil.example/awa", "awa", "coloc.localhost")).toBeNull();
+    expect(roomAddress("http://jib.coloc.localhost", "awa", "coloc.localhost")).toBeNull();
+    expect(roomAddress("http://user:pw@awa.coloc.localhost", "awa", "coloc.localhost")).toBeNull();
   });
 });
