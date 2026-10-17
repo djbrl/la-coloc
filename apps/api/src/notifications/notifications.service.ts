@@ -125,7 +125,7 @@ export class NotificationsService {
 
     if (n.kind === "rent_together") {
       if (await this.housed(userId)) return this.expire(n, "You already live in a house now.");
-      await this.decide(n, "accepted");
+      if (!(await this.decide(n, "accepted"))) throw new ConflictException("This invitation has already been answered.");
       if (n.fromId) await this.create({ userId: n.fromId, kind: "rent_together_yes", fromId: userId });
       return { kind: n.kind, house: null, room: null };
     }
@@ -134,13 +134,27 @@ export class NotificationsService {
     const [house] = n.houseId ? await this.db.select().from(houses).where(eq(houses.id, n.houseId)) : [];
     if (!house || !n.room) return this.expire(n, "That house is gone.");
     if (!n.fromId || !(await this.houses.membership(house.id, n.fromId))) return this.expire(n, "They don't live there any more, so the invitation lapsed.");
-    if (await this.housed(userId)) return this.expire(n, "You already live in a house now.");
-    const moved = await this.db.transaction(async (tx) => {
-      if (!(await moveInto(tx, house.id, n.room!, userId))) return false;
-      await tx.update(notifications).set({ state: "accepted", decidedAt: new Date(), readAt: new Date() }).where(eq(notifications.id, n.id));
-      return true;
+    const outcome = await this.db.transaction(async (tx) => {
+      // Lock the person's own row, so two of their accepts (two houses, or a double click) take turns: the second
+      // one then sees the first one's house.
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+      // Claim the invitation first: a second click finds it answered and stops without touching it.
+      const claimed = await tx
+        .update(notifications)
+        .set({ state: "accepted", decidedAt: new Date(), readAt: new Date() })
+        .where(and(eq(notifications.id, n.id), eq(notifications.state, "open")))
+        .returning({ id: notifications.id });
+      if (!claimed.length) return "answered";
+      const lapse = async (why: string) => {
+        await tx.update(notifications).set({ state: "expired" }).where(eq(notifications.id, n.id));
+        return why;
+      };
+      if (await this.housed(userId, tx)) return lapse("You already live in a house now.");
+      if (!(await moveInto(tx, house.id, n.room!, userId))) return lapse("Someone else took that room first.");
+      return "moved";
     });
-    if (!moved) return this.expire(n, "Someone else took that room first.");
+    if (outcome === "answered") throw new ConflictException("This invitation has already been answered.");
+    if (outcome !== "moved") throw new ConflictException(outcome);
 
     // Their other house invitations can't be taken now (one house each), and their own knock here is answered.
     await this.db
@@ -157,7 +171,7 @@ export class NotificationsService {
   /** The recipient says no, and the sender is told, so they can ask someone else. */
   async decline(userId: string, id: string) {
     const n = await this.openInvite(userId, id);
-    await this.decide(n, "declined");
+    if (!(await this.decide(n, "declined"))) throw new ConflictException("This invitation has already been answered.");
     if (n.fromId) {
       const kind = n.kind === "rent_together" ? "rent_together_no" : "invite_declined";
       await this.create({ userId: n.fromId, kind, fromId: userId, houseId: n.houseId, room: n.room });
@@ -169,7 +183,13 @@ export class NotificationsService {
     const [n] = await this.db.select().from(notifications).where(eq(notifications.id, id));
     if (!n || n.fromId !== userId || !isInvite(n.kind)) throw new NotFoundException("No such invitation.");
     if (n.state !== "open") throw new ConflictException("This invitation has already been answered.");
-    await this.db.update(notifications).set({ state: "withdrawn", decidedAt: new Date() }).where(eq(notifications.id, id));
+    // Only while still open: an answer that lands first wins.
+    const taken = await this.db
+      .update(notifications)
+      .set({ state: "withdrawn", decidedAt: new Date() })
+      .where(and(eq(notifications.id, id), eq(notifications.state, "open")))
+      .returning({ id: notifications.id });
+    if (!taken.length) throw new ConflictException("This invitation has already been answered.");
     this.pushes.next(await this.loginOf(n.userId));
   }
 
@@ -240,8 +260,8 @@ export class NotificationsService {
   }
 
   /** Lives in a house: belongs to one that isn't the workshop (practice doesn't count, as in /api/me). */
-  private async housed(userId: string): Promise<boolean> {
-    const [row] = await this.db
+  private async housed(userId: string, runner: Pick<Db, "select"> = this.db): Promise<boolean> {
+    const [row] = await runner
       .select({ id: memberships.houseId })
       .from(memberships)
       .innerJoin(houses, eq(houses.id, memberships.houseId))
@@ -309,11 +329,18 @@ export class NotificationsService {
     return n;
   }
 
-  private async decide(n: Row, state: InviteState) {
-    await this.db.update(notifications).set({ state, decidedAt: new Date(), readAt: n.readAt ?? new Date() }).where(eq(notifications.id, n.id));
+  // Answers an invitation that's still open. False when something else answered it first (a second click, a
+  // withdraw): only one answer counts.
+  private async decide(n: Row, state: InviteState): Promise<boolean> {
+    const done = await this.db
+      .update(notifications)
+      .set({ state, decidedAt: new Date(), readAt: n.readAt ?? new Date() })
+      .where(and(eq(notifications.id, n.id), eq(notifications.state, "open")))
+      .returning({ id: notifications.id });
+    return done.length > 0;
   }
 
-  // Marks an invitation expired, then refuses with why. Returns `never`: callers `return` it to stop there.
+  // Marks an invitation expired (if still open), then refuses with why. Returns `never`: callers `return` it to stop.
   private async expire(n: Row, why: string): Promise<never> {
     await this.decide(n, "expired");
     throw new ConflictException(why);
