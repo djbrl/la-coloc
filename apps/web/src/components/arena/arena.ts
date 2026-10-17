@@ -2,7 +2,7 @@
 // big screen shows (ArenaDisplay, for the 3D lobby), a badge's words and colour, the pull request address a player
 // pastes, the clone command, and what the panel offers this viewer (log in, join, or send a pull request).
 import { language, type Lang, locale } from "../../i18n";
-import type { ArenaKind, ArenaView, Badge, Person, Text } from "../../types";
+import type { ArenaKind, ArenaView, Badge, Person } from "../../types";
 import type { IconName } from "../lobby/house/icons";
 import type { State } from "../lobby/panel/words";
 import { arenaWords as w } from "./words";
@@ -16,8 +16,8 @@ export interface ArenaDisplay {
   entrants: number;
 }
 
-/** A text the API wrote in both languages, in the one chosen now (or `lang`). */
-export const say = (text: Text, lang: Lang = language.lang) => (lang === "fr" ? text.fr : text.en);
+/** Something the API wrote in both languages (a text, a list of rules), in the one chosen now (or `lang`). */
+export const say = <T = string>(text: { en: T; fr: T }, lang: Lang = language.lang): T => (lang === "fr" ? text.fr : text.en);
 
 const nameOf = (p: Pick<Person, "name" | "login">) => p.name ?? p.login;
 

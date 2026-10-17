@@ -11,7 +11,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch,
 import { useRoute, useRouter } from "vue-router";
 import { loading } from "../lobby/assets";
 import { styleFor } from "../lobby/cityStyle";
-import { type Emote, Lobby, type Target } from "../lobby/Lobby";
+import { type Emote, Lobby, type LobbyEvents, type Target } from "../lobby/Lobby";
 import { checkCore, core } from "../core";
 import { language } from "../i18n";
 import { caps, cityOwnsKeys } from "../lobby/keys";
@@ -23,7 +23,11 @@ import { chatPinged, chatSheet, openChat } from "../conversations";
 import { loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
-import type { CityHouse, HouseView } from "../types";
+import type { Badge, CityHouse, HouseView } from "../types";
+import { type ArenaDisplay, toDisplay } from "./arena/arena";
+import ArenaPanel from "./arena/ArenaPanel.vue";
+import { arena, followArena, leaveArena, loadArena } from "./arena/store";
+import { arenaWords as aw } from "./arena/words";
 import KnockSteps from "./KnockSteps.vue";
 import { localTime } from "./lobby/africa";
 import { cityAlert, cityStats } from "./lobby/cityStats";
@@ -60,19 +64,28 @@ import { houseWords as hw } from "./lobby/house/words";
 import { lobbyWords as w } from "./words";
 
 const props = defineProps<{ houses: CityHouse[] }>();
+
+// The arena (docs/arena.md): its stadium's entrance is a target like the market's board, and the engine draws the
+// week's challenge on its big screen, walks you to it, and counts who's inside. Reached through these shapes, so the
+// page also runs on an engine that has no stadium yet: the calls are skipped and the count never comes.
+type AnyTarget = Target | { kind: "arena"; city: string };
+type ArenaEngine = { setArena?: (display: ArenaDisplay | null) => void; goToArena?: () => void };
+type ArenaEvents = { onArenaCrowd(n: number): void };
 const route = useRoute();
 const router = useRouter();
 const host = ref<HTMLElement | null>(null);
 const sheetEl = ref<HTMLElement | null>(null);
-const near = ref<Target | null>(null);
-const card = ref<Target | null>(null);
+const near = ref<AnyTarget | null>(null);
+const card = ref<AnyTarget | null>(null);
 const failed = ref(false);
 const progress = ref<number | null>(null);
 const ready = ref(false);
 const leaving = ref(false);
 const others = ref(new Set<string>());
 // What the live line says about each person walking here: a real GitHub account, an example person. Their card uses it.
-const players = ref(new Map<string, { github?: boolean; example?: boolean }>());
+const players = ref(new Map<string, { github?: boolean; example?: boolean; badge?: Badge | null }>());
+// How many people stand inside the arena right now, as the engine counts them; null until it has said.
+const crowd = ref<number | null>(null);
 const connected = ref(false);
 const census = ref<Record<string, number>>({});
 const sheet = ref<"" | "find" | "travel">("");
@@ -92,6 +105,8 @@ const top = ref("");
 const knock = ref<{ houseId: string; room: CityRoom } | null>(null);
 const rent = ref<{ city: string; plot: string } | null>(null);
 let lobby: Lobby | null = null;
+// The engine's arena part, if it has one.
+const stadium = () => lobby as (Lobby & ArenaEngine) | null;
 let link: LobbyLink | null = null;
 // A house you just started: walk to it once the city stream has pushed it.
 let awaiting: string | null = null;
@@ -133,6 +148,8 @@ function build() {
   // Passers-by walk the city's streets, not the tutorial's: the quest keeps its one street calm.
   lobby.setNeighbourhood(n, shown.value, { passersBy: !inWorkshop.value, close: inWorkshop.value });
   lobby.setResidents(residents.value);
+  shownArena = "";
+  showArenaScreen();
   if (awaiting && here.value.some((h) => h.id === awaiting)) {
     lobby.goTo(awaiting);
     awaiting = null;
@@ -540,9 +557,7 @@ onMounted(() => {
   idleTimer = window.setInterval(() => cue("idle"), 5000);
 
   try {
-    lobby = new Lobby(
-      host.value!,
-      {
+    const events: LobbyEvents & ArenaEvents = {
         onNear: (target) => (near.value = target),
         onSelect: open,
         // The engine sets the cursor and the outline itself; there's nothing to add up here.
@@ -559,7 +574,11 @@ onMounted(() => {
           t.send({ type: "action", name });
         },
         onMap: (s) => (mapState.value = s),
-      },
+        onArenaCrowd: (n) => (crowd.value = n),
+    };
+    lobby = new Lobby(
+      host.value!,
+      events,
       { login: me.value?.login ?? null, character: me.value?.avatar ?? null, quality: settings.quality, reduceMotion: settings.reduceMotion },
     );
     build();
@@ -583,12 +602,12 @@ onMounted(() => {
       lobby?.clearRemotes();
       list.forEach((p) => lobby?.addRemote(p));
       others.value = new Set(list.map((p) => p.login).filter((l) => l !== me.value?.login));
-      players.value = new Map(list.map((p) => [p.login, { github: p.github, example: p.example }]));
+      players.value = new Map(list.map((p) => [p.login, { github: p.github, example: p.example, badge: badgeOf(p) }]));
     },
     onJoin: (p) => {
       lobby?.addRemote(p);
       if (p.login !== me.value?.login) others.value = new Set([...others.value, p.login]);
-      players.value = new Map(players.value).set(p.login, { github: p.github, example: p.example });
+      players.value = new Map(players.value).set(p.login, { github: p.github, example: p.example, badge: badgeOf(p) });
     },
     onMove: (login, x, z, ry, moving) => lobby?.moveRemote(login, x, z, ry, moving),
     onEmote: (login, name) => lobby?.emoteRemote(login, name),
@@ -682,20 +701,66 @@ onBeforeUnmount(() => {
   clearInterval(idleTimer);
   loading.onProgress = () => undefined;
   loading.onLoad = () => undefined;
+  leaveArena();
 });
+
+// ---- The arena ----
+
+// The arena of the city on screen, kept fresh over the city's stream (arena/store.ts). The tutorial's workshop has
+// no stadium. Logging in or out changes what the arena says about you (joined, your pull requests): it asks again.
+watch([city, inWorkshop], () => followArena(inWorkshop.value ? null : city.value), { immediate: true });
+watch(
+  () => me.value?.login ?? null,
+  () => void loadArena(!!arena.view),
+);
+
+// The stadium's big screen, in the chosen language, from the moment the city loads (not only once the panel is
+// opened): drawn again whenever what it shows changes, and once more on each new neighbourhood (build()).
+const arenaDisplay = computed(() => (arena.view && !inWorkshop.value && arena.city === city.value ? toDisplay(arena.view, language.lang) : null));
+let shownArena = "";
+function showArenaScreen() {
+  const display = arenaDisplay.value;
+  const said = JSON.stringify(display);
+  if (said === shownArena) return;
+  shownArena = said;
+  stadium()?.setArena?.(display);
+}
+watch(arenaDisplay, showArenaScreen);
+
+// The HUD's way in: you walk (or travel) to the stadium's entrance, where its panel opens.
+function goToArena() {
+  closeCard();
+  stadium()?.goToArena?.();
+}
+const arenaOpen = computed(() => card.value?.kind === "arena");
+// The panel docks on the right like a house's window: the camera puts you on the left half meanwhile.
+watch(arenaOpen, (open) => {
+  if (!place.value) lobby?.frame(open ? "left" : "follow");
+});
+
+// The title someone wears, as the live line says it (its `join` carries it for someone logged in).
+const badgeOf = (p: object): Badge | null => (p as { badge?: Badge | null }).badge ?? null;
 
 // ---- Cards: a house, a person, an empty plot or the chores board, floating over the city ----
 
 // One line per thing, so we can tell "the card is already about this" from "something new".
-const keyOf = (t: Target | null) =>
-  !t ? "" : t.kind === "house" ? `house:${t.house.id}` : t.kind === "empty" ? `empty:${t.plot.key}` : t.kind === "person" ? `person:${t.login}` : `board:${t.city}`;
+const keyOf = (t: AnyTarget | null) =>
+  !t
+    ? ""
+    : t.kind === "house"
+      ? `house:${t.house.id}`
+      : t.kind === "empty"
+        ? `empty:${t.plot.key}`
+        : t.kind === "person"
+          ? `person:${t.login}`
+          : `${t.kind}:${t.city}`;
 const cardKey = computed(() => keyOf(card.value));
 const nearKey = computed(() => keyOf(near.value));
 
 // You used something. A house you're standing at opens straight away; a person you used with E or the prompt
 // ("Say hi") gets a wave, and clicking them opens their card; anything else gets a card first. Early in the
 // tutorial nothing opens: those steps are about walking.
-function open(target: Target, how: "use" | "click" = "click") {
+function open(target: AnyTarget, how: "use" | "click" = "click") {
   if (!picking.value) return;
   if (target.kind === "person" && how === "use") {
     waveAt(target.login, target.name);
@@ -740,6 +805,13 @@ const myHouse = computed(() => {
 });
 // What the live line says about the card's person, if they're walking around.
 const cardPlayer = computed(() => (card.value?.kind === "person" ? (players.value.get(card.value.login) ?? null) : null));
+// The title the card's person wears: as the live line says, else as their house lists them.
+const cardBadge = computed((): Badge | null => {
+  const c = card.value;
+  if (c?.kind !== "person") return null;
+  const occupant = cardHomeHouse.value?.rooms.find((r) => r.occupant?.login === c.login)?.occupant;
+  return cardPlayer.value?.badge ?? occupant?.badge ?? null;
+});
 
 // A card opens with a sound and takes focus itself; when it closes, focus goes back to the stage so the keys
 // work on the city again.
@@ -1036,7 +1108,7 @@ function statsOf(name: string) {
 </script>
 
 <template>
-  <div class="lobby" :class="{ paused: !!place }">
+  <div class="lobby" :class="{ paused: !!place || arenaOpen }">
     <p v-if="failed" class="failed">{{ w.noWebgl }}</p>
 
     <template v-if="ready && !failed">
@@ -1091,6 +1163,10 @@ function statsOf(name: string) {
         <button :aria-label="w.cityBoard(city)" :title="w.cityBoard(city)" @click="openChat('board', {})">
           <Icon name="board" :size="20" />
         </button>
+        <!-- The arena: you walk to the stadium's entrance (never during the quest: the workshop has none). -->
+        <button v-if="!inWorkshop" :aria-label="aw.goTo" :title="aw.goTo" @click="goToArena">
+          <Icon name="trophy" :size="20" />
+        </button>
         <button :aria-label="w.find" @click="openSheet('find')">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
         </button>
@@ -1127,6 +1203,7 @@ function statsOf(name: string) {
             :is-me="card.login === me?.login"
             :example="card.example || cardPlayer?.example"
             :github="cardPlayer?.github"
+            :badge="cardBadge"
             @see="boardHouse"
             @wave="waveAt(card.login, card.name)"
             @close="closeCard"
@@ -1182,6 +1259,13 @@ function statsOf(name: string) {
                 <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : w.visiting }}</span>
               </span>
               <button class="pill" @click="lobby?.interact()">{{ w.sayHi }} <kbd>{{ caps.e }}</kbd></button>
+            </template>
+            <template v-else-if="near.kind === 'arena'">
+              <span>
+                <strong>{{ aw.arena }}</strong>
+                <span v-if="arenaDisplay" class="soft">{{ aw.arenaWhere(arenaDisplay.title) }}</span>
+              </span>
+              <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>{{ caps.e }}</kbd></button>
             </template>
             <template v-else>
               <span>{{ w.board }}<span class="soft">{{ w.boardWhere(city) }}</span></span>
@@ -1275,6 +1359,9 @@ function statsOf(name: string) {
       @link="insideLink"
       @wave="emote('yes')"
     />
+
+    <!-- The arena, opened at the stadium's entrance: a floating card on the right, like a house's window. -->
+    <ArenaPanel v-if="card?.kind === 'arena' && !place" :key="cardKey" :city="card.city" :crowd="crowd" @close="closeCard" />
 
     <Transition name="fade">
       <div v-if="sheet" class="scrim" @click="sheet = ''" />
