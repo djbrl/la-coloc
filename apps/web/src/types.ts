@@ -172,7 +172,9 @@ export interface BillLine {
   // (at most reviewCredit per skip).
   skipped: number;
   surcharge: number;
-  // What they owe: share − credit + surcharge.
+  // An Arena prize won this month, taken off their line (La Coloc pays it). An older API leaves it out.
+  prize?: number;
+  // What they owe: share − credit + surcharge − prize.
   due: number;
   paid: boolean;
 }
@@ -418,6 +420,9 @@ export interface ArenaChallenge {
   startsAt: string;
   endsAt: string;
   prizeFcfa: number;
+  // Whether anyone can open the challenge's folder on GitHub (a public repo, the folder pushed). False: nobody but the
+  // repo's owner can take part yet. Null (or left out by an older API): GitHub couldn't say.
+  open?: boolean | null;
   // The title the winner gets.
   award: { key: string; title: Text };
   // What a merged pull request is worth, by label.

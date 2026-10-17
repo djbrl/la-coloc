@@ -133,7 +133,9 @@ export interface BillLineView {
   // Reviews they let go late this month, and what they pay towards everyone's credits because of it.
   skipped: number;
   surcharge: number;
-  // What they owe: share − credit + surcharge.
+  // An Arena prize won this month (1st place), taken off their line and paid by La Coloc, not by the house.
+  prize: number;
+  // What they owe: share − credit + surcharge − prize, never below zero.
   due: number;
   paid: boolean;
 }

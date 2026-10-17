@@ -48,7 +48,9 @@ export function lineWords(line: BillLine, me: string | null): { reviews: string;
   const reviews = line.reviews > 0 ? w.reviewed(who, you, line.reviews, fcfa(line.credit)) : w.notReviewed(who, you);
   // Their part of everyone's credits, for reviews they let go late.
   const skipped = line.surcharge > 0 ? w.skipped(fcfa(line.surcharge)) : "";
-  const owes = line.paid ? w.hasPaid(who, you, fcfa(line.due)) : line.due <= 0 ? w.owesNothing(who, you) : `${skipped}${w.owes(who, you, fcfa(line.due))}`;
+  // An Arena prize won this month: La Coloc pays that part, not the house.
+  const prize = line.prize && line.prize > 0 ? w.arenaPrize(fcfa(line.prize)) : "";
+  const owes = line.paid ? w.hasPaid(who, you, fcfa(line.due)) : line.due <= 0 ? `${prize}${w.owesNothing(who, you)}` : `${skipped}${prize}${w.owes(who, you, fcfa(line.due))}`;
   return { reviews, owes };
 }
 

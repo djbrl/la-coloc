@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
   applications,
+  arenaAwards,
+  arenaChallenges,
   billPayments,
   chores,
   type Db,
@@ -598,6 +600,17 @@ export class HousesService {
       .select({ userId: billPayments.userId })
       .from(billPayments)
       .where(and(eq(billPayments.houseId, h.id), eq(billPayments.month, month)));
+    // Arena prizes won this month (first places), by winner: La Coloc pays them, so they come off the winner's own
+    // line without touching anyone else's or the pool.
+    const ids = h.memberships.map((m) => m.userId);
+    const prizes = ids.length
+      ? await this.db
+          .select({ userId: arenaAwards.userId, prize: arenaChallenges.prizeFcfa })
+          .from(arenaAwards)
+          .innerJoin(arenaChallenges, eq(arenaChallenges.id, arenaAwards.challengeId))
+          .where(and(inArray(arenaAwards.userId, ids), eq(arenaAwards.place, 1), gte(arenaAwards.createdAt, since)))
+      : [];
+    const prizeOf = (id: string) => prizes.filter((p) => p.userId === id).reduce((sum, p) => sum + p.prize, 0);
 
     return {
       month,
@@ -613,7 +626,8 @@ export class HousesService {
           credit: l.credit,
           skipped: skipped(l.memberId),
           surcharge: l.surcharge,
-          due: l.due,
+          prize: Math.min(prizeOf(l.memberId), Math.max(0, l.due)),
+          due: Math.max(0, l.due - prizeOf(l.memberId)),
           paid: paid.some((p) => p.userId === l.memberId),
         };
       }),
