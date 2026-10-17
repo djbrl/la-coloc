@@ -156,3 +156,19 @@ export function personActions(
   const reach: ReachOut = foot.kind === "knock" || foot.kind === "pick" || foot.kind === "thread" || foot.kind === "login" ? foot : null;
   return { reach, github, example, wave, invite };
 }
+
+// How many room rows the house panel shows before folding the rest behind a "+N" row, so the panel fits without
+// scrolling (Jib, 10 10).
+export const ROWS_SHOWN = 5;
+
+/**
+ * The rooms the list shows while it's folded, in the house's order: your own room first in priority, then the free
+ * ones (what a visitor came for), then the rest, up to `max` rows. When only one would be left over, it shows too:
+ * a "+1" row takes the same space as the room itself. `hidden` is how many wait behind the "+N" row.
+ */
+export function foldedRooms<R extends Pick<Room, "name" | "occupant">>(rooms: R[], mine: string | null, max = ROWS_SHOWN): { shown: R[]; hidden: number } {
+  if (rooms.length <= max + 1) return { shown: rooms, hidden: 0 };
+  const rank = (r: R) => (r.name === mine ? 0 : !r.occupant ? 1 : 2);
+  const keep = new Set([...rooms].sort((a, b) => rank(a) - rank(b)).slice(0, Math.max(0, max)));
+  return { shown: rooms.filter((r) => keep.has(r)), hidden: rooms.length - keep.size };
+}

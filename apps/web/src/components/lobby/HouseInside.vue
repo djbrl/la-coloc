@@ -17,7 +17,7 @@ import KnockSteps from "../KnockSteps.vue";
 import UiNote, { loud, type Note } from "../UiNote.vue";
 import Waiting from "../Waiting.vue";
 import { dueOf, dueWords, reviewSummary, reviewTitle, splitReviews } from "./house/chores";
-import { crewOf, footFor, personActions, rowAction, type Seat, type Situation } from "./house/crew";
+import { crewOf, foldedRooms, footFor, personActions, ROWS_SHOWN, rowAction, type Seat, type Situation } from "./house/crew";
 import Crew from "./house/Crew.vue";
 import { billHead, type BillLine, lineWords, linesYoursFirst, reviewsLine, ruleLine, tontineLine, toPay } from "./house/exchange";
 import Icon from "./house/Icon.vue";
@@ -277,6 +277,8 @@ const list = ref<HTMLElement | null>(null);
 let litTimer = 0;
 async function light(names: string[], focusKnock = false) {
   tab.value = "rooms";
+  // A room folded away behind "+N" is unfolded first, so its row can light up.
+  if (names.some((n) => !roomRows.value.shown.some((r) => r.name === n))) roomsOpen.value = true;
   await nextTick();
   const rows = names.map((n) => list.value?.querySelector<HTMLElement>(`[data-room="${CSS.escape(n)}"]`)).filter((r): r is HTMLElement => !!r);
   if (!rows.length) return;
@@ -394,6 +396,13 @@ function rowSub(room: Room): string {
   return roomState(room, h.status, h.demo).tone === "live" ? what : `${roomLine(room, h.status, h.demo)} ${what}`;
 }
 const actionOf = (room: Room) => rowAction(room, situation.value, foot.value);
+// The rows shown: all of them once opened, else up to five (four under the workshop's "A room for you" row), yours
+// and the free ones first (crew.ts).
+const roomsOpen = ref(false);
+const roomRows = computed(() => {
+  const rooms = house.value?.rooms ?? [];
+  return roomsOpen.value ? { shown: rooms, hidden: 0 } : foldedRooms(rooms, viewer.value?.room ?? null, ROWS_SHOWN - (takeRow.value ? 1 : 0));
+});
 
 // The bill (flatmates only): the month's total, then one line per flatmate, yours first, each said in two
 // sentences: what their reviews took off, and what they owe. An API without the bill yet gives the even split.
@@ -566,7 +575,7 @@ function rundownEnded() {
           </template>
         </ListRow>
         <ListRow
-          v-for="room in house.rooms"
+          v-for="room in roomRows.shown"
           :key="room.name"
           :data-room="room.name"
           :title="rowTitle(room)"
@@ -608,6 +617,13 @@ function rundownEnded() {
             </button>
           </template>
         </ListRow>
+        <!-- A long list folds after five rows, so the panel fits: "+3" brings the rest. -->
+        <li v-if="roomRows.hidden">
+          <button type="button" class="more" :aria-label="w.moreRooms(roomRows.hidden)" @click="roomsOpen = true">
+            <span class="door" aria-hidden="true"><Icon name="plus" :size="20" /></span>
+            <span class="more-count" aria-hidden="true">+{{ roomRows.hidden }}</span>
+          </button>
+        </li>
       </ul>
 
       <div v-else-if="shownTab === 'channel' && viewer" class="chat-host">
@@ -763,6 +779,12 @@ function rundownEnded() {
 .none { padding: 8px 0; }
 /* A free room's door, in an outlined circle where a face would be. */
 .door { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--line-strong); color: var(--free); }
+/* The "+N" row: as tall as a room's row, a dashed circle and the count, lit like a menu entry. */
+.more { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border: 0; border-radius: var(--r-md); background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--text); cursor: pointer; }
+.more:hover:not(:disabled) { background: var(--tile); }
+.more:focus-visible { outline: none; background: var(--accent-soft); }
+.more .door { color: var(--muted); }
+.more-count { font: 700 16px/1 var(--mono); color: var(--muted); }
 .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub.warn { color: var(--danger); }
 /* A face with its state's dot on the lower right, like a presence dot in a game's friend list. */

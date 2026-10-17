@@ -32,6 +32,8 @@ export const houseWords = defineWords(
 
     // The rooms' rows.
     roomForYou: "A room for you",
+    // The "+N" row under a long room list: its hidden name (it shows only "+3").
+    moreRooms: (n: number) => `Show ${plural(n, "more room", "more rooms")}`,
     takeIt: "Take it",
     freeRoom: "A free room",
     freeRow: (memoryMb: number) => `Free, with ${memoryMb} MB of memory.`,
@@ -199,6 +201,7 @@ export const houseWords = defineWords(
     pressToSwitch: (sentence) => `${sentence} Appuyez pour changer.`,
 
     roomForYou: "Une chambre pour vous",
+    moreRooms: (n) => `Voir ${pluriel(n, "autre chambre", "autres chambres")}`,
     takeIt: "La prendre",
     freeRoom: "Une chambre libre",
     freeRow: (memoryMb) => `Libre, avec ${memoryMb} Mo de mémoire.`,
