@@ -12,6 +12,7 @@ import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { explain, houseState, houseTrouble } from "./panel/words";
 import { cardWords as w } from "./words";
+import { seeded } from "../seeded";
 
 const props = defineProps<{
   house: CityHouse;
@@ -36,7 +37,7 @@ const canKnock = computed(() => !!me.value && !props.house.demo && !mine.value &
 const trouble = computed(() => houseTrouble(props.house));
 const state = computed(() => houseState(props.house.status, props.house.agentOnline, props.house.demo));
 // What the house is: its own words if it has some, else what a house is at all.
-const what = computed(() => (props.house.tagline ? sentence(props.house.tagline) : explain.house));
+const what = computed(() => (props.house.tagline ? sentence(seeded(props.house.tagline)) : explain.house));
 
 // Flatmates who are walking around this neighbourhood right now.
 const hereLine = computed(() => {
@@ -73,7 +74,7 @@ const hereLine = computed(() => {
           <span class="door" aria-hidden="true" />
           <span class="grow">
             <strong>{{ w.free }}</strong><span class="soft">, {{ room.name }}</span>
-            <span class="soft small line">{{ room.ad ? sentence(room.ad) : w.openToAll }}</span>
+            <span class="soft small line">{{ room.ad ? sentence(seeded(room.ad)) : w.openToAll }}</span>
           </span>
           <button v-if="canKnock" class="big knock" :aria-label="w.knockName(room.name)" @click="emit('knock', room)">{{ w.knock }}</button>
           <span v-else-if="knock?.room === room.name" class="yours small">{{ w.knocked }}</span>

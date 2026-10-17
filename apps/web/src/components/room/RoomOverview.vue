@@ -12,6 +12,7 @@ import UiSteps from "../UiSteps.vue";
 import type { RoomManage } from "../../types";
 import { canRestart, memoryUse, projectTitle, roomSentence, type SettingsForm, updateTile } from "./room";
 import { roomWords as w } from "./words";
+import { seeded } from "../seeded";
 
 const props = defineProps<{
   data: RoomManage;
@@ -76,7 +77,7 @@ async function finish() {
       <div class="what">
         <p class="name" :class="{ unset: !data.settings.project && !workshop }">{{ projectTitle(data.settings, workshop) }}</p>
         <p class="about" :class="{ unset: !data.settings.projectDescription }">
-          {{ data.settings.projectDescription || w.noLine }}
+          {{ seeded(data.settings.projectDescription) || w.noLine }}
         </p>
       </div>
       <button ref="editButton" type="button" class="chunk small" :aria-label="w.editProject" @click="startEdit">
