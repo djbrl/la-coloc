@@ -19,6 +19,7 @@ import type { CityHouse } from "../types";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
 import { type CityStyle, styleFor } from "./cityStyle";
 import { daylight } from "./daylight";
+import { type EdgeArrow, placeArrow } from "./arrow";
 import { Beacon } from "./beacon";
 import { Fireworks } from "./fireworks";
 import { liveKey, liveState } from "./live";
@@ -66,6 +67,7 @@ const SPACING = 0.9;
 // How much nearer than a building a person must be to win "in reach" (see `reach`).
 const PEOPLE_MARGIN = 0.8; // the closest two people standing at a door may get (R39)
 const TAG_CHECKS = 8; // name tags checked for a building in the way, per check (a few each time, round and round)
+const ARROW_MARGIN = 56; // how far in from the screen's edge the arrow towards an off-screen goal sits, in pixels
 
 export type Emote = "yes" | "no";
 // The controls you use, as Vue hears about them (see `onAction`).
@@ -238,6 +240,15 @@ export class Lobby {
   // so a rebuild keeps it and clicks go through it; each frame it finds its house again (see `step`).
   private beacon: Beacon | null = null;
   private beaconHouse: string | null = null;
+  // The arrow at the screen's edge (arrow.ts) towards the beacon's house, else a house picked from Find or the big
+  // map (`pointAt`) until you reach it; hidden while its door is on screen. aria-hidden: the coach and the map say it.
+  private arrow: HTMLElement;
+  private arrowAt: EdgeArrow = { shown: false, x: 0, y: 0, angle: 0 };
+  private arrowKey = "";
+  private pointHouse: string | null = null;
+  // The stage's size in pixels, set by `fit`.
+  private width = 1;
+  private height = 1;
   // Whether you've clicked or tapped the stage: from then on, keys pressed with nothing focused are for walking (R6).
   private stageTouched = false;
   // Single-character keyboard shortcuts on (see `setShortcuts`).
@@ -331,6 +342,11 @@ export class Lobby {
     host.appendChild(this.renderer.domElement);
     this.labels.domElement.className = "lobby-labels";
     host.appendChild(this.labels.domElement);
+    this.arrow = document.createElement("div");
+    this.arrow.className = "lobby-arrow";
+    this.arrow.setAttribute("aria-hidden", "true");
+    this.arrow.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    host.appendChild(this.arrow);
 
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
     // The light is set by `light` (always day) once the city is built: these hold until then.
@@ -715,6 +731,14 @@ export class Lobby {
     }
   }
 
+  /**
+   * Points the arrow at the screen's edge at a house (picked from Find or the big map) while its door is off screen,
+   * until you're at it. Null stops pointing. The tutorial's beacon, when there is one, takes precedence.
+   */
+  pointAt(houseId: string | null) {
+    this.pointHouse = houseId;
+  }
+
   /** Where a house's door is (where you'd walk to), or null if it isn't in this neighbourhood (yet). */
   houseSpot(houseId: string): { x: number; z: number } | null {
     const p = this.placed.find((x) => x.house.id === houseId);
@@ -941,6 +965,7 @@ export class Lobby {
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.domElement.remove();
+    this.arrow.remove();
   }
 
   // ---- Targets: what you can aim at, and using it ----
@@ -1719,6 +1744,8 @@ export class Lobby {
     const h = this.host.clientHeight;
     if (!w || !h) return;
     this.aspect = w / h;
+    this.width = w;
+    this.height = h;
     this.narrow = w < FRAMED.narrow;
     this.renderer.setSize(w, h);
     this.labels.setSize(w, h);
@@ -2108,6 +2135,7 @@ export class Lobby {
       if (p) this.beacon.place(p.door.x, p.door.z);
       this.beacon.update(time, calm);
     }
+    if (this.tick % 2 === 0) this.pointArrow();
 
     // Zoom eases towards the wheel's choice (or the onboarding's close-up, or the close-up beside a window).
     const want = this.focus ?? (this.framing === "left" ? FRAMED.half : this.zoom);
@@ -2125,6 +2153,35 @@ export class Lobby {
       for (const [login, r] of this.remotes) people.push({ login, x: r.avatar.position.x, z: r.avatar.position.z });
       this.events.onMap({ you: { x: you.x, z: you.z, ry: this.player.rotation.y }, people, angle: this.angle });
     }
+  }
+
+  /**
+   * The arrow at the screen's edge: towards the door of the beacon's house, else of the house you picked, while
+   * that door is off screen. Hidden while the camera is away on a tour or a window is open. The element is only
+   * touched when what it shows changes.
+   */
+  private pointArrow() {
+    const id = this.beaconHouse ?? this.pointHouse;
+    let goal: Placed | null = null;
+    if (id) for (const p of this.placed) if (p.house.id === id) goal = p;
+    // A picked house is reached once you stand at it.
+    if (goal && id === this.pointHouse && !this.beaconHouse && this.distanceTo(goal) < REACH) {
+      this.pointHouse = null;
+      goal = null;
+    }
+    let key = "";
+    const at = this.arrowAt;
+    if (goal && !this.tour && this.framing !== "left") {
+      const v = this.scratch.copy(goal.door).project(this.camera);
+      if (placeArrow(v.x, v.y, this.width, this.height, ARROW_MARGIN, at).shown) key = `${at.x.toFixed(0)},${at.y.toFixed(0)},${at.angle.toFixed(2)}`;
+    }
+    if (key === this.arrowKey) return;
+    this.arrowKey = key;
+    this.arrow.classList.toggle("on", key !== "");
+    if (!key) return;
+    // The key moves; only the chevron turns, so the key's lip stays underneath.
+    this.arrow.style.transform = `translate(${at.x.toFixed(0)}px, ${at.y.toFixed(0)}px)`;
+    (this.arrow.firstElementChild as SVGElement | null)?.style.setProperty("transform", `rotate(${at.angle.toFixed(2)}rad)`);
   }
 
   /**

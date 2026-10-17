@@ -154,6 +154,8 @@ function travel(to: string) {
 /** The one fast travel: a house picked on the big map (on the map or in its list) puts you at its door. */
 function travelToHouse(id: string) {
   lobby?.travelTo(id);
+  // Should it be off screen (not built yet when you arrive), the arrow at the screen's edge shows the way.
+  lobby?.pointAt(id);
   bigMap.value = false;
 }
 
@@ -957,6 +959,7 @@ function waveAt(login: string, name: string) {
 function findHouse(h: CityHouse) {
   travel(h.city);
   lobby?.arriveAt(h.id);
+  lobby?.pointAt(h.id);
   card.value = { kind: "house", house: h };
 }
 
