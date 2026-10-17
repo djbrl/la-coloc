@@ -14,7 +14,7 @@ import { styleFor } from "../lobby/cityStyle";
 import { type Emote, Lobby, type Target } from "../lobby/Lobby";
 import { checkCore, core } from "../core";
 import { language } from "../i18n";
-import { caps } from "../lobby/keys";
+import { caps, cityOwnsKeys } from "../lobby/keys";
 import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
@@ -23,7 +23,7 @@ import { chatPinged, chatSheet, openChat } from "../conversations";
 import { loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
-import type { CityHouse } from "../types";
+import type { CityHouse, HouseView } from "../types";
 import KnockSteps from "./KnockSteps.vue";
 import { localTime } from "./lobby/africa";
 import { cityAlert, cityStats } from "./lobby/cityStats";
@@ -33,6 +33,7 @@ import BoardCard from "./lobby/BoardCard.vue";
 import { type CityRoom, freeRooms, type Home, type MapState, nearestEmptyPlot, parsePlace, placeParam } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
 import HouseCard from "./lobby/HouseCard.vue";
+import { findHouses, homePlace, workshopRow } from "./lobby/home";
 import Inside from "./lobby/Inside.vue";
 import KeyLegend from "./lobby/KeyLegend.vue";
 import KeysSheet from "./lobby/KeysSheet.vue";
@@ -55,6 +56,7 @@ import Welcome from "./lobby/tutorial/Welcome.vue";
 import { tutorialWords as qw } from "./lobby/tutorial/words";
 import LoadingScreen from "./LoadingScreen.vue";
 import Onboarding from "./Onboarding.vue";
+import { houseWords as hw } from "./lobby/house/words";
 import { lobbyWords as w } from "./words";
 
 const props = defineProps<{ houses: CityHouse[] }>();
@@ -153,6 +155,8 @@ function travel(to: string) {
 /** The one fast travel: a house picked on the big map (on the map or in its list) puts you at its door. */
 function travelToHouse(id: string) {
   lobby?.travelTo(id);
+  // Should it be off screen (not built yet when you arrive), the arrow at the screen's edge shows the way.
+  lobby?.pointAt(id);
   bigMap.value = false;
 }
 
@@ -263,7 +267,7 @@ function enterTutorial() {
   lobby.clearRemotes();
   build();
   link?.enter(`tutorial:${me.value.login}`);
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 
 // Out of the workshop (finished or skipped): the real city comes back, and so does everyone in it.
@@ -277,7 +281,7 @@ function leaveWorkshop() {
   lobby?.clearRemotes();
   build();
   link?.enter(city.value);
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 watch(inWorkshop, (now, before) => {
   if (before && !now) leaveWorkshop();
@@ -288,7 +292,7 @@ watch(inWorkshop, (now, before) => {
 function endTutorial() {
   t.send({ type: "end" });
   seeTip("walk");
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 
 // "Start" on the first card: the keyboard goes to the city, where the walking happens. "Continue" jumps to the
@@ -296,7 +300,7 @@ function endTutorial() {
 function startTutorial(resume = false) {
   t.send({ type: "start", resume });
   if (STEPS.indexOf(t.step) >= STEPS.indexOf("keys")) lobby?.arriveAt(TUTORIAL_HOUSE);
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 // The welcome card for someone coming back: the chapter they'd reached, to continue from there.
 const resumeAt = computed(() => {
@@ -485,20 +489,30 @@ function seeAsList() {
 
 // ---- The keyboard: only while the city has it ----
 
-// Clicked or tapped the city at least once: from then on, keys pressed with nothing focused are the city's too.
+// Clicked or tapped the city at least once, or handed the keys when something closed: from then on, keys pressed
+// with nothing focused are the city's too.
 let stageTouched = false;
 function touchStage() {
   stageTouched = true;
 }
 /**
- * Whether a key press is for the city (WCAG 2.1.4): the stage has focus, or nothing has (the page itself) after a
- * click on the stage, and the shortcuts are on in settings. The engine follows the same rule for its own keys.
+ * Gives the keyboard back to the city: the stage takes the focus and counts as touched, here and in the engine. For
+ * whenever a welcome, a card, a sheet or a dialog closes, so the keys the screen shows (E, M, W A S D) work at once
+ * rather than after a click.
+ */
+function focusStage() {
+  stageTouched = true;
+  if (lobby) lobby.takeKeys();
+  else host.value?.focus({ preventScroll: true });
+}
+/**
+ * Whether a key press is for the city (WCAG 2.1.4): the stage has focus, or nothing has (the page itself, or a button
+ * that was hidden under the focus) after the stage was touched, and the shortcuts are on in settings. The engine
+ * follows the same rule for its own keys (keys.ts).
  */
 function cityHasKeys(): boolean {
-  if (!settings.shortcuts) return false;
-  const focused = document.activeElement;
-  if (focused && focused !== document.body) return !!host.value?.contains(focused);
-  return stageTouched;
+  if (!settings.shortcuts || !host.value) return false;
+  return cityOwnsKeys(document.activeElement, document.body, host.value, stageTouched);
 }
 
 onMounted(() => {
@@ -645,6 +659,10 @@ watch(
   () => settings.shortcuts,
   (on) => lobby?.setShortcuts(on),
 );
+watch(
+  () => language.lang,
+  () => lobby?.relabel(),
+);
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
@@ -674,10 +692,15 @@ const keyOf = (t: Target | null) =>
 const cardKey = computed(() => keyOf(card.value));
 const nearKey = computed(() => keyOf(near.value));
 
-// You used something. A house you're standing at opens straight away; anything else gets a card first. Early in
-// the tutorial nothing opens: those steps are about walking.
-function open(target: Target) {
+// You used something. A house you're standing at opens straight away; a person you used with E or the prompt
+// ("Say hi") gets a wave, and clicking them opens their card; anything else gets a card first. Early in the
+// tutorial nothing opens: those steps are about walking.
+function open(target: Target, how: "use" | "click" = "click") {
   if (!picking.value) return;
+  if (target.kind === "person" && how === "use") {
+    waveAt(target.login, target.name);
+    return;
+  }
   if (target.kind === "house" && nearKey.value === keyOf(target)) {
     goInside({ kind: "house", id: target.house.id });
     return;
@@ -724,7 +747,7 @@ watch(cardKey, (now, before) => {
   if (now) play("open");
   else if (before) {
     play("close");
-    host.value?.focus({ preventScroll: true });
+    focusStage();
   }
 });
 
@@ -761,6 +784,15 @@ function movedInDone() {
   arriveFor({ kind: "house", id });
   goInside({ kind: "house", id });
 }
+
+// The visitors' welcome, a tutorial card in the middle, the keys to a new room, a knock or a rent dialog: when the
+// last of them closes, the keys go back to the city (M10).
+const blocking = computed(() => welcoming.value || centred.value || !!keysFor.value || !!knock.value || !!rent.value);
+watch(blocking, async (now, before) => {
+  if (now || !before) return;
+  await nextTick();
+  if (!blocking.value && !place.value && !sheet.value && !card.value) focusStage();
+});
 
 function rentHere() {
   if (card.value?.kind !== "empty") return;
@@ -802,7 +834,7 @@ function insideChanged(now: Place | null) {
 function closeInside() {
   place.value = null;
   showInUrl("");
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 
 // The window docks on the right of a wide screen, so the camera moves you to the left half while it's open.
@@ -837,16 +869,22 @@ watch(
     if (p) openInside(p);
     else if (place.value) {
       place.value = null;
-      host.value?.focus({ preventScroll: true });
+      focusStage();
     }
   },
   { immediate: true },
 );
 
 // The tab's title says where you are: "Sacré-Cœur, Dakar · La Coloc", "Ndaje, Sacré-Cœur · La Coloc", "Dakar · La Coloc".
+const houseOf = (id: string) => props.houses.find((h) => h.id === id) ?? (id === TUTORIAL_HOUSE ? tutorial.house.value : null);
+// The breadcrumb top left: the house you're inside (its window, or one of its rooms), else the city (or the workshop).
+const crumb = computed(() => {
+  const p = parsePlace(top.value) ?? place.value;
+  const id = p?.kind === "house" ? p.id : p?.kind === "room" ? p.houseId : null;
+  return (id && houseOf(id)?.name) || placeName.value;
+});
 watchEffect(() => {
   const p = parsePlace(top.value) ?? place.value;
-  const houseOf = (id: string) => props.houses.find((h) => h.id === id) ?? (id === TUTORIAL_HOUSE ? tutorial.house.value : null);
   let where = placeName.value;
   if (p?.kind === "house") {
     const h = houseOf(p.id);
@@ -865,14 +903,14 @@ watchEffect(() => {
 watch(sheet, async (now) => {
   await nextTick();
   if (now) sheetEl.value?.querySelector<HTMLElement>("input, .entry")?.focus();
-  else host.value?.focus({ preventScroll: true });
+  else focusStage();
 });
 // The big map and the key list take focus themselves; when they close, it goes back to the stage. Opening one
 // counts as knowing it: its tip never shows.
 watch([bigMap, keysOpen], ([map, keys], [mapBefore, keysBefore]) => {
   if (map) seeTip("map");
   if (keys) seeTip("keys");
-  if ((!map && mapBefore) || (!keys && keysBefore)) host.value?.focus({ preventScroll: true });
+  if ((!map && mapBefore) || (!keys && keysBefore)) focusStage();
 });
 
 // The lobby's own keys (walking, E, Q, R, [ ], Shift) live in the engine. These are the ones around it.
@@ -911,17 +949,57 @@ function emote(name: Emote) {
   link?.emote(name);
 }
 
-// A house from Find: its city, then its door, and its card.
+// Saying hi to someone (E or the prompt near them, or their card's tile): your character waves, with a hand over
+// your head and the emote's sound, a made-up person waves back, and one line of news says so. Pressing again right
+// away does nothing (the live line takes two emotes every two seconds).
+let lastWave = 0;
+function waveAt(login: string, name: string) {
+  const now = performance.now();
+  if (now - lastWave < 1200) return;
+  lastWave = now;
+  emote("yes");
+  lobby?.waveBack(login);
+  say(hw.person.waved(name.split(" ")[0]), { ms: 2200 });
+}
+
+// The workshop as its house view, for someone logged in: it isn't on the city's list, so this says whether you have
+// a room there (for the home button) and gives Find its row. Asked once you're out of the quest; a failure (the core
+// down, an API without it) just leaves it out.
+const workshop = shallowRef<HouseView | null>(null);
+watch(
+  () => [me.value?.login, inWorkshop.value] as const,
+  async ([login, questing]) => {
+    if (!login || questing) return;
+    const res = await fetch(`/api/houses/${TUTORIAL_HOUSE}`).catch(() => null);
+    workshop.value = res?.ok ? await res.json().catch(() => null) : null;
+  },
+  { immediate: true },
+);
+// The HUD's home button: your room (home.ts), opened over the city, at your house's door when it's in the city.
+const home = computed(() => homePlace(me.value, workshop.value));
+function goHome() {
+  const p = home.value;
+  if (!p) return;
+  arriveFor(p);
+  goInside(p);
+}
+
+// A house from Find: its city, then its door, and its card. The workshop isn't in any city: its window opens.
 function findHouse(h: CityHouse) {
+  if (h.id === TUTORIAL_HOUSE) {
+    goInside({ kind: "house", id: h.id });
+    return;
+  }
   travel(h.city);
   lobby?.arriveAt(h.id);
+  lobby?.pointAt(h.id);
   card.value = { kind: "house", house: h };
 }
 
+// Find's rows: the city's houses, and the workshop if you live there; matched by house, project or person (home.ts).
 const found = computed(() => {
-  const q = query.value.trim().toLowerCase();
-  if (!q) return props.houses;
-  return props.houses.filter((h) => [h.name, h.city, h.tagline, ...h.rooms.flatMap((r) => [r.project, r.ad, r.occupant?.login])].join(" ").toLowerCase().includes(q));
+  const row = workshopRow(workshop.value);
+  return findHouses(row ? [...props.houses, row] : props.houses, query.value);
 });
 
 // The top chip: only when something in this city needs attention (a real house's server down, a failed build;
@@ -964,8 +1042,8 @@ function statsOf(name: string) {
     <template v-if="ready && !failed">
       <!-- Each piece of the screen shows once the tutorial has unlocked it (always, outside the tutorial). The HUD
            comes first in the page, so Tab reaches the skip link, the top bar and these buttons before the city. -->
-      <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? w.inWorkshop(placeName) : w.inCity(city)" @click="openSheet('travel')">
-        <span class="city">{{ placeName }}</span>
+      <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? w.inWorkshop(placeName) : w.inCity(crumb)" @click="openSheet('travel')">
+        <span class="city">{{ crumb }}</span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
 
@@ -1006,6 +1084,10 @@ function statsOf(name: string) {
       </div>
 
       <div v-if="shows('tools')" class="hud tools" :class="{ questing: inWorkshop }">
+        <!-- Home: your room, in one press, for someone who has one (never during the quest). -->
+        <button v-if="home && !inWorkshop" :aria-label="w.home" :title="w.home" @click="goHome">
+          <Icon name="house" :size="20" />
+        </button>
         <button :aria-label="w.cityBoard(city)" :title="w.cityBoard(city)" @click="openChat('board', {})">
           <Icon name="board" :size="20" />
         </button>
@@ -1046,7 +1128,7 @@ function statsOf(name: string) {
             :example="card.example || cardPlayer?.example"
             :github="cardPlayer?.github"
             @see="boardHouse"
-            @wave="emote('yes')"
+            @wave="waveAt(card.login, card.name)"
             @close="closeCard"
           />
           <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />

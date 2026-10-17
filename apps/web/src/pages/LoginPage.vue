@@ -100,7 +100,9 @@ async function devLogin(as: string) {
 .login {
   padding: 12vh 16px 32px;
   min-height: calc(100vh - 48px);
-  background: var(--bg) url("/login-city.webp") center / cover no-repeat;
+  /* The city's day sky under the still, so the page is never black while the picture arrives (index.html starts
+     fetching it before the app has even loaded). */
+  background: url("/login-city.webp") center / cover no-repeat, linear-gradient(180deg, #6fa6dc 0%, #cfe2f2 100%);
 }
 /* A flat floating card over the city, like the lobby's: no glass, no blur. */
 .card { max-width: 560px; padding: 40px 32px 32px; border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow); }

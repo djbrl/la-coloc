@@ -4,9 +4,10 @@
 // this server allows it, the whole demo) as big buttons. The arrow keys move a choice inside a row, as in a game.
 import { computed, type FunctionalComponent, h, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { config, loadConfig, loadMe, me, postJSON } from "../session";
+import { config, loadConfig, loadMe, logout, me, postJSON } from "../session";
 import { type Lang, language, setLang } from "../i18n";
 import { settings, settingsPane } from "../settings";
+import Avatar from "./Avatar.vue";
 import Icon from "./lobby/house/Icon.vue";
 import ListRow from "./lobby/panel/ListRow.vue";
 import { settingsWords as w } from "./words";
@@ -147,6 +148,19 @@ async function takeTutorialAgain() {
   goHome();
 }
 
+// ---- Logging out ----
+
+// It needs the server: while the core is down you stay as you are (the card on top says why).
+const leaving = ref(false);
+async function leave() {
+  leaving.value = true;
+  const out = await logout();
+  leaving.value = false;
+  if (!out) return;
+  close();
+  router.push("/");
+}
+
 // ---- Reset the demo ----
 
 // After the inline question: the server resets the demo city, this browser forgets its settings, tips and tours,
@@ -283,6 +297,14 @@ async function resetDemo() {
             <button class="toggle" role="switch" :aria-label="w.shortcutsName" :aria-checked="settings.shortcuts"><span class="knob" aria-hidden="true" /></button>
           </template>
         </ListRow>
+
+        <!-- Your account, last: your face, who you're logged in as, and the key to log out. -->
+        <ListRow v-if="me" :title="w.signedIn(me.login)">
+          <template #lead><Avatar :person="me" :size="32" decorative /></template>
+          <template #end>
+            <button class="leave" :disabled="leaving" @click="leave"><Icon name="logout" :size="16" />{{ w.logOut }}</button>
+          </template>
+        </ListRow>
       </ul>
 
       <!-- Starting over: big buttons, an icon over their words. The demo's reset asks once more, in place. -->
@@ -338,6 +360,9 @@ h2 { margin: 0; padding-right: 48px; font-size: 28px; line-height: 1.05; }
 .options :deep(.title) { white-space: normal; font-weight: 500; }
 .ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
 .flip { cursor: pointer; }
+/* Logging out: a quiet key at the end of your account's row. */
+.leave { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--text); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.leave:hover:not(:disabled) { background: var(--tile); }
 
 /* The segmented controls (.segmented) and the ON/OFF switches (.toggle) are the shared ones in style.css. */
 

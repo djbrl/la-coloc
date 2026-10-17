@@ -19,6 +19,7 @@ import type { CityHouse } from "../types";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
 import { type CityStyle, styleFor } from "./cityStyle";
 import { daylight } from "./daylight";
+import { type EdgeArrow, placeArrow } from "./arrow";
 import { Beacon } from "./beacon";
 import { Fireworks } from "./fireworks";
 import { liveKey, liveState } from "./live";
@@ -27,11 +28,13 @@ import { CityProps, makeBoard, makePins, waxParasols } from "./props";
 import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
 import { keepApart, laneFor, MOST, passerbyCount, passersBy, type SidewalkPoint, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
 import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
-import { cityKey, readLayout } from "./keys";
+import { cityKey, cityOwnsKeys, readLayout } from "./keys";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
+import { declutter, type TagSpot } from "./tags";
 import { dye } from "./tint";
 import { HouseFace } from "./windows";
+import { hudWords as words } from "../components/lobby/words";
 
 const SPEED = 6; // units per second
 // A dash (Shift): an instant hop forward, a burst at 4.5 times the speed, then a breather before the next one.
@@ -65,6 +68,8 @@ const SPACING = 0.9;
 // How much nearer than a building a person must be to win "in reach" (see `reach`).
 const PEOPLE_MARGIN = 0.8; // the closest two people standing at a door may get (R39)
 const TAG_CHECKS = 8; // name tags checked for a building in the way, per check (a few each time, round and round)
+const NARROW_TAGS = 600; // under this width (pixels), only your tag and the nearest person's show
+const ARROW_MARGIN = 56; // how far in from the screen's edge the arrow towards an off-screen goal sits, in pixels
 
 export type Emote = "yes" | "no";
 // The controls you use, as Vue hears about them (see `onAction`).
@@ -96,8 +101,10 @@ export interface Resident {
 export interface LobbyEvents {
   // The thing in reach of you, or the one you highlighted with [ or ]: Vue shows a prompt for it ("Go in  E").
   onNear(target: Target | null): void;
-  // You used a target (E, Enter, a click, or walking up to something you clicked): Vue opens a card for it.
-  onSelect(target: Target): void;
+  // You used a target (E, Enter, a click, or walking up to something you clicked): Vue opens a card for it. `how`
+  // says which: "click" for a person clicked or tapped (their card), "use" for E, Enter, the prompt, or arriving
+  // where you were heading (on a person, that's saying hi).
+  onSelect(target: Target, how: "use" | "click"): void;
   // Your position, when it changed (at most ten times a second): for the others to see you.
   onMove(state: { x: number; z: number; ry: number; moving: boolean }): void;
   // What the mouse is over (it gets an outline and a pointer cursor), when that changes. Nothing: null.
@@ -235,6 +242,15 @@ export class Lobby {
   // so a rebuild keeps it and clicks go through it; each frame it finds its house again (see `step`).
   private beacon: Beacon | null = null;
   private beaconHouse: string | null = null;
+  // The arrow at the screen's edge (arrow.ts) towards the beacon's house, else a house picked from Find or the big
+  // map (`pointAt`) until you reach it; hidden while its door is on screen. aria-hidden: the coach and the map say it.
+  private arrow: HTMLElement;
+  private arrowAt: EdgeArrow = { shown: false, x: 0, y: 0, angle: 0 };
+  private arrowKey = "";
+  private pointHouse: string | null = null;
+  // The stage's size in pixels, set by `fit`.
+  private width = 1;
+  private height = 1;
   // Whether you've clicked or tapped the stage: from then on, keys pressed with nothing focused are for walking (R6).
   private stageTouched = false;
   // Single-character keyboard shortcuts on (see `setShortcuts`).
@@ -316,6 +332,10 @@ export class Lobby {
   private skyline: THREE.Object3D[] = [];
   // Buildings that could stand between the camera and you: they fade while they do.
   private occluders: { box: THREE.Box3; materials: THREE.Material[]; faded: boolean }[] = [];
+  // Name tags piling up (tags.ts): a pool of spots reused on every check, and each tag's width, measured once (and
+  // again when its house chip changes).
+  private tagSpots: TagSpot[] = [];
+  private tagWidths = new WeakMap<HTMLElement, number>();
 
   constructor(
     private host: HTMLElement,
@@ -328,6 +348,11 @@ export class Lobby {
     host.appendChild(this.renderer.domElement);
     this.labels.domElement.className = "lobby-labels";
     host.appendChild(this.labels.domElement);
+    this.arrow = document.createElement("div");
+    this.arrow.className = "lobby-arrow";
+    this.arrow.setAttribute("aria-hidden", "true");
+    this.arrow.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    host.appendChild(this.arrow);
 
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 600);
     // The light is set by `light` (always day) once the city is built: these hold until then.
@@ -349,7 +374,7 @@ export class Lobby {
     this.scene.background = texture;
     this.scene.add(this.town, this.ring, this.fireworks.object);
 
-    const you = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : "you", "lobby-label you");
+    const you = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : words.youTag, "lobby-label you");
     this.player = you.avatar;
     this.playerTag = you.tag;
     this.scene.add(this.player);
@@ -363,6 +388,8 @@ export class Lobby {
     // The letters to print on the walk keys' caps, for this keyboard (keys.ts).
     void readLayout();
     window.addEventListener("keyup", this.keyup);
+    window.addEventListener("blur", this.releaseKeys);
+    document.addEventListener("visibilitychange", this.releaseKeys);
     this.renderer.domElement.addEventListener("pointerdown", this.touchStage);
     this.renderer.domElement.addEventListener("pointerdown", this.click);
     this.renderer.domElement.addEventListener("pointermove", this.pointerMove);
@@ -571,6 +598,15 @@ export class Lobby {
       .catch(() => undefined);
   }
 
+  /** The language changed: the words drawn in the city follow (a visitor's own tag, the knock bubbles' names). */
+  relabel() {
+    const name = this.playerTag.querySelector(".name");
+    if (name && !this.opts.login) name.textContent = words.youTag;
+    for (const p of this.placed) p.knocker?.traverse((o) => {
+      if (o instanceof CSS2DObject) o.element.setAttribute("aria-label", words.knocking(p.house.name));
+    });
+  }
+
   setQuality(quality: "high" | "low", reduceMotion: boolean) {
     this.opts.quality = quality;
     this.opts.reduceMotion = reduceMotion;
@@ -699,6 +735,14 @@ export class Lobby {
       this.beacon.object.visible = false;
       this.scene.add(this.beacon.object);
     }
+  }
+
+  /**
+   * Points the arrow at the screen's edge at a house (picked from Find or the big map) while its door is off screen,
+   * until you're at it. Null stops pointing. The tutorial's beacon, when there is one, takes precedence.
+   */
+  pointAt(houseId: string | null) {
+    this.pointHouse = houseId;
   }
 
   /** Where a house's door is (where you'd walk to), or null if it isn't in this neighbourhood (yet). */
@@ -833,6 +877,23 @@ export class Lobby {
     play("emote");
   }
 
+  /**
+   * Someone made up (a flatmate out front, a passer-by) you just said hi to waves back a moment later: they turn to
+   * you, and a hand shows over their head. Someone really online waves back themselves, if they want to.
+   */
+  waveBack(login: string) {
+    const n = this.npcs.find((x) => x.login === login && x.avatar.visible);
+    if (!n) return;
+    const gen = this.generation;
+    window.setTimeout(() => {
+      if (gen !== this.generation || !n.avatar.visible) return;
+      const at = n.avatar.position;
+      n.avatar.rotation.y = Math.atan2(this.player.position.x - at.x, this.player.position.z - at.z);
+      n.person?.play("emote-yes", true);
+      this.bubble(n.avatar, "yes");
+    }, 550);
+  }
+
   // ---- Everyone else who's online here ----
 
   addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean }) {
@@ -894,6 +955,8 @@ export class Lobby {
     this.resize.disconnect();
     window.removeEventListener("keydown", this.keydown);
     window.removeEventListener("keyup", this.keyup);
+    window.removeEventListener("blur", this.releaseKeys);
+    document.removeEventListener("visibilitychange", this.releaseKeys);
     this.fireworks.dispose();
     this.setBeacon(null);
     for (const p of this.placed) p.face.dispose();
@@ -908,6 +971,7 @@ export class Lobby {
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.domElement.remove();
+    this.arrow.remove();
   }
 
   // ---- Targets: what you can aim at, and using it ----
@@ -987,7 +1051,7 @@ export class Lobby {
 
   /** Uses a thing you're next to: Vue opens it. */
   private use(thing: Thing) {
-    this.events.onSelect(thing.target);
+    this.events.onSelect(thing.target, "use");
   }
 
   /**
@@ -1465,7 +1529,7 @@ export class Lobby {
     el.className = "lobby-emote knock";
     el.textContent = "☝️";
     el.setAttribute("role", "img");
-    el.setAttribute("aria-label", `Someone is knocking at ${p.house.name}`);
+    el.setAttribute("aria-label", words.knocking(p.house.name));
     const bubble = new CSS2DObject(el);
     bubble.position.set(0, 2.1, 0);
     visitor.add(bubble);
@@ -1585,6 +1649,7 @@ export class Lobby {
    */
   private badge(tag: HTMLElement, login: string | null) {
     tag.querySelector(".home")?.remove();
+    this.tagWidths.delete(tag);
     const home = login ? this.residents.get(login) : undefined;
     if (!home) return;
     const el = document.createElement("span");
@@ -1610,9 +1675,10 @@ export class Lobby {
   private bubble(avatar: THREE.Object3D, name: Emote) {
     const el = document.createElement("div");
     el.className = `lobby-emote ${name}`;
-    el.textContent = name === "yes" ? "👍" : "👎";
+    // "yes" is the wave (the HUD's thumbs are gone, 15 10): a hand. "no" stays a thumbs down.
+    el.textContent = name === "yes" ? "👋" : "👎";
     el.setAttribute("role", "img");
-    el.setAttribute("aria-label", name === "yes" ? "thumbs up" : "thumbs down");
+    el.setAttribute("aria-label", name === "yes" ? words.waves : words.thumbsDown);
     const obj = new CSS2DObject(el);
     obj.position.set(0, 2.25, 0);
     avatar.add(obj);
@@ -1685,6 +1751,8 @@ export class Lobby {
     const h = this.host.clientHeight;
     if (!w || !h) return;
     this.aspect = w / h;
+    this.width = w;
+    this.height = h;
     this.narrow = w < FRAMED.narrow;
     this.renderer.setSize(w, h);
     this.labels.setSize(w, h);
@@ -1732,10 +1800,7 @@ export class Lobby {
   }
 
   /** You clicked or tapped the stage: it takes the keyboard focus, and keys pressed with nothing focused are ours. */
-  private touchStage = () => {
-    this.stageTouched = true;
-    if (!this.host.contains(document.activeElement)) this.host.focus({ preventScroll: true });
-  };
+  private touchStage = () => this.takeKeys();
 
   /**
    * Whether a key press is for the city (R6): when the stage has focus, or when nothing has focus (the page itself)
@@ -1743,10 +1808,25 @@ export class Lobby {
    * letter. Tab is never the city's (see `keydown`).
    */
   private ownsKeys(): boolean {
-    const focused = document.activeElement;
-    if (focused && focused !== document.body) return this.host.contains(focused);
-    return this.stageTouched;
+    return cityOwnsKeys(document.activeElement, document.body, this.host, this.stageTouched);
   }
+
+  /**
+   * Hands the keyboard to the city, as a click on it would: the stage takes the focus and counts as touched. Vue
+   * calls it when a welcome, a card, a sheet or a dialog closes, so the keys on screen (E, M, W A S D) work at once.
+   */
+  takeKeys() {
+    this.stageTouched = true;
+    if (!this.host.contains(document.activeElement)) this.host.focus({ preventScroll: true });
+  }
+
+  // The window lost the focus (Alt-Tab, another app) or the tab was hidden: no key-up will come for the keys held
+  // down, so they're all let go, or you'd come back walking.
+  private releaseKeys = () => {
+    if (document.visibilityState === "visible" && document.hasFocus()) return;
+    this.keys.clear();
+    this.shiftAlone = false;
+  };
 
   private keydown = (e: KeyboardEvent) => {
     if (!this.ownsKeys()) return;
@@ -1833,7 +1913,7 @@ export class Lobby {
   private click = (e: PointerEvent) => {
     if (this.tour) return;
     const { thing, ground } = this.aim(e);
-    if (thing?.target.kind === "person") this.events.onSelect(thing.target);
+    if (thing?.target.kind === "person") this.events.onSelect(thing.target, "click");
     else if (thing && this.controls.walk) this.walkToward(thing);
     else if (thing && this.distanceTo(thing) < REACH) this.use(thing);
     else if (ground && this.controls.walk) this.routeTo(ground);
@@ -2009,6 +2089,7 @@ export class Lobby {
       const tagRange = this.viewHalf < 9 ? this.viewHalf * 2 : TAG_RANGE;
       for (const n of this.npcs) n.tag.style.visibility = n === h || (n.avatar.position.distanceTo(centre) < tagRange && !n.hidden) ? "" : "hidden";
       for (const r of this.remotes.values()) r.tag.style.visibility = r === h || (r.avatar.position.distanceTo(centre) < tagRange * 1.6 && !r.hidden) ? "" : "hidden";
+      this.declutterTags(h);
     }
 
     // The camera follows from the isometric angle, turned and gliding (or snapping, for calm motion). It looks at
@@ -2062,6 +2143,7 @@ export class Lobby {
       if (p) this.beacon.place(p.door.x, p.door.z);
       this.beacon.update(time, calm);
     }
+    if (this.tick % 2 === 0) this.pointArrow();
 
     // Zoom eases towards the wheel's choice (or the onboarding's close-up, or the close-up beside a window).
     const want = this.focus ?? (this.framing === "left" ? FRAMED.half : this.zoom);
@@ -2079,6 +2161,77 @@ export class Lobby {
       for (const [login, r] of this.remotes) people.push({ login, x: r.avatar.position.x, z: r.avatar.position.z });
       this.events.onMap({ you: { x: you.x, z: you.z, ry: this.player.rotation.y }, people, angle: this.angle });
     }
+  }
+
+  /**
+   * The arrow at the screen's edge: towards the door of the beacon's house, else of the house you picked, while
+   * that door is off screen. Hidden while the camera is away on a tour or a window is open. The element is only
+   * touched when what it shows changes.
+   */
+  private pointArrow() {
+    const id = this.beaconHouse ?? this.pointHouse;
+    let goal: Placed | null = null;
+    if (id) for (const p of this.placed) if (p.house.id === id) goal = p;
+    // A picked house is reached once you stand at it.
+    if (goal && id === this.pointHouse && !this.beaconHouse && this.distanceTo(goal) < REACH) {
+      this.pointHouse = null;
+      goal = null;
+    }
+    let key = "";
+    const at = this.arrowAt;
+    if (goal && !this.tour && this.framing !== "left") {
+      const v = this.scratch.copy(goal.door).project(this.camera);
+      if (placeArrow(v.x, v.y, this.width, this.height, ARROW_MARGIN, at).shown) key = `${at.x.toFixed(0)},${at.y.toFixed(0)},${at.angle.toFixed(2)}`;
+    }
+    if (key === this.arrowKey) return;
+    this.arrowKey = key;
+    this.arrow.classList.toggle("on", key !== "");
+    if (!key) return;
+    // The key moves; only the chevron turns, so the key's lip stays underneath.
+    this.arrow.style.transform = `translate(${at.x.toFixed(0)}px, ${at.y.toFixed(0)}px)`;
+    (this.arrow.firstElementChild as SVGElement | null)?.style.setProperty("transform", `rotate(${at.angle.toFixed(2)}rad)`);
+  }
+
+  /**
+   * Name tags that overlap on screen (people bunched at a door): the nearest stays as it is and the others fade back
+   * without their house chip; on a narrow screen only yours and the nearest person's show at all (tags.ts). Runs with
+   * the tags' range check, a few times a second, over a reused pool: nothing new is made per check.
+   */
+  private declutterTags(h: Thing | null) {
+    const you = this.player.position;
+    let n = this.tagSpot(0, this.playerTag, you, -1, true);
+    for (const p of this.npcs) if (p.avatar.visible && p.tag.style.visibility === "") n = this.tagSpot(n, p.tag, p.avatar.position, apart(p.avatar.position, you), p === h);
+    for (const r of this.remotes.values()) if (r.tag.style.visibility === "") n = this.tagSpot(n, r.tag, r.avatar.position, apart(r.avatar.position, you), r === h);
+    declutter(this.tagSpots, n, this.width < NARROW_TAGS);
+    for (let i = 0; i < n; i++) {
+      const spot = this.tagSpots[i];
+      if (!spot.el) continue;
+      if (!spot.shown) spot.el.style.visibility = "hidden";
+      spot.el.classList.toggle("crowded", spot.crowded);
+    }
+  }
+
+  /** Fills the pool's spot `i` with a tag on screen (its head's point, projected) and returns the next index. */
+  private tagSpot(i: number, el: HTMLElement, at: THREE.Vector3, d: number, keep: boolean): number {
+    const v = this.scratch.copy(at).setY(at.y + 1.9).project(this.camera);
+    if (Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) return i;
+    let spot = this.tagSpots[i];
+    if (!spot) {
+      spot = { x: 0, y: 0, w: 0, d: 0, keep: false, shown: true, crowded: false, el: null };
+      this.tagSpots.push(spot);
+    }
+    let w = this.tagWidths.get(el);
+    if (w === undefined) {
+      w = el.offsetWidth || 80;
+      this.tagWidths.set(el, w);
+    }
+    spot.x = ((v.x + 1) / 2) * this.width;
+    spot.y = ((1 - v.y) / 2) * this.height;
+    spot.w = w;
+    spot.d = d;
+    spot.keep = keep;
+    spot.el = el;
+    return i + 1;
   }
 
   /**

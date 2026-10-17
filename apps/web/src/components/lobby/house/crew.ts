@@ -43,7 +43,10 @@ export type Foot =
   // Several free rooms: the button points at their rows, and you pick one there.
   | { kind: "pick" }
   | { kind: "thread"; id: string }
-  | { kind: "say"; text: string };
+  | { kind: "say"; text: string }
+  // Nothing: the one next step is already on screen elsewhere (the workshop's "A room for you" row, or the quest's
+  // card), so the foot doesn't say it a second time.
+  | { kind: "none" };
 
 export interface Situation {
   viewer: Viewer | null;
@@ -70,7 +73,7 @@ export function canKnock(s: Situation): boolean {
 export function footFor(s: Situation): Foot {
   const v = s.viewer;
   if (!v) return { kind: "login" };
-  if (s.tutorial && !v.room) return { kind: "say", text: houseWords.foot.takeRoom };
+  if (s.tutorial && !v.room) return { kind: "none" };
   if (v.member) {
     if (v.role === "chef" && s.making) return { kind: "rent", waiting: s.keyMade };
     if (s.making) return { kind: "say", text: houseWords.foot.waitChef };
@@ -152,4 +155,20 @@ export function personActions(
   const foot = footFor(s);
   const reach: ReachOut = foot.kind === "knock" || foot.kind === "pick" || foot.kind === "thread" || foot.kind === "login" ? foot : null;
   return { reach, github, example, wave, invite };
+}
+
+// How many room rows the house panel shows before folding the rest behind a "+N" row, so the panel fits without
+// scrolling (Jib, 10 10).
+export const ROWS_SHOWN = 5;
+
+/**
+ * The rooms the list shows while it's folded, in the house's order: your own room first in priority, then the free
+ * ones (what a visitor came for), then the rest, up to `max` rows. When only one would be left over, it shows too:
+ * a "+1" row takes the same space as the room itself. `hidden` is how many wait behind the "+N" row.
+ */
+export function foldedRooms<R extends Pick<Room, "name" | "occupant">>(rooms: R[], mine: string | null, max = ROWS_SHOWN): { shown: R[]; hidden: number } {
+  if (rooms.length <= max + 1) return { shown: rooms, hidden: 0 };
+  const rank = (r: R) => (r.name === mine ? 0 : !r.occupant ? 1 : 2);
+  const keep = new Set([...rooms].sort((a, b) => rank(a) - rank(b)).slice(0, Math.max(0, max)));
+  return { shown: rooms.filter((r) => keep.has(r)), hidden: rooms.length - keep.size };
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, watchEffect } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import Avatar from "./components/Avatar.vue";
 import Bell from "./components/bell/Bell.vue";
 import ChatButton from "./components/chat/ChatButton.vue";
@@ -8,12 +8,11 @@ import ChatSheet from "./components/chat/ChatSheet.vue";
 import CoreStatus from "./components/CoreStatus.vue";
 import SettingsPane from "./components/SettingsPane.vue";
 import Icon from "./components/lobby/house/Icon.vue";
-import { logout, me, meLoaded } from "./session";
+import { me, meLoaded } from "./session";
 import { lobbyUi, settings, settingsPane } from "./settings";
 import { hudWords as w } from "./components/lobby/words";
 
 const route = useRoute();
-const router = useRouter();
 // Full-screen routes (the lobby) draw edge to edge; the bar floats over them.
 const fullscreen = computed(() => route.meta.fullscreen === true);
 
@@ -26,11 +25,6 @@ watchEffect(() => {
   if (settings.theme === "system") delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = settings.theme;
 });
-
-// Logging out needs the server: while the core is down you stay as you are (the card on top says why).
-async function leave() {
-  if (await logout()) router.push("/");
-}
 
 // Your house, in the top bar: in the lobby it opens inside the city (never leaving the game); in the list view it's
 // the house's page.
@@ -60,7 +54,8 @@ const gear = (() => {
           <!-- The chat: for everyone (visitors read the city's room and board). -->
           <ChatButton />
           <template v-if="me">
-            <!-- On a phone, your house and logging out are icons (their words stay for screen readers), so the bar fits. -->
+            <!-- On a phone, your house is an icon (its name stays for screen readers), so the bar fits. Logging out
+                 lives in the settings, away from the bell: no mis-tap logs you out. -->
             <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item house" :title="h.name">
               <Icon name="house" :size="18" class="narrow" />
               <span class="word">{{ h.name }}</span>
@@ -70,10 +65,6 @@ const gear = (() => {
               <Avatar :person="me" :size="26" decorative />
               <span class="sr-only">{{ w.loggedInAs(me.login) }}</span>
             </span>
-            <button class="item text" :title="w.logOut" @click="leave">
-              <Icon name="logout" :size="18" class="narrow" />
-              <span class="word">{{ w.logOut }}</span>
-            </button>
           </template>
           <RouterLink v-else to="/login" class="item">{{ w.logIn }}</RouterLink>
         </template>
@@ -138,8 +129,6 @@ button.item:hover:not(:disabled) { background: var(--fill); }
 @media (max-width: 520px) {
   .item { padding: 0 8px; }
   .narrow { display: block; }
-  /* Your face makes room for the chat key; "Logged in as" stays for screen readers on the log-out key's side. */
-  .me { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); padding: 0; }
   .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 </style>

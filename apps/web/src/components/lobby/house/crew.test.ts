@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HouseView, Person, Room, Viewer } from "../../../types";
-import { canKnock, crewOf, footFor, personActions, rowAction, type Situation } from "./crew";
+import { canKnock, crewOf, foldedRooms, footFor, personActions, rowAction, type Situation } from "./crew";
 import { houseWords } from "./words";
 
 const person = (login: string): Person => ({ login, name: login[0].toUpperCase() + login.slice(1), avatarUrl: null });
@@ -81,7 +81,10 @@ describe("the foot's one next step", () => {
   it("says why there's nothing to press", () => {
     expect(footFor(situation({ demo: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: houseWords.foot.example });
     expect(footFor(situation())).toEqual({ kind: "say", text: houseWords.foot.full });
-    expect(footFor(situation({ tutorial: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: houseWords.foot.takeRoom });
+  });
+
+  it("leaves the foot empty in the workshop until you have a room: its row (or the quest) offers it once", () => {
+    expect(footFor(situation({ tutorial: true, freeRooms: ["three"] }))).toEqual({ kind: "none" });
   });
 });
 
@@ -160,5 +163,24 @@ describe("a person picked in the crew row", () => {
     expect(personActions(seeded, false, workshop, { ...city, home }).invite).toBeNull();
     expect(personActions(real, false, situation({ viewer: viewer({ member: true }) }), { ...city, home }).invite).toBeNull();
     expect(personActions({ ...person("jib"), github: true }, false, workshop, { ...city, home }).invite).toBeNull();
+  });
+});
+
+describe("a long room list, folded", () => {
+  const rooms = ["a", "b", "c", "d", "e", "f", "g", "h"].map((n) => room(n, n === "g" ? null : person(`p${n}`)));
+
+  it("shows every room when they fit, or when only one would be folded", () => {
+    expect(foldedRooms(rooms.slice(0, 5), null)).toEqual({ shown: rooms.slice(0, 5), hidden: 0 });
+    expect(foldedRooms(rooms.slice(0, 6), null).hidden).toBe(0);
+  });
+
+  it("keeps five rows, yours and the free ones first, in the house's order, and counts the rest", () => {
+    const { shown, hidden } = foldedRooms(rooms, "h");
+    expect(hidden).toBe(3);
+    expect(shown.map((r) => r.name)).toEqual(["a", "b", "c", "g", "h"]);
+  });
+
+  it("makes room for a row above the list", () => {
+    expect(foldedRooms(rooms, null, 4).shown).toHaveLength(4);
   });
 });

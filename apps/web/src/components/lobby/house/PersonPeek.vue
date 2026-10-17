@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // A person picked in the house's crew row: who they are, in one flat card under the faces, and what you can do about
 // them. One main action, reaching out (personActions in crew.ts decides which: write in the channel, knock, see your
-// knock, or log in), then quiet icon buttons: their GitHub profile (only for a real account; an example person's is
-// shown disabled, with why), a direct message (in the chat sheet; disabled for an example person) and a wave.
+// knock, or log in), then quiet icon buttons: their GitHub profile (only for a real account), a direct message (in
+// the chat sheet; an example person has neither: their tag says why) and a wave.
 import { computed, onMounted, ref } from "vue";
 import { openChat } from "../../../conversations";
 import { inviteToHouse } from "../../../notices";
@@ -95,11 +95,9 @@ onMounted(() => card.value?.focus({ preventScroll: true }));
       <button v-if="message?.kind === 'open'" type="button" class="icon" :aria-label="cw.messageName(name)" :title="cw.messageName(name)" @click="openChat('dm', { with: person.login })">
         <Icon name="chat" :size="18" />
       </button>
-      <button v-else-if="message?.kind === 'example'" type="button" class="icon" disabled :aria-label="cw.noMessage" :title="cw.noMessage"><Icon name="chat" :size="18" /></button>
       <a v-if="actions.github" class="button icon" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.person.githubName(person.login)" :title="w.person.githubName(person.login)">
         <Icon name="profile" :size="18" />
       </a>
-      <button v-else-if="actions.example" type="button" class="icon" disabled :aria-label="w.person.noGithub" :title="w.person.noGithub"><Icon name="profile" :size="18" /></button>
       <button v-if="actions.wave" type="button" class="icon" :class="{ waved }" :aria-label="w.person.waveName(first)" :title="w.person.waveName(first)" @click="wave">
         <Icon name="hand" :size="18" />
       </button>

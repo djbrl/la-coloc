@@ -3,9 +3,10 @@
 // what you can do about it. Like a game's interaction menu: one main action, the rest as icon tiles. The main action
 // depends on who they are and who you are (streetActions in personActions.ts): see their house; invite them to your
 // house's free room; rent a place together; or log in first. A made-up person (a seeded flatmate, or a passer-by
-// the lobby invents) says so, and their invitation is shown disabled; only a real GitHub account gets a profile link.
+// the lobby invents) says so in one plain line, and their invitation is shown disabled; they get no Message or GitHub
+// key; only a real GitHub account gets a profile link.
 // Invitations are structured actions; "Message" opens a direct conversation with them in the chat sheet.
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { openChat } from "../../conversations";
 import { inviteToHouse, notices, rentTogether, withdrawInvite } from "../../notices";
 import { me } from "../../session";
@@ -14,6 +15,7 @@ import { bellWords as bw } from "../bell/words";
 import { messageAction } from "../chat/chat";
 import Icon from "./house/Icon.vue";
 import { type Home, homeLine, roomOf, sentence } from "./cards";
+import { houseWords as hw } from "./house/words";
 import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { roomLine, roomState } from "./panel/words";
@@ -75,6 +77,18 @@ const offered = computed(() => {
 });
 const first = computed(() => props.name.split(" ")[0]);
 
+// Saying hi: your character waves in the city (LobbyView.vue), and the tile answers in green with a tick for a
+// moment, so you see it happened even when the card covers your character.
+const waved = ref(false);
+let wavedTimer = 0;
+function wave() {
+  if (waved.value) return;
+  emit("wave");
+  waved.value = true;
+  wavedTimer = window.setTimeout(() => (waved.value = false), 2500);
+}
+onBeforeUnmount(() => clearTimeout(wavedTimer));
+
 // Sending an invitation: a sentence once it's sent, or the API's refusal in its own words.
 const busy = ref(false);
 const said = ref("");
@@ -108,7 +122,6 @@ async function send(kind: "invite" | "rent" | "withdraw") {
       <template v-if="where">{{ where }}</template>
       <template v-else>{{ w.visiting(login) }}</template>
       <template v-if="isMe">{{ w.thatsYou }}</template>
-      <span v-if="madeUp" class="tag" :title="w.exampleWhy">{{ w.example }}<span class="sr-only">. {{ w.exampleWhy }}</span></span>
     </p>
 
     <!-- What they build: the project's name, its state, and a line from them about it. -->
@@ -124,11 +137,12 @@ async function send(kind: "invite" | "rent" | "withdraw") {
       </div>
     </div>
 
-    <!-- Words only when they matter: an invitation just sent, a refusal, a full house, an example person. -->
+    <!-- Words only when they matter: an invitation just sent, a refusal, a full house, an example person (said once,
+         in plain words, instead of disabled keys whose reason hides in a hover). -->
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <p v-else-if="said" class="soft small" role="status">{{ said }}</p>
     <p v-else-if="main?.kind === 'full'" class="soft small">{{ bw.fullWhy(main.houseName) }}</p>
-    <p v-else-if="(main?.kind === 'invite' || main?.kind === 'rent') && main.example" class="soft small">{{ bw.exampleWhy }}</p>
+    <p v-else-if="madeUp" class="soft small">{{ w.exampleLine }}</p>
 
     <div class="menu">
       <button v-if="main?.kind === 'see'" class="big primary" :aria-label="bw.seeHouseName(main.houseName)" @click="emit('see', main.houseId)">
@@ -154,22 +168,17 @@ async function send(kind: "invite" | "rent" | "withdraw") {
       </div>
       <RouterLink v-else-if="main?.kind === 'login'" to="/login" class="big primary"><Icon name="login" :size="20" /> {{ bw.logIn }}</RouterLink>
 
-      <div v-if="actions.wave || actions.github || madeUp || message" class="tiles">
+      <!-- Only what you can do: an example person has no Message or GitHub key (the line above says why). -->
+      <div v-if="actions.wave || actions.github || message?.kind === 'open'" class="tiles">
         <button v-if="message?.kind === 'open'" class="big tile" :aria-label="w.messageName(name)" @click="openChat('dm', { with: login })">
           <Icon name="chat" :size="22" /><span>{{ w.message }}</span>
-        </button>
-        <button v-else-if="message?.kind === 'example'" class="big tile" disabled :title="w.noMessage">
-          <Icon name="chat" :size="22" /><span>{{ w.message }}<span class="sr-only">. {{ w.noMessage }}</span></span>
         </button>
         <a v-if="actions.github" class="big tile" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
           <Icon name="profile" :size="22" /><span>{{ w.github }}</span>
         </a>
-        <button v-else-if="madeUp" class="big tile" disabled :title="w.noGithub">
-          <Icon name="profile" :size="22" /><span>{{ w.github }}<span class="sr-only">. {{ w.noGithub }}</span></span>
-        </button>
-        <button v-if="actions.wave" class="big tile" @click="emit('wave')">
-          <Icon name="hand" :size="22" />
-          <span>{{ w.sayHi }}</span>
+        <button v-if="actions.wave" class="big tile" :class="{ waved }" :aria-label="waved ? hw.person.waved(first) : hw.person.waveName(first)" @click="wave">
+          <Icon :name="waved ? 'tick' : 'hand'" :size="22" />
+          <span>{{ waved ? w.waved : w.sayHi }}</span>
         </button>
       </div>
     </div>
@@ -178,8 +187,6 @@ async function send(kind: "invite" | "rent" | "withdraw") {
 
 <style scoped>
 .who { margin-top: -6px; overflow-wrap: anywhere; }
-/* The honest marker: a quiet word, its sentence on hover and for a screen reader. */
-.tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--r-xs); background: var(--fill); color: var(--muted); font-size: 11.5px; font-weight: 600; line-height: 17px; }
 /* Their project, as a small block: what it's called, whether it's online, and what it does. */
 .project { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-md); background: var(--tile); }
 .ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--surface); color: var(--muted); }
@@ -193,6 +200,8 @@ async function send(kind: "invite" | "rent" | "withdraw") {
 .sent { display: flex; align-items: center; gap: 8px; }
 .done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 50px; padding: 0 14px; border-radius: var(--r-md); background: var(--live-soft); color: var(--live); font-weight: 700; }
 .sent .quiet { flex: none; }
+/* Just waved: the tile turns the "done" green for a moment. */
+.menu .tile.waved { background: var(--live-soft); color: var(--live); box-shadow: none; }
 /* Several free rooms: pick the one to offer, above the invitation. */
 .rooms { flex-wrap: wrap; }
 .rooms > button { flex: 1 1 auto; justify-content: center; }

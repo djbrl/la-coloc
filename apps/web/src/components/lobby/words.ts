@@ -49,15 +49,14 @@ export const cardWords = defineWords(
     thatsYou: " · That's you.",
     message: "Message",
     messageName: (name: string) => `Write to ${name}`,
-    noMessage: "An example person: nobody would read your message.",
     nothingOnline: "Nothing online in this room yet.",
     sayHi: "Say hi",
-    // A made-up person (a seeded flatmate, a passer-by): said honestly, and their GitHub never linked.
-    example: "example person",
-    exampleWhy: "Made up so the city isn't empty. No GitHub account.",
+    // The same tile for a moment after you waved.
+    waved: "Waved",
+    // A made-up person (a seeded flatmate, a passer-by): said once, plainly, and their GitHub never linked.
+    exampleLine: "An example person, here to show what the city is like.",
     github: "GitHub",
     githubName: (login: string) => `@${login} on GitHub (opens a new tab)`,
-    noGithub: "No GitHub profile: an example person",
   },
   {
     and: "et",
@@ -97,14 +96,12 @@ export const cardWords = defineWords(
     thatsYou: " · C'est vous.",
     message: "Message",
     messageName: (name) => `Écrire à ${name}`,
-    noMessage: "Une personne d'exemple : personne ne lirait votre message.",
     nothingOnline: "Rien en ligne dans cette chambre pour l'instant.",
     sayHi: "Dire bonjour",
-    example: "personne d'exemple",
-    exampleWhy: "Inventée pour que la ville ne soit pas vide. Pas de compte GitHub.",
+    waved: "Salué",
+    exampleLine: "Personne d'exemple : elle est là pour montrer la ville.",
     github: "GitHub",
     githubName: (login) => `@${login} sur GitHub (nouvel onglet)`,
-    noGithub: "Pas de profil GitHub : une personne d'exemple",
   },
 );
 
@@ -115,7 +112,6 @@ export const hudWords = defineWords(
     skip: "Skip to content",
     main: "Main",
     loggedInAs: (login: string) => `Logged in as ${login}`,
-    logOut: "Log out",
     logIn: "Log in",
     settings: "Settings",
     // LoadingScreen.vue
@@ -182,6 +178,11 @@ export const hudWords = defineWords(
     hide: "Hide",
     // TouchDash.vue
     dashName: "Dash",
+    // Lobby.ts: words drawn in the 3D city. A visitor's own name tag, and the hidden names of the bubbles over heads.
+    youTag: "you",
+    knocking: (house: string) => `Someone is knocking at ${house}`,
+    waves: "waves hello",
+    thumbsDown: "thumbs down",
     // Inside.vue: the window a house, a knock or a room opens in.
     insideHouse: "Inside a house",
     aKnock: "A knock",
@@ -195,7 +196,6 @@ export const hudWords = defineWords(
     skip: "Aller au contenu",
     main: "Principal",
     loggedInAs: (login) => `Votre compte : ${login}`,
-    logOut: "Déconnexion",
     logIn: "Se connecter",
     settings: "Réglages",
     pitch: "Une ville de maisons de devs, de Dakar à Kigali.",
@@ -256,6 +256,10 @@ export const hudWords = defineWords(
     tryNow: "Essayer",
     hide: "Masquer",
     dashName: "Sprint",
+    youTag: "vous",
+    knocking: (house) => `Quelqu'un frappe à ${house}`,
+    waves: "fait coucou",
+    thumbsDown: "pouce vers le bas",
     insideHouse: "Dans une maison",
     aKnock: "Une demande",
     aRoom: "Une chambre",

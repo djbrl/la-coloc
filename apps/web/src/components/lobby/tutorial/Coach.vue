@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// The coach: one flat card at the bottom of the screen during the quest, saying the one thing to do now. A small
-// line on top names the chapter; then one or two sentences, the step's own piece (the two ways to bring a project,
-// the launch's track, your address, the postcard to share, a card about the house), and at most one main action.
+// The coach: one flat card at the bottom of the screen during the quest, saying the one thing to do now. No line on
+// top names the chapter (the tracker does; the card says it to screen readers): one or two sentences, the step's
+// own piece (the two ways to bring a project, the launch's track, your address, the postcard to share, a card about the house), and at most one main action.
 // A small × leaves the quest (settings bring it back). The steps themselves live in tutorial.ts; this only shows
 // them. The big moments in the middle of the screen (the keys, "Welcome home") are KeysCard.vue and HomeCard.vue.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
@@ -45,6 +45,8 @@ const emit = defineEmits<{
 
 const step = computed(() => props.machine.step);
 const chapter = computed(() => props.machine.chapter);
+// The box's hidden name: the quest, and the chapter you're in.
+const label = computed(() => (chapter.value ? `${w.quest}. ${w.chapterOf(CHAPTERS.indexOf(chapter.value) + 1, CHAPTERS.length, w.chapters[chapter.value])}` : w.quest));
 const touch = computed(() => props.machine.touch);
 // The steps that talk to the API.
 const needsApi = computed(() => ["room", "project", "launch", "open"].includes(step.value));
@@ -94,14 +96,9 @@ onBeforeUnmount(() => clearTimeout(timer));
 </script>
 
 <template>
-  <div class="coach" :class="[`at-${step}`]" role="dialog" :aria-label="w.quest" @keydown="onKey">
-    <div class="head">
-      <p v-if="chapter" class="kicker">
-        <QuestIcon :name="chapter" :size="14" />
-        <span>{{ CHAPTERS.indexOf(chapter) + 1 }} · {{ w.chapters[chapter] }}</span>
-      </p>
-      <button type="button" class="x" :aria-label="w.skip" @click="emit('stop')"><QuestIcon name="close" :size="16" /></button>
-    </div>
+  <!-- No eyebrow over the step (the tracker at the top already shows the chapter): it's in the box's hidden name. -->
+  <div class="coach" :class="[`at-${step}`]" role="dialog" :aria-label="label" @keydown="onKey">
+    <button type="button" class="x" :aria-label="w.skip" @click="emit('stop')"><QuestIcon name="close" :size="16" /></button>
 
     <div class="body" aria-live="polite">
       <template v-if="waiting && needsApi && !live">
@@ -248,7 +245,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 
 <style scoped>
 /* A flat piece of the site's surface, lifted by a shadow: no glass, no blur. It reads like a game's quest box: the
-   chapter on top in the monospace, a bold line, the keys as raised caps, chunky buttons. It pops in. */
+   close key in the corner, a bold line, the keys as raised caps, chunky buttons. It pops in. */
 .coach {
   width: min(480px, calc(100vw - 32px));
   display: grid;
@@ -264,9 +261,10 @@ onBeforeUnmount(() => clearTimeout(timer));
 @keyframes coach-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
-.head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-right: -6px; }
-.kicker { display: inline-flex; align-items: center; gap: 6px; margin: 0; font: 500 12px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
-.x { flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); }
+/* The close key sits in the corner; the step's first line leaves room for it. */
+.coach { position: relative; padding-top: 14px; }
+.body > :first-child { padding-right: 30px; }
+.x { position: absolute; top: 8px; right: 8px; flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); }
 .x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .body { display: grid; gap: 6px; }
 .text { margin: 0; font: 700 19px/1.3 var(--display); letter-spacing: -0.015em; }

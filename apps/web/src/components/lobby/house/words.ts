@@ -32,6 +32,8 @@ export const houseWords = defineWords(
 
     // The rooms' rows.
     roomForYou: "A room for you",
+    // The "+N" row under a long room list: its hidden name (it shows only "+3").
+    moreRooms: (n: number) => `Show ${plural(n, "more room", "more rooms")}`,
     takeIt: "Take it",
     freeRoom: "A free room",
     freeRow: (memoryMb: number) => `Free, with ${memoryMb} MB of memory.`,
@@ -90,7 +92,6 @@ export const houseWords = defineWords(
     seeKnock: "See your knock",
     // The sentences the foot says when there's no button to press (crew.ts).
     foot: {
-      takeRoom: "Take the room at the top of the list to begin.",
       waitChef: "The chef is renting the server. Rooms open once it's up.",
       example: "An example house: look around, but its rooms aren't up for grabs.",
       full: "Every room is taken for now.",
@@ -116,7 +117,6 @@ export const houseWords = defineWords(
       chatStart: (first: string) => `${first}, `,
       github: "GitHub",
       githubName: (login: string) => `@${login} on GitHub (opens a new tab)`,
-      noGithub: "No GitHub profile: an example person",
       wave: "Wave",
       waveName: (first: string) => `Wave at ${first} in the city`,
       waved: (first: string) => `You waved at ${first}.`,
@@ -201,6 +201,7 @@ export const houseWords = defineWords(
     pressToSwitch: (sentence) => `${sentence} Appuyez pour changer.`,
 
     roomForYou: "Une chambre pour vous",
+    moreRooms: (n) => `Voir ${pluriel(n, "autre chambre", "autres chambres")}`,
     takeIt: "La prendre",
     freeRoom: "Une chambre libre",
     freeRow: (memoryMb) => `Libre, avec ${memoryMb} Mo de mémoire.`,
@@ -255,7 +256,6 @@ export const houseWords = defineWords(
     knockFree: "Frapper à une chambre libre",
     seeKnock: "Voir ma demande",
     foot: {
-      takeRoom: "Prenez la chambre en haut de la liste pour commencer.",
       waitChef: "Le chef loue le serveur. Les chambres ouvrent dès qu'il tourne.",
       example: "Une maison d'exemple : visitez, mais ses chambres ne sont pas à prendre.",
       full: "Toutes les chambres sont prises pour l'instant.",
@@ -278,7 +278,6 @@ export const houseWords = defineWords(
       chatStart: (first) => `${first}, `,
       github: "GitHub",
       githubName: (login) => `@${login} sur GitHub (nouvel onglet)`,
-      noGithub: "Pas de profil GitHub : une personne d'exemple",
       wave: "Saluer",
       waveName: (first) => `Saluer ${first} dans la ville`,
       waved: (first) => `Vous avez salué ${first}.`,

@@ -9,6 +9,20 @@
     <meta property="og:site_name" content="La Coloc" />
     <meta property="og:title" content="La Coloc: a city of dev houses" />
     <meta property="og:description" content="Rent a server together, from Dakar to Kigali. Push, and your project is online in your room. Pay part of the rent in code reviews." />
+    <!-- Until the app has loaded, the page shows the city's day sky rather than a blank (black, in dark mode) screen;
+         on /login, the still of the city it opens on, fetched straight away. -->
+    <style>
+      #app:empty { min-height: 100vh; background: linear-gradient(180deg, #6fa6dc 0%, #cfe2f2 100%); }
+      .at-login #app:empty { background: url("/login-city.webp") center / cover no-repeat, linear-gradient(180deg, #6fa6dc 0%, #cfe2f2 100%); }
+    </style>
+    <script>
+      if (location.pathname === "/login") {
+        document.documentElement.classList.add("at-login");
+        const still = document.createElement("link");
+        Object.assign(still, { rel: "preload", as: "image", href: "/login-city.webp" });
+        document.head.append(still);
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>
