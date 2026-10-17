@@ -201,6 +201,7 @@ function trapTab(e: KeyboardEvent) {
           :rundown="!!rundown && !rundownSeen"
           :tab="atStart ? tab : undefined"
           :quiet="atStart && quiet"
+          :coached="coached"
           in-city
           @open="go"
           @label="(l) => (label = l)"

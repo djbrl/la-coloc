@@ -81,7 +81,10 @@ describe("the foot's one next step", () => {
   it("says why there's nothing to press", () => {
     expect(footFor(situation({ demo: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: houseWords.foot.example });
     expect(footFor(situation())).toEqual({ kind: "say", text: houseWords.foot.full });
-    expect(footFor(situation({ tutorial: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: houseWords.foot.takeRoom });
+  });
+
+  it("leaves the foot empty in the workshop until you have a room: its row (or the quest) offers it once", () => {
+    expect(footFor(situation({ tutorial: true, freeRooms: ["three"] }))).toEqual({ kind: "none" });
   });
 });
 

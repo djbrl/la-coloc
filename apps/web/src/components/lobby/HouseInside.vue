@@ -52,6 +52,9 @@ const props = defineProps<{
   quiet?: boolean;
   // Shown over the 3D city (the lobby), not on a page of its own: a picked person can be waved at from there.
   inCity?: boolean;
+  // The tutorial's coach is up with its own main action ("Take the room"): the workshop's room row then keeps
+  // quiet, so there's one button for one action.
+  coached?: boolean;
 }>();
 // `wave`: wave at someone picked in the crew (your avatar's emote in the city).
 // `view`: the house as it arrives (first fetch, then each push on its stream), for a page that shows more of it.
@@ -558,7 +561,7 @@ function rundownEnded() {
           <span v-if="takeError" class="sub warn" role="alert">{{ takeError }}</span>
           <span v-else class="sub">{{ explain.room(256, 0.5) }}</span>
           <template #lead><span class="door"><Icon name="plus" :size="20" /></span></template>
-          <template #end>
+          <template v-if="!coached" #end>
             <button type="button" class="primary" :disabled="taking" @click="takeRoom"><Icon name="door" :size="16" />{{ w.takeIt }}</button>
           </template>
         </ListRow>

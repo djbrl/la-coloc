@@ -43,7 +43,10 @@ export type Foot =
   // Several free rooms: the button points at their rows, and you pick one there.
   | { kind: "pick" }
   | { kind: "thread"; id: string }
-  | { kind: "say"; text: string };
+  | { kind: "say"; text: string }
+  // Nothing: the one next step is already on screen elsewhere (the workshop's "A room for you" row, or the quest's
+  // card), so the foot doesn't say it a second time.
+  | { kind: "none" };
 
 export interface Situation {
   viewer: Viewer | null;
@@ -70,7 +73,7 @@ export function canKnock(s: Situation): boolean {
 export function footFor(s: Situation): Foot {
   const v = s.viewer;
   if (!v) return { kind: "login" };
-  if (s.tutorial && !v.room) return { kind: "say", text: houseWords.foot.takeRoom };
+  if (s.tutorial && !v.room) return { kind: "none" };
   if (v.member) {
     if (v.role === "chef" && s.making) return { kind: "rent", waiting: s.keyMade };
     if (s.making) return { kind: "say", text: houseWords.foot.waitChef };

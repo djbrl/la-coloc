@@ -90,7 +90,6 @@ export const houseWords = defineWords(
     seeKnock: "See your knock",
     // The sentences the foot says when there's no button to press (crew.ts).
     foot: {
-      takeRoom: "Take the room at the top of the list to begin.",
       waitChef: "The chef is renting the server. Rooms open once it's up.",
       example: "An example house: look around, but its rooms aren't up for grabs.",
       full: "Every room is taken for now.",
@@ -254,7 +253,6 @@ export const houseWords = defineWords(
     knockFree: "Frapper à une chambre libre",
     seeKnock: "Voir ma demande",
     foot: {
-      takeRoom: "Prenez la chambre en haut de la liste pour commencer.",
       waitChef: "Le chef loue le serveur. Les chambres ouvrent dès qu'il tourne.",
       example: "Une maison d'exemple : visitez, mais ses chambres ne sont pas à prendre.",
       full: "Toutes les chambres sont prises pour l'instant.",
