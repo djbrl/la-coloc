@@ -8,7 +8,7 @@ import { language, nbsp } from "../i18n";
 export const SEEDED_FR: Readonly<Record<string, string>> = {
   // Taglines.
   "Three side projects, one server, strict reviews.": "Trois projets perso, un serveur, des revues strictes.",
-  "Where newcomers take their first room.": "Là où les nouveaux venus prennent leur première chambre.",
+  "Where newcomers take their first room.": "Là où les nouveaux prennent leur première chambre.",
   "Backend people. We review fast and deploy on Fridays anyway.": "Des gens du backend. On relit vite, et on déploie le vendredi quand même.",
   "Starting a house for mobile devs. Two of four signed up.": "Une maison de devs mobile en préparation. Deux inscrits sur quatre.",
   "Six rooms, mostly fintech. One free.": "Six chambres, surtout de la fintech. Une de libre.",
