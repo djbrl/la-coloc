@@ -5,7 +5,7 @@
 // house's free room; rent a place together; or log in first. A made-up person (a seeded flatmate, or a passer-by
 // the lobby invents) says so, and their invitation is shown disabled; only a real GitHub account gets a profile link.
 // Invitations are structured actions; "Message" opens a direct conversation with them in the chat sheet.
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { openChat } from "../../conversations";
 import { inviteToHouse, notices, rentTogether, withdrawInvite } from "../../notices";
 import { me } from "../../session";
@@ -14,6 +14,7 @@ import { bellWords as bw } from "../bell/words";
 import { messageAction } from "../chat/chat";
 import Icon from "./house/Icon.vue";
 import { type Home, homeLine, roomOf, sentence } from "./cards";
+import { houseWords as hw } from "./house/words";
 import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { roomLine, roomState } from "./panel/words";
@@ -73,6 +74,18 @@ const offered = computed(() => {
   return pickedRoom.value && m.rooms.includes(pickedRoom.value) ? pickedRoom.value : m.rooms[0];
 });
 const first = computed(() => props.name.split(" ")[0]);
+
+// Saying hi: your character waves in the city (LobbyView.vue), and the tile answers in green with a tick for a
+// moment, so you see it happened even when the card covers your character.
+const waved = ref(false);
+let wavedTimer = 0;
+function wave() {
+  if (waved.value) return;
+  emit("wave");
+  waved.value = true;
+  wavedTimer = window.setTimeout(() => (waved.value = false), 2500);
+}
+onBeforeUnmount(() => clearTimeout(wavedTimer));
 
 // Sending an invitation: a sentence once it's sent, or the API's refusal in its own words.
 const busy = ref(false);
@@ -166,9 +179,9 @@ async function send(kind: "invite" | "rent" | "withdraw") {
         <button v-else-if="madeUp" class="big tile" disabled :title="w.noGithub">
           <Icon name="profile" :size="22" /><span>{{ w.github }}<span class="sr-only">. {{ w.noGithub }}</span></span>
         </button>
-        <button v-if="actions.wave" class="big tile" @click="emit('wave')">
-          <Icon name="hand" :size="22" />
-          <span>{{ w.sayHi }}</span>
+        <button v-if="actions.wave" class="big tile" :class="{ waved }" :aria-label="waved ? hw.person.waved(first) : hw.person.waveName(first)" @click="wave">
+          <Icon :name="waved ? 'tick' : 'hand'" :size="22" />
+          <span>{{ waved ? w.waved : w.sayHi }}</span>
         </button>
       </div>
     </div>
@@ -192,6 +205,8 @@ async function send(kind: "invite" | "rent" | "withdraw") {
 .sent { display: flex; align-items: center; gap: 8px; }
 .done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 50px; padding: 0 14px; border-radius: var(--r-md); background: var(--live-soft); color: var(--live); font-weight: 700; }
 .sent .quiet { flex: none; }
+/* Just waved: the tile turns the "done" green for a moment. */
+.menu .tile.waved { background: var(--live-soft); color: var(--live); box-shadow: none; }
 /* Several free rooms: pick the one to offer, above the invitation. */
 .rooms { flex-wrap: wrap; }
 .rooms > button { flex: 1 1 auto; justify-content: center; }

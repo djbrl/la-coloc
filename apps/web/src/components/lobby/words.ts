@@ -52,6 +52,8 @@ export const cardWords = defineWords(
     noMessage: "An example person: nobody would read your message.",
     nothingOnline: "Nothing online in this room yet.",
     sayHi: "Say hi",
+    // The same tile for a moment after you waved.
+    waved: "Waved",
     // A made-up person (a seeded flatmate, a passer-by): said honestly, and their GitHub never linked.
     example: "example person",
     exampleWhy: "Made up so the city isn't empty. No GitHub account.",
@@ -100,6 +102,7 @@ export const cardWords = defineWords(
     noMessage: "Une personne d'exemple : personne ne lirait votre message.",
     nothingOnline: "Rien en ligne dans cette chambre pour l'instant.",
     sayHi: "Dire bonjour",
+    waved: "Salué",
     example: "personne d'exemple",
     exampleWhy: "Inventée pour que la ville ne soit pas vide. Pas de compte GitHub.",
     github: "GitHub",

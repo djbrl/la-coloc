@@ -96,8 +96,10 @@ export interface Resident {
 export interface LobbyEvents {
   // The thing in reach of you, or the one you highlighted with [ or ]: Vue shows a prompt for it ("Go in  E").
   onNear(target: Target | null): void;
-  // You used a target (E, Enter, a click, or walking up to something you clicked): Vue opens a card for it.
-  onSelect(target: Target): void;
+  // You used a target (E, Enter, a click, or walking up to something you clicked): Vue opens a card for it. `how`
+  // says which: "click" for a person clicked or tapped (their card), "use" for E, Enter, the prompt, or arriving
+  // where you were heading (on a person, that's saying hi).
+  onSelect(target: Target, how: "use" | "click"): void;
   // Your position, when it changed (at most ten times a second): for the others to see you.
   onMove(state: { x: number; z: number; ry: number; moving: boolean }): void;
   // What the mouse is over (it gets an outline and a pointer cursor), when that changes. Nothing: null.
@@ -835,6 +837,23 @@ export class Lobby {
     play("emote");
   }
 
+  /**
+   * Someone made up (a flatmate out front, a passer-by) you just said hi to waves back a moment later: they turn to
+   * you, and a hand shows over their head. Someone really online waves back themselves, if they want to.
+   */
+  waveBack(login: string) {
+    const n = this.npcs.find((x) => x.login === login && x.avatar.visible);
+    if (!n) return;
+    const gen = this.generation;
+    window.setTimeout(() => {
+      if (gen !== this.generation || !n.avatar.visible) return;
+      const at = n.avatar.position;
+      n.avatar.rotation.y = Math.atan2(this.player.position.x - at.x, this.player.position.z - at.z);
+      n.person?.play("emote-yes", true);
+      this.bubble(n.avatar, "yes");
+    }, 550);
+  }
+
   // ---- Everyone else who's online here ----
 
   addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean }) {
@@ -991,7 +1010,7 @@ export class Lobby {
 
   /** Uses a thing you're next to: Vue opens it. */
   private use(thing: Thing) {
-    this.events.onSelect(thing.target);
+    this.events.onSelect(thing.target, "use");
   }
 
   /**
@@ -1614,9 +1633,10 @@ export class Lobby {
   private bubble(avatar: THREE.Object3D, name: Emote) {
     const el = document.createElement("div");
     el.className = `lobby-emote ${name}`;
-    el.textContent = name === "yes" ? "👍" : "👎";
+    // "yes" is the wave (the HUD's thumbs are gone, 15 10): a hand. "no" stays a thumbs down.
+    el.textContent = name === "yes" ? "👋" : "👎";
     el.setAttribute("role", "img");
-    el.setAttribute("aria-label", name === "yes" ? "thumbs up" : "thumbs down");
+    el.setAttribute("aria-label", name === "yes" ? "waves hello" : "thumbs down");
     const obj = new CSS2DObject(el);
     obj.position.set(0, 2.25, 0);
     avatar.add(obj);
@@ -1849,7 +1869,7 @@ export class Lobby {
   private click = (e: PointerEvent) => {
     if (this.tour) return;
     const { thing, ground } = this.aim(e);
-    if (thing?.target.kind === "person") this.events.onSelect(thing.target);
+    if (thing?.target.kind === "person") this.events.onSelect(thing.target, "click");
     else if (thing && this.controls.walk) this.walkToward(thing);
     else if (thing && this.distanceTo(thing) < REACH) this.use(thing);
     else if (ground && this.controls.walk) this.routeTo(ground);

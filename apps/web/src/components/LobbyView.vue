@@ -55,6 +55,7 @@ import Welcome from "./lobby/tutorial/Welcome.vue";
 import { tutorialWords as qw } from "./lobby/tutorial/words";
 import LoadingScreen from "./LoadingScreen.vue";
 import Onboarding from "./Onboarding.vue";
+import { houseWords as hw } from "./lobby/house/words";
 import { lobbyWords as w } from "./words";
 
 const props = defineProps<{ houses: CityHouse[] }>();
@@ -684,10 +685,15 @@ const keyOf = (t: Target | null) =>
 const cardKey = computed(() => keyOf(card.value));
 const nearKey = computed(() => keyOf(near.value));
 
-// You used something. A house you're standing at opens straight away; anything else gets a card first. Early in
-// the tutorial nothing opens: those steps are about walking.
-function open(target: Target) {
+// You used something. A house you're standing at opens straight away; a person you used with E or the prompt
+// ("Say hi") gets a wave, and clicking them opens their card; anything else gets a card first. Early in the
+// tutorial nothing opens: those steps are about walking.
+function open(target: Target, how: "use" | "click" = "click") {
   if (!picking.value) return;
+  if (target.kind === "person" && how === "use") {
+    waveAt(target.login, target.name);
+    return;
+  }
   if (target.kind === "house" && nearKey.value === keyOf(target)) {
     goInside({ kind: "house", id: target.house.id });
     return;
@@ -930,6 +936,19 @@ function emote(name: Emote) {
   link?.emote(name);
 }
 
+// Saying hi to someone (E or the prompt near them, or their card's tile): your character waves, with a hand over
+// your head and the emote's sound, a made-up person waves back, and one line of news says so. Pressing again right
+// away does nothing (the live line takes two emotes every two seconds).
+let lastWave = 0;
+function waveAt(login: string, name: string) {
+  const now = performance.now();
+  if (now - lastWave < 1200) return;
+  lastWave = now;
+  emote("yes");
+  lobby?.waveBack(login);
+  say(hw.person.waved(name.split(" ")[0]), { ms: 2200 });
+}
+
 // A house from Find: its city, then its door, and its card.
 function findHouse(h: CityHouse) {
   travel(h.city);
@@ -1065,7 +1084,7 @@ function statsOf(name: string) {
             :example="card.example || cardPlayer?.example"
             :github="cardPlayer?.github"
             @see="boardHouse"
-            @wave="emote('yes')"
+            @wave="waveAt(card.login, card.name)"
             @close="closeCard"
           />
           <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />
