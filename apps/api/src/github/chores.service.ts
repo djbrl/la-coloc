@@ -22,6 +22,17 @@ interface GhRepo {
   id: number;
   full_name: string;
   default_branch?: string;
+  private?: boolean;
+}
+
+/**
+ * The repos to name in a house's news, which every flatmate reads (the workshop's are every newcomer): public ones by
+ * name, private ones only counted ("+2"), so a private repo's name never leaves its owner's room.
+ */
+export function repoList(list: Array<{ full_name: string; private?: boolean }>): string {
+  const named = list.filter((r) => r.private === false).map((r) => r.full_name);
+  const hidden = list.length - named.length;
+  return [...named, ...(hidden ? [`+${hidden}`] : [])].join(", ");
 }
 export interface GhEvent {
   action?: string;
@@ -108,7 +119,7 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
     if (!onlyRoom && !tutorialRoom) return "installer doesn't live in exactly one room";
 
     // Each repo goes to a room: the first to the tutorial room if it is free, the others by the usual rule.
-    const moved = new Map<typeof rooms.$inferSelect, string[]>();
+    const moved = new Map<typeof rooms.$inferSelect, GhRepo[]>();
     for (const [i, r] of list.entries()) {
       const room = i === 0 && tutorialRoom ? tutorialRoom : onlyRoom;
       if (!room) continue;
@@ -116,10 +127,10 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
         .insert(repos)
         .values({ githubId: r.id, fullName: r.full_name, houseId: room.houseId, room: room.name, installationId: p.installation.id })
         .onConflictDoUpdate({ target: repos.githubId, set: { fullName: r.full_name, houseId: room.houseId, room: room.name, installationId: p.installation.id } });
-      moved.set(room, [...(moved.get(room) ?? []), r.full_name]);
+      moved.set(room, [...(moved.get(room) ?? []), r]);
     }
-    for (const [room, names] of moved) {
-      await this.houses.note(room.houseId, { tone: "info", room: room.name, text: noteText("reposMoved", { name: u.name ?? u.login, repos: names.join(", ") }) });
+    for (const [room, list] of moved) {
+      await this.houses.note(room.houseId, { tone: "info", room: room.name, text: noteText("reposMoved", { name: u.name ?? u.login, repos: repoList(list) }) });
     }
     return `linked ${[...moved.values()].flat().length}`;
   }

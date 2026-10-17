@@ -10,7 +10,7 @@ import { AgentRegistry } from "../agents/agent.registry";
 import type { User } from "../auth/auth.service";
 import { isCoreDown } from "../core/core";
 import { DB } from "../db/db.module";
-import { GITHUB_CLIENT } from "../github/chores.service";
+import { GITHUB_CLIENT, repoList } from "../github/chores.service";
 import type { GithubAppClient, GhRepoInfo } from "../github/github.client";
 import type { GithubAppConfig } from "../github/github.config";
 import { GITHUB_CONFIG } from "../github/github.controller";
@@ -124,7 +124,7 @@ export class TutorialService {
       await tx.delete(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name)));
       await tx.insert(repos).values({ githubId, fullName: repo.full_name, houseId: room.houseId, room: room.name, installationId: installation });
     });
-    await this.houses.note(room.houseId, { tone: "info", room: room.name, text: noteText("reposMoved", { name: user.name ?? user.login, repos: repo.full_name }) });
+    await this.houses.note(room.houseId, { tone: "info", room: room.name, text: noteText("reposMoved", { name: user.name ?? user.login, repos: repoList([repo]) }) });
     return { repo: repo.full_name };
   }
 
@@ -137,7 +137,9 @@ export class TutorialService {
     const cached = this.seen.get(user.id);
     if (!fresh && cached && Date.now() - cached.at < 5_000) return cached;
     try {
-      const own = await this.client!.userInstallation(user.login);
+      // Asked by login (GitHub has no lookup by id), then checked against their id: a login someone gave up and a
+      // stranger took must not show them the stranger's repos.
+      const own = await this.client!.userInstallation(user.login, user.githubId ?? undefined);
       const made = user.githubId
         ? await this.db.select({ id: githubInstallations.id }).from(githubInstallations).where(eq(githubInstallations.installerGithubId, user.githubId))
         : [];
@@ -165,7 +167,8 @@ export class TutorialService {
     return {
       house: { id: house.id, name: house.name, city: house.city, agentOnline: this.agents.isOnline(house.id) },
       room: room ? { ...roomView(room), status: await this.finerStatus(room), why: await this.whyFailed(room) } : null,
-      sample: this.sample,
+      // The starter page's folder, never its repo when that's a clone on this server's disk (file://…).
+      sample: { repo: this.sample.repo.startsWith("file://") ? null : this.sample.repo, path: this.sample.path },
       github: {
         // Installing the App on a repo moves that repo into the installer's room (see ChoresService).
         installUrl: this.github?.slug ? `https://github.com/apps/${this.github.slug}/installations/new` : null,
@@ -258,6 +261,7 @@ export class TutorialService {
       });
     }
     const { room: saved } = await this.rooms.manageable(house.id, room.name, user.id);
+    await this.deployer.brake(saved, "prod", user.id);
     try {
       let source: Source | null;
       let ready = saved;

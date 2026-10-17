@@ -70,10 +70,12 @@ describe("who can deploy where", () => {
     expect(sent).toHaveLength(0);
   });
 
-  it("lets the chef deploy anywhere in the house", async () => {
+  it("lets the chef update any room in the house, from the code its flatmate picked", async () => {
+    as = "moussa";
+    await controller.settings("sacre-coeur", "moussa", { source: body.repo }, req);
     as = "jib";
-    await controller.deploy("sacre-coeur", "moussa", body, req);
-    expect(deployCmd()).toMatchObject({ room: "moussa", limits: { memoryMb: 128 } });
+    await controller.deploy("sacre-coeur", "moussa", {}, req);
+    expect(deployCmd()).toMatchObject({ room: "moussa", repo: body.repo, limits: { memoryMb: 128 } });
   });
 
   it("never takes credentials in a repo URL", async () => {

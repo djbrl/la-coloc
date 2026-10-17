@@ -55,12 +55,17 @@ export class GithubAppClient {
     return ((await res.json()) as { default_branch: string }).default_branch;
   }
 
-  /** The App's installation on this person's own account, or null if they haven't installed it there. */
-  async userInstallation(login: string): Promise<number | null> {
+  /**
+   * The App's installation on this person's own account, or null if they haven't installed it there. With their
+   * GitHub id, also null when the account behind that login today is someone else's (they renamed, a stranger took it).
+   */
+  async userInstallation(login: string, githubId?: number): Promise<number | null> {
     const res = await this.fetch(`${API}/users/${encodeURIComponent(login)}/installation`, { headers: this.headers(`Bearer ${appJwt(this.cfg)}`) });
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`couldn't look up ${login}'s installation (${res.status})`);
-    return ((await res.json()) as { id: number }).id;
+    const found = (await res.json()) as { id: number; account?: { id?: number } };
+    if (githubId !== undefined && found.account?.id !== undefined && found.account.id !== githubId) return null;
+    return found.id;
   }
 
   /** The repos an installation covers (the first hundred: plenty for a newcomer). */

@@ -143,7 +143,8 @@ export function settingsBody(form: SettingsForm, githubLinked: boolean, port: nu
   return {
     project: form.project,
     projectDescription: form.projectDescription,
-    source: githubLinked ? undefined : form.source.trim() || null,
+    // "file://" stands for the quest's starter page, whose folder the server keeps to itself: leave it as it is.
+    source: githubLinked || form.source.trim() === "file://" ? undefined : form.source.trim() || null,
     branch: form.branch.trim() || null,
     buildPath: form.buildPath.trim() || ".",
     port,

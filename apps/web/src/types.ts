@@ -249,7 +249,7 @@ export interface TutorialState {
   // ("building", "starting").
   // `why`: when its last build failed, the first line of the reason (an older API leaves it out).
   room: { name: string; status: RoomStatus | string; url: string | null; why?: string | null } | null;
-  sample: { repo: string; path: string };
+  sample: { repo: string | null; path: string };
   // `repo`: the GitHub repo linked to the workshop room ("awa/portfolio"), if any.
   github: { installUrl: string | null; linked: boolean; repo?: string | null };
   done: boolean;

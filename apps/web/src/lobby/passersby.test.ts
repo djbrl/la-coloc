@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { generateNeighbourhood, ROAD, seeded } from "./neighbourhood";
-import { allPassersBy, isGithubHandle, keepApart, laneFor, MOST, passerbyCount, passersBy, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
+import { allPassersBy, isMadeUpHandle, keepApart, laneFor, MOST, passerbyCount, passersBy, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
 
 describe("passers-by", () => {
-  it("carry handles GitHub would take: lowercase, digits, single hyphens, no dots", () => {
-    expect(isGithubHandle("awa-ndiaye")).toBe(true);
-    expect(isGithubHandle("mdiop221")).toBe(true);
-    expect(isGithubHandle("moussa.dev")).toBe(false);
-    expect(isGithubHandle("-awa")).toBe(false);
-    expect(isGithubHandle("awa--n")).toBe(false);
-    expect(isGithubHandle("Awa")).toBe(false);
-    for (const p of allPassersBy()) expect(isGithubHandle(p.login), p.login).toBe(true);
+  it("carry made-up handles no GitHub account can have (an underscore in each)", () => {
+    expect(isMadeUpHandle("awa_ndiaye")).toBe(true);
+    expect(isMadeUpHandle("mdiop_221")).toBe(true);
+    // What GitHub allows (a real account could have it), or not handle-like at all.
+    expect(isMadeUpHandle("awa-ndiaye")).toBe(false);
+    expect(isMadeUpHandle("mdiop221")).toBe(false);
+    expect(isMadeUpHandle("_awa")).toBe(false);
+    expect(isMadeUpHandle("awa__n")).toBe(false);
+    expect(isMadeUpHandle("Awa_N")).toBe(false);
+    for (const p of allPassersBy()) expect(isMadeUpHandle(p.login), p.login).toBe(true);
   });
 
   it("never share a handle, and have a full name", () => {

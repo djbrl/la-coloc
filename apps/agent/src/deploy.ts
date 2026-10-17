@@ -15,9 +15,13 @@ import {
 } from "./docker";
 import { resolveInside, shallowClone } from "./git";
 import { routeTo, unroute, unrouteRoom } from "./proxy";
+import { Slots } from "./slots";
 import { LABEL, containerName, resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetworks } from "./room-spec";
 
 type Report = (s: Omit<DeployStatus, "type" | "deployId" | "room">) => void;
+
+// One build at a time for the whole house, unless COLOC_BUILD_SLOTS says more (see slots.ts).
+const builds = new Slots(Math.max(1, Number(process.env.COLOC_BUILD_SLOTS) || 1));
 
 export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Report): Promise<void> {
   report({ status: "cloning" });
@@ -35,7 +39,7 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
     report({ status: "building", detail: `commit ${shortSha}` });
     const buildLog: string[] = [];
     try {
-      await buildImage(resolveInside(checkout.dir, cmd.path), tag, (l) => buildLog.push(l), cfg.buildOffline);
+      await builds.run(() => buildImage(resolveInside(checkout.dir, cmd.path), tag, (l) => buildLog.push(l), cfg.buildOffline));
     } catch (e) {
       throw new Error(`build failed: ${(e as Error).message}\n${buildLog.slice(-20).join("\n")}`);
     }

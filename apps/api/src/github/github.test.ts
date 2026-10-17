@@ -6,7 +6,7 @@ import { createHmac, createVerify, generateKeyPairSync } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { HousesService } from "../houses/houses.service";
 import { seedCity } from "../seed/city";
-import { ChoresService, type GhEvent } from "./chores.service";
+import { ChoresService, type GhEvent, repoList } from "./chores.service";
 import { appJwt, type GithubAppClient } from "./github.client";
 import { verifySignature } from "./webhook";
 
@@ -42,7 +42,7 @@ describe("chores", () => {
   let svc: ChoresService;
   let calls: string[];
   const gh = { jib: { id: 1, login: "jib" }, awa: { id: 2, login: "awa" }, moussa: { id: 3, login: "moussa" } };
-  const repo = { id: 100, full_name: "awa/ndaje" };
+  const repo = { id: 100, full_name: "awa/ndaje", private: false };
 
   beforeAll(async () => {
     db = await testDb();
@@ -81,6 +81,11 @@ describe("chores", () => {
     expect(await svc.handle("installation", { action: "created", installation: { id: 8 }, sender: { id: 999, login: "x" }, repositories: [{ id: 5, full_name: "x/y" }] })).toBe(
       "installer isn't a coloc user",
     );
+  });
+
+  it("names public repos in the house's news, and only counts private ones", () => {
+    expect(repoList([{ full_name: "awa/ndaje", private: false }, { full_name: "awa/secret", private: true }, { full_name: "awa/unknown" }])).toBe("awa/ndaje, +2");
+    expect(repoList([{ full_name: "awa/secret", private: true }])).toBe("+1");
   });
 
   it("assigns a flatmate who isn't the author, comments, and requests the review", async () => {

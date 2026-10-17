@@ -28,11 +28,12 @@ import { RoomDeployer } from "./room-deployer";
 import { RoomsService } from "./rooms.service";
 
 const REF = /^(?!.*\.\.)[A-Za-z0-9._\/-]{1,100}$/;
-// A repo URL to clone by hand. Never with credentials in it: those come from the GitHub App, fresh each time.
+// A repo URL to clone by hand. Never with credentials in it: those come from the GitHub App, fresh each time. Never
+// file:// either: that would be a folder on the house's own disk (the quest's starter page is the server's to pick).
 const RepoUrl = z
   .string()
   .max(300)
-  .regex(/^(https:\/\/|file:\/\/)/, "repo must be an https:// or file:// URL")
+  .regex(/^https:\/\/[^/\s]+\/\S+$/, "repo must be an https:// URL")
   .refine((u) => !/^https:\/\/[^/]*@/.test(u), "don't put credentials in the URL: link the repo with the GitHub App instead");
 
 const Settings = z.object({
@@ -41,7 +42,8 @@ const Settings = z.object({
   branch: z.string().regex(REF, "not a branch name").nullish(),
   buildPath: z.string().regex(/^(?!.*\.\.)[A-Za-z0-9._\/-]{1,200}$/, "a folder inside the repo, like apps/api").optional(),
   port: z.number().int().min(1).max(65535).nullish(),
-  source: RepoUrl.nullish(),
+  // "file://" is how the room page shows the quest's starter page (rooms.service view): sent back, it means "as is".
+  source: z.union([z.literal("file://").transform(() => undefined), RepoUrl.nullish()]),
 });
 const DeployBody = z.object({
   repo: RepoUrl.optional(),
@@ -161,6 +163,7 @@ export class RoomsController {
     if (room.demo) throw new ConflictException(EXAMPLE_ROOM);
     const source = await this.deployer.source(room);
     if (!source) throw new BadRequestException("This room has no code yet: give it a repo URL, or install the GitHub App on your repo.");
+    await this.deployer.brake(room, kind, userId);
     try {
       return await this.deployer.deploy({ room, kind, source, requestedBy: requestedBy ?? userId });
     } catch (e) {

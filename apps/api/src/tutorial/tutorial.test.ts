@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { type Db, fridgeNotes, githubInstallations, memberships, repos, rooms, users } from "@coloc/db";
+import { type Db, deployments, fridgeNotes, githubInstallations, memberships, repos, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import type { ApiToAgent, DeployCommand } from "@coloc/protocol";
 import { HttpException } from "@nestjs/common";
@@ -203,6 +203,8 @@ describe("putting the sample online", () => {
   it("deploys the linked repo from its root, named after the repo", async () => {
     await tutorial.room(req, response());
     await tutorial.deploy(req, { source: "starter" });
+    // The starter page is online (a second deploy waits while one is under way).
+    await db.update(deployments).set({ status: "live" });
     await linkRepo();
     await tutorial.deploy(req, { source: "github" });
     expect(deployed()[1]).toMatchObject({ room: "fatou", repo: "https://x-access-token:t0ken@github.com/fatou/portfolio.git", ref: "trunk", path: "." });

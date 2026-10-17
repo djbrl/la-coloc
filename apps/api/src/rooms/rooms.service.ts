@@ -69,7 +69,8 @@ export class RoomsService {
         branch: room.branch,
         buildPath: room.buildPath,
         port: room.port,
-        source: room.source,
+        // The quest's starter page is cloned from a folder on the server: its path is nobody's business.
+        source: room.source?.startsWith("file://") ? "file://" : room.source,
       },
       github: repo ? { fullName: repo.fullName, url: `https://github.com/${repo.fullName}` } : null,
       secrets: secrets.map((s) => ({ name: s.name, updatedAt: s.updatedAt.toISOString() })),
@@ -88,7 +89,13 @@ export class RoomsService {
   }
 
   async updateSettings(houseId: string, roomName: string, userId: string, s: RoomSettings) {
-    const { room } = await this.manageable(houseId, roomName, userId);
+    const { room, as } = await this.manageable(houseId, roomName, userId);
+    // Where the code comes from is the flatmate's alone: a deploy carries the room's secrets, so whoever picks the
+    // code can read them. The chef may still name, restart and update a room, from the code it already has.
+    const moves = (k: "source" | "branch" | "buildPath") => s[k] !== undefined && (s[k]?.trim() || null) !== (room[k] ?? null);
+    if (as === "chef" && room.occupantId && (moves("source") || moves("branch") || moves("buildPath"))) {
+      throw new ForbiddenException("Only the flatmate who lives here can change where the room's code comes from.");
+    }
     await this.db
       .update(rooms)
       .set({

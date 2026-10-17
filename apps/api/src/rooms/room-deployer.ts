@@ -1,9 +1,10 @@
 // One way to deploy a room, whoever asks: the room page, a merged pull request, a preview. It builds the agent's
 // deploy command from the room's settings (branch, folder, port) and its decrypted secrets.
-import { Inject, Injectable } from "@nestjs/common";
-import { type Db, houses, repos, roomSecrets, rooms, users } from "@coloc/db";
+import { ConflictException, HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { type Db, deployments, houses, repos, roomSecrets, rooms, users } from "@coloc/db";
 import type { DeployKind } from "@coloc/protocol";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
+import { Limiter } from "../chat/limiter";
 import { AgentRegistry } from "../agents/agent.registry";
 import { DB } from "../db/db.module";
 import { GITHUB_CLIENT } from "../github/chores.service";
@@ -14,6 +15,13 @@ import type { SecretBox } from "./secrets";
 
 export const SECRETS = Symbol("SECRETS");
 type Room = typeof rooms.$inferSelect;
+
+// Deploys someone asks for by hand (the room page, the quest): each one is a build on the house's server, so a few
+// in a row, then a pause. Merges and previews from GitHub don't count: they come from pushes, not from a button.
+export const DEPLOYS = { count: 5, perMs: 10 * 60_000 };
+// A build that hasn't reported back in this long is stuck, not running: don't let it block the room for ever.
+const STUCK_MS = 15 * 60_000;
+const UNDER_WAY = ["queued", "cloning", "building", "starting"] as const;
 
 export interface Source {
   // What the agent clones. For a GitHub repo it carries a one-hour token: never store or show it.
@@ -31,6 +39,32 @@ export class RoomDeployer {
     @Inject(SECRETS) private readonly secrets: SecretBox | null,
     @Inject(GITHUB_CLIENT) private readonly github: GithubAppClient | null,
   ) {}
+
+  private readonly byHand = new Limiter(DEPLOYS.count, DEPLOYS.perMs);
+
+  /**
+   * The brake on deploys asked for by hand: one at a time per room (a second press while it builds does nothing but
+   * build twice), and a few per person in ten minutes. Throws the 409 or 429 to show them.
+   */
+  async brake(room: Room, kind: DeployKind, userId: string, now = new Date()): Promise<void> {
+    const [running] = await this.db
+      .select({ id: deployments.id })
+      .from(deployments)
+      .where(
+        and(
+          eq(deployments.houseId, room.houseId),
+          eq(deployments.room, room.name),
+          eq(deployments.kind, kind),
+          inArray(deployments.status, [...UNDER_WAY]),
+          gt(deployments.createdAt, new Date(now.getTime() - STUCK_MS)),
+        ),
+      )
+      .limit(1);
+    if (running) throw new ConflictException("This room is already being put online. Wait for it to finish.");
+    if (!this.byHand.take(userId, now.getTime())) {
+      throw new HttpException("That's a lot of deploys in a few minutes. Wait a little before the next one.", HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
 
   /** The room's secrets, decrypted, as environment variables. */
   async env(houseId: string, room: string): Promise<Record<string, string>> {
