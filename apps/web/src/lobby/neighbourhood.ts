@@ -1,6 +1,6 @@
-// A neighbourhood, generated from its city's name: blocks of plots between streets, a market square, maybe a
-// park, filler buildings on the empty plots and a skyline beyond the last street. The same name always gives the
-// same map, so everyone walks the same streets. Pure: no three.js, no randomness that isn't seeded.
+// A neighbourhood, generated from its city's name: blocks of plots between streets, a market square, the Arena (a
+// stadium, on the block that used to be the park; see docs/arena.md), filler buildings on the empty plots and a
+// skyline beyond the last street. The same name always gives the same map, so everyone walks the same streets. Pure: no three.js, no randomness that isn't seeded.
 
 export const PLOT = 8; // a plot is PLOT × PLOT units
 export const ROAD = 5; // a street, sidewalks included
@@ -29,7 +29,8 @@ export interface Block {
   z: number;
   width: number;
   depth: number;
-  kind: "homes" | "market" | "park";
+  // "park" only on the tutorial's hand-made map; a generated city has the Arena on that block instead.
+  kind: "homes" | "market" | "park" | "arena";
 }
 
 export interface Neighbourhood {
@@ -48,6 +49,8 @@ export interface Neighbourhood {
   spawn: { x: number; z: number; ry: number; turn: number };
   // The chores board on the market square (R19): where it stands and which way its face looks. None in the tutorial.
   board?: { x: number; z: number; facing: Facing };
+  // The Arena: its block (centre and size), and which way its entrance faces, towards the market. None in the tutorial.
+  arena?: { x: number; z: number; width: number; depth: number; facing: Facing };
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
 }
 
@@ -115,15 +118,17 @@ export function generateNeighbourhood(city: string, houses: HouseOnMap[], opts: 
   const ox = -width / 2;
   const oz = -depth / 2;
 
-  // The market is the most central block; a park sits elsewhere, when there's room.
+  // The market is the most central block; the Arena sits elsewhere, when there's room (always, in a full city: at
+  // least 3 × 2 blocks). Never in the market's column, so it's always off to one side of it. It's the block a park
+  // took before the Arena, so the dice roll the same way and every plot keeps its key.
   const centre = { i: Math.floor((bx - 1) / 2), j: Math.floor((bz - 1) / 2) };
-  const parkAt = bx * bz >= 6 ? { i: (centre.i + 1 + pick(bx - 1)) % bx, j: pick(bz) } : null;
+  const arenaAt = bx * bz >= 6 ? { i: (centre.i + 1 + pick(bx - 1)) % bx, j: pick(bz) } : null;
 
   const blocks: Block[] = [];
   const plots: Plot[] = [];
   for (let i = 0; i < bx; i++) {
     for (let j = 0; j < bz; j++) {
-      const kind: Block["kind"] = i === centre.i && j === centre.j ? "market" : parkAt && parkAt.i === i && parkAt.j === j ? "park" : "homes";
+      const kind: Block["kind"] = i === centre.i && j === centre.j ? "market" : arenaAt && arenaAt.i === i && arenaAt.j === j ? "arena" : "homes";
       const b = { x: ox + xs[i].start + xs[i].size / 2, z: oz + zs[j].start + zs[j].size / 2, width: xs[i].size, depth: zs[j].size, kind };
       blocks.push(b);
       if (kind !== "homes") continue;
@@ -139,6 +144,7 @@ export function generateNeighbourhood(city: string, houses: HouseOnMap[], opts: 
   // Houses that rented a plot stand on it. The others take the plots nearest the market (real houses before demo
   // ones), and the rest of the street fills in with shops, towers and trees.
   const market = blocks.find((b) => b.kind === "market")!;
+  const arenaBlock = blocks.find((b) => b.kind === "arena");
   const byKey = new Map(plots.map((p) => [p.key, p]));
   const unplaced: HouseOnMap[] = [];
   for (const h of houses) {
@@ -198,8 +204,20 @@ export function generateNeighbourhood(city: string, houses: HouseOnMap[], opts: 
     spawn: spawnFor(plots, houses, market),
     // The board stands on the market's south edge, facing the street, where you see it on the way in.
     board: { x: market.x, z: market.z + market.depth / 2 - 2.2, facing: 0 },
+    ...(arenaBlock ? { arena: { x: arenaBlock.x, z: arenaBlock.z, width: arenaBlock.width, depth: arenaBlock.depth, facing: facingTowards(arenaBlock, market) } } : {}),
     bounds: { minX: -width / 2, maxX: width / 2, minZ: -depth / 2, maxZ: depth / 2 },
   };
+}
+
+/**
+ * Which side of a block faces another block: the axis they're furthest apart on (x when it's a tie). The Arena's
+ * entrance faces the market this way, so the crowd walks over from the square.
+ */
+export function facingTowards(from: { x: number; z: number }, to: { x: number; z: number }): Facing {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  if (Math.abs(dx) >= Math.abs(dz)) return dx >= 0 ? 1 : 3;
+  return dz >= 0 ? 0 : 2;
 }
 
 /**
