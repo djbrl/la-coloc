@@ -1,6 +1,7 @@
 // The lobby's live line to the server: which neighbourhood we're in, our position and emotes out; everyone else's
 // in, plus a head count per neighbourhood, and a nudge when something new is under your bell or in your messages. Reconnects on its own
 // when the line drops (a laptop waking up, the API restarting), and says where we are again when it does.
+import type { Badge } from "./badge";
 import type { Emote } from "./Lobby";
 
 export interface PlayerState {
@@ -15,6 +16,8 @@ export interface PlayerState {
   // An older API leaves both out.
   github?: boolean;
   example?: boolean;
+  // The title they won in the Arena and wear (docs/arena.md), on their name tag. An older API leaves it out.
+  badge?: Badge | null;
 }
 
 type ServerMessage =
