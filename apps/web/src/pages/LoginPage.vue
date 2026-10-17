@@ -31,6 +31,22 @@ async function loadConfig() {
 onMounted(loadConfig);
 useWhenBack(loadConfig);
 
+// GitHub login leaves the page for the API, then GitHub. With the API unreachable (a laptop asleep, a tunnel gone),
+// the browser would land on the host's own 404 page: ask first, and show the calm "can't be reached" card instead.
+async function withGithub() {
+  busy.value = "github";
+  const up = await fetch("/api/health", { signal: AbortSignal.timeout(6000) })
+    .then((r) => r.ok)
+    .catch(() => false);
+  busy.value = "";
+  if (up) {
+    window.location.href = "/api/auth/github";
+    return;
+  }
+  config.value = null;
+  waiting.value = true;
+}
+
 async function devLogin(as: string) {
   message.value = "";
   if (!as.trim()) {
@@ -59,7 +75,7 @@ async function devLogin(as: string) {
           <h1>{{ w.moveIn }}</h1>
           <p class="lede muted">{{ w.lede }}</p>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
-          <a v-if="config.github" class="button primary" href="/api/auth/github">{{ w.withGithub }}</a>
+          <a v-if="config.github" class="button primary" href="/api/auth/github" :aria-busy="busy === 'github'" @click.prevent="withGithub">{{ w.withGithub }}</a>
           <p v-else class="muted">{{ w.noGithub }}</p>
           <template v-if="config.dev">
             <button v-if="config.github" class="link" @click="step = 2">{{ w.useDev }} <span aria-hidden="true">›</span></button>

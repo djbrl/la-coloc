@@ -61,6 +61,8 @@ export function isOutageResponse(status: number, bodyText: string): boolean {
   if (status === 502 || status === 503 || status === 504) return true;
   const json = parse(bodyText);
   if (json && typeof json === "object" && (json as { code?: unknown }).code === "core_down") return true;
+  // The host's own "not found" page (Vercel's, when the tunnel to the API is gone): the API always answers in JSON.
+  if (status === 404 && json === undefined && bodyText.trim() !== "") return true;
   return status === 500 && json === undefined;
 }
 

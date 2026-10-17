@@ -24,6 +24,11 @@ describe("isOutageResponse: what counts as the core being down", () => {
     expect(isOutageResponse(500, "<html></html>")).toBe(true);
   });
 
+  it("counts the host's own 404 page in front of a missing API (the shared site when its tunnel is gone)", () => {
+    expect(isOutageResponse(404, "The page could not be found\n\nNOT_FOUND\n")).toBe(true);
+    expect(isOutageResponse(404, "<!doctype html><title>404</title>")).toBe(true);
+  });
+
   it("does not count the API answering 'no' in its own words", () => {
     expect(isOutageResponse(401, JSON.stringify({ message: "Log in first." }))).toBe(false);
     expect(isOutageResponse(403, JSON.stringify({ message: "Not yours." }))).toBe(false);
