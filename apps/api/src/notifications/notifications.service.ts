@@ -13,12 +13,13 @@
 // And news from the doorbell, through its listener: a knock on your house, and the answer to your knock.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Db, houses, type InviteState, memberships, type NotificationKind, notifications, rooms, users } from "@coloc/db";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or } from "drizzle-orm";
 import { Subject } from "rxjs";
 import type { AuthConfig } from "../auth/auth.config";
 import { AUTH_CONFIG } from "../auth/auth.service";
 import { DB } from "../db/db.module";
 import { DoorbellService, type KnockEvent } from "../doorbell/doorbell.service";
+import { blockBetween, blockersOf } from "../doorbell/queries";
 import type { PersonView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
 import { moveInto } from "../houses/move-in";
@@ -270,12 +271,15 @@ export class NotificationsService {
     return !!row;
   }
 
-  // The person an invitation goes to: someone real who isn't you.
+  // The person an invitation goes to: someone real who isn't you, and nobody either of you blocked (as for messages).
   private async recipient(senderId: string, login: string): Promise<UserRow> {
     const [to] = await this.db.select().from(users).where(eq(users.login, login));
     if (!to) throw new NotFoundException("Nobody by that name lives in La Coloc.");
     if (to.id === senderId) throw new BadRequestException("You can't invite yourself.");
     if (await this.isExample(to)) throw new ConflictException("This is an example person: nobody would get the invitation.");
+    const block = await blockBetween(this.db, senderId, to.id);
+    if (block === "mine") throw new ForbiddenException("You blocked them. Unblock them to invite them.");
+    if (block === "theirs") throw new ForbiddenException("They aren't taking invitations from you.");
     return to;
   }
 
@@ -302,8 +306,13 @@ export class NotificationsService {
 
   private async fromDoorbell(e: KnockEvent) {
     if (e.type === "knocked") {
-      // Everyone who lives in the house hears the knock (the applicant doesn't live there).
-      const flatmates = await this.db.select({ id: memberships.userId }).from(memberships).where(and(eq(memberships.houseId, e.houseId), ne(memberships.userId, e.applicantId)));
+      // Everyone who lives in the house hears the knock (the applicant doesn't live there), except anyone who
+      // blocked the applicant.
+      const blockers = await blockersOf(this.db, e.applicantId);
+      const flatmates = await this.db
+        .select({ id: memberships.userId })
+        .from(memberships)
+        .where(and(eq(memberships.houseId, e.houseId), ne(memberships.userId, e.applicantId), blockers.length ? notInArray(memberships.userId, blockers) : undefined));
       for (const f of flatmates)
         await this.create({ userId: f.id, kind: "knock", fromId: e.applicantId, houseId: e.houseId, room: e.room, payload: { applicationId: e.applicationId } });
     } else {

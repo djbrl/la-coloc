@@ -13,7 +13,7 @@ import { applications, blocks, boardPosts, chatReads, type Db, houses, messages,
 import { and, count, desc, eq, gt, inArray, like, max, ne, or, sql } from "drizzle-orm";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
-import { blockedBy, channelMessages, person } from "../doorbell/queries";
+import { blockBetween, blockedBy, channelMessages, person } from "../doorbell/queries";
 import type { MessageView, PersonView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -254,12 +254,7 @@ export class ChatService {
 
   /** Who blocked whom between two people: "mine" (you blocked them), "theirs", or null. */
   async blockBetween(userId: string, otherId: string): Promise<"mine" | "theirs" | null> {
-    const rows = await this.db
-      .select()
-      .from(blocks)
-      .where(or(and(eq(blocks.blockerId, userId), eq(blocks.blockedId, otherId)), and(eq(blocks.blockerId, otherId), eq(blocks.blockedId, userId))));
-    if (rows.some((r) => r.blockerId === userId)) return "mine";
-    return rows.length ? "theirs" : null;
+    return blockBetween(this.db, userId, otherId);
   }
 
   private async markRead(userId: string, channel: string) {

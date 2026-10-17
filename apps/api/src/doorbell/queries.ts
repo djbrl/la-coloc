@@ -25,6 +25,21 @@ export async function blockedBy(db: Db, viewerId: string | null | undefined): Pr
   return (await db.select({ id: blocks.blockedId }).from(blocks).where(eq(blocks.blockerId, viewerId))).map((b) => b.id);
 }
 
+/** The people who blocked `userId`: they don't hear from them (knocks on their house, for one). */
+export async function blockersOf(db: Db, userId: string): Promise<string[]> {
+  return (await db.select({ id: blocks.blockerId }).from(blocks).where(eq(blocks.blockedId, userId))).map((b) => b.id);
+}
+
+/** Who blocked whom between two people: "mine" (`userId` blocked them), "theirs", or null. */
+export async function blockBetween(db: Db, userId: string, otherId: string): Promise<"mine" | "theirs" | null> {
+  const rows = await db
+    .select()
+    .from(blocks)
+    .where(or(and(eq(blocks.blockerId, userId), eq(blocks.blockedId, otherId)), and(eq(blocks.blockerId, otherId), eq(blocks.blockedId, userId))));
+  if (rows.some((r) => r.blockerId === userId)) return "mine";
+  return rows.length ? "theirs" : null;
+}
+
 /** The last messages of a channel, oldest first. With a viewer, what people they blocked said is left out. */
 export async function channelMessages(db: Db, channel: string, limit = HISTORY, viewerId?: string | null): Promise<MessageView[]> {
   const hidden = await blockedBy(db, viewerId);
