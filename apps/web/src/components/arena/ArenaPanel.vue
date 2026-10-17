@@ -211,11 +211,10 @@ function onKey(e: KeyboardEvent) {
               </li>
             </ul>
 
-            <ul v-if="stage === 'soon'" class="rows">
-              <ListRow :title="w.notOpenTitle" :sub="w.notOpen" class="repo">
-                <template #lead><Icon name="code" :size="20" /></template>
-              </ListRow>
-            </ul>
+            <div v-if="stage === 'soon'" class="soon" role="status">
+              <Icon name="code" :size="20" />
+              <p><strong>{{ w.notOpenTitle }}</strong>{{ w.notOpen }}</p>
+            </div>
             <ul v-else class="rows">
               <ListRow :title="`${repoName(challenge.repo)}/${challenge.path}`" class="repo">
                 <template #lead><Icon name="code" :size="20" /></template>
@@ -360,6 +359,9 @@ a.go:hover { text-decoration: none; }
 .send input { flex: 1 1 auto; min-width: 0; border-radius: var(--r-pill); padding-left: 18px; font-family: var(--mono); font-size: 14px; }
 /* A challenge's name is a sentence, not a house's one word: two lines rather than an ellipsis. */
 .arena :deep(.title) { font-size: 22px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.soon { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
+.soon p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+.soon strong { display: block; margin-bottom: 2px; color: var(--text); font-size: 15px; }
 .scoring { margin: 8px 0 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
 .send button { flex: none; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 
