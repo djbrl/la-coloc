@@ -112,7 +112,6 @@ export const hudWords = defineWords(
     skip: "Skip to content",
     main: "Main",
     loggedInAs: (login: string) => `Logged in as ${login}`,
-    logOut: "Log out",
     logIn: "Log in",
     settings: "Settings",
     // LoadingScreen.vue
@@ -197,7 +196,6 @@ export const hudWords = defineWords(
     skip: "Aller au contenu",
     main: "Principal",
     loggedInAs: (login) => `Votre compte : ${login}`,
-    logOut: "Déconnexion",
     logIn: "Se connecter",
     settings: "Réglages",
     pitch: "Une ville de maisons de devs, de Dakar à Kigali.",

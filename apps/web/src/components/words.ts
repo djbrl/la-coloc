@@ -89,6 +89,9 @@ export const settingsWords = defineWords(
     shortcutsName: "Keyboard shortcuts",
     welcomeAgain: "Watch the welcome again",
     tutorialAgain: "Take the tutorial again",
+    // Your account: who you are, and logging out (it used to be in the top bar, one tap from the bell).
+    signedIn: (login: string) => `Logged in as @${login}.`,
+    logOut: "Log out",
     resetDemo: "Reset the demo city",
     resetQuestion: "Everything goes back to the start. Reset?",
     keep: "Keep",
@@ -124,6 +127,8 @@ export const settingsWords = defineWords(
     shortcutsName: "Raccourcis clavier",
     welcomeAgain: "Revoir l'accueil",
     tutorialAgain: "Refaire le tutoriel",
+    signedIn: (login) => `Connecté en tant que @${login}.`,
+    logOut: "Se déconnecter",
     resetDemo: "Remettre la ville de démo à zéro",
     resetQuestion: "Tout revient au début. Remettre à zéro ?",
     keep: "Garder",
