@@ -876,9 +876,15 @@ watch(
 );
 
 // The tab's title says where you are: "Sacré-Cœur, Dakar · La Coloc", "Ndaje, Sacré-Cœur · La Coloc", "Dakar · La Coloc".
+const houseOf = (id: string) => props.houses.find((h) => h.id === id) ?? (id === TUTORIAL_HOUSE ? tutorial.house.value : null);
+// The breadcrumb top left: the house you're inside (its window, or one of its rooms), else the city (or the workshop).
+const crumb = computed(() => {
+  const p = parsePlace(top.value) ?? place.value;
+  const id = p?.kind === "house" ? p.id : p?.kind === "room" ? p.houseId : null;
+  return (id && houseOf(id)?.name) || placeName.value;
+});
 watchEffect(() => {
   const p = parsePlace(top.value) ?? place.value;
-  const houseOf = (id: string) => props.houses.find((h) => h.id === id) ?? (id === TUTORIAL_HOUSE ? tutorial.house.value : null);
   let where = placeName.value;
   if (p?.kind === "house") {
     const h = houseOf(p.id);
@@ -1036,8 +1042,8 @@ function statsOf(name: string) {
     <template v-if="ready && !failed">
       <!-- Each piece of the screen shows once the tutorial has unlocked it (always, outside the tutorial). The HUD
            comes first in the page, so Tab reaches the skip link, the top bar and these buttons before the city. -->
-      <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? w.inWorkshop(placeName) : w.inCity(city)" @click="openSheet('travel')">
-        <span class="city">{{ placeName }}</span>
+      <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? w.inWorkshop(placeName) : w.inCity(crumb)" @click="openSheet('travel')">
+        <span class="city">{{ crumb }}</span>
         <span class="chev" aria-hidden="true">›</span>
       </button>
 
