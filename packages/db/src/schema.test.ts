@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { houses, rooms, users } from "./schema";
+import { arenaAwards, arenaChallenges, arenaSubmissions, houses, rooms, users } from "./schema";
 import { testDb } from "./testing";
 
 describe("schema", () => {
@@ -19,5 +19,23 @@ describe("schema", () => {
     await db.insert(houses).values({ id: "h", name: "H", city: "Lomé", country: "TG", domain: "h.coloc.dev" });
     await db.insert(rooms).values({ houseId: "h", name: "a", memoryMb: 128, cpus: 0.5 });
     await expect(db.insert(rooms).values({ houseId: "h", name: "a", memoryMb: 128, cpus: 0.5 })).rejects.toThrow();
+  });
+
+  it("forgets a worn Arena title when its award goes, and counts a pull request once per challenge", async () => {
+    const db = await testDb();
+    const [awa] = await db.insert(users).values({ login: "awa" }).returning();
+    const week = { city: "Dakar", weekStart: "2026-10-05", startsAt: new Date("2026-10-05T00:00:00Z"), endsAt: new Date("2026-10-12T00:00:00Z") };
+    await db.insert(arenaChallenges).values({ id: "Dakar:2026-10-05", ...week, slug: "bug-bounty", kind: "bounty", repo: "https://github.com/Djbrl/la-coloc", path: "challenges/bug-bounty", prizeFcfa: 25_000 });
+    const pr = { challengeId: "Dakar:2026-10-05", userId: awa.id, url: "https://github.com/Djbrl/la-coloc/pull/1", repo: "djbrl/la-coloc", number: 1 };
+    await db.insert(arenaSubmissions).values(pr);
+    await expect(db.insert(arenaSubmissions).values(pr)).rejects.toThrow();
+    const [award] = await db
+      .insert(arenaAwards)
+      .values({ challengeId: "Dakar:2026-10-05", userId: awa.id, place: 1, key: "eagle-eye", titleEn: "Eagle eye", titleFr: "Œil de lynx", city: "Dakar", week: "2026-10-05" })
+      .returning();
+    await db.update(users).set({ wornAwardId: award.id }).where(eq(users.id, awa.id));
+    await db.delete(arenaChallenges);
+    const [after] = await db.select().from(users).where(eq(users.id, awa.id));
+    expect(after.wornAwardId).toBeNull();
   });
 });

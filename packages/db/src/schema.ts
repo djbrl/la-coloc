@@ -2,7 +2,7 @@
 // Durable things live here. Live-only things (is the agent online, the latest CPU reading, who's looking at
 // the city right now) stay in the API's memory and are rebuilt when an agent reconnects.
 import { relations } from "drizzle-orm";
-import { bigint, bigserial, boolean, index, integer, jsonb, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, bigint, bigserial, boolean, date, index, integer, jsonb, pgTable, primaryKey, real, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
@@ -11,6 +11,16 @@ export interface PublicRepo {
   fullName: string;
   url: string;
   language: string | null;
+}
+
+// A title won in the Arena (the week's challenge in a city), as shown next to a name everywhere. `place`: 1 is the
+// challenge's own title, 2 and 3 a podium badge. `week`: the Monday the challenge started, "2026-10-12".
+export interface Badge {
+  key: string;
+  title: { en: string; fr: string };
+  place: 1 | 2 | 3;
+  city: string;
+  week: string;
 }
 
 // Everyone who has logged in with GitHub. Demo flatmates (seeded) have no GitHub id.
@@ -32,6 +42,10 @@ export const users = pgTable("users", {
   // How far they got in "Your first home", the tutorial's quest: the furthest chapter reached ("arrive" … "house"),
   // so coming back the next day picks up where they left off, on any device. Null: not started yet.
   tutorialChapter: text("tutorial_chapter"),
+  // The Arena title they wear (one of their arena_awards), and a copy of it, so every list of names can show it
+  // without asking the database again. Kept in step by apps/api/src/arena/badges.ts. Both null: none.
+  wornAwardId: uuid("worn_award_id").references((): AnyPgColumn => arenaAwards.id, { onDelete: "set null" }),
+  badge: jsonb("badge").$type<Badge>(),
   createdAt: createdAt(),
 });
 
@@ -427,6 +441,94 @@ export const reports = pgTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("reports_once").on(t.reporterId, t.kind, t.targetId)],
+);
+
+export type ArenaKind = "bounty" | "hackathon" | "challenge";
+
+// The Arena: each city's challenge for one week (Monday 00:00 UTC to the next). Made the first time anyone asks
+// (no cron), from the catalogue in apps/api/src/arena/catalogue.ts. Closed, and its podium awarded, when the city's
+// next week is made.
+export const arenaChallenges = pgTable("arena_challenges", {
+  // "<City>:<weekStart>", so a week can only be made once per city, whoever asks first.
+  id: text("id").primaryKey(),
+  city: text("city").notNull(),
+  weekStart: date("week_start", { mode: "string" }).notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  // The catalogue entry, and the repo and folder people send pull requests to.
+  slug: text("slug").notNull(),
+  kind: text("kind").$type<ArenaKind>().notNull(),
+  repo: text("repo").notNull(),
+  path: text("path").notNull(),
+  prizeFcfa: integer("prize_fcfa").notNull(),
+  // Set once, when the week is over and its podium has been awarded.
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+// Who took part in a week's challenge.
+export const arenaEntries = pgTable(
+  "arena_entries",
+  {
+    challengeId: text("challenge_id").notNull().references(() => arenaChallenges.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.challengeId, t.userId] })],
+);
+
+export type ArenaPrState = "open" | "merged" | "closed";
+
+// A pull request someone sent for a challenge, and what it's worth: points only once it's merged.
+export const arenaSubmissions = pgTable(
+  "arena_submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    challengeId: text("challenge_id").notNull().references(() => arenaChallenges.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    // "owner/name", in lower case, so GitHub's webhooks find it whatever the case.
+    repo: text("repo").notNull(),
+    number: integer("number").notNull(),
+    title: text("title"),
+    state: text("state").$type<ArenaPrState>().notNull().default("open"),
+    points: integer("points").notNull().default(0),
+    // The label that set the points ("arena:high"), or null.
+    label: text("label"),
+    // When it earned its points (merged): the earlier last scoring time wins a tie on the podium.
+    scoredAt: timestamp("scored_at", { withTimezone: true }),
+    // When GitHub was last asked about it, or told us.
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("arena_submissions_once").on(t.challengeId, t.repo, t.number),
+    index("arena_submissions_challenge_user").on(t.challengeId, t.userId),
+    index("arena_submissions_pr").on(t.repo, t.number),
+  ],
+);
+
+// A title won: 1st place gets the challenge's own, 2nd and 3rd a podium badge. The words are copied in, so a title
+// stays as it was won even if the catalogue changes.
+export const arenaAwards = pgTable(
+  "arena_awards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    challengeId: text("challenge_id").notNull().references(() => arenaChallenges.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    place: smallint("place").notNull(),
+    key: text("key").notNull(),
+    titleEn: text("title_en").notNull(),
+    titleFr: text("title_fr").notNull(),
+    city: text("city").notNull(),
+    week: date("week", { mode: "string" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("arena_awards_once").on(t.challengeId, t.userId),
+    uniqueIndex("arena_awards_place").on(t.challengeId, t.place),
+    index("arena_awards_user").on(t.userId, t.createdAt),
+  ],
 );
 
 export const usersRelations = relations(users, ({ many }) => ({ memberships: many(memberships) }));
