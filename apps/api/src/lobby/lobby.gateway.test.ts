@@ -93,19 +93,66 @@ describe("the bell's nudge", () => {
 });
 
 describe("a page served from another host (the site on Vercel, the API behind a tunnel)", () => {
-  it("is recognised by its one-minute pass instead of a cookie, and the pass works once", async () => {
+  async function remote({ ready = true } = {}) {
     const { AuthService: Real } = await import("../auth/auth.service");
     const jib = { id: "u1", login: "jib", name: "Jib", avatar: "male-a", githubId: 1 };
-    const db = { select: () => ({ from: () => ({ where: async () => [jib] }) }) };
+    const db = { select: () => ({ from: () => ({ where: async () => (ready ? [jib] : Promise.reject(drizzleDown())) }) }) };
     const auth = new Real(db as never, { publicUrl: "https://coloc.vercel.app" } as never);
     const core = { ready: true, reportDown: vi.fn() };
     const gateway = new LobbyGateway(auth, core as unknown as Core);
-    const ticket = auth.issueTicket("u1");
     const sent: unknown[] = [];
     const socket = Object.assign(new EventEmitter(), { close: vi.fn(), readyState: 1, send: (m: string) => sent.push(JSON.parse(m)) });
+    await gateway.handleConnection(socket as never, { url: "/lobby-ws", headers: { origin: "https://coloc.vercel.app" } });
+    const say = (msg: object) => socket.emit("message", Buffer.from(JSON.stringify(msg)));
+    const snapshot = () => sent.find((m) => (m as { type: string }).type === "snapshot");
+    // The pass is checked asynchronously: let it finish.
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+    return { auth, gateway, socket, sent, say, snapshot, settle };
+  }
+
+  it("is recognised by its one-minute pass, sent as the first message, and the pass works once", async () => {
+    const { auth, say, snapshot, settle } = await remote();
+    const ticket = auth.issueTicket("u1");
+    say({ type: "ticket", ticket });
+    // Said straight after the pass, while it's being checked: handled once they're recognised.
+    say({ type: "place", place: "lobby" });
+    await settle();
+    expect(snapshot()).toMatchObject({ you: "jib", place: "lobby" });
+    expect(await auth.userFromTicket(ticket)).toBeNull();
+  });
+
+  it("no longer reads a pass from the address", async () => {
+    const { AuthService: Real } = await import("../auth/auth.service");
+    const auth = new Real({} as never, { publicUrl: "https://coloc.vercel.app" } as never);
+    const gateway = new LobbyGateway(auth, { ready: true, reportDown: vi.fn() } as unknown as Core);
+    const sent: unknown[] = [];
+    const socket = Object.assign(new EventEmitter(), { close: vi.fn(), readyState: 1, send: (m: string) => sent.push(JSON.parse(m)) });
+    const ticket = auth.issueTicket("u1");
     await gateway.handleConnection(socket as never, { url: `/lobby-ws?ticket=${ticket}`, headers: { origin: "https://coloc.vercel.app" } });
     socket.emit("message", Buffer.from(JSON.stringify({ type: "place", place: "lobby" })));
-    expect(sent.find((m) => (m as { type: string }).type === "snapshot")).toMatchObject({ you: "jib" });
-    expect(await auth.userFromTicket(ticket)).toBeNull();
+    expect(sent.find((m) => (m as { type: string }).type === "snapshot")).toMatchObject({ you: null });
+  });
+
+  it("is a visitor until then, and takes a pass only as the first message", async () => {
+    const { auth, say, snapshot, settle } = await remote();
+    say({ type: "place", place: "lobby" });
+    say({ type: "ticket", ticket: auth.issueTicket("u1") });
+    await settle();
+    expect(snapshot()).toMatchObject({ you: null });
+  });
+
+  it("takes only one pass: a second one is ignored", async () => {
+    const { auth, gateway, say, settle } = await remote();
+    say({ type: "ticket", ticket: "not-a-pass" });
+    say({ type: "ticket", ticket: auth.issueTicket("u1") });
+    await settle();
+    expect(gateway.presence.online()).toEqual([]);
+  });
+
+  it("asks to come back later when the pass can't be checked because the database is down", async () => {
+    const { auth, socket, say, settle } = await remote({ ready: false });
+    say({ type: "ticket", ticket: auth.issueTicket("u1") });
+    await settle();
+    expect(socket.close).toHaveBeenCalledWith(1013, "try again later");
   });
 });

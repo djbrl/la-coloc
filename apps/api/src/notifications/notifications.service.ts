@@ -13,12 +13,13 @@
 // And news from the doorbell, through its listener: a knock on your house, and the answer to your knock.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { type Db, houses, type InviteState, memberships, type NotificationKind, notifications, rooms, users } from "@coloc/db";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or } from "drizzle-orm";
 import { Subject } from "rxjs";
 import type { AuthConfig } from "../auth/auth.config";
 import { AUTH_CONFIG } from "../auth/auth.service";
 import { DB } from "../db/db.module";
 import { DoorbellService, type KnockEvent } from "../doorbell/doorbell.service";
+import { blockBetween, blockersOf } from "../doorbell/queries";
 import type { PersonView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
 import { moveInto } from "../houses/move-in";
@@ -125,7 +126,7 @@ export class NotificationsService {
 
     if (n.kind === "rent_together") {
       if (await this.housed(userId)) return this.expire(n, "You already live in a house now.");
-      await this.decide(n, "accepted");
+      if (!(await this.decide(n, "accepted"))) throw new ConflictException("This invitation has already been answered.");
       if (n.fromId) await this.create({ userId: n.fromId, kind: "rent_together_yes", fromId: userId });
       return { kind: n.kind, house: null, room: null };
     }
@@ -134,13 +135,27 @@ export class NotificationsService {
     const [house] = n.houseId ? await this.db.select().from(houses).where(eq(houses.id, n.houseId)) : [];
     if (!house || !n.room) return this.expire(n, "That house is gone.");
     if (!n.fromId || !(await this.houses.membership(house.id, n.fromId))) return this.expire(n, "They don't live there any more, so the invitation lapsed.");
-    if (await this.housed(userId)) return this.expire(n, "You already live in a house now.");
-    const moved = await this.db.transaction(async (tx) => {
-      if (!(await moveInto(tx, house.id, n.room!, userId))) return false;
-      await tx.update(notifications).set({ state: "accepted", decidedAt: new Date(), readAt: new Date() }).where(eq(notifications.id, n.id));
-      return true;
+    const outcome = await this.db.transaction(async (tx) => {
+      // Lock the person's own row, so two of their accepts (two houses, or a double click) take turns: the second
+      // one then sees the first one's house.
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+      // Claim the invitation first: a second click finds it answered and stops without touching it.
+      const claimed = await tx
+        .update(notifications)
+        .set({ state: "accepted", decidedAt: new Date(), readAt: new Date() })
+        .where(and(eq(notifications.id, n.id), eq(notifications.state, "open")))
+        .returning({ id: notifications.id });
+      if (!claimed.length) return "answered";
+      const lapse = async (why: string) => {
+        await tx.update(notifications).set({ state: "expired" }).where(eq(notifications.id, n.id));
+        return why;
+      };
+      if (await this.housed(userId, tx)) return lapse("You already live in a house now.");
+      if (!(await moveInto(tx, house.id, n.room!, userId))) return lapse("Someone else took that room first.");
+      return "moved";
     });
-    if (!moved) return this.expire(n, "Someone else took that room first.");
+    if (outcome === "answered") throw new ConflictException("This invitation has already been answered.");
+    if (outcome !== "moved") throw new ConflictException(outcome);
 
     // Their other house invitations can't be taken now (one house each), and their own knock here is answered.
     await this.db
@@ -157,7 +172,7 @@ export class NotificationsService {
   /** The recipient says no, and the sender is told, so they can ask someone else. */
   async decline(userId: string, id: string) {
     const n = await this.openInvite(userId, id);
-    await this.decide(n, "declined");
+    if (!(await this.decide(n, "declined"))) throw new ConflictException("This invitation has already been answered.");
     if (n.fromId) {
       const kind = n.kind === "rent_together" ? "rent_together_no" : "invite_declined";
       await this.create({ userId: n.fromId, kind, fromId: userId, houseId: n.houseId, room: n.room });
@@ -169,7 +184,13 @@ export class NotificationsService {
     const [n] = await this.db.select().from(notifications).where(eq(notifications.id, id));
     if (!n || n.fromId !== userId || !isInvite(n.kind)) throw new NotFoundException("No such invitation.");
     if (n.state !== "open") throw new ConflictException("This invitation has already been answered.");
-    await this.db.update(notifications).set({ state: "withdrawn", decidedAt: new Date() }).where(eq(notifications.id, id));
+    // Only while still open: an answer that lands first wins.
+    const taken = await this.db
+      .update(notifications)
+      .set({ state: "withdrawn", decidedAt: new Date() })
+      .where(and(eq(notifications.id, id), eq(notifications.state, "open")))
+      .returning({ id: notifications.id });
+    if (!taken.length) throw new ConflictException("This invitation has already been answered.");
     this.pushes.next(await this.loginOf(n.userId));
   }
 
@@ -240,8 +261,8 @@ export class NotificationsService {
   }
 
   /** Lives in a house: belongs to one that isn't the workshop (practice doesn't count, as in /api/me). */
-  private async housed(userId: string): Promise<boolean> {
-    const [row] = await this.db
+  private async housed(userId: string, runner: Pick<Db, "select"> = this.db): Promise<boolean> {
+    const [row] = await runner
       .select({ id: memberships.houseId })
       .from(memberships)
       .innerJoin(houses, eq(houses.id, memberships.houseId))
@@ -250,12 +271,15 @@ export class NotificationsService {
     return !!row;
   }
 
-  // The person an invitation goes to: someone real who isn't you.
+  // The person an invitation goes to: someone real who isn't you, and nobody either of you blocked (as for messages).
   private async recipient(senderId: string, login: string): Promise<UserRow> {
     const [to] = await this.db.select().from(users).where(eq(users.login, login));
     if (!to) throw new NotFoundException("Nobody by that name lives in La Coloc.");
     if (to.id === senderId) throw new BadRequestException("You can't invite yourself.");
     if (await this.isExample(to)) throw new ConflictException("This is an example person: nobody would get the invitation.");
+    const block = await blockBetween(this.db, senderId, to.id);
+    if (block === "mine") throw new ForbiddenException("You blocked them. Unblock them to invite them.");
+    if (block === "theirs") throw new ForbiddenException("They aren't taking invitations from you.");
     return to;
   }
 
@@ -282,8 +306,13 @@ export class NotificationsService {
 
   private async fromDoorbell(e: KnockEvent) {
     if (e.type === "knocked") {
-      // Everyone who lives in the house hears the knock (the applicant doesn't live there).
-      const flatmates = await this.db.select({ id: memberships.userId }).from(memberships).where(and(eq(memberships.houseId, e.houseId), ne(memberships.userId, e.applicantId)));
+      // Everyone who lives in the house hears the knock (the applicant doesn't live there), except anyone who
+      // blocked the applicant.
+      const blockers = await blockersOf(this.db, e.applicantId);
+      const flatmates = await this.db
+        .select({ id: memberships.userId })
+        .from(memberships)
+        .where(and(eq(memberships.houseId, e.houseId), ne(memberships.userId, e.applicantId), blockers.length ? notInArray(memberships.userId, blockers) : undefined));
       for (const f of flatmates)
         await this.create({ userId: f.id, kind: "knock", fromId: e.applicantId, houseId: e.houseId, room: e.room, payload: { applicationId: e.applicationId } });
     } else {
@@ -309,11 +338,18 @@ export class NotificationsService {
     return n;
   }
 
-  private async decide(n: Row, state: InviteState) {
-    await this.db.update(notifications).set({ state, decidedAt: new Date(), readAt: n.readAt ?? new Date() }).where(eq(notifications.id, n.id));
+  // Answers an invitation that's still open. False when something else answered it first (a second click, a
+  // withdraw): only one answer counts.
+  private async decide(n: Row, state: InviteState): Promise<boolean> {
+    const done = await this.db
+      .update(notifications)
+      .set({ state, decidedAt: new Date(), readAt: n.readAt ?? new Date() })
+      .where(and(eq(notifications.id, n.id), eq(notifications.state, "open")))
+      .returning({ id: notifications.id });
+    return done.length > 0;
   }
 
-  // Marks an invitation expired, then refuses with why. Returns `never`: callers `return` it to stop there.
+  // Marks an invitation expired (if still open), then refuses with why. Returns `never`: callers `return` it to stop.
   private async expire(n: Row, why: string): Promise<never> {
     await this.decide(n, "expired");
     throw new ConflictException(why);

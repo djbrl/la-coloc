@@ -81,26 +81,40 @@ export class LobbyLink {
   }
 
   // The lobby's address: the page's own host, or (site and API on different hosts) VITE_LOBBY_WS with a one-minute
-  // pass asked through /api, where the session cookie goes; a visitor connects without one.
-  private async address(): Promise<string> {
+  // pass asked through /api, where the session cookie goes; a visitor has none. The pass is sent as the first
+  // message, never in the address, where tunnel and proxy logs would keep it. Null when the pass couldn't be asked
+  // for: connecting anyway would make a logged-in person a visitor until the line drops.
+  private async address(): Promise<{ url: string; ticket: string | null } | null> {
     const remote = import.meta.env.VITE_LOBBY_WS;
-    if (!remote) return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/lobby-ws`;
+    if (!remote) return { url: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/lobby-ws`, ticket: null };
     const res = await fetch("/api/lobby/ticket").catch(() => null);
-    const ticket = res?.ok ? ((await res.json()) as { ticket: string | null }).ticket : null;
-    return ticket ? `${remote}?ticket=${encodeURIComponent(ticket)}` : remote;
+    if (!res?.ok) return null;
+    const ticket = ((await res.json().catch(() => ({ ticket: null }))) as { ticket: string | null }).ticket;
+    return { url: remote, ticket };
+  }
+
+  // Waits a little longer each time (1 s, doubling to 15 s), then tries again.
+  private again() {
+    this.timer = window.setTimeout(() => void this.open(), this.retry);
+    this.retry = Math.min(this.retry * 2, 15_000);
   }
 
   private async open() {
-    const url = await this.address();
+    const where = await this.address();
     if (this.closed) return;
-    const ws = new WebSocket(url);
+    if (where === null) return this.again();
+    const ws = new WebSocket(where.url);
     this.ws = ws;
     ws.onopen = () => {
-      this.retry = 1000;
       this.events.onStatus(true);
+      // The pass first: the server only takes it as the very first message.
+      if (where.ticket) this.send({ type: "ticket", ticket: where.ticket });
       if (this.place) this.send({ type: "place", place: this.place });
     };
     ws.onmessage = (e) => {
+      // The server really spoke: only now is the line known to work (a server that accepts and then hangs up at
+      // once, while its database is down, would otherwise be retried every second).
+      this.retry = 1000;
       let m: ServerMessage;
       try {
         m = JSON.parse(e.data);
@@ -119,8 +133,7 @@ export class LobbyLink {
     ws.onclose = () => {
       this.events.onStatus(false);
       if (this.closed) return;
-      this.timer = window.setTimeout(() => void this.open(), this.retry);
-      this.retry = Math.min(this.retry * 2, 15_000);
+      this.again();
     };
   }
 }

@@ -14,7 +14,7 @@ import ChatPanel from "../ChatPanel.vue";
 import Icon from "../lobby/house/Icon.vue";
 import { noteWhen } from "../lobby/house/notes";
 import ListRow from "../lobby/panel/ListRow.vue";
-import { BOARD_TAGS, type BoardTag, linkParts, MAX_MESSAGE, MAX_POST, MAX_TITLE } from "./chat";
+import { BOARD_TAGS, type BoardTag, linkParts, MAX_MESSAGE, MAX_POST, MAX_TITLE, stripBidi } from "./chat";
 import { chatWords as w } from "./words";
 
 const posts = ref<BoardPost[]>([]);
@@ -201,7 +201,7 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
         </button>
       </div>
       <article class="post">
-        <h3>{{ open.post.title }}</h3>
+        <h3>{{ stripBidi(open.post.title) }}</h3>
         <p class="by soft small"><Avatar :person="open.post.author" :size="20" decorative />{{ w.by(nameOf(open.post), noteWhen(open.post.createdAt)) }}</p>
         <p class="text"><template v-for="(part, i) in linkParts(open.post.body)" :key="i"><a v-if="part.href" :href="part.href" target="_blank" rel="noopener noreferrer nofollow ugc">{{ part.text }}</a><template v-else>{{ part.text }}</template></template></p>
       </article>
@@ -232,12 +232,12 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
       </div>
       <p v-if="!posts.length" class="soft empty">{{ w.noPosts(chatSheet.city) }}</p>
       <ul v-else ref="listEl" class="lines">
-        <ListRow v-for="p in posts" :key="p.id" :title="p.title" class="entry">
+        <ListRow v-for="p in posts" :key="p.id" :title="stripBidi(p.title)" class="entry">
           <template #lead><span class="lead-tag" :title="w.tags[p.tag]"><Icon :name="tagIcon[p.tag]" :size="18" /></span></template>
           <span class="sub"><span class="sr-only">{{ w.tags[p.tag] }}. </span>{{ w.by(nameOf(p), noteWhen(p.activeAt)) }}</span>
           <template #end>
             <span class="replies-count" role="img" :aria-label="w.replies(p.replies)"><Icon name="chat" :size="14" />{{ p.replies }}</span>
-            <button type="button" class="open" :aria-label="p.title" @click="chatSheet.post = p.id"><Icon name="next" :size="16" /></button>
+            <button type="button" class="open" :aria-label="stripBidi(p.title)" @click="chatSheet.post = p.id"><Icon name="next" :size="16" /></button>
           </template>
         </ListRow>
       </ul>

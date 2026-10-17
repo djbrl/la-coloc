@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { badge, chatTabs, linkParts, messageAction, pickTab } from "./chat";
+import { badge, chatTabs, linkParts, messageAction, pickTab, stripBidi } from "./chat";
 
 describe("the chat sheet's tabs", () => {
   it("are the city's room and board for a visitor, plus messages once logged in, plus the house when you have one", () => {
@@ -60,5 +60,33 @@ describe("links in a message", () => {
   it("never makes a link of another scheme", () => {
     expect(linkParts("javascript:alert(1) data:text/html,x")).toEqual([{ text: "javascript:alert(1) data:text/html,x" }]);
     expect(linkParts("ftp://x.y").every((p) => !p.href)).toBe(true);
+  });
+});
+
+// From the 16 Oct review: what a link shows is where it goes.
+describe("what a link shows", () => {
+  const link = (s: string) => linkParts(s).find((p) => p.href)!;
+
+  it("never links a script or data address, however it is spelled", () => {
+    for (const s of ["JaVaScRiPt:alert(1)", "xhttps://x.dev javascript:alert(1)", "//evil.example/x", "java\tscript:alert(1)", "https:javascript:alert(1)", "vbscript:msgbox(1)"])
+      for (const p of linkParts(s)) if (p.href) expect(p.href).toMatch(/^https?:\/\//i);
+  });
+
+  it("shows a lookalike host as the browser will read it, in punycode", () => {
+    // Cyrillic "о"s: the text would say gооgle.com.
+    const p = link("https://gооgle.com/login");
+    expect(p.text).toBe("https://xn--ggle-55da.com/login");
+    expect(new URL(p.href!).host).toBe("xn--ggle-55da.com");
+    expect(link("https://google.com@evil.example/x").text).toBe("https://evil.example/x");
+  });
+
+  it("leaves an ordinary address as typed", () => {
+    expect(link("see https://Coloc.dev/a?b=1").text).toBe("https://Coloc.dev/a?b=1");
+  });
+
+  it("drops the invisible direction controls that make text read backwards", () => {
+    const parts = linkParts("get https://evil.example/‮fdp.exe ⁦now⁩‏");
+    expect(parts.map((p) => p.text).join("")).toBe("get https://evil.example/fdp.exe now");
+    expect(stripBidi("a‪b‬c‎d")).toBe("abcd");
   });
 });

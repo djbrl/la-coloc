@@ -69,7 +69,8 @@ instead of a merge. Every 30 seconds the caretaker sends each room's CPU and mem
   list in `COLOC_WEB_ORIGIN`. Logged-in people appear; visitors only watch.
 - **When the site and the API are on different hosts** (the site on Vercel, the API behind a tunnel), Vercel forwards
   `/api` but not WebSockets, and the login cookie belongs to the site's host. So the page asks `GET /api/lobby/ticket`
-  for a one-minute, single-use pass and opens the socket straight to the API with it. The address comes from
+  for a one-minute, single-use pass, opens the socket straight to the API, and sends the pass as its first message
+  (never in the address, where tunnel logs would keep it; until then the socket is a visitor). The address comes from
   `VITE_LOBBY_WS`, set when the site is built (`apps/web/src/lobby/link.ts`, `apps/api/src/auth/auth.service.ts`).
 - It also says "chat" to someone when a direct message reaches them; their page then fetches its conversations.
 - Houses, the city, knock threads, and a city's room and board update through server-sent events (`…/stream`

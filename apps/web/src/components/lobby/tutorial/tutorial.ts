@@ -91,7 +91,8 @@ export const SETUP: Record<Step, Setup> = {
   keys: { controls: OFF, reveal: HUD, poll: false, beacon: false },
   project: { controls: ALL, reveal: HUD, poll: true, beacon: false },
   launch: { controls: ALL, reveal: HUD, poll: true, beacon: false },
-  open: { controls: ALL, reveal: HUD, poll: true, beacon: false },
+  // Your page is already live (the launch saw it): this step only waits for your click, so it asks the API nothing.
+  open: { controls: ALL, reveal: HUD, poll: false, beacon: false },
   share: { controls: ALL, reveal: HUD, poll: false, beacon: false },
   house: { controls: ALL, reveal: HUD, poll: false, beacon: false },
   home: { controls: OFF, reveal: HUD, poll: false, beacon: false },

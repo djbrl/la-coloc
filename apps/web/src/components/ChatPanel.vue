@@ -11,6 +11,7 @@
 // (the parent deletes, on `remove`).
 import { nextTick, ref, watch } from "vue";
 import { useWhenBack } from "../core";
+import { locale } from "../i18n";
 import { block, blockedLogins, report, unblock } from "../conversations";
 import { postJSON } from "../session";
 import type { Message } from "../types";
@@ -64,7 +65,8 @@ watch(
   { immediate: true },
 );
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+// In the language chosen on the site, not the browser's.
+const time = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 
 // Follow the conversation: scroll to the newest message when one arrives.
 watch(

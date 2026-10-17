@@ -6,7 +6,7 @@
 //   - when the browser closes it under us, we ask the core whether it's there: if not, the recovery above does the
 //     reopening; if it is, we try again in a few seconds, and give up after a few quick deaths in a row (a stream
 //     that really doesn't exist).
-import { checkCore, onRecovered } from "./core";
+import { checkCore, coreDown, onRecovered, reportFailure, wentDown } from "./core";
 
 export interface Stream {
   close(): void;
@@ -20,27 +20,87 @@ const GIVE_UP_AFTER = 4;
 // question asked every few seconds while the tab is visible. Events that carry data (the city, a house) get the
 // answer from the same address without "/stream"; events that only say "something changed" (a city's room and board)
 // are simply fired, and their handlers fetch what they need.
+// The questions stay polite to a slow laptop: a tick is skipped while the last question hasn't come back, and while
+// the core is down (the core's recovery asks once, right away); a tab coming back into view asks at once. Several
+// panels listening to the same address (a house page, its room, its chat) share one poller.
 const POLL_MS = 4000;
 const polling = !!import.meta.env.VITE_LOBBY_WS;
 const NUDGES = new Set(["chat", "board"]);
 
-function poll(url: string, events: Record<string, (e: MessageEvent) => void>): Stream {
+type Events = Record<string, (e: MessageEvent) => void>;
+interface Poller {
+  listeners: Set<Events>;
+  close(): void;
+}
+const pollers = new Map<string, Poller>();
+
+function startPoller(url: string): Poller {
   const base = url.replace(/\/stream$/, "");
-  const needsData = Object.keys(events).some((name) => !NUDGES.has(name));
+  const listeners = new Set<Events>();
+  let busy = false;
   const ask = async () => {
-    if (document.visibilityState !== "visible") return;
-    let data: string | null = null;
-    if (needsData) {
-      const res = await fetch(base).catch(() => null);
-      if (res?.ok) data = await res.text();
-    }
-    for (const [name, handler] of Object.entries(events)) {
-      if (NUDGES.has(name)) handler(new MessageEvent(name, { data: name }));
-      else if (data !== null) handler(new MessageEvent(name, { data }));
+    if (busy || document.visibilityState !== "visible" || coreDown()) return;
+    busy = true;
+    try {
+      const needsData = [...listeners].some((events) => Object.keys(events).some((name) => !NUDGES.has(name)));
+      let data: string | null = null;
+      if (needsData) {
+        const res = await fetch(base).catch(() => null);
+        // Nobody answered: the core goes down, and its recovery asks again. Nudges would only fetch in vain.
+        if (await wentDown(res)) {
+          reportFailure();
+          return;
+        }
+        if (res?.ok) data = await res.text();
+      }
+      // A copy: a handler may close its stream while we go round.
+      for (const events of [...listeners])
+        for (const [name, handler] of Object.entries(events)) {
+          if (NUDGES.has(name)) handler(new MessageEvent(name, { data: name }));
+          else if (data !== null) handler(new MessageEvent(name, { data }));
+        }
+    } finally {
+      busy = false;
     }
   };
+  const visible = () => {
+    if (document.visibilityState === "visible") void ask();
+  };
   const timer = setInterval(() => void ask(), POLL_MS);
-  return { close: () => clearInterval(timer) };
+  const offBack = onRecovered(() => void ask());
+  document.addEventListener("visibilitychange", visible);
+  return {
+    listeners,
+    close() {
+      clearInterval(timer);
+      offBack();
+      document.removeEventListener("visibilitychange", visible);
+    },
+  };
+}
+
+function poll(url: string, events: Events): Stream {
+  let poller = pollers.get(url);
+  if (!poller) {
+    poller = startPoller(url);
+    pollers.set(url, poller);
+  }
+  const mine = poller;
+  // Each subscription is its own entry, even if two panels pass the same handlers.
+  const entry = { ...events };
+  mine.listeners.add(entry);
+  let closed = false;
+  return {
+    close() {
+      if (closed) return;
+      closed = true;
+      mine.listeners.delete(entry);
+      if (mine.listeners.size === 0 && pollers.get(url) === mine) {
+        mine.close();
+        pollers.delete(url);
+      }
+    },
+  };
 }
 
 /** Opens `url` and listens to `events` (name -> handler). `close()` stops it, and everything it was waiting for. */
