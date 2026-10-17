@@ -84,7 +84,6 @@ export const arenaWords = defineWords(
     titleWorn: "Title worn",
     titleGroup: "The title shown next to your name",
     noTitle: "None",
-    noTitles: "Win a week's challenge in an arena to earn a title.",
   },
   {
     label: (city) => `L'arène de ${city}`,
@@ -155,6 +154,5 @@ export const arenaWords = defineWords(
     titleWorn: "Titre porté",
     titleGroup: "Le titre affiché à côté de votre nom",
     noTitle: "Aucun",
-    noTitles: "Remportez le défi de la semaine dans une arène pour gagner un titre.",
   },
 );

@@ -9,6 +9,7 @@ import { me } from "../../session";
 import { refusalText } from "../../refusals";
 import type { Conversation } from "../../types";
 import Avatar from "../Avatar.vue";
+import BadgeChip from "../arena/BadgeChip.vue";
 import ChatPanel from "../ChatPanel.vue";
 import Icon from "../lobby/house/Icon.vue";
 import { noteWhen } from "../lobby/house/notes";
@@ -87,7 +88,7 @@ async function toggleBlock() {
       <div class="head">
         <button type="button" class="icon-key" :aria-label="w.back" @click="back"><Icon name="back" :size="18" /></button>
         <Avatar v-if="open" :person="open.with" :size="30" decorative />
-        <h3 :aria-label="w.with(name)">{{ name }}</h3>
+        <h3 :aria-label="w.with(name)">{{ name }}<BadgeChip v-if="open?.with.badge" class="worn" :badge="open.with.badge" /></h3>
         <button
           v-if="open && !open.with.example"
           type="button"
@@ -125,6 +126,7 @@ async function toggleBlock() {
           <template #lead><Avatar :person="c.with" :size="34" decorative /></template>
           <span class="sub">{{ c.last.mine ? w.you : "" }}{{ c.last.body }}</span>
           <template #meta>
+            <BadgeChip v-if="c.with.badge" compact :badge="c.with.badge" />
             <span>{{ noteWhen(c.last.at) }}</span>
           </template>
           <template #end>
@@ -141,6 +143,7 @@ async function toggleBlock() {
 .dm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .head { flex: none; display: flex; align-items: center; gap: 10px; }
 .head h3 { flex: 1; min-width: 0; margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.head .worn { margin-left: 8px; }
 .icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 34px; height: 34px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; font-weight: 600; }
 .icon-key:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .icon-key.sure { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
