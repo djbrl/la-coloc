@@ -28,8 +28,7 @@ function onKey(e: KeyboardEvent) {
   <div class="layer">
     <section class="card" role="dialog" aria-modal="true" aria-labelledby="tutorial-welcome-title" @keydown="onKey">
       <template v-if="props.step === 'welcome' && resume">
-        <p class="kicker">{{ w.quest }}</p>
-        <h2 id="tutorial-welcome-title">{{ w.welcomeBack }}</h2>
+        <h2 id="tutorial-welcome-title"><span class="sr-only">{{ w.quest }}. </span>{{ w.welcomeBack }}</h2>
         <p>{{ w.resumeAt(resume.n, resume.name) }}</p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
         <div class="nav">
@@ -38,8 +37,7 @@ function onKey(e: KeyboardEvent) {
         </div>
       </template>
       <template v-else-if="props.step === 'welcome'">
-        <p class="kicker">{{ w.quest }}</p>
-        <h2 id="tutorial-welcome-title">{{ w.welcome }}</h2>
+        <h2 id="tutorial-welcome-title"><span class="sr-only">{{ w.quest }}. </span>{{ w.welcome }}</h2>
         <p>{{ w.pitch }}</p>
         <p class="soft">{{ w.promise }}</p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -78,7 +76,6 @@ function onKey(e: KeyboardEvent) {
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(12px) scale(0.95); }
 }
-.kicker { margin: 0 0 -4px; font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 .error { color: var(--danger); font-size: 15px; }
 h2 { margin: 0; font-size: 40px; line-height: 1; letter-spacing: -0.035em; }
 p { margin: 0; font-size: 17px; line-height: 1.5; }

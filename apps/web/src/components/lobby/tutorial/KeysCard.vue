@@ -37,8 +37,7 @@ function onKey(e: KeyboardEvent) {
           <text x="54" y="99" text-anchor="middle" class="name">{{ room.length > 10 ? `${room.slice(0, 9)}…` : room }}</text>
         </g>
       </svg>
-      <p class="kicker">{{ w.keysTag }}</p>
-      <h2 id="quest-keys-title">{{ w.keysTitle }}</h2>
+      <h2 id="quest-keys-title"><span class="sr-only">{{ w.keysTag }}. </span>{{ w.keysTitle }}</h2>
       <p>{{ w.keysLine(room, house) }}</p>
       <p class="soft">{{ explain.room(memoryMb ?? 256, cpus ?? 0.5) }}</p>
       <div class="nav">
@@ -77,7 +76,6 @@ function onKey(e: KeyboardEvent) {
   75% { transform: rotate(3deg); }
   100% { transform: rotate(0); }
 }
-.kicker { margin: 0; font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 h2 { margin: 0; font-size: 40px; line-height: 1; letter-spacing: -0.035em; }
 p { margin: 0; font-size: 17px; line-height: 1.45; }
 .soft { color: var(--muted); font-size: 15px; }
