@@ -4,16 +4,16 @@
 
 ## The task
 
-Find something in the website ([`apps/web`](../../apps/web)) that shuts people out, and fix it: a button you can't
-reach with the keyboard, text too pale to read, an icon with no name for screen readers, a panel that traps focus.
+Find something in the pages the example apps serve ([`examples/`](../../examples)) that shuts people out, and fix
+it: a button you can't reach with the keyboard, text too pale to read, an image with no text for screen readers, a
+language the page doesn't declare.
 
 ## A good pull request
 
 - One problem per pull request.
 - Says who it kept out, and how you checked the fix (keyboard only, a screen reader, a contrast checker).
 - Screenshots or a short recording help the review.
-- Keeps the look: flat cards, the colour tokens in `apps/web/src/style.css`, no visible form labels (a hidden name
-  for screen readers is right).
+- Keeps the look of the page you fix.
 
 ## Points
 

@@ -18,8 +18,9 @@ Each: `slug`, `kind: "bounty" | "hackathon" | "challenge"`, `title {en,fr}`, `su
 `path` (folder in the arena repo, e.g. `challenges/bug-bounty`), `prizeFcfa`, `points` table, and the prize
 `award: { key, title: {en, fr} }` (the winner's title). French titles must be epicene (same for anyone), e.g.
 bounty "Œil de lynx" / "Eagle eye", hackathon "As du hackathon" / "Hackathon ace".
-Repo: env `COLOC_ARENA_REPO`, default `https://github.com/Djbrl/la-coloc`. Each catalogue folder has a README in this
-repo under `challenges/<slug>/README.md` explaining the task and how points work.
+Repo: env `COLOC_ARENA_REPO`, default `https://github.com/Djbrl/la-coloc-arena` (public; built from this repo's `challenges/` and
+`examples/` by `node scripts/arena-repo.mjs <folder>`, then committed and pushed there). Each catalogue folder has a
+README in this repo under `challenges/<slug>/README.md` explaining the task and how points work.
 
 Points: a submission is a pull request to the arena repo by the submitter (matched by GitHub id, else login ignoring
 case), opened after the week started. **Merged and labelled by the judges** → points (bounties by label: `arena:low`

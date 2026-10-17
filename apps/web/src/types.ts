@@ -414,7 +414,7 @@ export interface ArenaChallenge {
   title: Text;
   summary: Text;
   rules: { en: string[]; fr: string[] };
-  // The arena repo ("https://github.com/Djbrl/la-coloc") and the challenge's folder in it ("challenges/bug-bounty").
+  // The arena repo ("https://github.com/Djbrl/la-coloc-arena") and the challenge's folder in it ("challenges/bug-bounty").
   repo: string;
   path: string;
   startsAt: string;

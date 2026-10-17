@@ -133,6 +133,12 @@ export class ArenaService {
       if (!row) [row] = await this.db.select().from(arenaChallenges).where(eq(arenaChallenges.id, id));
       this.changed(city);
     }
+    // The arena repo moved (COLOC_ARENA_REPO, or its default): a week still open follows it, a closed one keeps the
+    // repo it was played in.
+    if (!row.closedAt && row.repo !== this.repo.url) {
+      [row] = await this.db.update(arenaChallenges).set({ repo: this.repo.url }).where(eq(arenaChallenges.id, id)).returning();
+      this.changed(city);
+    }
     if (!this.settled.has(id)) {
       const past = await this.db
         .select({ id: arenaChallenges.id })

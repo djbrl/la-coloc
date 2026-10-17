@@ -6,7 +6,7 @@ import type { ArenaKind } from "@coloc/db";
 
 export type Text = { en: string; fr: string };
 
-/** What a merged pull request is worth: by label (bounties), and `merged` for one with no label that counts. */
+/** What a merged pull request is worth, by the arena label the judges put on it. */
 export type PointsRow = { label: string; points: number };
 
 export interface CatalogueEntry {
@@ -50,12 +50,12 @@ export const CATALOGUE: CatalogueEntry[] = [
       en: [
         "Only the apps in examples/ count. Never test anything on a real house or a real person's room.",
         "One bug per pull request: say what it was, how to see it, and how your change fixes it.",
-        "The maintainers label it arena:low, arena:medium, arena:high or arena:critical when they merge it.",
+        "The judges label it arena:low, arena:medium, arena:high or arena:critical when they merge it. No label, no points.",
       ],
       fr: [
         "Seules les apps du dossier examples/ comptent. Ne testez jamais rien sur une vraie maison ni sur la chambre de quelqu'un.",
         "Une faille par pull request : dites ce qu'elle était, comment la voir et comment votre changement la corrige.",
-        "Les mainteneurs ajoutent l'étiquette arena:low, arena:medium, arena:high ou arena:critical en la fusionnant.",
+        "Les juges ajoutent l'étiquette arena:low, arena:medium, arena:high ou arena:critical en la mergeant. Sans étiquette, pas de points.",
       ],
     },
     path: "challenges/bug-bounty",
@@ -68,19 +68,19 @@ export const CATALOGUE: CatalogueEntry[] = [
     kind: "bounty",
     title: { en: "Accessibility hunt", fr: "Chasse aux obstacles : l'accessibilité" },
     summary: {
-      en: "Find something in the website that shuts people out (keyboard, contrast, screen readers) and fix it.",
-      fr: "Trouvez sur le site ce qui laisse des gens dehors (clavier, contrastes, lecteurs d'écran) et corrigez-le.",
+      en: "Find something in the example apps' pages that shuts people out (keyboard, contrast, screen readers) and fix it.",
+      fr: "Trouvez dans les pages des apps d'exemple ce qui laisse des gens dehors (clavier, contrastes, lecteurs d'écran) et corrigez-le.",
     },
     rules: {
       en: [
-        "Anything under apps/web counts. Say who it kept out and how you checked your fix.",
+        "Any page the apps in examples/ serve counts. Say who it kept out and how you checked your fix.",
         "One problem per pull request. Screenshots or a short recording help the review.",
-        "The maintainers label it by how many people it kept out: arena:low to arena:critical.",
+        "The judges label it by how many people it kept out: arena:low to arena:critical. No label, no points.",
       ],
       fr: [
-        "Tout ce qui est dans apps/web compte. Dites qui en était privé et comment vous avez vérifié votre correction.",
+        "Toute page servie par les apps de examples/ compte. Dites qui en était privé et comment vous avez vérifié votre correction.",
         "Un problème par pull request. Des captures ou une courte vidéo aident la relecture.",
-        "Les mainteneurs ajoutent une étiquette selon le nombre de personnes concernées : de arena:low à arena:critical.",
+        "Les juges ajoutent une étiquette selon le nombre de personnes concernées : de arena:low à arena:critical. Sans étiquette, pas de points.",
       ],
     },
     path: "challenges/accessibility-hunt",
@@ -100,12 +100,12 @@ export const CATALOGUE: CatalogueEntry[] = [
       en: [
         "Put everything in challenges/offline-hackathon/<your GitHub login>/, with a README saying how to run it.",
         "Teams are fine: one pull request, and say who did what.",
-        "It must still do its main job with the network off. Merged entries score.",
+        "It must still do its main job with the network off. Entries the judges merge and label arena:entry score.",
       ],
       fr: [
         "Mettez tout dans challenges/offline-hackathon/<votre identifiant GitHub>/, avec un README qui explique comment le lancer.",
         "Les équipes sont les bienvenues : une seule pull request, et dites qui a fait quoi.",
-        "Elle doit encore faire l'essentiel réseau coupé. Les participations fusionnées marquent des points.",
+        "Elle doit encore faire l'essentiel réseau coupé. Les participations que les juges mergent avec l'étiquette arena:entry marquent des points.",
       ],
     },
     path: "challenges/offline-hackathon",
@@ -125,12 +125,12 @@ export const CATALOGUE: CatalogueEntry[] = [
       en: [
         "Put everything in challenges/market-hackathon/<your GitHub login>/, with a README and a screenshot.",
         "Teams are fine: one pull request, and say who did what.",
-        "It must run with one command. Merged entries score.",
+        "It must run with one command. Entries the judges merge and label arena:entry score.",
       ],
       fr: [
         "Mettez tout dans challenges/market-hackathon/<votre identifiant GitHub>/, avec un README et une capture.",
         "Les équipes sont les bienvenues : une seule pull request, et dites qui a fait quoi.",
-        "Elle doit se lancer en une commande. Les participations fusionnées marquent des points.",
+        "Elle doit se lancer en une commande. Les participations que les juges mergent avec l'étiquette arena:entry marquent des points.",
       ],
     },
     path: "challenges/market-hackathon",
@@ -150,12 +150,12 @@ export const CATALOGUE: CatalogueEntry[] = [
       en: [
         "Any language. Put it in challenges/fcfa-in-words/<your GitHub login>/ with its tests.",
         "It must pass every case in challenges/fcfa-in-words/cases.txt.",
-        "Merged solutions score. Clear code beats clever code.",
+        "Solutions the judges merge and label arena:entry score. Clear code beats clever code.",
       ],
       fr: [
         "N'importe quel langage. Mettez-la dans challenges/fcfa-in-words/<votre identifiant GitHub>/ avec ses tests.",
         "Elle doit réussir tous les cas de challenges/fcfa-in-words/cases.txt.",
-        "Les solutions fusionnées marquent des points. Un code clair vaut mieux qu'un code astucieux.",
+        "Les solutions que les juges mergent avec l'étiquette arena:entry marquent des points. Un code clair vaut mieux qu'un code astucieux.",
       ],
     },
     path: "challenges/fcfa-in-words",
@@ -175,12 +175,12 @@ export const CATALOGUE: CatalogueEntry[] = [
       en: [
         "Only examples/ counts. Tests only: don't change how the app behaves.",
         "Each test says in its name what it checks, and fails if that breaks.",
-        "Merged pull requests score.",
+        "Pull requests the judges merge and label arena:entry score.",
       ],
       fr: [
         "Seul le dossier examples/ compte. Uniquement des tests : ne changez pas le comportement de l'app.",
         "Chaque test dit dans son nom ce qu'il vérifie, et échoue si ça casse.",
-        "Les pull requests fusionnées marquent des points.",
+        "Les pull requests que les juges mergent avec l'étiquette arena:entry marquent des points.",
       ],
     },
     path: "challenges/test-pilot",

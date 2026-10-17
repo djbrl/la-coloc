@@ -39,7 +39,7 @@ const prs = new Map<number, object>();
 // Wednesday of the week starting Monday 12 October 2026.
 const WEDNESDAY = new Date("2026-10-14T12:00:00Z");
 const NEXT_WEEK = new Date("2026-10-21T12:00:00Z");
-const REPO = "https://github.com/Djbrl/la-coloc";
+const REPO = "https://github.com/Djbrl/la-coloc-arena";
 
 /** A pull request as GitHub's API (and its webhooks) describe it. */
 function pr(n: number, o: { by?: string; id?: number; merged?: boolean; closed?: boolean; created?: string; labels?: string[]; mergedAt?: string } = {}) {
@@ -97,7 +97,7 @@ beforeEach(async () => {
     if (githubDown === true) throw new Error("ECONNRESET");
     if (typeof githubDown === "number") return new Response("{}", { status: githubDown });
     const n = Number(/\/pulls\/(\d+)$/.exec(String(url))?.[1]);
-    const found = String(url).startsWith("https://api.github.com/repos/djbrl/la-coloc/") ? prs.get(n) : undefined;
+    const found = String(url).startsWith("https://api.github.com/repos/djbrl/la-coloc-arena/") ? prs.get(n) : undefined;
     return found ? new Response(JSON.stringify(found), { status: 200 }) : new Response("{}", { status: 404 });
   };
   changes = [];
@@ -178,7 +178,7 @@ describe("sending a pull request", () => {
     prs.set(8, pr(8));
     as = "fatou";
     await controller.submit("Dakar", { url: `${REPO}/pull/7` }, req);
-    const view = await controller.submit("Dakar", { url: "https://github.com/djbrl/LA-COLOC/pull/8/files" }, req);
+    const view = await controller.submit("Dakar", { url: "https://github.com/djbrl/LA-COLOC-ARENA/pull/8/files" }, req);
     expect(view.joined).toBe(true);
     expect(view.mine.map((s) => [s.number, s.state, s.points])).toEqual([
       [7, "merged", scoreOf(view.challenge.slug, view.challenge.kind, { state: "merged", labels: ["arena:high", "arena:low"] }).points],
@@ -194,7 +194,7 @@ describe("sending a pull request", () => {
     prs.set(3, pr(3));
     expect(await refusal(arena.submit("Dakar", await user("awa"), `${REPO}/pull/3`))).toEqual({ status: 403, code: "arenaGithubNeeded" });
     expect(await refusal(arena.submit("Dakar", fatou, "not a link"))).toEqual({ status: 400, code: "arenaBadUrl" });
-    expect(await refusal(arena.submit("Dakar", fatou, "https://github.com/Djbrl/la-coloc/issues/3"))).toEqual({ status: 400, code: "arenaBadUrl" });
+    expect(await refusal(arena.submit("Dakar", fatou, "https://github.com/Djbrl/la-coloc-arena/issues/3"))).toEqual({ status: 400, code: "arenaBadUrl" });
     expect(await refusal(arena.submit("Dakar", fatou, "https://github.com/someone/else/pull/3"))).toEqual({ status: 400, code: "arenaWrongRepo" });
     expect(await refusal(arena.submit("Dakar", fatou, `${REPO}/pull/1`))).toEqual({ status: 403, code: "arenaNotYourPr" });
     expect(await refusal(arena.submit("Dakar", fatou, `${REPO}/pull/2`))).toEqual({ status: 400, code: "arenaPrTooOld" });
@@ -334,7 +334,7 @@ describe("the podium", () => {
 });
 
 describe("GitHub's webhooks", () => {
-  const event = (action: string, pull: object, repo = "Djbrl/la-coloc") => ({ action, repository: { id: 1, full_name: repo }, pull_request: pull }) as never;
+  const event = (action: string, pull: object, repo = "Djbrl/la-coloc-arena") => ({ action, repository: { id: 1, full_name: repo }, pull_request: pull }) as never;
 
   it("update a pull request's state, title and points", async () => {
     prs.set(3, pr(3));
@@ -468,7 +468,7 @@ describe("the arena's chat room", () => {
 
 describe("addresses", () => {
   it("read the arena repo from the environment, and pull request links", () => {
-    expect(arenaRepo({})).toEqual({ url: REPO, fullName: "djbrl/la-coloc" });
+    expect(arenaRepo({})).toEqual({ url: REPO, fullName: "djbrl/la-coloc-arena" });
     expect(arenaRepo({ COLOC_ARENA_REPO: "Coloc-Arena/Challenges.git" })).toEqual({ url: "https://github.com/Coloc-Arena/Challenges", fullName: "coloc-arena/challenges" });
     expect(parsePrUrl(" https://github.com/Djbrl/la-coloc/pull/42#discussion ")).toEqual({ repo: "djbrl/la-coloc", number: 42 });
     expect(parsePrUrl("https://gitlab.com/Djbrl/la-coloc/pull/42")).toBeNull();
@@ -542,5 +542,19 @@ describe("a title picked by hand", () => {
   it("stays when they had chosen none since", async () => {
     const u = await winTwoWeeks(true);
     expect(u.badge).toBeNull();
+  });
+});
+
+describe("a moved arena repo", () => {
+  it("is followed by the week still open, and not by weeks already played", async () => {
+    await arena.current("Dakar");
+    await db.update(arenaChallenges).set({ repo: "https://github.com/Djbrl/la-coloc" });
+    await db.insert(arenaChallenges).values({ id: "Dakar:2026-10-05", city: "Dakar", weekStart: "2026-10-05", startsAt: new Date("2026-10-05"), endsAt: new Date("2026-10-12"), slug: "bug-bounty", kind: "bounty", repo: "https://github.com/Djbrl/la-coloc", path: "challenges/bug-bounty", prizeFcfa: 25_000, closedAt: new Date("2026-10-12") });
+    const fresh = new ArenaService(db, chat, null);
+    fresh.clock = arena.clock;
+    fresh.fetch = arena.fetch;
+    expect((await fresh.view("Dakar", null)).challenge.repo).toBe(REPO);
+    const [old] = await db.select().from(arenaChallenges).where(eq(arenaChallenges.id, "Dakar:2026-10-05"));
+    expect(old.repo).toBe("https://github.com/Djbrl/la-coloc");
   });
 });

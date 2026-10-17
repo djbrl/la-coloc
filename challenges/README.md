@@ -26,13 +26,13 @@ Your title shows next to your name everywhere in La Coloc. You can pick which on
 | Hackathon | A merged entry labelled `arena:entry`: 30 |
 | Coding challenge | A merged solution labelled `arena:entry`: 20 |
 
-**The judges** merge pull requests and add the `arena:` labels: the logins in `COLOC_ARENA_JUDGES` (else the city's
-admins, `COLOC_ADMINS`). They can't take part. A pull request counts once, in one city.
+**The judges** (the La Coloc team) merge pull requests and add the `arena:` labels. They can't take part. A pull
+request counts once, in one city.
 
 ## The challenges
 
 - [bug-bounty](bug-bounty/README.md): security bugs in the example apps
-- [accessibility-hunt](accessibility-hunt/README.md): what shuts people out of the website
+- [accessibility-hunt](accessibility-hunt/README.md): what shuts people out of the example apps' pages
 - [offline-hackathon](offline-hackathon/README.md): an app that works without a connection
 - [market-hackathon](market-hackathon/README.md): a tool for market traders
 - [fcfa-in-words](fcfa-in-words/README.md): amounts of FCFA in words

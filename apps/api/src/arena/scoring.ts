@@ -7,12 +7,13 @@ import { z } from "zod";
 import type { GithubAppClient } from "../github/github.client";
 import { catalogueEntry } from "./catalogue";
 
-const DEFAULT_REPO = "https://github.com/Djbrl/la-coloc";
+// The public repo contestants fork (built from this one by scripts/arena-repo.mjs): the product repo is private.
+const DEFAULT_REPO = "https://github.com/Djbrl/la-coloc-arena";
 // How long GitHub gets to answer before we say it's down.
 export const GITHUB_TIMEOUT_MS = 8000;
 
 export interface ArenaRepo {
-  // As people open it: https://github.com/Djbrl/la-coloc
+  // As people open it: https://github.com/Djbrl/la-coloc-arena
   url: string;
   // "djbrl/la-coloc": lower case, as submissions store it and webhooks are matched.
   fullName: string;
