@@ -14,7 +14,7 @@ import { styleFor } from "../lobby/cityStyle";
 import { type Emote, Lobby, type Target } from "../lobby/Lobby";
 import { checkCore, core } from "../core";
 import { language } from "../i18n";
-import { caps } from "../lobby/keys";
+import { caps, cityOwnsKeys } from "../lobby/keys";
 import { LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
@@ -263,7 +263,7 @@ function enterTutorial() {
   lobby.clearRemotes();
   build();
   link?.enter(`tutorial:${me.value.login}`);
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 
 // Out of the workshop (finished or skipped): the real city comes back, and so does everyone in it.
@@ -277,7 +277,7 @@ function leaveWorkshop() {
   lobby?.clearRemotes();
   build();
   link?.enter(city.value);
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 watch(inWorkshop, (now, before) => {
   if (before && !now) leaveWorkshop();
@@ -288,7 +288,7 @@ watch(inWorkshop, (now, before) => {
 function endTutorial() {
   t.send({ type: "end" });
   seeTip("walk");
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 
 // "Start" on the first card: the keyboard goes to the city, where the walking happens. "Continue" jumps to the
@@ -296,7 +296,7 @@ function endTutorial() {
 function startTutorial(resume = false) {
   t.send({ type: "start", resume });
   if (STEPS.indexOf(t.step) >= STEPS.indexOf("keys")) lobby?.arriveAt(TUTORIAL_HOUSE);
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 // The welcome card for someone coming back: the chapter they'd reached, to continue from there.
 const resumeAt = computed(() => {
@@ -485,20 +485,30 @@ function seeAsList() {
 
 // ---- The keyboard: only while the city has it ----
 
-// Clicked or tapped the city at least once: from then on, keys pressed with nothing focused are the city's too.
+// Clicked or tapped the city at least once, or handed the keys when something closed: from then on, keys pressed
+// with nothing focused are the city's too.
 let stageTouched = false;
 function touchStage() {
   stageTouched = true;
 }
 /**
- * Whether a key press is for the city (WCAG 2.1.4): the stage has focus, or nothing has (the page itself) after a
- * click on the stage, and the shortcuts are on in settings. The engine follows the same rule for its own keys.
+ * Gives the keyboard back to the city: the stage takes the focus and counts as touched, here and in the engine. For
+ * whenever a welcome, a card, a sheet or a dialog closes, so the keys the screen shows (E, M, W A S D) work at once
+ * rather than after a click.
+ */
+function focusStage() {
+  stageTouched = true;
+  if (lobby) lobby.takeKeys();
+  else host.value?.focus({ preventScroll: true });
+}
+/**
+ * Whether a key press is for the city (WCAG 2.1.4): the stage has focus, or nothing has (the page itself, or a button
+ * that was hidden under the focus) after the stage was touched, and the shortcuts are on in settings. The engine
+ * follows the same rule for its own keys (keys.ts).
  */
 function cityHasKeys(): boolean {
-  if (!settings.shortcuts) return false;
-  const focused = document.activeElement;
-  if (focused && focused !== document.body) return !!host.value?.contains(focused);
-  return stageTouched;
+  if (!settings.shortcuts || !host.value) return false;
+  return cityOwnsKeys(document.activeElement, document.body, host.value, stageTouched);
 }
 
 onMounted(() => {
@@ -724,7 +734,7 @@ watch(cardKey, (now, before) => {
   if (now) play("open");
   else if (before) {
     play("close");
-    host.value?.focus({ preventScroll: true });
+    focusStage();
   }
 });
 
@@ -761,6 +771,15 @@ function movedInDone() {
   arriveFor({ kind: "house", id });
   goInside({ kind: "house", id });
 }
+
+// The visitors' welcome, a tutorial card in the middle, the keys to a new room, a knock or a rent dialog: when the
+// last of them closes, the keys go back to the city (M10).
+const blocking = computed(() => welcoming.value || centred.value || !!keysFor.value || !!knock.value || !!rent.value);
+watch(blocking, async (now, before) => {
+  if (now || !before) return;
+  await nextTick();
+  if (!blocking.value && !place.value && !sheet.value && !card.value) focusStage();
+});
 
 function rentHere() {
   if (card.value?.kind !== "empty") return;
@@ -802,7 +821,7 @@ function insideChanged(now: Place | null) {
 function closeInside() {
   place.value = null;
   showInUrl("");
-  host.value?.focus({ preventScroll: true });
+  focusStage();
 }
 
 // The window docks on the right of a wide screen, so the camera moves you to the left half while it's open.
@@ -837,7 +856,7 @@ watch(
     if (p) openInside(p);
     else if (place.value) {
       place.value = null;
-      host.value?.focus({ preventScroll: true });
+      focusStage();
     }
   },
   { immediate: true },
@@ -865,14 +884,14 @@ watchEffect(() => {
 watch(sheet, async (now) => {
   await nextTick();
   if (now) sheetEl.value?.querySelector<HTMLElement>("input, .entry")?.focus();
-  else host.value?.focus({ preventScroll: true });
+  else focusStage();
 });
 // The big map and the key list take focus themselves; when they close, it goes back to the stage. Opening one
 // counts as knowing it: its tip never shows.
 watch([bigMap, keysOpen], ([map, keys], [mapBefore, keysBefore]) => {
   if (map) seeTip("map");
   if (keys) seeTip("keys");
-  if ((!map && mapBefore) || (!keys && keysBefore)) host.value?.focus({ preventScroll: true });
+  if ((!map && mapBefore) || (!keys && keysBefore)) focusStage();
 });
 
 // The lobby's own keys (walking, E, Q, R, [ ], Shift) live in the engine. These are the ones around it.

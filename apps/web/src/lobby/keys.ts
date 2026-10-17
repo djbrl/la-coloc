@@ -41,3 +41,31 @@ export async function readLayout(nav: WithKeyboard | undefined = typeof navigato
     // Not allowed here (an iframe, a permissions policy): the QWERTY letters stay.
   }
 }
+
+// What we need to know about the element holding the focus (an Element in the browser; a plain object in tests).
+interface Focused {
+  isConnected: boolean;
+  offsetParent?: Element | null;
+  getClientRects?: () => { length: number };
+}
+
+/**
+ * Whether the focus is, in effect, on the page itself: nothing focused, the body, or an element that isn't really
+ * there any more (taken out of the page, or hidden with no box on screen, like a closed card's button). A fixed
+ * element has no offsetParent either, but it has a box, so it still counts as focused.
+ */
+export function focusOnPage(focused: Focused | null, body: unknown): boolean {
+  if (!focused || focused === body) return true;
+  if (!focused.isConnected) return true;
+  return focused.offsetParent === null && focused.getClientRects?.().length === 0;
+}
+
+/**
+ * Whether a key press is for the city (R6, WCAG 2.1.4): the stage (or something in it) has the focus, or the page
+ * itself has it (see `focusOnPage`) and the stage has been touched: clicked, tapped, or handed the keys after a card
+ * or a welcome closed. The engine and the screen around it (LobbyView.vue) both follow this rule.
+ */
+export function cityOwnsKeys(focused: (Focused & Node) | null, body: unknown, stage: Pick<Node, "contains">, touched: boolean): boolean {
+  if (focusOnPage(focused, body)) return touched;
+  return stage.contains(focused);
+}

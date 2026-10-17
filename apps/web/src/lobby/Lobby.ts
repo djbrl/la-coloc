@@ -27,7 +27,7 @@ import { CityProps, makeBoard, makePins, waxParasols } from "./props";
 import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
 import { keepApart, laneFor, MOST, passerbyCount, passersBy, type SidewalkPoint, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
 import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
-import { cityKey, readLayout } from "./keys";
+import { cityKey, cityOwnsKeys, readLayout } from "./keys";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
 import { dye } from "./tint";
@@ -363,6 +363,8 @@ export class Lobby {
     // The letters to print on the walk keys' caps, for this keyboard (keys.ts).
     void readLayout();
     window.addEventListener("keyup", this.keyup);
+    window.addEventListener("blur", this.releaseKeys);
+    document.addEventListener("visibilitychange", this.releaseKeys);
     this.renderer.domElement.addEventListener("pointerdown", this.touchStage);
     this.renderer.domElement.addEventListener("pointerdown", this.click);
     this.renderer.domElement.addEventListener("pointermove", this.pointerMove);
@@ -894,6 +896,8 @@ export class Lobby {
     this.resize.disconnect();
     window.removeEventListener("keydown", this.keydown);
     window.removeEventListener("keyup", this.keyup);
+    window.removeEventListener("blur", this.releaseKeys);
+    document.removeEventListener("visibilitychange", this.releaseKeys);
     this.fireworks.dispose();
     this.setBeacon(null);
     for (const p of this.placed) p.face.dispose();
@@ -1732,10 +1736,7 @@ export class Lobby {
   }
 
   /** You clicked or tapped the stage: it takes the keyboard focus, and keys pressed with nothing focused are ours. */
-  private touchStage = () => {
-    this.stageTouched = true;
-    if (!this.host.contains(document.activeElement)) this.host.focus({ preventScroll: true });
-  };
+  private touchStage = () => this.takeKeys();
 
   /**
    * Whether a key press is for the city (R6): when the stage has focus, or when nothing has focus (the page itself)
@@ -1743,10 +1744,25 @@ export class Lobby {
    * letter. Tab is never the city's (see `keydown`).
    */
   private ownsKeys(): boolean {
-    const focused = document.activeElement;
-    if (focused && focused !== document.body) return this.host.contains(focused);
-    return this.stageTouched;
+    return cityOwnsKeys(document.activeElement, document.body, this.host, this.stageTouched);
   }
+
+  /**
+   * Hands the keyboard to the city, as a click on it would: the stage takes the focus and counts as touched. Vue
+   * calls it when a welcome, a card, a sheet or a dialog closes, so the keys on screen (E, M, W A S D) work at once.
+   */
+  takeKeys() {
+    this.stageTouched = true;
+    if (!this.host.contains(document.activeElement)) this.host.focus({ preventScroll: true });
+  }
+
+  // The window lost the focus (Alt-Tab, another app) or the tab was hidden: no key-up will come for the keys held
+  // down, so they're all let go, or you'd come back walking.
+  private releaseKeys = () => {
+    if (document.visibilityState === "visible" && document.hasFocus()) return;
+    this.keys.clear();
+    this.shiftAlone = false;
+  };
 
   private keydown = (e: KeyboardEvent) => {
     if (!this.ownsKeys()) return;

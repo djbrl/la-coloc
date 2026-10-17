@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caps, cityKey, readLayout } from "./keys";
+import { caps, cityKey, cityOwnsKeys, focusOnPage, readLayout } from "./keys";
 
 describe("the city's keys", () => {
   it("walk and turn by place, so AZERTY's Z Q S D walk like QWERTY's W A S D", () => {
@@ -28,5 +28,34 @@ describe("the city's keys", () => {
     await readLayout({});
     await readLayout({ keyboard: { getLayoutMap: () => Promise.reject(new Error("no")) } });
     expect(caps.w).toBe("Z");
+  });
+});
+
+describe("who the keys belong to", () => {
+  const body = { isConnected: true };
+  const inside = { isConnected: true, offsetParent: {} as Element, getClientRects: () => ({ length: 1 }) };
+  const stage = { contains: (n: unknown) => n === inside };
+  const button = { isConnected: true, offsetParent: {} as Element, getClientRects: () => ({ length: 1 }) };
+  const gone = { isConnected: false, offsetParent: null, getClientRects: () => ({ length: 0 }) };
+  const hidden = { isConnected: true, offsetParent: null, getClientRects: () => ({ length: 0 }) };
+  const fixed = { isConnected: true, offsetParent: null, getClientRects: () => ({ length: 1 }) };
+  const own = (f: object | null, touched: boolean) => cityOwnsKeys(f as never, body, stage as never, touched);
+
+  it("go to the city when the stage has the focus", () => {
+    expect(own(inside, false)).toBe(true);
+  });
+
+  it("stay with a button that has the focus, even after the stage was touched", () => {
+    expect(own(button, true)).toBe(false);
+    // A fixed element (the settings pane) has no offsetParent but is on screen.
+    expect(own(fixed, true)).toBe(false);
+  });
+
+  it("count nothing, the body, or a focused element that's gone or hidden as the page", () => {
+    for (const f of [null, body, gone, hidden]) {
+      expect(focusOnPage(f as never, body)).toBe(true);
+      expect(own(f, true)).toBe(true);
+      expect(own(f, false)).toBe(false);
+    }
   });
 });
