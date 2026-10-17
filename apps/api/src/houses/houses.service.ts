@@ -93,8 +93,9 @@ export function slugify(text: string): string {
 }
 
 // `github`: whether they logged in with GitHub, so the web may link their profile. Seeded and demo people never did.
-function person(u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId"> | null | undefined): PersonView | null {
-  return u ? { login: u.login, name: u.name, avatarUrl: u.avatarUrl, github: u.githubId !== null } : null;
+// `badge`: their worn Arena title, copied on the users row (arena/badges.ts).
+function person(u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "badge"> | null | undefined): PersonView | null {
+  return u ? { login: u.login, name: u.name, avatarUrl: u.avatarUrl, github: u.githubId !== null, badge: u.badge ?? null } : null;
 }
 
 @Injectable()

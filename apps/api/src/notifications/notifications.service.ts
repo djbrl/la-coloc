@@ -66,11 +66,12 @@ export interface NotificationsView {
   sent: { id: string; kind: "house_invite" | "rent_together"; to: string; houseId: string | null }[];
 }
 
-const person = (u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId">): PersonView => ({
+const person = (u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "badge">): PersonView => ({
   login: u.login,
   name: u.name,
   avatarUrl: u.avatarUrl,
   github: u.githubId !== null,
+  badge: u.badge ?? null,
 });
 
 @Injectable()

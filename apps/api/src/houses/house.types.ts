@@ -1,5 +1,7 @@
 // What the website sees. Built by HousesService from the database plus the live state it keeps in memory.
-import type { DeploymentStatus, HousePlan, HouseStatus, MemberRole, NoteTone, RoomStatus } from "@coloc/db";
+import type { Badge, DeploymentStatus, HousePlan, HouseStatus, MemberRole, NoteTone, RoomStatus } from "@coloc/db";
+
+export type { Badge };
 import type { DeployKind, RoomLimits } from "@coloc/protocol";
 
 export interface PersonView {
@@ -9,6 +11,8 @@ export interface PersonView {
   // Has a real GitHub account (logged in with GitHub): their login is then their GitHub handle, and the web links
   // their profile. Seeded example people never have one. Set by the house views; absent elsewhere.
   github?: boolean;
+  // The Arena title they wear (arena/badges.ts), shown next to their name. Null: none.
+  badge: Badge | null;
 }
 
 export interface RoomUsage {

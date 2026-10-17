@@ -1,10 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { applications, type Db, houses, memberships, rooms } from "@coloc/db";
 import { and, asc, eq } from "drizzle-orm";
+import { badgesOf } from "../arena/badges";
 import { DB } from "../db/db.module";
 
 // Which houses someone belongs to, and in which room (the tutorial's workshop doesn't count: it's practice),
-// and where they're knocking.
+// and where they're knocking, and the Arena titles they've won.
 @Injectable()
 export class MembershipsService {
   constructor(@Inject(DB) private readonly db: Db) {}
@@ -26,5 +27,10 @@ export class MembershipsService {
       .from(applications)
       .where(and(eq(applications.applicantId, userId), eq(applications.status, "open")))
       .orderBy(asc(applications.createdAt));
+  }
+
+  /** Every Arena title someone has won, newest first, each with the id that wears it (PUT /api/me/badge). */
+  async badges(userId: string) {
+    return badgesOf(this.db, userId);
   }
 }

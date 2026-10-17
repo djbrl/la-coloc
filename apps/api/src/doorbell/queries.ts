@@ -1,5 +1,5 @@
 // Reads shared by the house page and the doorbell: chat history and vote tallies.
-import { applications, blocks, type Db, messages, users, votes } from "@coloc/db";
+import { applications, type Badge, blocks, type Db, messages, users, votes } from "@coloc/db";
 import { and, asc, desc, eq, inArray, isNull, notInArray, or } from "drizzle-orm";
 import type { DoorbellItem, MessageView, PersonView, VoteTally } from "../houses/house.types";
 import { readKnockLine } from "../houses/lines";
@@ -10,8 +10,9 @@ export const houseChannel = (houseId: string) => `house:${houseId}`;
 export const applicationChannel = (applicationId: string) => `application:${applicationId}`;
 
 // `github` when the row says (a full users row): their login is a real GitHub handle, so the web links it.
-export function person(u: { login: string; name: string | null; avatarUrl: string | null; githubId?: number | null }): PersonView {
-  return { login: u.login, name: u.name, avatarUrl: u.avatarUrl, ...(u.githubId !== undefined ? { github: u.githubId !== null } : {}) };
+// `badge`: the copy of their worn Arena title the users row keeps, so a list of people needs no other query.
+export function person(u: { login: string; name: string | null; avatarUrl: string | null; githubId?: number | null; badge?: Badge | null }): PersonView {
+  return { login: u.login, name: u.name, avatarUrl: u.avatarUrl, ...(u.githubId !== undefined ? { github: u.githubId !== null } : {}), badge: u.badge ?? null };
 }
 
 export function tally(flatmates: number, vs: { yes: boolean }[]): VoteTally {

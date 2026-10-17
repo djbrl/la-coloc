@@ -1,6 +1,7 @@
 // Who's walking around which neighbourhood, and where. Pure: the gateway feeds it connections and messages, it
 // answers with what to send to whom. One avatar per person, however many tabs they have open. You only hear about
 // the people in your neighbourhood, plus a head count for every neighbourhood (for the travel map).
+import type { Badge } from "@coloc/db";
 import { z } from "zod";
 
 export const AVATARS = ["female", "male"].flatMap((s) => "abcdef".split("").map((l) => `${s}-${l}`));
@@ -23,6 +24,8 @@ export interface Player {
   // invitation can reach them). Their card in the lobby needs both.
   github?: boolean;
   example?: boolean;
+  // The Arena title they wear, for their name tag. Null: none.
+  badge?: Badge | null;
   x: number;
   z: number;
   ry: number;
@@ -47,6 +50,7 @@ export interface Viewer {
   avatar: string | null;
   github?: boolean;
   example?: boolean;
+  badge?: Badge | null;
 }
 
 export type Out =

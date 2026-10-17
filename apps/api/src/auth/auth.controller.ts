@@ -101,6 +101,9 @@ export class AuthController {
         houses: await this.memberships.housesOf(user.id),
         // Your knocks still waiting for a vote, so the lobby shows "Your knock" rather than offering another.
         knocks: await this.memberships.openKnocks(user.id),
+        // The Arena title you wear (null: none), and all the ones you've won, to pick from.
+        badge: user.badge ?? null,
+        badges: await this.memberships.badges(user.id),
       },
     };
   }
