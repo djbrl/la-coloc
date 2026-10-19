@@ -1,6 +1,6 @@
 // A room, as its flatmate manages it: build settings, secrets, history.
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
-import { type Db, deployments, memberships, repos, roomSecrets, rooms } from "@coloc/db";
+import { type Db, deployments, memberships, repos, roomSecrets, roomTeammates, rooms } from "@coloc/db";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { DB } from "../db/db.module";
 import { HousesService } from "../houses/houses.service";
@@ -24,12 +24,23 @@ export class RoomsService {
     @Inject(SECRETS) private readonly box: SecretBox | null,
   ) {}
 
-  /** The room, if `userId` may manage it: its flatmate, or the house's chef. */
+  /**
+   * The room, if `userId` may manage it: its flatmate (who lives there), a teammate on its project (a flatmate of the
+   * same house who teamed up on it: the same rights as its flatmate), or the house's chef (update and restart only).
+   */
   async manageable(houseId: string, roomName: string, userId: string) {
     const [room] = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.name, roomName)));
     if (!room) throw new NotFoundException("No such room.");
     if (room.occupantId === userId) return { room, as: "flatmate" as const };
     const [m] = await this.db.select().from(memberships).where(and(eq(memberships.houseId, houseId), eq(memberships.userId, userId)));
+    // A teammate only while they still live in the house, and only on a room someone lives in.
+    if (m && room.occupantId) {
+      const [mate] = await this.db
+        .select({ userId: roomTeammates.userId })
+        .from(roomTeammates)
+        .where(and(eq(roomTeammates.roomId, room.id), eq(roomTeammates.userId, userId)));
+      if (mate) return { room, as: "teammate" as const };
+    }
     if (m?.role === "chef") return { room, as: "chef" as const };
     throw new ForbiddenException("This isn't your room.");
   }
@@ -62,6 +73,7 @@ export class RoomsService {
         limits: { memoryMb: room.memoryMb, cpus: room.cpus },
         usage: live.usage,
         occupant: live.occupant,
+        team: live.team,
       },
       settings: {
         project: room.project,
@@ -90,8 +102,9 @@ export class RoomsService {
 
   async updateSettings(houseId: string, roomName: string, userId: string, s: RoomSettings) {
     const { room, as } = await this.manageable(houseId, roomName, userId);
-    // Where the code comes from is the flatmate's alone: a deploy carries the room's secrets, so whoever picks the
-    // code can read them. The chef may still name, restart and update a room, from the code it already has.
+    // Where the code comes from is the flatmate's (and their teammates', whom they chose): a deploy carries the room's
+    // secrets, so whoever picks the code can read them. The chef may still name, restart and update a room, from the
+    // code it already has.
     const moves = (k: "source" | "branch" | "buildPath") => s[k] !== undefined && (s[k]?.trim() || null) !== (room[k] ?? null);
     if (as === "chef" && room.occupantId && (moves("source") || moves("branch") || moves("buildPath"))) {
       throw new ForbiddenException({ message: "Only the flatmate who lives here can change where the room's code comes from.", code: "flatmateOnlySource" });

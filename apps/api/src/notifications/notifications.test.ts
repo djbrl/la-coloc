@@ -73,7 +73,7 @@ describe("inviting someone to your house", () => {
     expect(bell.items).toHaveLength(1);
     expect(bell.items[0]).toMatchObject({ id, kind: "house_invite", state: "open", room: "room-4", read: false, house: { id: "sacre-coeur", name: "Sacré-Cœur", city: "Dakar" } });
     expect(bell.items[0].from).toMatchObject({ login: "jib", github: false });
-    expect((await service.list(ids.jib)).sent).toEqual([{ id, kind: "house_invite", to: "fatou", houseId: "sacre-coeur" }]);
+    expect((await service.list(ids.jib)).sent).toEqual([{ id, kind: "house_invite", to: "fatou", houseId: "sacre-coeur", room: null }]);
     // The live line tells Fatou.
     expect(pushed).toEqual(["fatou"]);
   });

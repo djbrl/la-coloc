@@ -192,10 +192,13 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       if (c.status === "open") l.open += 1;
       l.lastAssignedAt = Math.max(l.lastAssignedAt ?? 0, c.createdAt.getTime());
     }
+    // Nobody reviews their own project: not the room's occupant, nor anyone teamed up on it.
+    const sameProject = await this.houses.projectPeople(repo.houseId, repo.room);
     const reviewerId = pickReviewer(
       flatmates.filter((f) => !examples.has(f.id)).map((f) => ({ id: f.id, active: true })),
       author?.id ?? "",
       load,
+      sameProject,
     );
     if (!reviewerId) return "nobody to review";
     const reviewer = flatmates.find((f) => f.id === reviewerId)!;

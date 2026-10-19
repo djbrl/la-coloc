@@ -10,9 +10,13 @@
 // - rent_together: someone with no house asks another to rent a server together. Saying yes only tells the sender;
 //   renting is the existing flow (an empty plot, "Rent a flat"), nothing new.
 //
+// And two that team flatmates up on one room's project (teams.ts), between people of the same house:
+// - team_invite: a room's occupant asks a flatmate to join their project. Saying yes puts them on the room's team.
+// - team_ask: a flatmate asks a room's occupant to let them join it. Saying yes does the same.
+//
 // And news from the doorbell, through its listener: a knock on your house, and the answer to your knock.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { type Db, houses, type InviteState, memberships, type NotificationKind, notifications, rooms, users } from "@coloc/db";
+import { type Db, houses, type InviteState, memberships, type NotificationKind, notifications, roomTeammates, rooms, users } from "@coloc/db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or } from "drizzle-orm";
 import { Subject } from "rxjs";
 import type { AuthConfig } from "../auth/auth.config";
@@ -23,6 +27,7 @@ import { blockBetween, blockersOf } from "../doorbell/queries";
 import type { PersonView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
 import { moveInto } from "../houses/move-in";
+import { joinTeam, onTeam, TEAM_MAX, teamSize } from "./teams";
 
 // An invitation nobody answered for a week is stale: the room may have changed, the person moved on.
 export const INVITE_DAYS = 7;
@@ -38,7 +43,15 @@ const LAPSED: Record<string, string> = {
   "They don't live there any more, so the invitation lapsed.": "senderMovedOut",
   "Someone else took that room first.": "roomTakenFirst",
   "This invitation has expired.": "inviteExpired",
+  "That team is full now.": "teamFullNow",
+  "They're already on that team.": "alreadyTeammate",
+  "That room has changed hands, so the request lapsed.": "teamRoomChanged",
+  "One of you doesn't live in that house any more, so the request lapsed.": "teamLeftHouse",
 };
+
+// The kinds that are invitations (they have a state, and are answered), and the ones the day's brake counts.
+const INVITES: NotificationKind[] = ["house_invite", "rent_together", "team_invite", "team_ask"];
+type InviteKind = "house_invite" | "rent_together" | "team_invite" | "team_ask";
 
 type UserRow = typeof users.$inferSelect;
 type Row = typeof notifications.$inferSelect;
@@ -63,7 +76,8 @@ export interface NotificationView {
 export interface NotificationsView {
   unread: number;
   items: NotificationView[];
-  sent: { id: string; kind: "house_invite" | "rent_together"; to: string; houseId: string | null }[];
+  // `room`: the room a team request is about (null for the others).
+  sent: { id: string; kind: InviteKind; to: string; houseId: string | null; room: string | null }[];
 }
 
 const person = (u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "badge">): PersonView => ({
@@ -133,6 +147,7 @@ export class NotificationsService {
    */
   async accept(userId: string, id: string): Promise<{ kind: NotificationKind; house: { id: string; name: string; city: string } | null; room: string | null }> {
     const n = await this.openInvite(userId, id);
+    if (n.kind === "team_invite" || n.kind === "team_ask") return this.acceptTeam(userId, n);
     const [me] = await this.db.select().from(users).where(eq(users.id, userId));
     const name = me.name ?? me.login;
 
@@ -186,7 +201,7 @@ export class NotificationsService {
     const n = await this.openInvite(userId, id);
     if (!(await this.decide(n, "declined"))) throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
     if (n.fromId) {
-      const kind = n.kind === "rent_together" ? "rent_together_no" : "invite_declined";
+      const kind = n.kind === "rent_together" ? "rent_together_no" : n.kind === "team_invite" || n.kind === "team_ask" ? "team_declined" : "invite_declined";
       await this.create({ userId: n.fromId, kind, fromId: userId, houseId: n.houseId, room: n.room });
     }
   }
@@ -206,6 +221,99 @@ export class NotificationsService {
     this.pushes.next(await this.loginOf(n.userId));
   }
 
+  // ---- Teaming up ----
+
+  /**
+   * Asks to team up on the room `roomName` of `houseId`. With `toLogin`, the room's occupant asks that flatmate to
+   * join their project (team_invite). Without it, a flatmate asks the room's occupant to let them join (team_ask).
+   * Only between flatmates of a real house (not an example house, not the workshop), not on your own room, at most
+   * TEAM_MAX teammates, and with the invitations' own brake (one open per person, not again the day they said no,
+   * INVITES_PER_DAY a day).
+   */
+  async teamUp(senderId: string, houseId: string, roomName: string, toLogin: string | null): Promise<{ id: string }> {
+    const [house] = await this.db.select().from(houses).where(eq(houses.id, houseId));
+    if (!house) throw new NotFoundException({ message: "No such house.", code: "noHouse" });
+    if (house.demo) throw new ConflictException({ message: "This is an example house: its flatmates are made up.", code: "exampleHouseTeam" });
+    if (house.tutorial) throw new ConflictException({ message: "The workshop is for practice. Team up in a real house.", code: "workshopTeam" });
+    const [room] = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.name, roomName)));
+    if (!room) throw new NotFoundException({ message: "No such room.", code: "noRoom" });
+    if (!(await this.houses.membership(houseId, senderId))) throw new ForbiddenException({ message: "Only flatmates of this house can team up on its rooms.", code: "teamFlatmatesOnly" });
+    if (!room.occupantId || room.demo) throw new ConflictException({ message: "Nobody lives in that room, so there's no project to join.", code: "teamFreeRoom" });
+
+    // The occupant brings a flatmate in.
+    if (toLogin !== null) {
+      if (room.occupantId !== senderId) throw new ForbiddenException({ message: "Only the flatmate who lives in this room can bring someone onto its project.", code: "teamOccupantOnly" });
+      const to = await this.recipient(senderId, toLogin);
+      if (!(await this.houses.membership(houseId, to.id))) throw new ConflictException({ message: "They don't live in this house. Invite them to it first.", code: "teamFlatmatesOnly" });
+      await this.teamRoom(room.id, to.id);
+      await this.brake(senderId, to.id, "team_invite");
+      return this.create({ userId: to.id, kind: "team_invite", fromId: senderId, houseId, room: room.name, state: "open" });
+    }
+
+    // A flatmate asks to join.
+    if (room.occupantId === senderId) throw new BadRequestException({ message: "That's your own room: you're on its project already.", code: "teamOwnRoom" });
+    const [occupant] = await this.db.select().from(users).where(eq(users.id, room.occupantId));
+    const to = await this.recipient(senderId, occupant.login);
+    await this.teamRoom(room.id, senderId);
+    await this.brake(senderId, to.id, "team_ask");
+    return this.create({ userId: to.id, kind: "team_ask", fromId: senderId, houseId, room: room.name, state: "open" });
+  }
+
+  /**
+   * Takes `login` off the room's team: the room's occupant removes a teammate, or a teammate leaves. Nobody else.
+   */
+  async leaveTeam(userId: string, houseId: string, roomName: string, login: string) {
+    const [room] = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.name, roomName)));
+    if (!room) throw new NotFoundException({ message: "No such room.", code: "noRoom" });
+    const [them] = await this.db.select().from(users).where(eq(users.login, login));
+    if (!them || !(await onTeam(this.db, room.id, them.id))) throw new NotFoundException({ message: "They aren't on this room's team.", code: "notTeammate" });
+    if (userId !== them.id && userId !== room.occupantId) throw new ForbiddenException({ message: "Only the flatmate who lives in this room can take someone off its team.", code: "teamRemoveOccupantOnly" });
+    await this.db.delete(roomTeammates).where(and(eq(roomTeammates.roomId, room.id), eq(roomTeammates.userId, them.id)));
+    this.houses.changes.next(houseId);
+  }
+
+  // Refuses a team request that could never be taken: they're on the team already, or it's full.
+  private async teamRoom(roomId: string, joinerId: string) {
+    if (await onTeam(this.db, roomId, joinerId)) throw new ConflictException({ message: "They're already on that team.", code: "alreadyTeammate" });
+    if ((await teamSize(this.db, roomId)) >= TEAM_MAX) throw new ConflictException({ message: `A room's team has ${TEAM_MAX} teammates at most, and this one is full.`, code: "teamFull" });
+  }
+
+  /**
+   * Says yes to a team request. The one who joins is the recipient of a team_invite, or the sender of a team_ask;
+   * the room must still be the occupant's, both must still live in the house, and the team must still have room.
+   * Otherwise the request lapses and the refusal says why. The sender is told it was taken.
+   */
+  private async acceptTeam(userId: string, n: Row): Promise<{ kind: NotificationKind; house: { id: string; name: string; city: string } | null; room: string | null }> {
+    const [house] = n.houseId ? await this.db.select().from(houses).where(eq(houses.id, n.houseId)) : [];
+    if (!house || !n.room || !n.fromId) return this.expire(n, "That house is gone.");
+    const [room] = await this.db.select().from(rooms).where(and(eq(rooms.houseId, house.id), eq(rooms.name, n.room)));
+    const joiner = n.kind === "team_invite" ? userId : n.fromId;
+    const occupant = n.kind === "team_invite" ? n.fromId : userId;
+    if (!room || room.occupantId !== occupant) return this.expire(n, "That room has changed hands, so the request lapsed.");
+    if (!(await this.houses.membership(house.id, joiner)) || !(await this.houses.membership(house.id, occupant)))
+      return this.expire(n, "One of you doesn't live in that house any more, so the request lapsed.");
+
+    const outcome = await this.db.transaction(async (tx) => {
+      // Claim the request first: a second click finds it answered and stops without touching it.
+      const claimed = await tx
+        .update(notifications)
+        .set({ state: "accepted", decidedAt: new Date(), readAt: new Date() })
+        .where(and(eq(notifications.id, n.id), eq(notifications.state, "open")))
+        .returning({ id: notifications.id });
+      if (!claimed.length) return "answered";
+      const joined = await joinTeam(tx, room.id, joiner);
+      if (joined === "joined") return "joined";
+      await tx.update(notifications).set({ state: "expired" }).where(eq(notifications.id, n.id));
+      return joined === "full" ? "That team is full now." : "They're already on that team.";
+    });
+    if (outcome === "answered") throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
+    if (outcome !== "joined") throw new ConflictException({ message: outcome, code: LAPSED[outcome] ?? "inviteLapsed" });
+
+    await this.create({ userId: n.fromId, kind: "team_accepted", fromId: userId, houseId: house.id, room: room.name });
+    this.houses.changes.next(house.id);
+    return { kind: n.kind, house: { id: house.id, name: house.name, city: house.city }, room: room.name };
+  }
+
   // ---- The bell ----
 
   async list(userId: string): Promise<NotificationsView> {
@@ -218,7 +326,7 @@ export class NotificationsService {
     const rows = await this.db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(RECENT);
     const [{ unread }] = await this.db.select({ unread: count() }).from(notifications).where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
     const sent = await this.db
-      .select({ id: notifications.id, kind: notifications.kind, to: users.login, houseId: notifications.houseId })
+      .select({ id: notifications.id, kind: notifications.kind, to: users.login, houseId: notifications.houseId, room: notifications.room })
       .from(notifications)
       .innerJoin(users, eq(users.id, notifications.userId))
       .where(and(eq(notifications.fromId, userId), eq(notifications.state, "open")));
@@ -240,7 +348,7 @@ export class NotificationsService {
         createdAt: r.createdAt.toISOString(),
         read: r.readAt !== null,
       })),
-      sent: sent.map((s) => ({ id: s.id, kind: s.kind as "house_invite" | "rent_together", to: s.to, houseId: s.houseId })),
+      sent: sent.map((s) => ({ id: s.id, kind: s.kind as InviteKind, to: s.to, houseId: s.houseId, room: isTeam(s.kind) ? s.room : null })),
     };
   }
 
@@ -296,7 +404,7 @@ export class NotificationsService {
   }
 
   // One open invitation of a kind per pair; not again the day they said no; at most INVITES_PER_DAY a day.
-  private async brake(senderId: string, toId: string, kind: "house_invite" | "rent_together") {
+  private async brake(senderId: string, toId: string, kind: InviteKind) {
     const pair = and(eq(notifications.fromId, senderId), eq(notifications.userId, toId), eq(notifications.kind, kind));
     const [open] = await this.db.select({ id: notifications.id }).from(notifications).where(and(pair, eq(notifications.state, "open"))).limit(1);
     if (open) throw new ConflictException({ message: "You've already invited them. They'll see it under their bell.", code: "alreadyInvited" });
@@ -310,7 +418,7 @@ export class NotificationsService {
     const [{ sent }] = await this.db
       .select({ sent: count() })
       .from(notifications)
-      .where(and(eq(notifications.fromId, senderId), inArray(notifications.kind, ["house_invite", "rent_together"]), gte(notifications.createdAt, today)));
+      .where(and(eq(notifications.fromId, senderId), inArray(notifications.kind, INVITES), gte(notifications.createdAt, today)));
     if (sent >= INVITES_PER_DAY) throw new HttpException({ message: "That's a lot of invitations for one day. Try again tomorrow.", code: "tooManyInvites" }, HttpStatus.TOO_MANY_REQUESTS);
   }
 
@@ -382,4 +490,5 @@ export class NotificationsService {
   }
 }
 
-const isInvite = (kind: NotificationKind) => kind === "house_invite" || kind === "rent_together";
+const isInvite = (kind: NotificationKind) => INVITES.includes(kind);
+const isTeam = (kind: NotificationKind) => kind === "team_invite" || kind === "team_ask";

@@ -22,6 +22,13 @@ describe("pickReviewer", () => {
     expect(pickReviewer(house, "jib", load)).toBe("moussa");
   });
 
+  it("never picks someone on the pull request's own project: the room's occupant and teammates", () => {
+    // Moussa opens a pull request on Awa's project, where he is her teammate: neither of them reviews it.
+    expect(pickReviewer(house, "moussa", {}, ["awa", "moussa"])).toBe("jib");
+    // Everyone is on it: nobody is left to review.
+    expect(pickReviewer(house, "moussa", {}, ["awa", "moussa", "jib"])).toBeNull();
+  });
+
   it("skips inactive flatmates and returns null when nobody is left", () => {
     expect(pickReviewer([{ id: "jib", active: true }, { id: "awa", active: false }], "jib", {})).toBeNull();
   });

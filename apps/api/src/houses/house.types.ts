@@ -35,6 +35,9 @@ export interface RoomView {
   usage: RoomUsage | null;
   // A seeded example in a real house (the workshop's other learners): shown as lived in, but nothing runs.
   demo: boolean;
+  // Flatmates of the house who teamed up on this room's project, not counting its occupant ([] when none), first
+  // to join first. They may update, restart and set up the room like its occupant (rooms.service.ts manageable).
+  team: PersonView[];
 }
 
 export interface DeploymentView {
@@ -188,7 +191,7 @@ export interface CityHouseView {
   // The lobby plot it rented ("2.1.0.1"), or null: the lobby places it near the market.
   plot: string | null;
   // building: a prod deploy is running for that room right now, even if an older version is live.
-  rooms: (Pick<RoomView, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant"> & { building: boolean })[];
+  rooms: (Pick<RoomView, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant" | "team"> & { building: boolean })[];
   // Reviews waiting in this house, and how many of them are late. Counts only: titles are for flatmates.
   openChores: number;
   lateChores: number;
@@ -198,7 +201,23 @@ export interface CityHouseView {
   reviewsThisMonth: number;
   // Whose project the house rallies behind this fortnight.
   tontine: { login: string; name: string | null; project: string | null } | null;
+  // The house's rooms' latest CPU use added up, in percent of one core (0 when unknown). Drives the roof's smoke.
+  cpu: number;
+  // What happened here in the last 10 minutes, newest first, at most 10 (houses/happenings.ts).
+  recent: CityHappening[];
 }
+
+// One moment in a house, as the city plays it. `id` is stable (made from the row it comes from), so a page that
+// polls the city can tell a new one from one it already played. Mirrored in apps/web/src/types.ts.
+export type CityHappening =
+  // A review was done (a chore): reviewer → author, as logins.
+  | { id: string; at: string; kind: "review"; from: string; to: string }
+  // A room's app ran out of memory or crashed, and was restarted. Its neighbours kept running.
+  | { id: string; at: string; kind: "crash"; room: string }
+  // A room's project went live (a prod deploy).
+  | { id: string; at: string; kind: "live"; room: string }
+  // Flatmates teamed up on a room: everyone on it now, the occupant first.
+  | { id: string; at: string; kind: "team"; room: string; logins: string[] };
 
 export interface CityView {
   houses: CityHouseView[];

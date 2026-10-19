@@ -1,7 +1,7 @@
 // The exchange as the city and the house page show it: reviews waiting and traded, knocks, the tontine's turn,
 // rooms being built, and the monthly bill with reviews paid as rent.
 import "reflect-metadata";
-import { applications, billPayments, chores, type Db, deployments, rooms, users } from "@coloc/db";
+import { applications, billPayments, chores, type Db, deployments, repos, roomTeammates, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { HttpException } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
@@ -159,6 +159,24 @@ describe("the house page", () => {
     // Moussa's skip paid 500 of Awa's 1 500; the pool pays the rest.
     expect(bill.pool).toBe(1_000);
     expect(bill.lines.reduce((s, l) => s + l.due, 0)).toBe(12_000 - bill.pool);
+  });
+
+  it("pays nothing for a review of your own project: teammates of a room reviewing each other", async () => {
+    // Repo 1 lives in Moussa's room, and Awa teamed up on it.
+    await db.insert(repos).values({ githubId: 1, fullName: "Djbrl/coloc-test", houseId: "sacre-coeur", room: "moussa", installationId: 7 });
+    const [moussaRoom] = await db.select().from(rooms).where(and(eq(rooms.houseId, "sacre-coeur"), eq(rooms.name, "moussa")));
+    await db.insert(roomTeammates).values({ roomId: moussaRoom.id, userId: await userId("awa") });
+    // Awa reviews Moussa's pull request (their shared project); Jib, who isn't on it, reviews another.
+    await chore(1, "awa", "moussa", { done: new Date() });
+    await chore(2, "jib", "moussa", { done: new Date() });
+    // A late one between the two teammates isn't a skipped house chore either.
+    await chore(3, "moussa", "awa", { due: new Date(Date.now() - HOUR) });
+
+    const bill = (await svc.view("sacre-coeur", await userId("jib")))!.bill!;
+    const line = (login: string) => bill.lines.find((l) => l.login === login)!;
+    expect(line("awa")).toMatchObject({ reviews: 0, credit: 0 });
+    expect(line("jib")).toMatchObject({ reviews: 1, credit: 500 });
+    expect(line("moussa")).toMatchObject({ skipped: 0, surcharge: 0 });
   });
 
   it("lets a flatmate mark their own line paid, once, and nobody else", async () => {

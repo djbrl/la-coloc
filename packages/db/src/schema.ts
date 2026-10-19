@@ -128,6 +128,19 @@ export const rooms = pgTable(
   (t) => [uniqueIndex("rooms_house_name").on(t.houseId, t.name)],
 );
 
+// Flatmates who team up on one room's project. The room's occupant stays its occupant (and pays its share of the
+// bill); a teammate may update, restart, redeploy and set up the room like them, and keeps their own room. Only
+// flatmates of the room's house, at most three per room (apps/api/src/notifications/teams.ts).
+export const roomTeammates = pgTable(
+  "room_teammates",
+  {
+    roomId: uuid("room_id").notNull().references(() => rooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] }), index("room_teammates_user").on(t.userId)],
+);
+
 export type MemberRole = "chef" | "flatmate";
 
 // Who belongs to which house. A flatmate usually has a room; someone signed up to a house in the making may not yet.
@@ -342,9 +355,17 @@ export type NotificationKind =
   | "rent_together_no"
   // The doorbell: someone knocked on your house, or the house answered your knock.
   | "knock"
-  | "knock_answer";
+  | "knock_answer"
+  // Teaming up on a room's project, between flatmates of one house. team_invite: the room's occupant asks a flatmate
+  // to join their project. team_ask: a flatmate asks the occupant to let them join. Both are answered like
+  // invitations, and the sender is told: team_accepted or team_declined.
+  | "team_invite"
+  | "team_ask"
+  | "team_accepted"
+  | "team_declined";
 
-// Only invitations have a state; the other kinds are news, and leave it null.
+// Only invitations (house_invite, rent_together, team_invite, team_ask) have a state; the other kinds are news, and
+// leave it null.
 export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
 
 // What a notification carries besides its columns: the knock it's about, and how the vote went.

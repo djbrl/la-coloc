@@ -2,8 +2,27 @@
 // is the workshop where newcomers take the tutorial (a second agent runs it, with the same secret).
 // Every other house is a demo house: flagged `demo`, labelled as such in the UI, with made-up flatmates
 // who have no GitHub account. They exist so the city isn't empty on screen.
-import { applications, arenaChallenges, billPayments, chores, type Db, deployments, fridgeNotes, houses, memberships, messages, notifications, repos, rooms, sessions, usageSamples, users, votes } from "@coloc/db";
-import { eq } from "drizzle-orm";
+import {
+  applications,
+  arenaChallenges,
+  billPayments,
+  chores,
+  type Db,
+  deployments,
+  fridgeNotes,
+  houses,
+  memberships,
+  messages,
+  notifications,
+  repos,
+  roomTeammates,
+  rooms,
+  sessions,
+  usageSamples,
+  users,
+  votes,
+} from "@coloc/db";
+import { and, eq } from "drizzle-orm";
 import { hashSecret } from "../houses/houses.service";
 import { plantArena } from "./arena";
 import { plantLife } from "./life";
@@ -22,6 +41,8 @@ interface SeedRoom {
   // Where a redeploy gets its code when no GitHub repo is linked: a repo URL and the folder with the Dockerfile.
   source?: string;
   buildPath?: string;
+  // Flatmates of the same house who teamed up on this room's project (logins). Planted with the seed's life.
+  team?: string[];
 }
 
 interface SeedHouse {
@@ -63,6 +84,8 @@ export const CITY: SeedHouse[] = [
         description: "A small shop that takes mobile money.",
         source: EXAMPLES_REPO,
         buildPath: "examples/ndaje",
+        // Moussa helps Awa with the shop, so the city shows one team: "Awa + Moussa · Ndaje".
+        team: ["moussa"],
       },
       {
         name: "moussa",
@@ -276,7 +299,7 @@ export function devSeedOptions(env = process.env): SeedOptions {
  */
 export async function seedCity(db: Db, opts: SeedOptions) {
   await db.transaction(async (tx) => {
-    for (const t of [arenaChallenges, notifications, messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, billPayments, sessions, memberships, rooms, houses, users])
+    for (const t of [arenaChallenges, notifications, messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, billPayments, sessions, memberships, roomTeammates, rooms, houses, users])
       await tx.delete(t);
     await plantCity(tx, opts);
   });
@@ -337,8 +360,9 @@ export async function plantCity(db: Db, opts: SeedOptions) {
     );
   }
 
-  // A month of life on top: reviews, chat, notes, deploy history, bill payments, and the Arena's last week.
+  // A month of life on top: teams, reviews, chat, notes, deploy history, bill payments, and the Arena's last week.
   if (!opts.life) return;
+  await plantTeams(db, id);
   await plantLife(
     db,
     CITY.map((h) => ({
@@ -355,6 +379,20 @@ export async function plantCity(db: Db, opts: SeedOptions) {
   );
   // And last week's Arena in Dakar and Abidjan, finished, so titles show from the first visit (seed/arena.ts).
   await plantArena(db, id);
+}
+
+/**
+ * The seeded teams (SeedRoom.team). They formed a few days ago, so a fresh city doesn't play them as news.
+ */
+async function plantTeams(db: Db, id: Record<string, string>) {
+  const addedAt = new Date(Date.now() - 3 * 24 * 3600 * 1000);
+  for (const h of CITY) {
+    for (const r of h.rooms) {
+      if (!r.team?.length) continue;
+      const [room] = await db.select({ id: rooms.id }).from(rooms).where(and(eq(rooms.houseId, h.id), eq(rooms.name, r.name)));
+      await db.insert(roomTeammates).values(r.team.map((login) => ({ roomId: room.id, userId: id[login], addedAt })));
+    }
+  }
 }
 
 /**

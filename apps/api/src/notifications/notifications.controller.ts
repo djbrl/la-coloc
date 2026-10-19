@@ -1,6 +1,6 @@
-// The bell's routes: your notifications, and the two invitations. Thin, like the other controllers: who's asking,
+// The bell's routes: your notifications, the two invitations, and teaming up on a room's project. Thin, like the other controllers: who's asking,
 // a zod check of the body, then the service, which holds every rule.
-import { BadRequestException, Body, Controller, Get, HttpCode, Param, Post, Req, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, Req, UnauthorizedException } from "@nestjs/common";
 import { RoomName } from "@coloc/protocol";
 import { z } from "zod";
 import { AuthService } from "../auth/auth.service";
@@ -11,6 +11,11 @@ const Login = z.string().min(1, "Say who to invite.").max(60);
 const HouseInviteBody = z.object({ to: Login, house: z.string().min(1).max(60), room: RoomName.nullish() });
 const RentTogetherBody = z.object({ to: Login });
 const ReadBody = z.object({ ids: z.array(z.string().uuid()).max(100).optional() });
+// Teaming up: `login` from the room's occupant (bring that flatmate onto the project), or `ask` from a flatmate
+// (ask the occupant to let you join).
+const TeamBody = z.union([z.object({ login: Login }), z.object({ ask: z.literal(true) })], {
+  errorMap: () => ({ message: "Say who to team up with (login), or ask to join (ask: true)." }),
+});
 
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   const r = schema.safeParse(body ?? {});
@@ -69,6 +74,20 @@ export class NotificationsController {
     const user = await this.user(req);
     const { to, house, room } = parse(HouseInviteBody, body);
     return this.notifications.inviteToHouse(user.id, to, house, room);
+  }
+
+  @Post("houses/:id/rooms/:room/team")
+  async teamUp(@Param("id") id: string, @Param("room") room: string, @Body() body: unknown, @Req() req: HttpRequest) {
+    const user = await this.user(req);
+    const b = parse(TeamBody, body);
+    return this.notifications.teamUp(user.id, id, room, "login" in b ? b.login : null);
+  }
+
+  // The room's occupant takes a teammate off the team, or a teammate leaves it.
+  @Delete("houses/:id/rooms/:room/team/:login")
+  async leaveTeam(@Param("id") id: string, @Param("room") room: string, @Param("login") login: string, @Req() req: HttpRequest) {
+    await this.notifications.leaveTeam((await this.user(req)).id, id, room, login);
+    return { ok: true };
   }
 
   @Post("invites/rent-together")

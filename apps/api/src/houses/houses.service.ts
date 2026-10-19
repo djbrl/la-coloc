@@ -11,6 +11,8 @@ import {
   houses,
   type HousePlan,
   memberships,
+  repos,
+  roomTeammates,
   rooms,
   type RoomStatus,
   usageSamples,
@@ -24,6 +26,7 @@ import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import { channelMessages, houseChannel, openDoorbell } from "../doorbell/queries";
 import { type Draft, noteForDeploy, noteForRoomEvent } from "./fridge";
+import { happenings } from "./happenings";
 import { plainNote, readNote } from "./lines";
 import { billReference, monthOf, monthStart, operatorsFor, REVIEW_CREDIT_FCFA, TONTINE_ANCHOR } from "./money";
 import { PLAN_COST_FCFA } from "./server";
@@ -348,6 +351,7 @@ export class HousesService {
     const mine = viewerId ? h.memberships.find((m) => m.userId === viewerId) : undefined;
     const viewerRow = viewerId ? (mine?.user ?? (await this.db.query.users.findFirst({ where: eq(users.id, viewerId) }))) : undefined;
     const live = this.usage.get(houseId);
+    const team = await this.teams([houseId]);
 
     let recentDeployments: DeploymentView[] | null = null;
     let notes: FridgeNoteView[] | null = null;
@@ -398,6 +402,7 @@ export class HousesService {
         occupant: person(r.occupant),
         usage: live?.get(r.name) ?? null,
         demo: r.demo,
+        team: r.occupantId ? (team.get(`${h.id}/${r.name}`) ?? []).map((u) => person(u)!) : [],
       })),
       viewer: viewerRow
         ? {
@@ -514,6 +519,13 @@ export class HousesService {
     );
     const count = <T extends { houseId: string }>(rows: T[], id: string, keep: (r: T) => boolean = () => true) =>
       rows.filter((r) => r.houseId === id && keep(r)).length;
+    // Who teamed up on which room, and what just happened in each house (a review, a crash, a deploy, a team).
+    const team = await this.teams(all.map((h) => h.id));
+    const teamLogins = (houseId: string, room: string) => {
+      const occupant = all.find((h) => h.id === houseId)?.rooms.find((r) => r.name === room)?.occupant;
+      return occupant ? [occupant.login, ...(team.get(`${houseId}/${room}`) ?? []).map((u) => u.login)] : [];
+    };
+    const recent = await happenings(this.db, all.map((h) => h.id), teamLogins, now);
 
     return {
       houses: all.map((h) => ({
@@ -536,6 +548,7 @@ export class HousesService {
           projectDescription: r.projectDescription,
           ad: r.occupantId ? null : r.ad,
           occupant: person(r.occupant),
+          team: r.occupantId ? (team.get(`${h.id}/${r.name}`) ?? []).map((u) => person(u)!) : [],
           building: !!r.occupantId && building.has(`${h.id}/${r.name}`),
         })),
         openChores: count(choreRows, h.id, (c) => c.status === "open"),
@@ -543,8 +556,51 @@ export class HousesService {
         knocking: count(knocks, h.id),
         reviewsThisMonth: count(choreRows, h.id, (c) => c.status === "done"),
         tontine: cityTontine(h.memberships, h.rooms, now),
+        cpu: this.cpuOf(h.id, h.rooms),
+        recent: recent.get(h.id) ?? [],
       })),
     };
+  }
+
+  // The house's rooms' latest CPU readings added up, in percent of one core: 0 when its caretaker is offline or
+  // hasn't measured yet. Only rooms someone lives in (a free room serves nothing, whatever a leftover container says).
+  private cpuOf(houseId: string, rs: RoomRow[]): number {
+    const live = this.usage.get(houseId);
+    if (!live) return 0;
+    const total = rs.filter((r) => r.occupantId).reduce((sum, r) => sum + (live.get(r.name)?.cpuPercent ?? 0), 0);
+    return Math.round(total * 10) / 10;
+  }
+
+  /**
+   * Everyone on a room's project: its occupant, then its teammates (user ids). Empty for a free or missing room.
+   * They never review that project's pull requests, and a review among them earns no credit on the bill.
+   */
+  async projectPeople(houseId: string, roomName: string): Promise<string[]> {
+    const r = await this.room(houseId, roomName);
+    if (!r?.occupantId) return [];
+    return [r.occupantId, ...((await this.teams([houseId])).get(`${houseId}/${roomName}`) ?? []).map((u) => u.id)];
+  }
+
+  /**
+   * Who teamed up on which room of `houseIds`, as "<house>/<room>" → people, first to join first. Only people who
+   * still live in that house: a row left behind by someone who moved out doesn't count.
+   */
+  async teams(houseIds: string[]): Promise<Map<string, UserRow[]>> {
+    const out = new Map<string, UserRow[]>();
+    if (!houseIds.length) return out;
+    const rows = await this.db
+      .select({ houseId: rooms.houseId, room: rooms.name, user: users })
+      .from(roomTeammates)
+      .innerJoin(rooms, eq(rooms.id, roomTeammates.roomId))
+      .innerJoin(users, eq(users.id, roomTeammates.userId))
+      .innerJoin(memberships, and(eq(memberships.houseId, rooms.houseId), eq(memberships.userId, roomTeammates.userId)))
+      .where(inArray(rooms.houseId, houseIds))
+      .orderBy(asc(roomTeammates.addedAt));
+    for (const r of rows) {
+      const key = `${r.houseId}/${r.room}`;
+      out.set(key, [...(out.get(key) ?? []), r.user]);
+    }
+    return out;
   }
 
   // Reviews done inside the house since the start of this calendar month.
@@ -584,10 +640,22 @@ export class HousesService {
     const shares = splitBill(h.monthlyCostFcfa, usage);
 
     // Reviews done this month, and reviews that went late this month (still open past due, or flagged late).
-    const monthChores = await this.db
-      .select({ assigneeId: chores.assigneeId, status: chores.status, dueAt: chores.dueAt, doneAt: chores.doneAt, lateNotedAt: chores.lateNotedAt })
+    const allChores = await this.db
+      .select({ assigneeId: chores.assigneeId, repoId: chores.repoId, status: chores.status, dueAt: chores.dueAt, doneAt: chores.doneAt, lateNotedAt: chores.lateNotedAt })
       .from(chores)
       .where(and(eq(chores.houseId, h.id), or(gte(chores.doneAt, since), gte(chores.createdAt, since), and(eq(chores.status, "open"), isNotNull(chores.lateNotedAt)))));
+    // A review of your own project (the room its repo is in: you live there, or teamed up on it) is no chore for the
+    // house: it neither earns a credit nor counts as skipped. The rotation never asks for one; this catches a review
+    // assigned before a team formed.
+    const team = await this.teams([h.id]);
+    const repoRooms = await this.db.select({ githubId: repos.githubId, room: repos.room }).from(repos).where(eq(repos.houseId, h.id));
+    const ownProject = (c: { assigneeId: string; repoId: number }) => {
+      const roomName = repoRooms.find((r) => r.githubId === c.repoId)?.room;
+      const room = h.rooms.find((r) => r.name === roomName);
+      if (!room?.occupantId) return false;
+      return room.occupantId === c.assigneeId || (team.get(`${h.id}/${room.name}`) ?? []).some((u) => u.id === c.assigneeId);
+    };
+    const monthChores = allChores.filter((c) => !ownProject(c));
     const reviews = (id: string) => monthChores.filter((c) => c.assigneeId === id && c.status === "done" && c.doneAt && c.doneAt >= since).length;
     const skipped = (id: string) =>
       monthChores.filter((c) => c.assigneeId === id && ((c.lateNotedAt !== null && c.lateNotedAt >= since) || (c.status === "open" && c.dueAt < now))).length;
