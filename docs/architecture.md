@@ -170,5 +170,5 @@ Planned at the start, not in the code. Each is on [TODO.md](../TODO.md) or was c
 - A job queue (pg-boss) and timed jobs: webhooks are handled straight away, and a few timers do the rest.
 - Builds without a Dockerfile (Nixpacks), and gVisor for stronger walls.
 - GitHub's Deployments panel (needs one more App permission).
-- `bills`, `listings` and `room_members` tables (team rooms aren't built; a free room's ad is a column on `rooms`).
+- `bills` and `listings` tables (a free room's ad is a column on `rooms`). Teams are `room_teammates`, migration 0017.
 - Real payments.

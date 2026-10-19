@@ -30,9 +30,13 @@ project to be free of third-party rights (Art. 6).
 | Bricolage Grotesque (weights 700, 800; Latin and Latin Extended) by the Bricolage Grotesque Project Authors (Atelier Triay) | `apps/web/src/fonts.css`, from `node_modules/@fontsource/bricolage-grotesque` | https://github.com/ateliertriay/bricolage, via https://fontsource.org | SIL OFL 1.1 |
 | JetBrains Mono (weight 500; Latin and Latin Extended) by JetBrains | `apps/web/src/fonts.css`, from `node_modules/@fontsource/jetbrains-mono` | https://github.com/JetBrains/JetBrainsMono, via https://fontsource.org | SIL OFL 1.1 |
 | The login page's background: a screenshot of our own 3D city (Lomé, by day), 1600×1000 WebP, about 100 KB | `apps/web/public/login-city.webp` | Rendered by the lobby from the Kenney kits above and our code, 15 10 2026 | Ours (made from CC0 assets) |
+| The share previews' pictures: the loading screens below, cropped to 1200×630 JPEG (Dakar, Kigali, Marrakech, Tunis; `city.jpg` is Dakar's) | `apps/web/public/og/*.jpg` | Made from our own renders, 19 10 2026 | Ours (made from CC0 assets) |
 | The loading screen's backgrounds: screenshots of our own 3D city by day (Dakar, Kigali, Marrakech, Tunis), 1600×1000 WebP, about 80 KB each | `apps/web/public/loading/*.webp` | Rendered by the lobby from the Kenney kits above and our code, 16 10 2026 | Ours (made from CC0 assets) |
 
 All are development placeholders until Jib's art. Downloaded 09 and 10 10 2026; licence files kept next to the models.
+The models are packed with meshopt and quantization by `@gltf-transform/cli` (MIT, run once with `npx`, not a dependency;
+`scripts/pack-glb.mjs`) and unpacked in the browser by three.js's `MeshoptDecoder` (MIT, part of `three`). Packing
+changes the files' encoding, not what they are, so their CC0 licence is unchanged.
 Ground textures (grass, asphalt, paving, sidewalk) are drawn in code (`apps/web/src/lobby/textures.ts`).
 If they fail to load, the lobby falls back to shapes built in code (`apps/web/src/lobby/models.ts`).
 

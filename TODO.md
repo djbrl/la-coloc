@@ -58,8 +58,8 @@ The contest needs the project deployed on Datacloud (rules, Art. 6). Until then 
   new login plays it with Docker, Postgres and the workshop's caretaker, including a failed build and a reload.
 - **API sentences in French** · M. Error messages, house news, knock-thread lines, GitHub comments and the example
   city are English text. *Done when:* the API sends a kind and values and the site words them.
-- **A lighter first load on phones** · M. About 5 MB of the first visit is 3D models. *Done when:* models are
-  compressed and the first load is measured on a cheap Android phone.
+- **A lighter first load on phones** · S. The 3D models are packed (9.2 MB to 2.1 MB, 19 Oct). *Done when:* the
+  first load is measured on a cheap Android phone.
 - **ESLint and Prettier** · M · good first task (agree the rules with Jib first). *Done when:* `npm run lint` runs in CI and passes.
 - **Split `apps/web/src/lobby/Lobby.ts`** (about 2 200 lines) · L. *Done when:* camera, input, people and town are
   separate files with no change in behaviour.
@@ -78,8 +78,8 @@ The contest needs the project deployed on Datacloud (rules, Art. 6). Until then 
 
 ## Later, if there is time
 
-Report, mute and leave or evict; team rooms; tontine perks; GitHub's Deployments panel; recorded sounds (Kenney,
-CC0, needs Jib); a WhatsApp preview image per house; pinch-to-zoom on phones; graphs of a room's usage; a CI job that
+Report, mute and leave or evict; tontine perks; GitHub's Deployments panel; recorded sounds (Kenney,
+CC0, needs Jib); pinch-to-zoom on phones; graphs of a room's usage; a CI job that
 runs the isolation demo.
 
 ## Contest admin (Jib)

@@ -25,6 +25,10 @@ African exchange platform built for devs by devs*.
 - It is always daytime in the city. The day / night switch in settings only changes the panels.
 - A house shows its rooms as windows: lit when a project runs, empty when the room is free. A crane appears while
   something builds, and fireworks when it goes live.
+- **The city shows what happens.** A finished review flies as an envelope from the reviewer to the author, with a coin
+  for the rent it saved. A room whose app crashes flashes red while its neighbours stay lit (the isolation demo, seen
+  from the street). Smoke from a roof grows with the house's CPU use. Lines said in the city's room, or in your own
+  house's channel, appear as bubbles over whoever said them.
 - Made-up **passers-by** walk the streets so it feels alive. Their handles have an underscore, which GitHub never
   allows, so none can be a real person's. Eight of the nine houses are **examples** with made-up people, and say so.
   Only Sacré-Cœur (Dakar) runs real projects today.
@@ -73,6 +77,13 @@ There are two ways in.
   someone moved in, someone linked repos). Only public repos are named; private ones are only counted ("+2"). Called
   the "fridge" in the code.
 - **Your room's page:** build settings, secret keys (stored encrypted), logs, restart and update.
+- **Teaming up:** flatmates can team up on one room's project. From a flatmate's card, "Team up" asks to join their
+  project or brings them into yours; they answer under the bell. A teammate can update, restart and set up that
+  room like the person who lives there, and keeps their own room; the one who lives there still pays its share of
+  the bill. At most three teammates, same house only. The review rotation never picks someone from the pull
+  request's own project, and reviewing your own project takes nothing off your rent.
+- **Sharing a house:** the share key in a house's panel copies its link or sends it on WhatsApp; the link shows the
+  house's name, a line about it and a picture of its city.
 
 ## Reviews pay part of the rent
 
@@ -161,7 +172,6 @@ comes back without a reload when the database returns.
 - Payments that move money (Stripe test mode, then a mobile-money sandbox, are planned).
 - The real server on Datacloud, HTTPS, and a production GitHub App.
 - Leaving a house, or evicting someone (the chef can only empty a room). Reports have no admin screen yet.
-- Team rooms, where several flatmates deploy one project.
 - Tontine perks, and a penalty for skipped reviews.
 - A database per room, and backups.
 - GitHub's own "deployed to" panel (a merged pull request gets a comment instead).

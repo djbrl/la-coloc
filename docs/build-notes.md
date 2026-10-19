@@ -988,3 +988,31 @@ window's card, the migration on Docker Postgres (it ran on PGlite in every test 
 - No way to delete a message in a DM or the city room (only board replies), and no edits anywhere.
 - The list view (no lobby) has no live line: direct messages there refresh when the sheet opens or the tab comes back.
 - New French to check: "Discussions", "Annonces" (the board), "Cherche des colocs", "Entraide", "Signaler", "Bloquer".
+
+## 19 10 2026: a city that reacts, teaming up, and sharing a house (branch `world-life`)
+
+From the to-do list of 10 Oct: more life in the world, teaming up, sharing, and the review's leftovers. Three agents
+(API, 3D world, screens) worked at once on separate files from one written contract; the lead reviewed and committed.
+
+| What | How it works | Where |
+|---|---|---|
+| **Happenings** | Each house in the city view carries `cpu` (its rooms' latest CPU, added up) and `recent`: the last ten minutes of a review done (reviewer → author), a crash (a fridge note of kind `oom`/`crashed`), a project going live, a team formed. They're built from rows the API already writes, with stable ids, so a polled page (the shared site asks every 4 s) sees them as well as a streamed one. The page plays only ids it hasn't seen, never on load | `apps/api/src/houses/happenings.ts`; `components/lobby/cityLife.ts` |
+| **The city plays them** | A review: an envelope arcs from the reviewer to the author, then a coin pops over the reviewer. A crash: only that room's window flashes red and a dark puff leaves the roof, so you see one room fall while its neighbours stay lit. Live: the fireworks. A team: two-colour confetti. Calm motion turns each into a soft glow | `lobby/happenings.ts`, `courier.ts`, `glow.ts`, `particles.ts`, `windows.ts` |
+| **Roof smoke** | Grows with `cpu` (none under 2 %, thickest at 150 %); one particle pool for the whole city, one draw call | `lobby/smoke.ts` |
+| **Speech bubbles** | `lobby.say(login, text)`: 5 s over the person, newest replaces older, one line clipped at 80 characters, written as text (never HTML). Fed by new lines in the city's public room and, for flatmates, their house channel | `lobby/bubbles.ts`, `LobbyView.vue` |
+| **Teaming up** | `room_teammates` (migration 0017). The occupant invites a flatmate (`team_invite`) or a flatmate asks (`team_ask`), through the bell's accept/decline; the sender hears the answer. A teammate has the occupant's rights on that room (deploy, restart, settings, secrets) and keeps their own room. Same house, real houses only, at most three, and the invitation brake applies. The rotation skips everyone on the pull request's own project; reviewing your own project earns no rent | `apps/api/src/notifications/teams.ts`, `packages/domain/src/rotation.ts`, `houses.service.ts` `bill`; `components/lobby/TeamUp.vue`, `team.ts` |
+| **Sharing a house** | `GET /api/share/house/:id`: a tiny public page with Open Graph tags (name and city, a line about the rooms, the city's picture) that forwards to the house in the city. The share key in the house panel copies it, sends it on WhatsApp, or opens the phone's share sheet | `apps/api/src/share/`; `components/lobby/house/ShareHouse.vue` |
+| **Leftovers** | The workshop has Dakar's look; Kigali has hills; the key strip shows icons; the "Strict" chip is gone (its switch ends the rule sentence) | `lobby/cityStyle.ts`, `hills.ts`; `KeyLegend.vue`, `HouseInside.vue` |
+| **Lighter models** | All 78 GLBs packed with meshopt (9.2 MB to 2.1 MB), each pointed back at its folder's shared texture; `glb.test.ts` loads every one and checks the people's animations | `scripts/pack-glb.mjs`, `lobby/assets.ts` |
+
+Checked: 935 tests (domain 21, protocol 4, db 14, agent 21, API 370, web 505), the build and `licences:check` pass. The
+3D world was looked at in a throwaway static build. Not yet seen in a browser against the real stack: the bubbles,
+envelopes, team flow and share page.
+
+Rough edges:
+- On the shared site, every lobby page fetches the city room's messages every 4 s (the `chat` nudge fires on every
+  poll), and a flatmate's page also polls their house. Fine for a demo; a real server pushes instead.
+- Share pictures exist for Dakar, Kigali, Marrakech and Tunis; Lomé, Abidjan, Cotonou and Douala still need theirs
+  (their previews show no picture until then).
+- A team forming posts no fridge note.
+- The house's public ledger still counts reviews of your own project; only the bill ignores them.
