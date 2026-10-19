@@ -25,6 +25,7 @@ import { notesSummary } from "./house/notes";
 import PayBill from "./house/PayBill.vue";
 import PersonPeek from "./house/PersonPeek.vue";
 import RentServer from "./house/RentServer.vue";
+import ShareHouse from "./house/ShareHouse.vue";
 import Rundown from "./house/Rundown.vue";
 import { evenSplit, fcfa, type ServerInfo } from "./house/server";
 import { linkedHouse, markTourSeen, toursSeen } from "./house/tours";
@@ -37,6 +38,7 @@ import StatusDot from "./panel/StatusDot.vue";
 import { explain, houseState, houseTrouble, roomLine, roomState } from "./panel/words";
 import type { Place } from "./place";
 import { seeded } from "../seeded";
+import { teamNames, teamUp } from "./team";
 
 // The house's parts, one tab each. The keys are the API's names: "chores" shows as Reviews, "fridge" as News.
 type TabKey = "rooms" | "channel" | "chores" | "fridge" | "bill";
@@ -227,8 +229,8 @@ const intro = computed((): { summary: string | null; explain: string | null } =>
 const othersOpen = ref(false);
 const othersShown = computed(() => !reviews.value.mine.length || othersOpen.value);
 
-// The chef of a house being made can invite people from the head. In any state, the chef also sets the review rule
-// there; everyone reads it in the sentence under the faces.
+// The chef of a house being made can invite people from the head. In any state, the chef also sets the review rule,
+// with a small switch at the end of the sentence under the faces that says it (flatmates read it there).
 const copied = ref(false);
 async function copyLink() {
   const link = `${location.origin}/houses/${encodeURIComponent(props.id)}`;
@@ -244,7 +246,6 @@ async function copyLink() {
 // The review rule, in the words the chef's switch uses. Strict: a merge only goes online once a flatmate approves
 // it (the API's GitHub deploys hold it back otherwise).
 const strict = computed(() => !!house.value?.rules.strictReviews);
-const ruleWord = computed(() => (strict.value ? w.strictWord : w.relaxedWord));
 const ruleSentence = computed(() =>
   strict.value ? w.strictSentence : w.relaxedSentence,
 );
@@ -269,6 +270,10 @@ async function switchRules() {
   clearTimeout(rulesNoteTimer);
   rulesNoteTimer = window.setTimeout(() => (rulesNote.value = null), 5000);
 }
+
+// Any house in the city can be shared (ShareHouse.vue); the workshop isn't in a city, and a house being made has
+// nothing to see yet (its chef copies an invite link instead).
+const shareable = computed(() => !!house.value && !house.value.tutorial && !making.value);
 
 const renting = ref(false);
 const knocking = ref<Room | null>(null);
@@ -313,6 +318,8 @@ const peek = computed(() => {
       home: session.value?.houses[0] ?? null,
       invited: notices.sent.some((n) => n.kind === "house_invite" && n.to === s.person.login),
     }),
+    // A flatmate of yours: teaming up on one of your two projects (team.ts).
+    team: member.value && house.value ? teamUp({ login: s.person.login, example: !!room?.demo || s.person.github === false }, viewer.value, house.value, viewer.value?.room ?? null, notices.sent) : null,
   };
 });
 // The channel's composer, started with their first name when you reach out to a flatmate there.
@@ -387,9 +394,11 @@ async function takeRoom() {
 // A room's row: who and what (the person and their project), then one line with what the project is. Its state
 // is the dot on the face; the line says it in words only when it isn't simply online ("Its last build failed.",
 // "An example project."). A free room says its size there, in the sentence.
+// A team's room names its people together, occupant first: "Awa + Moussa · Ndaje".
 function rowTitle(room: Room): string {
   if (!room.occupant) return w.freeRoom;
-  return room.project ? `${nameOf(room.occupant)} · ${room.project}` : nameOf(room.occupant);
+  const who = teamNames(room.occupant, room.team);
+  return room.project ? `${who} · ${room.project}` : who;
 }
 function rowSub(room: Room): string {
   const h = house.value!;
@@ -514,23 +523,12 @@ function rundownEnded() {
         <div class="head">
           <div data-tour="header">
             <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
-              <template v-if="chef && (making || !house.demo)" #aside>
-                <button v-if="making" type="button" class="chip" :aria-label="copied ? w.inviteCopied : w.copyInvite" @click="copyLink">
+              <!-- The chef of a house being made: copy an invite link. Any other house (not the workshop): share it. -->
+              <template v-if="(chef && making) || shareable" #aside>
+                <button v-if="chef && making" type="button" class="chip" :aria-label="copied ? w.inviteCopied : w.copyInvite" @click="copyLink">
                   <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? w.copied : w.invite }}</span>
                 </button>
-                <!-- A toggle: pressed is strict. Its name stays "Strict reviews" so the pressed state reads true. -->
-                <button
-                  v-if="!house.demo"
-                  type="button"
-                  class="chip"
-                  :aria-pressed="strict"
-                  :aria-label="w.strictName"
-                  :title="w.pressToSwitch(ruleSentence)"
-                  :disabled="savingRules"
-                  @click="switchRules"
-                >
-                  <Icon name="rules" :size="16" /><span class="chip-word">{{ ruleWord }}</span>
-                </button>
+                <ShareHouse v-else :house-id="house.id" :name="house.name" :city="house.city" />
               </template>
             </PanelHead>
           </div>
@@ -542,6 +540,8 @@ function rundownEnded() {
             :person="peek.person"
             :line="peek.line"
             :actions="peek.actions"
+            :team="peek.team"
+            :house-id="house.id"
             @reach="reachOut"
             @wave="emit('wave', peek.person.login)"
             @close="peeked = null"
@@ -555,7 +555,23 @@ function rundownEnded() {
               </span>
               <span class="turn-said">{{ tontineText }}</span>
             </p>
-            <p class="reviews">{{ reviewsText }}</p>
+            <p class="reviews">
+              {{ reviewsText }}
+              <!-- The chef switches the rule right where it's said: a toggle, pressed is strict. Its name stays "Strict
+                   reviews" so the pressed state reads true. -->
+              <button
+                v-if="chef && !house.demo"
+                type="button"
+                class="rule"
+                :aria-pressed="strict"
+                :aria-label="w.strictName"
+                :title="w.pressToSwitch(ruleSentence)"
+                :disabled="savingRules"
+                @click="switchRules"
+              >
+                <Icon name="rules" :size="14" />
+              </button>
+            </p>
           </div>
         </div>
       </template>
@@ -590,6 +606,10 @@ function rundownEnded() {
             <!-- The room's state as a dot on the face; the row's line says it in words. -->
             <span v-if="room.occupant" class="face">
               <Avatar :person="room.occupant" :size="40" decorative />
+              <!-- Teammates on its project: their small faces on the lower left, the first two. -->
+              <span v-if="room.team?.length" class="mates" aria-hidden="true">
+                <Avatar v-for="p in room.team.slice(0, 2)" :key="p.login" :person="p" :size="20" decorative />
+              </span>
               <StatusDot class="on-face" :state="roomState(room, house.status, house.demo)" />
             </span>
             <span v-else class="door"><Icon name="door" :size="20" /></span>
@@ -758,11 +778,14 @@ function rundownEnded() {
 .empty { padding: 24px var(--gutter); display: grid; gap: 8px; }
 .head { display: grid; gap: 8px; min-width: 0; }
 
-/* The chef's two small things in the head: chunky pills with an icon, like a game's menu buttons. */
+/* The chef's invite in the head: a chunky pill with an icon, like a game's menu buttons. */
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--quiet-edge); font-size: 14px; font-weight: 600; }
 .chip:hover:not(:disabled) { background: var(--tile); }
-.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-fill), 0 2px 0 var(--accent-fill); }
 .chip:active:not(:disabled) { transform: translateY(1px); }
+/* The review rule's switch, at the end of its sentence: a small key, orange while strict. */
+.rule { display: inline-grid; place-items: center; width: 24px; height: 24px; min-height: 0; padding: 0; margin-left: 4px; vertical-align: middle; border-radius: var(--r-xs); background: var(--surface); color: var(--muted); box-shadow: var(--quiet-edge); }
+.rule:hover:not(:disabled) { background: var(--tile); color: var(--text); }
+.rule[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-fill); }
 /* The exchange under the faces: two quiet sentences, each at most two lines. */
 .life { display: grid; gap: 4px; font-size: 13px; line-height: 1.35; color: var(--muted); }
 .life p { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -791,6 +814,10 @@ function rundownEnded() {
 .sub.warn { color: var(--danger); }
 /* A face with its state's dot on the lower right, like a presence dot in a game's friend list. */
 .face { position: relative; display: inline-grid; }
+/* A team's other faces, small and overlapping on the face's lower left, each ringed in the row's colour. */
+.face .mates { position: absolute; left: -6px; bottom: -4px; display: flex; }
+.face .mates > * { box-shadow: 0 0 0 2px var(--surface); border-radius: 50%; }
+.face .mates > * + * { margin-left: -8px; }
 /* Ringed in the row's colour, so the dot reads as a badge on the face (it replaces the dot's own halo). */
 .face .on-face { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; box-shadow: 0 0 0 2px var(--surface); animation: none; }
 /* Buttons and links in a row carry an icon beside their word. */

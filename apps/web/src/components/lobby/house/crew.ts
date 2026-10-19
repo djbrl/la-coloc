@@ -90,7 +90,7 @@ export function footFor(s: Situation): Foot {
 // knocks on the only free one, that row offers what's left (visiting your project) or nothing.
 export type RowAction = "open" | "visit" | "knock" | null;
 
-export function rowAction(room: Pick<Room, "name" | "status" | "url" | "occupant" | "demo">, s: Situation, foot: Foot): RowAction {
+export function rowAction(room: Pick<Room, "name" | "status" | "url" | "occupant" | "demo" | "team">, s: Situation, foot: Foot): RowAction {
   if (!room.occupant) {
     if (!canKnock(s)) return null;
     return foot.kind === "knock" && foot.room === room.name ? null : "knock";
@@ -102,6 +102,9 @@ export function rowAction(room: Pick<Room, "name" | "status" | "url" | "occupant
     if (foot.kind === "room" && foot.room === room.name) return visitable ? "visit" : null;
     return "open";
   }
+  // A teammate on this room's project opens it like its occupant: they can update and set it up too.
+  const login = s.viewer?.login;
+  if (login && room.team?.some((p) => p.login === login)) return "open";
   return visitable ? "visit" : null;
 }
 

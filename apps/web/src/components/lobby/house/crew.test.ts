@@ -104,6 +104,12 @@ describe("a room row's one button", () => {
     expect(rowAction(room("three", null), two, footFor(two))).toBe("knock");
   });
 
+  it("opens a flatmate's room for their teammate", () => {
+    const s = situation({ viewer: viewer({ member: true, role: "flatmate", room: "one" }) });
+    expect(rowAction(room("two", awa, { team: [person("jib")] }), s, footFor(s))).toBe("open");
+    expect(rowAction(room("two", awa, { team: [person("kofi")] }), s, footFor(s))).toBe("visit");
+  });
+
   it("visits someone else's live room, but never an example one", () => {
     const s = situation();
     expect(rowAction(room("two", awa), s, footFor(s))).toBe("visit");

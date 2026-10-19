@@ -99,6 +99,14 @@ export const icons = {
   bug: "M9 7a3 3 0 0 1 6 0 M7 10h10v4a5 5 0 0 1-10 0z M12 10v9 M4 12h3 M17 12h3 M5 18l2.5-2 M19 18l-2.5-2 M5 6l2.5 2.5 M19 6l-2.5 2.5",
   // An eye: someone watching, people here now.
   eye: "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  // A box with an arrow rising out of it: share.
+  share: "M12 3v12 M7.5 7.5L12 3l4.5 4.5 M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7",
+  // A lightning bolt: dash.
+  bolt: "M13 2L4 14h7l-1 8 9-12h-7z",
+  // A map folded in three: the map.
+  map: "M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15",
+  // A keyboard: every key.
+  keyboard: "M3 6h18v12H3z M7 10h.01 M11 10h.01 M15 10h.01 M7 14h10",
 } as const;
 
 export type IconName = keyof typeof icons;

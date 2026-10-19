@@ -2,7 +2,7 @@
 // invitations you've sent, and the lobby's live line says when to fetch again. Loaded when you log in, when the tab
 // comes back into view, and on the lobby's nudge; never polled. Outages are quiet: the bell keeps what it had.
 import { reactive, ref } from "vue";
-import { me, postJSON, type Sent } from "./session";
+import { me, postJSON, type Sent, sendJSON } from "./session";
 import type { Notices } from "./types";
 
 export const notices = reactive<Notices & { loaded: boolean }>({ unread: 0, items: [], sent: [], loaded: false });
@@ -69,4 +69,27 @@ export async function rentTogether(to: string): Promise<Sent<{ id: string }>> {
   const sent = await postJSON<{ id: string }>("/api/invites/rent-together", { to });
   await loadNotices();
   return sent;
+}
+
+// Teaming up on one room's project, between flatmates (components/lobby/team.ts). Both ways are a request under the
+// other person's bell; each one reloads the bell, so the card sees it waiting.
+const teamUrl = (house: string, room: string) => `/api/houses/${encodeURIComponent(house)}/rooms/${encodeURIComponent(room)}/team`;
+
+/** Asks a flatmate to join your room's project. */
+export async function bringIntoTeam(house: string, room: string, login: string): Promise<Sent<unknown>> {
+  const sent = await postJSON(teamUrl(house, room), { login });
+  await loadNotices();
+  return sent;
+}
+
+/** Asks a flatmate to let you join their room's project. */
+export async function askToJoinTeam(house: string, room: string): Promise<Sent<unknown>> {
+  const sent = await postJSON(teamUrl(house, room), { ask: true });
+  await loadNotices();
+  return sent;
+}
+
+/** Takes someone off a room's team: its occupant removing a teammate, or a teammate leaving. */
+export function leaveTeam(house: string, room: string, login: string): Promise<Sent<unknown>> {
+  return sendJSON("DELETE", `${teamUrl(house, room)}/${encodeURIComponent(login)}`);
 }

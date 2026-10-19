@@ -2,7 +2,8 @@
 // Someone you met in the street: who they are, where they live, what they build (and whether it's online), and
 // what you can do about it. Like a game's interaction menu: one main action, the rest as icon tiles. The main action
 // depends on who they are and who you are (streetActions in personActions.ts): see their house; invite them to your
-// house's free room; rent a place together; or log in first. A made-up person (a seeded flatmate, or a passer-by
+// house's free room; rent a place together; or log in first. A flatmate of yours gets "Team up" instead (TeamUp.vue:
+// join their project, or bring them into yours). A made-up person (a seeded flatmate, or a passer-by
 // the lobby invents) says so in one plain line, and their invitation is shown disabled; they get no Message or GitHub
 // key; only a real GitHub account gets a profile link.
 // Invitations are structured actions; "Message" opens a direct conversation with them in the chat sheet.
@@ -21,6 +22,8 @@ import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { roomLine, roomState } from "./panel/words";
 import { streetActions } from "./personActions";
+import { teamUp } from "./team";
+import TeamUp from "./TeamUp.vue";
 import { cardWords as w } from "./words";
 import { seeded } from "../seeded";
 
@@ -69,6 +72,13 @@ const actions = computed(() =>
   ),
 );
 const main = computed(() => actions.value.main);
+// A flatmate of yours: teaming up on a project (team.ts) takes the main action's place, since their house is yours.
+const team = computed(() => {
+  const mine = props.myHouse;
+  if (!mine || props.home?.houseId !== mine.id) return null;
+  const myRoom = me.value?.houses.find((h) => h.id === mine.id)?.room ?? null;
+  return teamUp({ login: props.login, example: madeUp.value }, me.value, mine, myRoom, notices.sent);
+});
 // Write to them: a real person, when you're logged in (an example person's key is there, disabled, with why).
 const message = computed(() => messageAction({ isMe: props.isMe, example: madeUp.value }, me.value));
 // The free room to offer, when your house has several: the first until you pick another.
@@ -149,7 +159,8 @@ async function send(kind: "invite" | "rent" | "withdraw") {
     <p v-else-if="madeUp" class="soft small">{{ w.exampleLine }}</p>
 
     <div class="menu">
-      <button v-if="main?.kind === 'see'" class="big primary" :aria-label="bw.seeHouseName(main.houseName)" @click="emit('see', main.houseId)">
+      <TeamUp v-if="team && myHouse" :state="team" :house-id="myHouse.id" :login="login" :first="first" />
+      <button v-else-if="main?.kind === 'see'" class="big primary" :aria-label="bw.seeHouseName(main.houseName)" @click="emit('see', main.houseId)">
         <Icon name="house" :size="20" /> {{ bw.seeHouse }}
       </button>
       <div v-if="main?.kind === 'invite' && main.rooms.length > 1 && !main.example" class="segmented rooms" role="radiogroup" :aria-label="bw.whichRoom">

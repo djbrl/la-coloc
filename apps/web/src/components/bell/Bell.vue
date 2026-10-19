@@ -91,7 +91,8 @@ async function act(n: Notice, action: NoticeAction) {
     return;
   }
   const { house, room } = sent.data;
-  if (house && room) {
+  // Only a house invitation moves you in. Teaming up keeps you in your own room: the row says it's done.
+  if (house && room && n.kind === "house_invite") {
     // You live there now. In the city, the lobby hands you the keys and opens the house; anywhere else, its page.
     close(false);
     if (route.path === "/" && settings.view === "lobby") movedIn.value = { houseId: house.id, house: house.name, room };

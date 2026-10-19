@@ -19,10 +19,13 @@ import RoomSecrets from "../components/room/RoomSecrets.vue";
 import { parsePort, projectTitle, type SettingsForm, settingsBody } from "../components/room/room";
 import "../components/room/room.css";
 import { roomWords as w } from "../components/room/words";
-import { loud, quiet, type Note } from "../components/UiNote.vue";
+import Avatar from "../components/Avatar.vue";
+import { canRemove, firstName, teamNames } from "../components/lobby/team";
+import UiNote, { loud, quiet, type Note } from "../components/UiNote.vue";
 import Waiting from "../components/Waiting.vue";
 import { useWhenBack, wentDown } from "../core";
 import { locale } from "../i18n";
+import { leaveTeam } from "../notices";
 import { me, sendJSON } from "../session";
 import { openStream, type Stream } from "../stream";
 import type { RoomManage } from "../types";
@@ -123,7 +126,10 @@ useWhenBack(() => {
 const label = computed(() => {
   const d = data.value;
   if (!d?.house.name) return "";
-  return d.as === "chef" ? w.chefLabel(d.room.name, d.house.name) : w.yourRoom;
+  if (d.as === "chef") return w.chefLabel(d.room.name, d.house.name);
+  // A teammate: the room is its occupant's, the project theirs together.
+  if (d.as === "teammate" && d.room.occupant) return w.theirRoom(firstName(d.room.occupant));
+  return w.yourRoom;
 });
 watch(label, (text) => {
   if (text) emit("label", text);
@@ -207,6 +213,29 @@ const headLine = computed(() => {
   const whose = !who || who.login === me.value?.login ? w.yourRoom : w.theirRoom((who.name ?? who.login).split(" ")[0]);
   return w.headLine(roomLine(d.room), whose, d.house.name);
 });
+
+// Teaming up (components/lobby/team.ts): the occupant and their teammates as faces under the head. The occupant can
+// take a teammate off the team; a teammate can leave it (and then loses the room's page: it says so).
+const team = computed(() => data.value?.room.team ?? []);
+const teamOf = computed(() => (data.value ? { name: data.value.room.name, occupant: data.value.room.occupant, team: team.value } : null));
+const teamBusy = ref(false);
+const teamNote = ref<Note | null>(null);
+async function offTeam(login: string) {
+  const d = data.value;
+  if (!d || teamBusy.value) return;
+  teamBusy.value = true;
+  teamNote.value = null;
+  const res = await leaveTeam(d.house.id, d.room.name, login);
+  teamBusy.value = false;
+  if (!res.ok) {
+    teamNote.value = loud(res.message);
+    return;
+  }
+  // You left: this room isn't yours to manage any more, and the page says so. Else the team just got smaller.
+  if (login === me.value?.login && d.as === "teammate") void open();
+  else void load();
+}
+
 const workshop = computed(() => props.id === TUTORIAL_HOUSE);
 const coached = computed(() => props.coached ?? (!!props.embedded && workshop.value && !!me.value && me.value.tutorialDone === false));
 const title = computed(() => (data.value ? projectTitle(data.value.settings, workshop.value) : ""));
@@ -244,6 +273,32 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
           </template>
           <template v-else>{{ explain.online }}</template>
         </p>
+        <!-- A team on this project: the occupant's face, then each teammate's (with a × for whoever may take them
+             off), and "Leave the team" for a teammate. -->
+        <div v-if="team.length && data.room.occupant && teamOf" class="team" role="group" :aria-label="w.team">
+          <span class="faces">
+            <Avatar :person="data.room.occupant" :size="28" decorative />
+            <span v-for="p in team" :key="p.login" class="mate">
+              <Avatar :person="p" :size="28" decorative />
+              <button
+                v-if="canRemove(me?.login ?? null, teamOf, p.login) && p.login !== me?.login"
+                type="button"
+                class="off"
+                :disabled="teamBusy"
+                :aria-label="w.removeTeammate(firstName(p))"
+                :title="w.removeTeammate(firstName(p))"
+                @click="offTeam(p.login)"
+              >
+                <svg viewBox="0 0 24 24" width="10" height="10" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+              </button>
+            </span>
+          </span>
+          <span class="names">{{ teamNames(data.room.occupant, team) }}</span>
+          <button v-if="data.as === 'teammate' && me && canRemove(me.login, teamOf, me.login)" type="button" class="chunk small" :disabled="teamBusy" @click="offTeam(me.login)">
+            <Icon name="logout" :size="16" /> {{ w.leaveTeam }}
+          </button>
+        </div>
+        <UiNote v-if="teamNote" :note="teamNote" />
         <p class="sr-only" aria-live="polite">{{ w.stateSr(state.word) }}</p>
       </template>
 
@@ -315,6 +370,16 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .tab-body { flex: 1 0 auto; display: flex; flex-direction: column; gap: 10px; }
 .tab-body.fill { flex: 1 1 0; min-height: 0; }
 .room-page:not(.embedded) .tab-body.fill { height: 60vh; flex: none; }
+
+/* The team: overlapping faces, each teammate's with a small × on its corner for whoever may take them off. */
+.team { margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.faces { display: inline-flex; align-items: center; }
+.faces > * + * { margin-left: -6px; }
+.faces :deep(img), .faces :deep(.avatar) { box-shadow: 0 0 0 2px var(--surface); border-radius: 50%; }
+.mate { position: relative; display: inline-grid; }
+.off { position: absolute; top: -5px; right: -5px; width: 16px; height: 16px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: 0 0 0 1px var(--line-strong); }
+.off:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+.names { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .message { margin: auto; display: grid; justify-items: center; gap: 14px; padding: 32px 16px; text-align: center; }
 .icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--fill); color: var(--muted); }

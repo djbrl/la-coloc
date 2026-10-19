@@ -18,17 +18,24 @@ export const houseWords = defineWords(
     // The tabs' keys are the API's names (chores, fridge); the words are what a newcomer understands.
     tabs: { rooms: "Rooms", channel: "Channel", chores: "Reviews", fridge: "News", bill: "Bill" },
 
-    // The chef's chips in the head.
+    // The chef's invite chip in the head, and the review rule's switch beside its sentence.
     inviteCopied: "Invite link copied",
     copyInvite: "Copy an invite link",
     copied: "Copied",
     invite: "Invite",
     strictName: "Strict reviews",
-    strictWord: "Strict",
-    relaxedWord: "Relaxed",
     strictSentence: "Strict reviews: merges go online once a flatmate approves.",
     relaxedSentence: "Relaxed reviews: merges go online without waiting for a review.",
     pressToSwitch: (sentence: string) => `${sentence} Press to switch.`,
+    // Sharing the house (ShareHouse.vue): its key in the head, and the small card it opens.
+    share: {
+      name: (house: string) => `Share ${house}`,
+      copy: "Copy the link",
+      whatsapp: "WhatsApp",
+      whatsappName: "Send it on WhatsApp (opens in a new tab)",
+      more: "Share…",
+      onlyHere: "This link opens on this computer only.",
+    },
 
     // The rooms' rows.
     roomForYou: "A room for you",
@@ -195,11 +202,17 @@ export const houseWords = defineWords(
     copied: "Copié",
     invite: "Inviter",
     strictName: "Revues strictes",
-    strictWord: "Strict",
-    relaxedWord: "Souple",
     strictSentence: "Revues strictes : un merge part en ligne une fois approuvé par un coloc.",
     relaxedSentence: "Revues souples : un merge part en ligne sans attendre de revue.",
     pressToSwitch: (sentence) => `${sentence} Appuyez pour changer.`,
+    share: {
+      name: (house) => `Partager ${house}`,
+      copy: "Copier le lien",
+      whatsapp: "WhatsApp",
+      whatsappName: "L'envoyer sur WhatsApp (s'ouvre dans un nouvel onglet)",
+      more: "Partager…",
+      onlyHere: "Ce lien ne s'ouvre que sur cet ordinateur.",
+    },
 
     roomForYou: "Une chambre pour vous",
     moreRooms: (n) => `Voir ${pluriel(n, "autre chambre", "autres chambres")}`,

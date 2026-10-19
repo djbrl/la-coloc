@@ -23,13 +23,15 @@ import { chatPinged, chatSheet, openChat } from "../conversations";
 import { loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
-import type { Badge, CityHouse, HouseView } from "../types";
+import { openStream, type Stream } from "../stream";
+import type { Badge, CityHouse, HouseView, Message } from "../types";
 import { type ArenaDisplay, toDisplay } from "./arena/arena";
 import ArenaPanel from "./arena/ArenaPanel.vue";
 import { arena, followArena, leaveArena, loadArena } from "./arena/store";
 import { arenaWords as aw } from "./arena/words";
 import KnockSteps from "./KnockSteps.vue";
 import { localTime } from "./lobby/africa";
+import { chatter, cityHappenings, onceEach } from "./lobby/cityLife";
 import { cityAlert, cityStats } from "./lobby/cityStats";
 import Icon from "./lobby/house/Icon.vue";
 import AfricaMap from "./lobby/AfricaMap.vue";
@@ -654,7 +656,7 @@ function newsFrom(houses: CityHouse[]) {
       if (!before || !r.occupant || !now.live) continue;
       if (before.live && !(before.building && !now.building)) continue;
       const inView = h.city === city.value && !inWorkshop.value;
-      if (inView) lobby?.celebrate(h.id);
+      if (inView && cheer(h.id, performance.now())) lobby?.celebrate(h.id);
       if (inView || mine.has(h.id)) {
         const where = inView ? null : h.city;
         say(r.project ? w.projectOnline(firstName(r.occupant), r.project, where) : w.roomOnline(firstName(r.occupant), h.name, where));
@@ -663,15 +665,32 @@ function newsFrom(houses: CityHouse[]) {
   lastRooms = next;
 }
 
+// The city's happenings (cityLife.ts): a review done, a room's app crashing and coming back, a project going
+// live, flatmates teaming up. Each is played once, by the engine, at its house, if that house is on screen. The
+// first list only counts as seen (a list still empty because the core was down doesn't count as a first list).
+const happenings = cityHappenings();
+// A project going live shows twice (its window lights up, and a "live" happening comes): one set of fireworks.
+const cheer = onceEach();
+function playHappenings(houses: CityHouse[]) {
+  if (!houses.length) return;
+  const onScreen = (id: string) => !inWorkshop.value && here.value.some((h) => h.id === id);
+  for (const { houseId, happening } of happenings(houses, onScreen)) {
+    if (happening.kind === "live" && !cheer(houseId, performance.now())) continue;
+    lobby?.happening(houseId, happening);
+  }
+}
+
 // The city changed: the world follows (build only redraws what changed), then the news.
 watch(
   () => props.houses,
   (houses) => {
     build();
     newsFrom(houses);
+    playHappenings(houses);
   },
 );
 newsFrom(props.houses);
+playHappenings(props.houses);
 watch(
   () => [settings.quality, settings.reduceMotion] as const,
   ([q, calm]) => lobby?.setQuality(q, calm),
@@ -815,6 +834,82 @@ const myHouse = computed(() => {
   const mine = me.value?.houses[0]?.id;
   return mine ? (props.houses.find((h) => h.id === mine) ?? null) : null;
 });
+// ---- Speech bubbles: what people say while you're here ----
+
+// New messages in this city's public room, and (for its flatmates) in your house's channel, show as a bubble over
+// whoever said them, if they're on screen (the engine checks). Only what arrives while the page is open: each
+// conversation's first load only counts as seen (cityLife.ts). The city's room is heard through the city's stream
+// (a "chat" nudge, then a fetch with your own login, so people you blocked stay quiet); your house's channel
+// through the house's stream, which carries the whole house view.
+const cityTalk = chatter();
+const houseTalk = chatter();
+let cityTalkStream: Stream | null = null;
+let houseTalkStream: Stream | null = null;
+// One fetch at a time per conversation; a nudge during one asks again once it's back.
+let hearing = false;
+let hearAgain = false;
+async function hearCity(c: string) {
+  if (hearing) {
+    hearAgain = true;
+    return;
+  }
+  hearing = true;
+  try {
+    const res = await fetch(`/api/cities/${encodeURIComponent(c)}/chat`).catch(() => null);
+    const data = res?.ok ? ((await res.json().catch(() => null)) as { messages: Message[] } | null) : null;
+    // Another city by now: what this one said is for nobody.
+    if (data && c === talkCity) for (const line of cityTalk.next(data.messages ?? [])) lobby?.say(line.login, line.text);
+  } finally {
+    hearing = false;
+    if (hearAgain && talkCity) {
+      hearAgain = false;
+      void hearCity(talkCity);
+    }
+  }
+}
+function hearHouse(view: HouseView | null) {
+  if (view?.channel) for (const line of houseTalk.next(view.channel)) lobby?.say(line.login, line.text);
+}
+// The city whose room is listened to: the one on screen, once the city is up (never the workshop's street).
+let talkCity: string | null = null;
+watch(
+  () => (ready.value && !failed.value && !inWorkshop.value ? city.value : null),
+  (c) => {
+    cityTalkStream?.close();
+    cityTalkStream = null;
+    cityTalk.reset();
+    talkCity = c;
+    if (!c) return;
+    void hearCity(c);
+    cityTalkStream = openStream(`/api/cities/${encodeURIComponent(c)}/stream`, { chat: () => void hearCity(c) });
+  },
+  { immediate: true },
+);
+// Your house, when it stands in the city on screen: its channel is for flatmates, and the API sends it only to them.
+const talkHouse = computed(() => (ready.value && !failed.value && !inWorkshop.value && myHouse.value?.city === city.value ? myHouse.value.id : null));
+// Each change of house is a new turn; an answer that comes back after the next turn began is dropped.
+let houseTurn = 0;
+watch(
+  talkHouse,
+  async (id) => {
+    const turn = ++houseTurn;
+    houseTalkStream?.close();
+    houseTalkStream = null;
+    houseTalk.reset();
+    if (!id) return;
+    const url = `/api/houses/${encodeURIComponent(id)}`;
+    const res = await fetch(url).catch(() => null);
+    if (turn !== houseTurn) return;
+    hearHouse(res?.ok ? ((await res.json().catch(() => null)) as HouseView | null) : null);
+    houseTalkStream = openStream(`${url}/stream`, { house: (e) => hearHouse(JSON.parse(e.data) as HouseView) });
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => {
+  cityTalkStream?.close();
+  houseTalkStream?.close();
+});
+
 // What the live line says about the card's person, if they're walking around.
 const cardPlayer = computed(() => (card.value?.kind === "person" ? (players.value.get(card.value.login) ?? null) : null));
 // The title the card's person wears: as the live line says, else as their house lists them.

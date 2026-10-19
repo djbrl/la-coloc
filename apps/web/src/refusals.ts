@@ -87,6 +87,22 @@ const fr: Record<string, (r: Refusal) => string> = {
   inviteExpired: () => "Cette invitation a expiré.",
   inviteLapsed: () => "Cette invitation n'est plus valable.",
 
+  // Teaming up on a room's project, between flatmates.
+  exampleHouseTeam: () => "C'est une maison d'exemple : ses colocs sont inventés.",
+  workshopTeam: () => "L'atelier sert à s'entraîner. Faites équipe dans une vraie maison.",
+  noRoom: () => "Cette chambre n'existe pas.",
+  teamFlatmatesOnly: () => "On ne fait équipe qu'entre colocs de la même maison. Invitez la personne chez vous d'abord.",
+  teamFreeRoom: () => "Personne n'habite cette chambre : il n'y a pas de projet à rejoindre.",
+  teamOccupantOnly: () => "Seul le coloc qui habite cette chambre peut inviter quelqu'un sur son projet.",
+  teamOwnRoom: () => "C'est votre propre chambre : vous êtes déjà sur son projet.",
+  notTeammate: () => "Cette personne ne fait pas partie de l'équipe de cette chambre.",
+  teamRemoveOccupantOnly: () => "Seul le coloc qui habite cette chambre peut retirer quelqu'un de son équipe.",
+  alreadyTeammate: () => "Cette personne fait déjà partie de cette équipe.",
+  teamFull: () => "Cette équipe est complète : trois équipiers au plus par chambre.",
+  teamFullNow: () => "Cette équipe est complète maintenant.",
+  teamRoomChanged: () => "Cette chambre a changé de main : la demande a expiré.",
+  teamLeftHouse: () => "L'un de vous n'habite plus cette maison : la demande a expiré.",
+
   // A room's code and deploys.
   alreadyDeploying: () => "Cette chambre est déjà en train d'être mise en ligne. Attendez la fin.",
   slowDownDeploys: () => "Ça fait beaucoup de mises en ligne en quelques minutes. Attendez un peu avant la suivante.",

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A person picked in the house's crew row: who they are, in one flat card under the faces, and what you can do about
 // them. One main action, reaching out (personActions in crew.ts decides which: write in the channel, knock, see your
-// knock, or log in), then quiet icon buttons: their GitHub profile (only for a real account), a direct message (in
+// knock, or log in; for a flatmate, teaming up on a project, with the channel as an icon), then quiet icon buttons: their GitHub profile (only for a real account), a direct message (in
 // the chat sheet; an example person has neither: their tag says why) and a wave.
 import { computed, onMounted, ref } from "vue";
 import { openChat } from "../../../conversations";
@@ -13,6 +13,8 @@ import { bellWords as bw } from "../../bell/words";
 import type { Person } from "../../../types";
 import Avatar from "../../Avatar.vue";
 import BadgeChip from "../../arena/BadgeChip.vue";
+import type { TeamUp as TeamUpState } from "../team";
+import TeamUp from "../TeamUp.vue";
 import type { PersonActions } from "./crew";
 import Icon from "./Icon.vue";
 import { houseWords as w } from "./words";
@@ -22,6 +24,9 @@ const props = defineProps<{
   // What they build, or their room's name when nothing is online.
   line: string | null;
   actions: PersonActions;
+  // A flatmate of yours: teaming up on a project (team.ts), and the house it happens in.
+  team?: TeamUpState;
+  houseId?: string;
 }>();
 const emit = defineEmits<{ reach: []; wave: []; close: [] }>();
 
@@ -89,6 +94,11 @@ onMounted(() => card.value?.focus({ preventScroll: true }));
     </div>
     <div class="acts">
       <RouterLink v-if="actions.reach?.kind === 'login'" to="/login" class="button go"><Icon name="login" :size="16" />{{ w.logInToKnock }}</RouterLink>
+      <!-- A flatmate: teaming up is the main key, and writing to them in the channel steps back to an icon. -->
+      <template v-else-if="team && houseId">
+        <TeamUp :state="team" :house-id="houseId" :login="person.login" :first="first" size="small" />
+        <button v-if="main" type="button" class="icon" :aria-label="main.word" :title="main.word" @click="emit('reach')"><Icon :name="main.icon" :size="18" /></button>
+      </template>
       <button v-else-if="main" type="button" class="go" @click="emit('reach')"><Icon :name="main.icon" :size="16" />{{ main.word }}</button>
       <button v-else-if="actions.invite?.kind === 'invite'" type="button" class="go" :disabled="busy" :aria-label="bw.inviteHomeName(actions.invite.houseName)" @click="invite">
         <Icon name="key" :size="16" />{{ bw.inviteHome }}
