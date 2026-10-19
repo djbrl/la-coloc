@@ -3,7 +3,8 @@
 // front of the model's front wall, all of them one instanced mesh (one draw call per house):
 //   warm: online · blue with a small "for rent" placard: free · red, flickering: down or failed · dark: nothing runs.
 // The lobby makes one `HouseFace` per house, `fit`s it to the model once it has loaded, and calls `update` with the
-// house's live state (see live.ts) whenever the city stream changes, and `tick` every frame.
+// house's live state (see live.ts) whenever the city stream changes, and `tick` every frame. `flash` makes one
+// room's window blink red for a moment (its app crashed and restarted, life.ts): only that one, the others stay lit.
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { LiveHouse, WindowState } from "./live";
@@ -19,6 +20,8 @@ const COLORS: Record<WindowState | "glass" | "frame" | "placard", number> = {
   placard: 0xfff4dc,
 };
 const WIN = { w: 0.62, h: 0.5, gapX: 0.42, gapY: 0.36 };
+// How long a crashed room's window flashes, in seconds, and how fast it blinks.
+const FLASH = { time: 2.2, blink: 14 };
 
 export class HouseFace {
   readonly group = new THREE.Group();
@@ -28,6 +31,11 @@ export class HouseFace {
   private crane: THREE.Group | null = null;
   private jib: THREE.Object3D | null = null;
   private color = new THREE.Color();
+  // Windows flashing red (a crash): room index → when it stops (on `tick`'s clock), and whether it's a still glow
+  // (calm motion) rather than a blink.
+  private flashes = new Map<number, number>();
+  private calmFlash = false;
+  private now = 0;
   // The front wall's size, in the house's own space (front facing +z): set by `fit`.
   private size = { width: 3.8, height: 3.5, front: 1.5 };
 
@@ -58,9 +66,25 @@ export class HouseFace {
     return changes;
   }
 
+  /**
+   * A room's window flashes red for a couple of seconds (its app crashed and came back), blinking; with calm motion
+   * it glows red, still. The other windows don't change. `room` is its index; out of range: nothing.
+   */
+  flash(room: number, calm: boolean) {
+    if (room < 0 || room >= this.rooms) return;
+    this.flashes.set(room, this.now + FLASH.time);
+    this.calmFlash = calm;
+    this.paint(this.now);
+  }
+
   /** Every frame: a down room's window flickers, the crane's jib turns slowly (neither with calm motion). */
   tick(time: number, calm: boolean) {
-    if (this.states.includes("down") && !this.powerCut && !calm) this.paint(time);
+    this.now = time;
+    if (this.flashes.size) {
+      for (const [room, until] of this.flashes) if (until <= time) this.flashes.delete(room);
+      // Painted once more after the last one ends, so its window goes back to what it was.
+      this.paint(time);
+    } else if (this.states.includes("down") && !this.powerCut && !calm) this.paint(time);
     if (this.jib && !calm) this.jib.rotation.y = Math.sin(time * 0.25) * 0.9;
   }
 
@@ -108,7 +132,7 @@ export class HouseFace {
       } else this.windows.setMatrixAt(i * 3 + 2, hidden);
     }
     this.windows.instanceMatrix.needsUpdate = true;
-    this.paint(0);
+    this.paint(this.now);
   }
 
   private paint(time: number) {
@@ -125,6 +149,12 @@ export class HouseFace {
       // By day, a lit window reads as warm glass rather than a glow.
       if (state === "lit") this.color.multiplyScalar(0.82);
       if (state === "down") this.color.multiplyScalar(0.55 + 0.45 * Math.abs(Math.sin(time * 9 + i) * Math.sin(time * 3.1 + i * 2)));
+      // A crash: bright red over whatever it shows, blinking (or still, with calm motion).
+      const until = this.flashes.get(i);
+      if (until !== undefined && until > time) {
+        this.color.setHex(COLORS.down).multiplyScalar(1.15);
+        if (!this.calmFlash) this.color.multiplyScalar(0.3 + 0.7 * Math.abs(Math.sin(time * FLASH.blink)));
+      }
       this.windows.setColorAt(i * 3 + 1, this.color);
     }
     if (this.windows.instanceColor) this.windows.instanceColor.needsUpdate = true;

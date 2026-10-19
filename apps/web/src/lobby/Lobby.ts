@@ -9,6 +9,8 @@
 // one you use (`onAction`), and can send the camera to show you a spot (`showSpot`); `frame` makes room for a
 // window on the right of the screen. The Arena, a stadium on its own block (arena.ts), is a target too: its big screen
 // shows the week's challenge (`setArena`), a few passers-by go and watch, and Vue hears how many are in (`onArenaCrowd`).
+// The city's life (life.ts): speech bubbles over people (`say`), each house's happenings played at the house
+// (`happening`), and smoke from busy roofs; Kigali has its hills (hills.ts).
 // Pure three.js; Vue only mounts it and draws what sits on top (cards, the minimap it's fed by `onMap`).
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -16,7 +18,7 @@ import { OutlinePass } from "three/examples/jsm/postprocessing/OutlinePass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import type { CityHouse } from "../types";
+import type { CityHappening, CityHouse } from "../types";
 import { type ArenaDisplay, ArenaModel } from "./arena";
 import { type ArenaPlan, arenaPlan, insideBowl } from "./arenaPlan";
 import { loadHouse, loadModel, loadPerson, PARASOLS, type Person, SHOPS, SKYLINE, STREET, TOWERS, TREES } from "./assets";
@@ -26,6 +28,8 @@ import { type Box as ScreenBox, clearOf, type EdgeArrow, placeArrow } from "./ar
 import { type Badge, badgeChip } from "./badge";
 import { Beacon } from "./beacon";
 import { Fireworks } from "./fireworks";
+import { hills } from "./hills";
+import { CityLife, roofOf } from "./life";
 import { liveKey, liveState } from "./live";
 import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff } from "./models";
 import { CityProps, makeBoard, makePins, waxParasols } from "./props";
@@ -290,6 +294,8 @@ export class Lobby {
   private hemi: THREE.HemisphereLight;
   private sky: { canvas: HTMLCanvasElement; texture: THREE.CanvasTexture; key: string };
   private fireworks = new Fireworks();
+  // Speech bubbles, happenings and the roofs' smoke (life.ts).
+  private life: CityLife;
   // The tutorial's quest marker at a house's door (`setBeacon`), and which house. It lives in the scene, not the town,
   // so a rebuild keeps it and clicks go through it; each frame it finds its house again (see `step`).
   private beacon: Beacon | null = null;
@@ -428,6 +434,18 @@ export class Lobby {
     this.sky = { canvas, texture, key: "" };
     this.scene.background = texture;
     this.scene.add(this.town, this.ring, this.fireworks.object);
+    this.life = new CityLife({
+      calm: () => this.opts.reduceMotion,
+      house: (id) => {
+        const p = this.placed.find((x) => x.house.id === id);
+        return p ? { door: p.door, roof: roofOf(p.group, [p.face.group]), face: p.face, rooms: p.house.rooms.map((r) => r.name) } : null;
+      },
+      figure: (login) => this.figure(login),
+      celebrate: (id) => this.celebrate(id),
+      // A house in a power cut has nothing running: no smoke, whatever its last CPU reading said.
+      roofs: () => this.placed.map((p) => ({ id: p.house.id, at: roofOf(p.group, [p.face.group]), cpu: liveState(p.house).powerCut ? 0 : (p.house.cpu ?? 0) })),
+    });
+    this.scene.add(this.life.object);
 
     const you = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : words.youTag, "lobby-label you");
     this.player = you.avatar;
@@ -494,6 +512,7 @@ export class Lobby {
     }
     this.builtFrom = key;
     const gen = ++this.generation;
+    this.life.clear();
     this.arena?.model.dispose();
     this.arena = null;
     removeLabels(this.town);
@@ -623,6 +642,13 @@ export class Lobby {
         dye(m, style);
         this.skyline.push(m);
       });
+    }
+
+    // Kigali's hills and the terraces rising to them, beyond the skyline: hidden on the camera's side, like it.
+    if (style.hills) {
+      const land = hills(n.bounds, seeded(`hills:${n.city}`));
+      this.town.add(land.ground, ...land.hills);
+      this.skyline.push(...land.hills);
     }
 
     // The walk grid, from every footprint placed above. House models that load later refine theirs: see `grid`.
@@ -794,6 +820,22 @@ export class Lobby {
   }
 
   /**
+   * A speech bubble over someone for about 5 s (bubbles.ts): someone online here, a flatmate out front, or you. Plain
+   * text, cut to about 80 characters; their newer line replaces the older one. Not on screen here: nothing.
+   */
+  say(login: string, text: string) {
+    this.life.say(login, text);
+  }
+
+  /**
+   * Plays one of a house's happenings at the house (life.ts, happenings.ts): a review's envelope and coin, a crash's
+   * red window and puff, a project's fireworks, a team's confetti. A house that isn't in this neighbourhood: nothing.
+   */
+  happening(houseId: string, h: CityHappening) {
+    this.life.happening(houseId, h);
+  }
+
+  /**
    * A quest marker at a house's door: a glowing ring, a column of light, a diamond above (beacon.ts). Null takes it
    * away. A house that isn't built yet gets it as soon as it is.
    */
@@ -850,6 +892,8 @@ export class Lobby {
       if (changed.restored) play("clunk");
       if (changed.buildStarted) play("build");
     }
+    // The roofs' smoke follows the rooms' CPU use.
+    this.life.touch();
     this.pinBoard();
   }
 
@@ -1074,6 +1118,7 @@ export class Lobby {
     window.removeEventListener("blur", this.releaseKeys);
     document.removeEventListener("visibilitychange", this.releaseKeys);
     this.fireworks.dispose();
+    this.life.dispose();
     this.setBeacon(null);
     for (const p of this.placed) p.face.dispose();
     this.arena?.model.dispose();
@@ -1923,6 +1968,17 @@ export class Lobby {
     return { avatar, tag: label.element };
   }
 
+  /**
+   * Someone's figure on screen in this neighbourhood, for a bubble or a happening: you, someone online, or a flatmate
+   * standing out front (not a made-up passer-by). Null when they aren't here.
+   */
+  private figure(login: string): THREE.Object3D | null {
+    if (login === this.opts.login) return this.player;
+    const remote = this.remotes.get(login);
+    if (remote) return remote.avatar;
+    return this.npcs.find((n) => n.login === login && !n.passerby && n.avatar.visible)?.avatar ?? null;
+  }
+
   private paintRing(avatar: THREE.Group, login: string | null) {
     const ring = avatar.getObjectByName("ring") as THREE.Mesh | undefined;
     if (!ring) return;
@@ -2456,6 +2512,7 @@ export class Lobby {
     for (const p of this.placed) p.face.tick(time, calm);
     this.props?.tick(time, calm);
     this.fireworks.tick(dt);
+    this.life.tick(dt);
     if (this.beacon) {
       // It follows the door (a model loading late moves it), and hides while its house isn't built.
       const p = this.placed.find((x) => x.house.id === this.beaconHouse);

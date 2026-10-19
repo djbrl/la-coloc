@@ -32,6 +32,9 @@ export interface CityStyle {
   trafficLights: boolean;
   props: Prop[];
   coast: boolean;
+  // Green hills all round the town and a terraced ground edge rising towards them (hills.ts): Kigali, the city of a
+  // thousand hills. Left out: none.
+  hills?: boolean;
   // The IANA time zone, for the light (R29), and where the sun is, for sunrise and sunset.
   tz: string;
   lat: number;
@@ -142,6 +145,7 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     trafficLights: true,
     props: ["water-tanks"],
     coast: false,
+    hills: true,
     tz: "Africa/Kigali",
     lat: -1.95,
     lon: 30.06,
@@ -178,6 +182,16 @@ const STYLES: Record<string, Omit<CityStyle, "city">> = {
     greeting: { text: "Marhba bik", language: "Darija", meaning: "Welcome", fr: { language: "darija", meaning: "Bienvenue" } },
     operators: ["Card", "Bank transfer"],
   },
+};
+
+// The quest's street (tutorialMap.ts, the city "Atelier") is dressed as Dakar: its ochre walls, sand, sky, the
+// baobab in the park and the wax-print parasols on the square. Not its sea: the workshop's street is inland, and the
+// lesson keeps the eye on the street. Its greeting stays the plain one, so arriving there says nothing extra.
+STYLES.atelier = {
+  ...STYLES.dakar,
+  props: STYLES.dakar.props.filter((p) => p !== "pirogues"),
+  coast: false,
+  greeting: DEFAULT.greeting,
 };
 
 /** The style of a city, by name (any case, accents as written: "Lomé"). An unknown city gets a neutral look. */

@@ -17,7 +17,10 @@ export type Sound =
   | "clunk"
   | "stamp"
   | "keys"
-  | "tick";
+  | "tick"
+  | "crash"
+  | "coin"
+  | "team";
 
 // Everything a sound needs to be built: the audio context, the master volume, and a bit of noise to reuse.
 interface Audio {
@@ -208,6 +211,27 @@ const recipes: Record<Sound, (a: Audio, t: number) => void> = {
 
   // The launch moved on to its next stage: a light blip that rises, quieter and shorter than "build".
   tick: (a, t) => tone(a, t, 0.09, A5, 0.1, { type: "triangle", to: B5 * 1.2, dull: 3000 }),
+
+  // A room's app crashed and came back (life.ts): a short buzz falling away with a dull thud, then, a beat later, a
+  // small rising blip as it starts again.
+  crash: (a, t) => {
+    tone(a, t, 0.2, 420, 0.2, { type: "sawtooth", to: 90, dull: 1400 });
+    puff(a, t, 0.12, 260, 0.4, "lowpass");
+    tone(a, t + 0.34, 0.12, E5, 0.12, { type: "triangle", to: B5, dull: 3000 });
+  },
+
+  // A review paid: a coin, two bright notes, the second higher and ringing a little longer.
+  coin: (a, t) => {
+    tone(a, t, 0.07, B5, 0.13, { type: "triangle", dull: 5000 });
+    tone(a, t + 0.07, 0.3, E5 * 2, 0.13, { type: "triangle", dull: 5000 });
+  },
+
+  // Flatmates teamed up: a little pop of confetti, then two notes going up together.
+  team: (a, t) => {
+    puff(a, t, 0.05, 1500, 0.3);
+    tone(a, t + 0.02, 0.25, G5, 0.12, { type: "triangle", dull: 3500 });
+    tone(a, t + 0.1, 0.3, B5, 0.12, { type: "triangle", dull: 3500 });
+  },
 };
 
 // How soon the same sound may play again, in milliseconds. Footsteps are slower than the rest.

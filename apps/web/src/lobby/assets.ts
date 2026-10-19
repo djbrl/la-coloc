@@ -1,6 +1,9 @@
 // Loads the lobby's models (CC0 Kenney placeholders, see public/lobby/README.md), one file at a time and only
 // when something needs it. Everything is cached; people are cloned with their skeletons so each can animate.
+// The files are packed small (meshopt compression, quantized vertices: about a quarter of their old size), so the
+// loader needs meshopt's decoder to unpack them (a tiny WebAssembly module that ships with three.js, MIT).
 import * as THREE from "three";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
@@ -9,7 +12,7 @@ const PEOPLE = ["female", "male"].flatMap((s) => "abcdef".split("").map((l) => `
 
 // Counts every model loading, for the loading screen.
 export const loading = new THREE.LoadingManager();
-const loader = new GLTFLoader(loading);
+const loader = new GLTFLoader(loading).setMeshoptDecoder(MeshoptDecoder);
 
 // Everyone's lobby character, by name ("female-a" … "male-f"). Matches AVATARS on the API.
 export const CHARACTERS = ["female", "male"].flatMap((s) => "abcdef".split("").map((l) => `${s}-${l}`));

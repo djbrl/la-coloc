@@ -28,3 +28,24 @@ describe("city styles", () => {
     expect(styleFor("Nowhere").tz).toBeTruthy();
   });
 });
+
+describe("the workshop's street and Kigali", () => {
+  it("dress the quest's street (the city \"Atelier\") as Dakar, without its sea or its greeting", () => {
+    const atelier = styleFor("Atelier");
+    const dakar = styleFor("Dakar");
+    expect(atelier.palette).toEqual(dakar.palette);
+    expect(atelier.ground).toBe(dakar.ground);
+    expect(atelier.props).toContain("baobab");
+    expect(atelier.props).toContain("wax-parasols");
+    expect(atelier.props).not.toContain("pirogues");
+    expect(atelier.coast).toBe(false);
+    expect(atelier.greeting.language).toBe("English");
+    // Dakar itself keeps its sea.
+    expect(dakar.props).toContain("pirogues");
+  });
+
+  it("give Kigali its hills, and nobody else", () => {
+    expect(styleFor("Kigali").hills).toBe(true);
+    for (const c of ["Dakar", "Lomé", "Tunis", "Atelier", "Nowhere"]) expect(styleFor(c).hills ?? false).toBe(false);
+  });
+});
