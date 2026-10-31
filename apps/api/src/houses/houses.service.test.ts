@@ -2,8 +2,10 @@ import "reflect-metadata";
 import { type Db, houses, rooms as roomRows } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { eq } from "drizzle-orm";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { take } from "rxjs";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CITY, seedCity } from "../seed/city";
+import type { CityChange } from "./house.types";
 import { HousesService } from "./houses.service";
 
 const oom = { type: "room_event" as const, room: "moussa", event: "oom" as const, at: "" };
@@ -195,5 +197,49 @@ describe("a room's address, as a caretaker reports it", () => {
     expect(roomAddress("https://evil.example/awa", "awa", "coloc.localhost")).toBeNull();
     expect(roomAddress("http://jib.coloc.localhost", "awa", "coloc.localhost")).toBeNull();
     expect(roomAddress("http://user:pw@awa.coloc.localhost", "awa", "coloc.localhost")).toBeNull();
+  });
+});
+
+describe("the city stream's feed", () => {
+  const nextChange = () => new Promise<CityChange>((resolve) => svc.cityChanges.pipe(take(1)).subscribe(resolve));
+
+  it("opens with the whole city, the same one the page asks for", async () => {
+    expect((await svc.citySnapshot()).houses.map((h) => h.id)).toEqual((await svc.city()).houses.map((h) => h.id));
+  });
+
+  it("says only the house that changed, once, however many pages listen", async () => {
+    await svc.citySnapshot();
+    const city = vi.spyOn(svc, "city");
+    const pages = [nextChange(), nextChange(), nextChange()];
+    await db.update(houses).set({ tagline: "New words" }).where(eq(houses.id, "almadies"));
+    svc.changes.next("almadies");
+    svc.changes.next("almadies");
+    const [first, second] = await Promise.all(pages);
+    expect(first.changed.map((h) => h.id)).toEqual(["almadies"]);
+    expect(first.changed[0].tagline).toBe("New words");
+    expect(first.gone).toEqual([]);
+    expect(second).toBe(first);
+    expect(city).toHaveBeenCalledOnce();
+  });
+
+  it("stays quiet when a change changes nothing the city shows", async () => {
+    await svc.citySnapshot();
+    const heard = vi.fn();
+    const sub = svc.cityChanges.subscribe(heard);
+    svc.changes.next("almadies");
+    await new Promise((r) => setTimeout(r, 1200));
+    await svc.citySnapshot();
+    expect(heard).not.toHaveBeenCalled();
+    sub.unsubscribe();
+  });
+
+  it("doesn't ask the database while nobody listens, and the next page gets the news", async () => {
+    await svc.citySnapshot();
+    const city = vi.spyOn(svc, "city");
+    await db.update(houses).set({ tagline: "Unheard" }).where(eq(houses.id, "almadies"));
+    svc.changes.next("almadies");
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(city).not.toHaveBeenCalled();
+    expect((await svc.citySnapshot()).houses.find((h) => h.id === "almadies")!.tagline).toBe("Unheard");
   });
 });

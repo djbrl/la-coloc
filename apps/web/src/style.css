@@ -403,7 +403,7 @@ button.toggle[role="switch"][aria-checked] .knob { display: none; }
 
 /* Names floating over the 3D lobby (rendered outside Vue's scoped styles): small flags in the sign's colours, a
    little point under each, like a pin on a map. */
-.lobby-labels { position: absolute; inset: 0; pointer-events: none; }
+.lobby-labels, .lobby-tags { position: absolute; inset: 0; pointer-events: none; }
 .lobby-label { position: relative; font: 800 13px/1.2 var(--font); color: var(--text); background: var(--surface); padding: 4px 9px; border-radius: var(--r-sm); white-space: nowrap; box-shadow: 0 2px 0 rgba(20, 12, 18, 0.45); }
 .lobby-label::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; background: inherit; translate: -50% 0; rotate: 45deg; border-radius: 0 0 2px 0; }
 .lobby-label.small { font: 800 11px/1.2 var(--font); padding: 2px 6px; border-radius: var(--r-xs); }

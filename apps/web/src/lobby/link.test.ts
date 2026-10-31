@@ -126,3 +126,26 @@ describe("the pass on the shared site", () => {
     expect(FakeSocket.all[0].sent).toEqual([]);
   });
 });
+
+describe("movement frames", () => {
+  it("reads who moved where from 8 bytes each, and skips a number it doesn't know", async () => {
+    const { readMoves } = await import("./link");
+    const frame = new ArrayBuffer(24);
+    const v = new DataView(frame);
+    v.setUint16(0, 0x8002, true);
+    v.setInt16(2, 1234, true);
+    v.setInt16(4, -29999, true);
+    v.setInt16(6, 3142, true);
+    v.setUint16(8, 7, true);
+    v.setUint16(16, 1, true);
+    v.setInt16(18, -250, true);
+    v.setInt16(20, 325, true);
+    v.setInt16(22, -1500, true);
+    const moves: unknown[] = [];
+    readMoves(frame, (slot) => ({ 1: "awa", 2: "jib" })[slot], (...m) => moves.push(m));
+    expect(moves).toEqual([
+      ["jib", 12.34, -299.99, 3.142, true],
+      ["awa", -2.5, 3.25, -1.5, false],
+    ]);
+  });
+});

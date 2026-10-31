@@ -1016,3 +1016,36 @@ Rough edges:
   (their previews show no picture until then).
 - A team forming posts no fridge note.
 - The house's public ledger still counts reviews of your own project; only the bill ignores them.
+
+## 31 October: holding 100 houses and 100 people
+
+The target: 60 frames a second at 100 houses and 100 people, all moving, with lobbies of 32 keeping real life well
+under that. Measured on an M1 Pro at Retina size, with `npm run perf` (no frame-rate cap, fake data, you walking too):
+
+| | Before | After |
+|---|---|---|
+| 100 houses, 100 people spread out | 46 fps with name tags off | 240 fps with them on |
+| 100 people all on screen | 4-99 fps | 230 fps |
+| The first case, CPU 4x slower | 2 fps | 56 fps |
+| Draw calls, first case | 815 | about 480 |
+| Style recalculation a frame | 5-700 ms | 0.02 ms |
+| Someone moves into a house | about 100 ms frozen, then an 80 ms frame | under 1 ms, up to 11 ms the first time |
+| Any other change to a house (rebuild) | about 100 ms frozen, then an 80 ms frame | about 35 ms, then a 75 ms frame |
+| Server, 100 people in one lobby | 96 500 sends/s, 55% of a core, 559 ms stall | 962 sends/s, 5%, 6 ms |
+
+What did it, biggest first:
+- Name tags and flags are drawn on one canvas (`tagLayer.ts`): each tag once into a small picture, then stamped. As page
+  elements, each one that moved cost a style recalculation every frame. Speech bubbles stay page elements: they're rare.
+- People off screen aren't in the scene, and get their model the first time they come by (`Lobby.stage`). They were 517
+  of 779 draw calls, nearly all in the shadow pass, and most of the 9 500 objects three.js went through every frame.
+- Models that never move are frozen (`freeze`), and the shadow map only covers the view (`SHADOW_REACH`).
+- People share their shapes and paints (`models.ts`): making them was 61 of a rebuild's 99 ms.
+- Rebuilds leaked a bone texture per person dressed: `disposeTree` now frees skeletons. 100 textures a rebuild became 2.
+
+Measured and left alone: instancing the shops, towers and skyline. With people off stage they're about 60 draw calls of
+480, against the code it would take to fade, outline and click on single buildings. Houses are the next thing to look
+at (about 180 calls) if the budget ever needs it.
+
+A slow machine steps down by itself (`frameBudget.ts`): under 27 fps for 3 seconds halves the pixels, then again it drops
+the shadows. Not tested on a weak GPU: `npm run perf` slows the CPU only, and Metal on an M1 Pro is a strong GPU.
+

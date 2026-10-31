@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CityHouse, HouseView, Person, Room, Viewer } from "../../types";
-import { cityTotals, faces, flag, keeps, roomsLine, roomsSaid, rowLine, yoursFirst } from "./city";
+import { cityTotals, faces, flag, keeps, mergeCity, roomsLine, roomsSaid, rowLine, yoursFirst } from "./city";
 import { fcfa } from "../lobby/house/server";
 import { chefCanManage, houseFacts, roomLabel, tallyLine, workLine, workRows } from "./house";
 
@@ -175,5 +175,17 @@ describe("a house's page in the list view", () => {
 
   it("leaves the address out of an example house", () => {
     expect(houseFacts(house({ demo: true, ledger: [] })).map((f) => f.key)).toEqual(["chef", "rent", "flatmates"]);
+  });
+});
+
+describe("the city after a word from its stream", () => {
+  const house = (id: string, name = id) => ({ id, name }) as CityHouse;
+  it("takes a full list as it is", () => {
+    const all = [house("b"), house("a")];
+    expect(mergeCity([house("x")], { houses: all })).toBe(all);
+  });
+  it("swaps changed houses in place, adds new ones last and drops those gone", () => {
+    const out = mergeCity([house("a"), house("b"), house("c")], { changed: [house("n"), house("b", "new name")], gone: ["a"] });
+    expect(out.map((h) => [h.id, h.name])).toEqual([["b", "new name"], ["c", "c"], ["n", "n"]]);
   });
 });

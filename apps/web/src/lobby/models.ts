@@ -90,18 +90,41 @@ export function makeHouse(house: Pick<CityHouse, "rooms" | "status">): HouseMode
 /** A little person: a body, a head, a coloured top. Faces +z. */
 export function makeAvatar(color: number): THREE.Group {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.5, 4, 8), mat(color));
+  const body = new THREE.Mesh(BODY, avatarPaint(color));
   body.position.y = 0.55;
   body.castShadow = true;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 10), mat(0x8d5a3b));
+  const head = new THREE.Mesh(HEAD, avatarPaint(0x8d5a3b));
   head.position.y = 1.15;
   head.castShadow = true;
   // A nose, so you can tell which way they face.
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), mat(0x7a4a32));
+  const nose = new THREE.Mesh(NOSE, avatarPaint(0x7a4a32));
   nose.position.set(0, 1.15, 0.24);
   g.add(body, head, nose);
   return g;
 }
+
+// A city has hundreds of people, and making each one's shapes took most of the time a rebuild takes. They share them.
+const shared = <T extends THREE.BufferGeometry | THREE.Material>(thing: T): T => {
+  thing.userData.shared = true;
+  return thing;
+};
+const BODY = shared(new THREE.CapsuleGeometry(0.28, 0.5, 4, 8));
+const HEAD = shared(new THREE.SphereGeometry(0.24, 12, 10));
+const NOSE = shared(new THREE.SphereGeometry(0.05, 6, 6));
+export const RING = shared(new THREE.RingGeometry(0.42, 0.58, 28));
+const ringPaints = new Map<number, THREE.Material>();
+/** The ring at someone's feet, in their house's colour. */
+export const ringPaint = (color: number) => {
+  let paint = ringPaints.get(color);
+  if (!paint) ringPaints.set(color, (paint = shared(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }))));
+  return paint;
+};
+const paints = new Map<number, THREE.Material>();
+const avatarPaint = (color: number) => {
+  let paint = paints.get(color);
+  if (!paint) paints.set(color, (paint = shared(mat(color))));
+  return paint;
+};
 
 // The warm white of the [ ] highlight: the ring on the ground and the outline around the thing both use it.
 export const HIGHLIGHT = 0xfff3d6;
@@ -142,8 +165,15 @@ export function colorFor(login: string): number {
 export function disposeTree(root: THREE.Object3D) {
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
-    mesh.geometry?.dispose();
+    // Each skeleton keeps its bones in a texture of its own, which nothing else would free.
+    (o as THREE.SkinnedMesh).skeleton?.dispose();
+    if (!mesh.geometry?.userData.shared) mesh.geometry?.dispose();
     const m = mesh.material as THREE.Material | THREE.Material[] | undefined;
-    (Array.isArray(m) ? m : m ? [m] : []).forEach((x) => x.dispose());
+    (Array.isArray(m) ? m : m ? [m] : []).forEach((x) => {
+      if (x.userData.shared) return;
+      const map = (x as THREE.MeshStandardMaterial).map;
+      if (map?.userData.own) map.dispose();
+      x.dispose();
+    });
   });
 }

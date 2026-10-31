@@ -1,11 +1,16 @@
 // The lobby's live line to the server: which neighbourhood we're in, our position and emotes out; everyone else's
 // in, plus a head count per neighbourhood, and a nudge when something new is under your bell or in your messages. Reconnects on its own
 // when the line drops (a laptop waking up, the API restarting), and says where we are again when it does.
+//
+// A city has several lobbies of at most 32 people (apps/api/src/lobby/presence.ts), and each person in ours has a small
+// number, their slot. Movement arrives ten times a second as one binary frame: see `readMoves`.
 import type { Badge } from "./badge";
 import type { Emote } from "./Lobby";
 
 export interface PlayerState {
   login: string;
+  // Their number in this lobby: what the movement frames call them.
+  slot: number;
   name: string | null;
   avatar: string | null;
   x: number;
@@ -20,32 +25,53 @@ export interface PlayerState {
   badge?: Badge | null;
 }
 
+// One lobby of a city with several.
+export interface LobbyCount {
+  n: number;
+  people: number;
+}
+
 type ServerMessage =
-  | { type: "snapshot"; you: string | null; place: string; players: PlayerState[] }
+  | { type: "snapshot"; you: string | null; place: string; lobby: number; players: PlayerState[] }
   | { type: "join"; player: PlayerState }
-  | { type: "move"; login: string; x: number; z: number; ry: number; moving: boolean }
   | { type: "emote"; login: string; name: Emote }
   | { type: "leave"; login: string }
-  | { type: "census"; counts: Record<string, number> }
+  | { type: "census"; counts: Record<string, number>; lobbies?: Record<string, LobbyCount[]> }
   // Something new under your bell: fetch the notifications.
   | { type: "notice" }
   // A new direct message: fetch the conversations.
   | { type: "chat" };
 
 export interface LinkEvents {
-  // A fresh list of everyone here (on every (re)connect).
-  onSnapshot(players: PlayerState[]): void;
+  // A fresh list of everyone here (on every (re)connect), and which lobby of the city this is.
+  onSnapshot(players: PlayerState[], lobby: number): void;
   onJoin(p: PlayerState): void;
   onMove(login: string, x: number, z: number, ry: number, moving: boolean): void;
   onEmote(login: string, name: Emote): void;
   onLeave(login: string): void;
   onStatus(connected: boolean): void;
-  // How many people are in each neighbourhood.
-  onCensus(counts: Record<string, number>): void;
+  // How many people are in each neighbourhood; for a city with several lobbies, in each of them.
+  onCensus(counts: Record<string, number>, lobbies: Record<string, LobbyCount[]>): void;
   // Something new under your bell (an invitation, a knock).
   onNotice?(): void;
   // A new direct message (or one you sent from another tab).
   onChat?(): void;
+}
+
+const MOVER_BYTES = 8;
+const MOVING = 0x8000;
+
+/**
+ * Reads a movement frame: 8 bytes per mover, little-endian. Their slot (top bit: walking), x and z in centimetres,
+ * heading in thousandths of a radian. A slot we don't know is ignored: that's us, or someone who has just left.
+ */
+export function readMoves(frame: ArrayBuffer, who: (slot: number) => string | undefined, onMove: LinkEvents["onMove"]) {
+  const v = new DataView(frame);
+  for (let at = 0; at + MOVER_BYTES <= v.byteLength; at += MOVER_BYTES) {
+    const head = v.getUint16(at, true);
+    const login = who(head & ~MOVING);
+    if (login !== undefined) onMove(login, v.getInt16(at + 2, true) / 100, v.getInt16(at + 4, true) / 100, v.getInt16(at + 6, true) / 1000, (head & MOVING) !== 0);
+  }
 }
 
 export class LobbyLink {
@@ -54,6 +80,9 @@ export class LobbyLink {
   private retry = 1000;
   private timer: number | undefined;
   private place: string | null = null;
+  private lobby: number | undefined;
+  // Who's who in this lobby.
+  private slots = new Map<number, string>();
 
   constructor(private events: LinkEvents) {
     void this.open();
@@ -62,7 +91,13 @@ export class LobbyLink {
   /** Moves us to a neighbourhood: we get a fresh snapshot of who's there. */
   enter(place: string) {
     this.place = place;
+    this.lobby = undefined;
     this.send({ type: "place", place });
+  }
+
+  /** Asks for another lobby of this city. Full by now: we stay where we are. */
+  changeLobby(lobby: number) {
+    if (this.place) this.send({ type: "place", place: this.place, lobby });
   }
 
   move(state: { x: number; z: number; ry: number; moving: boolean }) {
@@ -107,29 +142,38 @@ export class LobbyLink {
     if (this.closed) return;
     if (where === null) return this.again();
     const ws = new WebSocket(where.url);
+    ws.binaryType = "arraybuffer";
     this.ws = ws;
     ws.onopen = () => {
       this.events.onStatus(true);
       // The pass first: the server only takes it as the very first message.
       if (where.ticket) this.send({ type: "ticket", ticket: where.ticket });
-      if (this.place) this.send({ type: "place", place: this.place });
+      // Back to the same lobby, if it still has room: the people you were with are there.
+      if (this.place) this.send({ type: "place", place: this.place, ...(this.lobby ? { lobby: this.lobby } : {}) });
     };
     ws.onmessage = (e) => {
       // The server really spoke: only now is the line known to work (a server that accepts and then hangs up at
       // once, while its database is down, would otherwise be retried every second).
       this.retry = 1000;
+      if (e.data instanceof ArrayBuffer) return readMoves(e.data, (slot) => this.slots.get(slot), this.events.onMove);
       let m: ServerMessage;
       try {
         m = JSON.parse(e.data);
       } catch {
         return;
       }
-      if (m.type === "snapshot") this.events.onSnapshot(m.players);
-      else if (m.type === "join") this.events.onJoin(m.player);
-      else if (m.type === "move") this.events.onMove(m.login, m.x, m.z, m.ry, m.moving);
-      else if (m.type === "emote") this.events.onEmote(m.login, m.name);
-      else if (m.type === "leave") this.events.onLeave(m.login);
-      else if (m.type === "census") this.events.onCensus(m.counts);
+      if (m.type === "snapshot") {
+        this.lobby = m.lobby;
+        this.slots = new Map(m.players.map((p) => [p.slot, p.login]));
+        this.events.onSnapshot(m.players, m.lobby);
+      } else if (m.type === "join") {
+        this.slots.set(m.player.slot, m.player.login);
+        this.events.onJoin(m.player);
+      } else if (m.type === "emote") this.events.onEmote(m.login, m.name);
+      else if (m.type === "leave") {
+        for (const [slot, login] of this.slots) if (login === m.login) this.slots.delete(slot);
+        this.events.onLeave(m.login);
+      } else if (m.type === "census") this.events.onCensus(m.counts, m.lobbies ?? {});
       else if (m.type === "notice") this.events.onNotice?.();
       else if (m.type === "chat") this.events.onChat?.();
     };

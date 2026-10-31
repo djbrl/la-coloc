@@ -7,7 +7,7 @@ import { useRoute } from "vue-router";
 import LoadingScreen from "../components/LoadingScreen.vue";
 import Waiting from "../components/Waiting.vue";
 import Choice, { type Option } from "../components/list/Choice.vue";
-import { cityTotals, keeps, type Show, yoursFirst } from "../components/list/city";
+import { cityTotals, keeps, mergeCity, type Show, yoursFirst } from "../components/list/city";
 import CityRow from "../components/list/CityRow.vue";
 import ListCard from "../components/list/ListCard.vue";
 import { listWords as w } from "../components/list/words";
@@ -42,8 +42,9 @@ async function loadCity() {
   }
   error.value = "";
   houses.value = (await res.json()).houses;
-  // The API re-sends the city whenever a house changes. The stream finds its own way back if it dies (stream.ts).
-  stream ??= openStream("/api/city/stream", { city: (e) => (houses.value = JSON.parse(e.data).houses) });
+  // The API says all of the city first, then only the houses that changed. The stream finds its own way back if it
+  // dies (stream.ts).
+  stream ??= openStream("/api/city/stream", { city: (e) => (houses.value = mergeCity(houses.value, JSON.parse(e.data))) });
 }
 
 onMounted(loadCity);

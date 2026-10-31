@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import {
   applications,
   arenaAwards,
@@ -22,7 +22,8 @@ import { type DeployKind, type DeployStatus, type RoomEvent, RoomName, type Room
 import { creditReviews, splitBill, tontineTurn } from "@coloc/domain";
 import { and, asc, desc, eq, gt, gte, inArray, isNull, isNotNull, or, sql } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { Subject } from "rxjs";
+import { auditTime, concatMap, filter, Subject, tap } from "rxjs";
+import { isCoreDown } from "../core/core";
 import { DB } from "../db/db.module";
 import { channelMessages, houseChannel, openDoorbell } from "../doorbell/queries";
 import { type Draft, noteForDeploy, noteForRoomEvent } from "./fridge";
@@ -34,6 +35,7 @@ import { alias } from "drizzle-orm/pg-core";
 import type {
   BillView,
   ChoreView,
+  CityChange,
   CityView,
   DeploymentView,
   DoorbellItem,
@@ -103,17 +105,38 @@ function person(u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "
   return u ? { login: u.login, name: u.name, avatarUrl: u.avatarUrl, github: u.githubId !== null, badge: u.badge ?? null } : null;
 }
 
+const SNAPSHOT_FRESH_MS = 5000;
+
 @Injectable()
 export class HousesService {
   // Pings live pages (house page, city) with the id of the house that changed.
   readonly changes = new Subject<string>();
+  // What the city stream tells every open page: which houses changed. Worked out once, however many pages listen.
+  readonly cityChanges = new Subject<CityChange>();
   // A deployment went live or failed. The GitHub side listens, to report back on the pull request.
   readonly deployFinished = new Subject<{ houseId: string; deployment: typeof deployments.$inferSelect; url: string | null }>();
+  private cityKnown: CityView | null = null;
+  private cityJson = new Map<string, string>();
+  // Changes heard, and how many the city above already includes.
+  private cityAsked = 0;
+  private cityTold = -1;
+  private cityAt = 0;
+  private readonly cityLog = new Logger("city");
+  private cityQueue: Promise<void> = Promise.resolve();
   // Live-only state: rebuilt when agents reconnect, so it isn't worth a database write.
   private online = new Set<string>();
   private usage = new Map<string, Map<string, RoomUsage>>();
 
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(@Inject(DB) private readonly db: Db) {
+    this.changes
+      .pipe(
+        tap(() => this.cityAsked++),
+        auditTime(1000),
+        filter(() => this.cityChanges.observed),
+        concatMap(() => this.refreshCity().catch((e) => void (isCoreDown(e) || this.cityLog.error(e)))),
+      )
+      .subscribe();
+  }
 
   async exists(houseId: string): Promise<boolean> {
     const [h] = await this.db.select({ id: houses.id }).from(houses).where(eq(houses.id, houseId));
@@ -517,12 +540,22 @@ export class HousesService {
           ).map((d) => `${d.houseId}/${d.room}`)
         : [],
     );
-    const count = <T extends { houseId: string }>(rows: T[], id: string, keep: (r: T) => boolean = () => true) =>
-      rows.filter((r) => r.houseId === id && keep(r)).length;
+    const byHouse = <T extends { houseId: string }>(rows: T[]) => {
+      const out = new Map<string, T[]>();
+      for (const r of rows) {
+        const list = out.get(r.houseId);
+        if (list) list.push(r);
+        else out.set(r.houseId, [r]);
+      }
+      return out;
+    };
+    const choresOf = byHouse(choreRows);
+    const knocksOf = byHouse(knocks);
+    const housesById = new Map(all.map((h) => [h.id, h]));
     // Who teamed up on which room, and what just happened in each house (a review, a crash, a deploy, a team).
     const team = await this.teams(all.map((h) => h.id));
     const teamLogins = (houseId: string, room: string) => {
-      const occupant = all.find((h) => h.id === houseId)?.rooms.find((r) => r.name === room)?.occupant;
+      const occupant = housesById.get(houseId)?.rooms.find((r) => r.name === room)?.occupant;
       return occupant ? [occupant.login, ...(team.get(`${houseId}/${room}`) ?? []).map((u) => u.login)] : [];
     };
     const recent = await happenings(this.db, all.map((h) => h.id), teamLogins, now);
@@ -551,15 +584,46 @@ export class HousesService {
           team: r.occupantId ? (team.get(`${h.id}/${r.name}`) ?? []).map((u) => person(u)!) : [],
           building: !!r.occupantId && building.has(`${h.id}/${r.name}`),
         })),
-        openChores: count(choreRows, h.id, (c) => c.status === "open"),
-        lateChores: count(choreRows, h.id, (c) => c.status === "open" && c.dueAt < now),
-        knocking: count(knocks, h.id),
-        reviewsThisMonth: count(choreRows, h.id, (c) => c.status === "done"),
+        openChores: (choresOf.get(h.id) ?? []).filter((c) => c.status === "open").length,
+        lateChores: (choresOf.get(h.id) ?? []).filter((c) => c.status === "open" && c.dueAt < now).length,
+        knocking: knocksOf.get(h.id)?.length ?? 0,
+        reviewsThisMonth: (choresOf.get(h.id) ?? []).filter((c) => c.status === "done").length,
         tontine: cityTontine(h.memberships, h.rooms, now),
         cpu: this.cpuOf(h.id, h.rooms),
         recent: recent.get(h.id) ?? [],
       })),
     };
+  }
+
+  /**
+   * The city as a stream opens with it, and from then on only what changed. One question to the database per change
+   * (at most once a second, and not at all while nobody listens), whatever the number of pages. The questions go one
+   * at a time, so an old answer can't undo a newer one. Pages opening together share an answer a few seconds old.
+   */
+  async citySnapshot(): Promise<CityView> {
+    if (this.cityKnown && this.cityAsked === this.cityTold && Date.now() - this.cityAt < SNAPSHOT_FRESH_MS) return this.cityKnown;
+    await this.refreshCity();
+    return this.cityKnown!;
+  }
+
+  private refreshCity(): Promise<void> {
+    const run = async () => {
+      const asked = this.cityAsked;
+      const view = await this.city();
+      const before = this.cityJson;
+      const after = new Map(view.houses.map((h) => [h.id, JSON.stringify(h)]));
+      const changed = view.houses.filter((h) => before.get(h.id) !== after.get(h.id));
+      const gone = [...before.keys()].filter((id) => !after.has(id));
+      const first = !this.cityKnown;
+      this.cityKnown = view;
+      this.cityJson = after;
+      this.cityTold = asked;
+      this.cityAt = Date.now();
+      if (!first && (changed.length || gone.length)) this.cityChanges.next({ changed, gone });
+    };
+    const next = this.cityQueue.then(run, run);
+    this.cityQueue = next.catch(() => undefined);
+    return next;
   }
 
   // The house's rooms' latest CPU readings added up, in percent of one core: 0 when its caretaker is offline or

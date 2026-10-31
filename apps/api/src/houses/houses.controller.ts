@@ -15,7 +15,7 @@ import {
   Sse,
   UnauthorizedException,
 } from "@nestjs/common";
-import { auditTime, concatMap, filter, from, interval, map, merge, Observable, startWith } from "rxjs";
+import { auditTime, concatMap, defer, filter, from, interval, map, merge, Observable } from "rxjs";
 import { z } from "zod";
 import { AgentRegistry } from "../agents/agent.registry";
 import { AuthService } from "../auth/auth.service";
@@ -168,13 +168,10 @@ export class CityController {
     return this.houses.city();
   }
 
-  // The city, live: re-sent whenever any house changes, at most once a second.
+  // The city, live: all of it first, then only the houses that changed, at most once a second.
   @Sse("stream")
   stream(): Observable<MessageEvent> {
-    const updates = this.houses.changes.pipe(
-      auditTime(1000),
-      startWith("first"),
-      concatMap(() => from(this.houses.city()).pipe(skipWhileCoreDown())),
+    const updates = merge(this.houses.cityChanges, defer(() => from(this.houses.citySnapshot())).pipe(skipWhileCoreDown())).pipe(
       map((data) => ({ type: "city", data }) as MessageEvent),
     );
     const heartbeat = interval(25_000).pipe(map(() => ({ type: "ping", data: "" }) as MessageEvent));

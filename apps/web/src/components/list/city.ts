@@ -10,6 +10,25 @@ type House = Pick<CityHouse, "id" | "name" | "city" | "tagline" | "status" | "ro
 export const freeRooms = (h: Pick<CityHouse, "rooms">) => h.rooms.filter((r) => !r.occupant);
 export const livedIn = (h: Pick<CityHouse, "rooms">) => h.rooms.filter((r) => r.occupant);
 
+/**
+ * The city after a word from its stream: all of it (`houses`), or only what changed (`changed`, `gone`). Changed houses
+ * keep their place in the list; new ones go last, until the next full list sorts them.
+ */
+export function mergeCity(
+  current: CityHouse[] | null,
+  word: { houses: CityHouse[] } | { changed: CityHouse[]; gone: string[] },
+): CityHouse[] {
+  if ("houses" in word) return word.houses;
+  const gone = new Set(word.gone);
+  const changed = new Map(word.changed.map((h) => [h.id, h]));
+  const kept = (current ?? []).filter((h) => !gone.has(h.id)).map((h) => {
+    const next = changed.get(h.id);
+    changed.delete(h.id);
+    return next ?? h;
+  });
+  return [...kept, ...changed.values()];
+}
+
 /** The numbers under the page's name: houses, free rooms, and houses still being set up. */
 export function cityTotals(houses: House[]): { houses: number; free: number; making: number } {
   return {

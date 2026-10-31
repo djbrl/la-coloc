@@ -184,6 +184,7 @@ export const lobbyWords = defineWords(
   "lobby",
   {
     noWebgl: "This browser can't show the city in 3D. Open settings to see it as a list.",
+    lobbyOf: (n: number, of: number) => `Lobby ${n} of ${of} in this city. Go to the next one`,
     inWorkshop: (place: string) => `You're in ${place}, the tutorial's workshop`,
     inCity: (city: string) => `You're in ${city}. Travel to another city`,
     afterTutorial: "After the tutorial.",
@@ -233,6 +234,7 @@ export const lobbyWords = defineWords(
   },
   {
     noWebgl: "Ce navigateur ne peut pas afficher la ville en 3D. Ouvrez les réglages pour la voir en liste.",
+    lobbyOf: (n, of) => `Salon ${n} sur ${of} dans cette ville. Aller au suivant`,
     inWorkshop: (place) => `Vous êtes à ${place}, l'atelier du tutoriel`,
     inCity: (city) => `Vous êtes à ${city}. Aller dans une autre ville`,
     afterTutorial: "Après le tutoriel.",
