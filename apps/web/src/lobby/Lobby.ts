@@ -191,6 +191,7 @@ interface Npc extends Thing {
   goal: THREE.Vector3;
   wait: number;
   tag: HTMLElement;
+  tagLabel: CSS2DObject;
   // Behind a building, seen from the camera: their name tag hides (R39).
   hidden?: boolean;
   // A passer-by (passersby.ts): walks round the blocks on the sidewalks (`stroll`, towards `next`, at `speed`) instead
@@ -217,6 +218,7 @@ interface Remote extends Thing {
   ry: number;
   moving: boolean;
   tag: HTMLElement;
+  tagLabel: CSS2DObject;
   hidden?: boolean;
 }
 
@@ -1057,7 +1059,7 @@ export class Lobby {
     if (p.login === this.opts.login) this.setBadge(p.login, p.badge ?? null);
     if (p.login === this.opts.login || this.remotes.has(p.login)) return;
     const name = p.name ?? p.login;
-    const { avatar, tag } = this.makePerson(p.login, name, "lobby-label online");
+    const { avatar, tag, tagLabel } = this.makePerson(p.login, name, "lobby-label online");
     this.tagBadges.set(tag, p.badge ?? null);
     this.trophy(tag);
     // Someone who just arrived stands at the neighbourhood's entrance, next to where you came in.
@@ -1065,7 +1067,7 @@ export class Lobby {
     avatar.position.copy(start);
     avatar.rotation.y = p.ry;
     this.scene.add(avatar);
-    const remote: Remote = { avatar, goal: start.clone(), ry: p.ry, moving: p.moving, tag, target: { kind: "person", login: p.login, name }, spot: avatar.position };
+    const remote: Remote = { avatar, goal: start.clone(), ry: p.ry, moving: p.moving, tag, tagLabel, target: { kind: "person", login: p.login, name }, spot: avatar.position };
     this.remotes.set(p.login, remote);
     loadPerson(p.login, p.avatar)
       .then((person) => {
@@ -1527,10 +1529,10 @@ export class Lobby {
     flatmates.forEach((r, k) => {
         const login = r.occupant!.login;
         const name = r.occupant!.name ?? login;
-        const { avatar, tag } = this.makePerson(login, name, "lobby-label small");
+        const { avatar, tag, tagLabel } = this.makePerson(login, name, "lobby-label small");
         avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
         this.town.add(avatar);
-        const npc: Npc = { login, avatar, home: new THREE.Vector3(), goal: new THREE.Vector3(), wait: Math.random() * 3, tag, target: { kind: "person", login, name }, spot: avatar.position };
+        const npc: Npc = { login, avatar, home: new THREE.Vector3(), goal: new THREE.Vector3(), wait: Math.random() * 3, tag, tagLabel, target: { kind: "person", login, name }, spot: avatar.position };
         const side = k % 2 ? 1 : -1;
         npc.home.copy(placed.door).add(rotate(side * (1.1 + Math.floor(k / 2) * 1.1), 0.7, yaw(facing)));
         npc.goal.copy(npc.home);
@@ -1561,7 +1563,7 @@ export class Lobby {
       const stroll: Stroll = { block: Math.floor(rand() * this.sidewalks.length), at: Math.floor(rand() * 16), dir, lane: laneFor(dir, rand) };
       const at = standAt(this.sidewalks[stroll.block][stroll.at], stroll.lane);
       // The tag shows their handle; the card (the target's name) their full name.
-      const { avatar, tag } = this.makePerson(who.login, who.login, "lobby-label small");
+      const { avatar, tag, tagLabel } = this.makePerson(who.login, who.login, "lobby-label small");
       avatar.position.set(at.x, 0, at.z);
       avatar.rotation.y = rand() * Math.PI * 2;
       const walker: Npc = {
@@ -1571,6 +1573,7 @@ export class Lobby {
         goal: avatar.position.clone(),
         wait: rand() * 4,
         tag,
+        tagLabel,
         target: { kind: "person", login: who.login, name: who.name, example: true },
         spot: avatar.position,
         passerby: { stroll, next: null, speed: 1.1 + rand() * 0.5, dressing: false },
@@ -1948,7 +1951,7 @@ export class Lobby {
   // ---- People ----
 
   /** A placeholder person with a name tag (name, then their house) and a ring at their feet, in their house's colour. */
-  private makePerson(login: string, name: string, tagClass: string): { avatar: THREE.Group; tag: HTMLElement } {
+  private makePerson(login: string, name: string, tagClass: string): { avatar: THREE.Group; tag: HTMLElement; tagLabel: CSS2DObject } {
     const avatar = makeAvatar(colorFor(login));
     avatar.userData.login = login;
     avatar.userData.name = name;
@@ -1965,7 +1968,7 @@ export class Lobby {
     ring.name = "ring";
     avatar.add(ring);
     this.paintRing(avatar, login);
-    return { avatar, tag: label.element };
+    return { avatar, tag: label.element, tagLabel: label };
   }
 
   /**
@@ -2463,8 +2466,8 @@ export class Lobby {
     for (const r of this.remotes.values()) r.person?.mixer.update(dt);
     if (this.tick % 6 === 0) {
       const tagRange = this.viewHalf < 9 ? this.viewHalf * 2 : TAG_RANGE;
-      for (const n of this.npcs) n.tag.style.visibility = n === h || (n.avatar.position.distanceTo(centre) < tagRange && !n.hidden) ? "" : "hidden";
-      for (const r of this.remotes.values()) r.tag.style.visibility = r === h || (r.avatar.position.distanceTo(centre) < tagRange * 1.6 && !r.hidden) ? "" : "hidden";
+      for (const n of this.npcs) showTag(n, n === h || (n.avatar.position.distanceTo(centre) < tagRange && !n.hidden));
+      for (const r of this.remotes.values()) showTag(r, r === h || (r.avatar.position.distanceTo(centre) < tagRange * 1.6 && !r.hidden));
       this.declutterTags(h);
     }
 
@@ -2701,6 +2704,18 @@ export class Lobby {
     this.draw();
     this.labels.render(this.scene, this.camera);
   };
+}
+
+/**
+ * Shows or hides someone's name tag. A hidden tag leaves the page altogether: `tagLabel.visible` stops the label
+ * renderer moving it, every frame, and `display` takes it out of Chrome's styling. With `visibility: hidden` alone,
+ * moving the tags nobody could see cost about 50 ms of style recalculation a frame while walking (profiled 31 Oct).
+ * `display` is set here too, not left to the renderer, because `tagSpot` measures a tag as soon as it's back.
+ */
+function showTag(who: { tag: HTMLElement; tagLabel: CSS2DObject }, on: boolean) {
+  who.tag.style.visibility = on ? "" : "hidden";
+  who.tag.style.display = on ? "" : "none";
+  who.tagLabel.visible = on;
 }
 
 /** A building's footprint in the world: `w` wide and `d` deep, turned with its plot. */
