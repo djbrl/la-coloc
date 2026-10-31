@@ -382,8 +382,6 @@ async function resetDemo() {
   .pane { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 92dvh; }
   .options .segmented > button { padding: 0 9px; }
 }
-@media (max-height: 760px) {
-  .options :deep(.list-row), .act, }
 @media (prefers-reduced-motion: reduce) {
   .fade-enter-active, .fade-leave-active, .pop-enter-active, .pop-leave-active { transition: none; }
 }
