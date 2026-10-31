@@ -219,6 +219,8 @@ export function textures() {
 export function groundMaterial(texture: THREE.Texture, w: number, d: number, tile: number): THREE.MeshStandardMaterial {
   const t = texture.clone();
   t.needsUpdate = true;
+  // Its own copy, to be disposed of with the ground (see `disposeTree`). The models' textures are shared and stay.
+  t.userData.own = true;
   t.repeat.set(w / tile, d / tile);
   return new THREE.MeshStandardMaterial({ map: t, roughness: 1 });
 }

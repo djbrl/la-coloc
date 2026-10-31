@@ -219,6 +219,12 @@ export type CityHappening =
   // Flatmates teamed up on a room: everyone on it now, the occupant first.
   | { id: string; at: string; kind: "team"; room: string; logins: string[] };
 
+// What the city stream says after its first word: these houses are new or different, those are gone.
+export interface CityChange {
+  changed: CityHouseView[];
+  gone: string[];
+}
+
 export interface CityView {
   houses: CityHouseView[];
 }

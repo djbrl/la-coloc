@@ -10,6 +10,10 @@ import { ChatService } from "../chat/chat.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { type Out, Presence, type ServerMessage } from "./presence";
 
+// How often movement goes out, and the head count at most.
+const TICK_MS = 100;
+const CENSUS_MS = 1000;
+
 // The pass a page on another host sends as its first message: { type: "ticket", ticket }.
 const Pass = z.object({ type: z.literal("ticket"), ticket: z.string().min(1).max(100) });
 
@@ -24,6 +28,9 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
   private sockets = new Map<string, WebSocket>();
 
   private readonly unsubscribe: () => void;
+  private readonly ticker: ReturnType<typeof setInterval>;
+  private censusDue = false;
+  private censusAt = 0;
 
   constructor(
     private readonly auth: AuthService,
@@ -38,10 +45,13 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
       sub?.unsubscribe();
       chatSub?.unsubscribe();
     };
+    this.ticker = setInterval(() => this.tick(), TICK_MS);
+    this.ticker.unref();
   }
 
   onModuleDestroy() {
     this.unsubscribe();
+    clearInterval(this.ticker);
   }
 
   /**
@@ -73,10 +83,11 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
     let passAllowed = !parseCookies(req.headers.cookie)[SESSION_COOKIE];
     const early: Buffer[] = [];
     const handle = (raw: { toString(): string }) => {
-      if (raw.toString().length > 512) return;
+      const text = raw.toString();
+      if (text.length > 512) return;
       let data: unknown;
       try {
-        data = JSON.parse(raw.toString());
+        data = JSON.parse(text);
       } catch {
         return;
       }
@@ -165,19 +176,36 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
     }
   }
 
+  // Ten times a second: what moved goes out, one frame per lobby. The head count goes everywhere, so it waits its turn.
+  private tick(now = Date.now()) {
+    for (const { lobby, frame } of this.presence.frames())
+      for (const id of lobby.watchers) {
+        const s = this.sockets.get(id);
+        if (s?.readyState === 1) s.send(frame);
+      }
+    if (!this.censusDue || now - this.censusAt < CENSUS_MS) return;
+    this.censusDue = false;
+    this.censusAt = now;
+    const json = JSON.stringify(this.presence.census());
+    for (const s of this.sockets.values()) if (s.readyState === 1) s.send(json);
+  }
+
   private send(out: Out[]) {
     for (const o of out) {
+      if (o.to === "all") {
+        this.censusDue = true;
+        continue;
+      }
       const json = JSON.stringify(o.msg satisfies ServerMessage);
       if (o.to === "one") {
         const s = this.sockets.get(o.conn);
         if (s?.readyState === 1) s.send(json);
+        continue;
       }
-      else {
-        const targets = o.to === "all" ? [...this.sockets.keys()] : this.presence.watching(o.place).filter((id) => id !== o.except);
-        for (const id of targets) {
-          const s = this.sockets.get(id);
-          if (s?.readyState === 1) s.send(json);
-        }
+      for (const id of o.lobby.watchers) {
+        if (id === o.except) continue;
+        const s = this.sockets.get(id);
+        if (s?.readyState === 1) s.send(json);
       }
     }
   }

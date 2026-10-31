@@ -31,7 +31,7 @@ import { Fireworks } from "./fireworks";
 import { hills } from "./hills";
 import { CityLife, roofOf } from "./life";
 import { liveKey, liveState } from "./live";
-import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff } from "./models";
+import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff, RING, ringPaint } from "./models";
 import { CityProps, makeBoard, makePins, waxParasols } from "./props";
 import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
 import { keepApart, laneFor, MOST, passerbyCount, passersBy, type SidewalkPoint, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
@@ -39,6 +39,8 @@ import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestO
 import { cityKey, cityOwnsKeys, readLayout } from "./keys";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
+import { FrameBudget } from "./frameBudget";
+import { Tag, type TagKind, TagLayer } from "./tagLayer";
 import { declutter, type TagSpot } from "./tags";
 import { dye } from "./tint";
 import { HouseFace } from "./windows";
@@ -73,6 +75,9 @@ const TOUR = { glide: 1.2, hold: 2 };
 // the top third, above the sheet.
 const FRAMED = { half: 6.5, at: 0.28, narrow: 720 };
 const TAG_RANGE = 10; // people's name tags show within this distance of you
+const TAG_MOST = 16; // and no more of them than this, the nearest
+const SHADOW_REACH = 1.8; // how much wider than the view the shadow map is
+const STAGE_EDGE = 1.25; // how far past the edge of the view people stay in the scene (1 is the edge): their shadows still fall in it, and you can't outrun it
 const NOBODY = 0xd8d8de; // the ring colour of someone without a house
 // The city is always seen by day, bright and colourful, whatever the time there or the site's theme (15 10 2026):
 // a night city read as gloomy. No dusk, no lamps coming on: the light is set once per city (see `light`).
@@ -186,17 +191,17 @@ interface Npc extends Thing {
   login: string;
   avatar: THREE.Group;
   person?: Person;
+  dressing?: boolean;
   home: THREE.Vector3;
   // Where they're strolling to right now.
   goal: THREE.Vector3;
   wait: number;
-  tag: HTMLElement;
-  tagLabel: CSS2DObject;
+  tag: Tag;
   // Behind a building, seen from the camera: their name tag hides (R39).
   hidden?: boolean;
   // A passer-by (passersby.ts): walks round the blocks on the sidewalks (`stroll`, towards `next`, at `speed`) instead
   // of hanging around a door.
-  passerby?: { stroll: Stroll; next: THREE.Vector3 | null; speed: number; dressing: boolean; fan?: Fan };
+  passerby?: { stroll: Stroll; next: THREE.Vector3 | null; speed: number; fan?: Fan };
 }
 
 // A passer-by who goes to the Arena: one who stays in the stands (`seat`), or one who walks over from the street now
@@ -213,12 +218,14 @@ interface Fan {
 interface Remote extends Thing {
   avatar: THREE.Group;
   person?: Person;
+  dressing?: boolean;
+  // The look they chose.
+  character: string | null;
   // Where they last said they were.
   goal: THREE.Vector3;
   ry: number;
   moving: boolean;
-  tag: HTMLElement;
-  tagLabel: CSS2DObject;
+  tag: Tag;
   hidden?: boolean;
 }
 
@@ -236,7 +243,7 @@ interface Arena extends Thing {
   plan: ArenaPlan;
   box: Box;
   door: THREE.Vector3;
-  label: CSS2DObject;
+  label: Tag;
   // Its block's sidewalk (an index into `sidewalks`), and the point of it in front of the entrance: where fans leaving
   // the Arena go back to walking round the blocks.
   ring: number;
@@ -257,8 +264,6 @@ const WALK_KEYS = new Map<string, Action>([
 
 const yaw = (f: Facing) => (f * Math.PI) / 2;
 // The trophy on a title chip (see `trophy`): a cup on a stem, two handles, in the chip's ink.
-const TROPHY =
-  '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path fill="currentColor" d="M4 1.5h8V3h2.5v1.8a3.2 3.2 0 0 1-3 3.2A4 4 0 0 1 9 10.2V12h2.2v2.5H4.8V12H7v-1.8A4 4 0 0 1 4.5 8a3.2 3.2 0 0 1-3-3.2V3H4zm8 2.9V6.4a1.6 1.6 0 0 0 1-1.6v-.4zM4 4.4H3v.4a1.6 1.6 0 0 0 1 1.6z"/></svg>';
 // (x, z) turned by angle `a` around y, the same way three.js turns an object by rotation.y = a.
 const rotate = (x: number, z: number, a: number) => new THREE.Vector3(x * Math.cos(a) + z * Math.sin(a), 0, -x * Math.sin(a) + z * Math.cos(a));
 // How far apart two points are on the ground, ignoring height.
@@ -266,13 +271,17 @@ const apart = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z 
 
 export class Lobby {
   private renderer: THREE.WebGLRenderer;
+  // Speech bubbles and other rare words in the city stay page elements. Name tags and flags are drawn: see `tags`.
   private labels = new CSS2DRenderer();
+  private tags = new TagLayer();
+  // Every flag in this neighbourhood: the houses' and the Arena's.
+  private flags: Tag[] = [];
   private scene = new THREE.Scene();
   private camera: THREE.OrthographicCamera;
   private clock = new THREE.Clock();
   private player: THREE.Group;
   private playerPerson?: Person;
-  private playerTag: HTMLElement;
+  private playerTag: Tag;
   private town = new THREE.Group();
   private placed: Placed[] = [];
   private plots: EmptyPlot[] = [];
@@ -289,7 +298,7 @@ export class Lobby {
   private arenaDisplay: ArenaDisplay | null = null;
   private crowd = { n: 0, at: 0 };
   // The titles worn on name tags (yours and others online), by tag.
-  private tagBadges = new WeakMap<HTMLElement, Badge | null>();
+  private tagBadges = new WeakMap<Tag, Badge | null>();
   private props: CityProps | null = null;
   // The city's look (colours, grounds, props), and the light of its local time.
   private style: CityStyle = styleFor("");
@@ -398,7 +407,10 @@ export class Lobby {
   // Name tags piling up (tags.ts): a pool of spots reused on every check, and each tag's width, measured once (and
   // again when its house chip changes).
   private tagSpots: TagSpot[] = [];
-  private tagWidths = new WeakMap<HTMLElement, number>();
+  // How many steps down this machine has needed (see `easeOff`).
+  private budget = new FrameBudget();
+  private easedOff = 0;
+  private tagCount = 0;
 
   constructor(
     private host: HTMLElement,
@@ -410,7 +422,7 @@ export class Lobby {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     host.appendChild(this.renderer.domElement);
     this.labels.domElement.className = "lobby-labels";
-    host.appendChild(this.labels.domElement);
+    host.append(this.tags.canvas, this.tags.names, this.labels.domElement);
     this.arrow = document.createElement("div");
     this.arrow.className = "lobby-arrow";
     this.arrow.setAttribute("aria-hidden", "true");
@@ -449,7 +461,7 @@ export class Lobby {
     });
     this.scene.add(this.life.object);
 
-    const you = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : words.youTag, "lobby-label you");
+    const you = this.makePerson(opts.login ?? "visitor", opts.login ? `@${opts.login}` : words.youTag, "you");
     this.player = you.avatar;
     this.playerTag = you.tag;
     this.scene.add(this.player);
@@ -500,8 +512,13 @@ export class Lobby {
   setNeighbourhood(n: Neighbourhood, houses: CityHouse[], opts: { passersBy?: boolean; close?: boolean } = {}) {
     // The city stream re-sends the city often. Only rebuild if what's drawn changed; the live state (windows, the
     // crane, the power, knocks, the board's pins) is redrawn in place by `updateHouses`.
-    const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.plot, h.rooms.map((r) => r.occupant?.login ?? null)])]);
-    if (key === this.builtFrom) return this.updateHouses(houses);
+    const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.plot, h.rooms.map((r) => r.name)])]);
+    // Someone moved in or out: the streets stay, and only that house's people change (a full rebuild freezes the city
+    // for a moment, the more houses the longer).
+    if (key === this.builtFrom) {
+      for (const h of houses) this.refreshFlatmates(h);
+      return this.updateHouses(houses);
+    }
     const arriving = n.city !== this.builtCity;
     this.builtCity = n.city;
     if (arriving) {
@@ -513,11 +530,16 @@ export class Lobby {
       }
     }
     this.builtFrom = key;
+    this.budget.settle();
     const gen = ++this.generation;
     this.life.clear();
     this.arena?.model.dispose();
     this.arena = null;
+    for (const p of this.placed) p.face.dispose();
+    // Those off stage have to be disposed of too.
+    for (const n of this.npcs) if (!n.avatar.parent) this.town.add(n.avatar);
     removeLabels(this.town);
+    this.flags = [];
     disposeTree(this.town);
     this.town.clear();
     this.placed = [];
@@ -656,7 +678,7 @@ export class Lobby {
     // The walk grid, from every footprint placed above. House models that load later refine theirs: see `grid`.
     this.gridDirty = true;
     this.grid();
-    if (opts.passersBy !== false) this.addPassersBy(n, gen);
+    if (opts.passersBy !== false) this.addPassersBy(n);
 
     if (arriving) {
       // In front of the nearest real house, facing it, the camera turned to show its front (R3).
@@ -692,15 +714,13 @@ export class Lobby {
 
   /** The language changed: the words drawn in the city follow (a visitor's own tag, the knock bubbles' names). */
   relabel() {
-    const name = this.playerTag.querySelector(".name");
-    if (name && !this.opts.login) name.textContent = words.youTag;
+    if (!this.opts.login) this.playerTag.say({ text: words.youTag });
     for (const p of this.placed) p.knocker?.traverse((o) => {
       if (o instanceof CSS2DObject) o.element.setAttribute("aria-label", words.knocking(p.house.name));
     });
     const a = this.arena;
     if (a) {
-      const flag = a.label.element.querySelector(".name");
-      if (flag) flag.textContent = words.arena;
+      a.label.say({ text: words.arena });
       a.model.redraw();
     }
     this.trophy(this.playerTag);
@@ -708,6 +728,7 @@ export class Lobby {
   }
 
   setQuality(quality: "high" | "low", reduceMotion: boolean) {
+    if (quality !== this.opts.quality) this.easedOff = 0;
     this.opts.quality = quality;
     this.opts.reduceMotion = reduceMotion;
     this.applyQuality();
@@ -1059,7 +1080,7 @@ export class Lobby {
     if (p.login === this.opts.login) this.setBadge(p.login, p.badge ?? null);
     if (p.login === this.opts.login || this.remotes.has(p.login)) return;
     const name = p.name ?? p.login;
-    const { avatar, tag, tagLabel } = this.makePerson(p.login, name, "lobby-label online");
+    const { avatar, tag } = this.makePerson(p.login, name, "person");
     this.tagBadges.set(tag, p.badge ?? null);
     this.trophy(tag);
     // Someone who just arrived stands at the neighbourhood's entrance, next to where you came in.
@@ -1067,15 +1088,8 @@ export class Lobby {
     avatar.position.copy(start);
     avatar.rotation.y = p.ry;
     this.scene.add(avatar);
-    const remote: Remote = { avatar, goal: start.clone(), ry: p.ry, moving: p.moving, tag, tagLabel, target: { kind: "person", login: p.login, name }, spot: avatar.position };
+    const remote: Remote = { avatar, goal: start.clone(), ry: p.ry, moving: p.moving, tag, character: p.avatar, target: { kind: "person", login: p.login, name }, spot: avatar.position };
     this.remotes.set(p.login, remote);
-    loadPerson(p.login, p.avatar)
-      .then((person) => {
-        if (this.remotes.get(p.login) !== remote) return;
-        remote.person = person;
-        this.dress(avatar, person);
-      })
-      .catch(() => undefined);
     for (const n of this.npcs) if (n.login === p.login) n.avatar.visible = false;
   }
 
@@ -1135,6 +1149,7 @@ export class Lobby {
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.domElement.remove();
+    this.tags.dispose();
     this.arrow.remove();
   }
 
@@ -1437,6 +1452,7 @@ export class Lobby {
         if (gen !== this.generation) return;
         place(m);
         this.town.add(m);
+        freeze(m);
       })
       .catch(() => undefined);
   }
@@ -1451,12 +1467,7 @@ export class Lobby {
     group.userData.houseId = house.id;
     group.userData.facing = facing;
     // Its name on a flag, after a little square in the house's colour (its flatmates' rings, its marker on the map).
-    const flag = this.label(house.name, house.demo ? "lobby-label house demo" : "lobby-label house", 6.4);
-    const swatch = document.createElement("span");
-    swatch.className = "swatch";
-    swatch.style.background = `#${new THREE.Color(colorFor(house.id)).getHexString()}`;
-    flag.element.prepend(swatch);
-    group.add(flag);
+    this.flags.push(new Tag(group, 6.4, { kind: "house", text: house.name, swatch: `#${new THREE.Color(colorFor(house.id)).getHexString()}` }));
     this.town.add(group);
     const box = this.solid(x, z, facing, placeholder.halfWidth * 2, placeholder.halfDepth * 2);
     // The placeholder is its own windows; the face takes over once the model is in.
@@ -1506,6 +1517,7 @@ export class Lobby {
           dye(model, this.style);
           group.add(model);
           this.occluder(model);
+          freeze(model);
           // Its own copies of its materials (see `occluder`), remembered with their colours for a power cut.
           model.traverse((o) => {
             const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -1523,38 +1535,59 @@ export class Lobby {
         .catch(() => undefined);
     }
 
-    // The flatmates hang around in front (unless they're online: then it's really them walking), on either side of
-    // the door and a step apart, so the doorway stays clear and nobody stands inside anybody (R39).
-    const flatmates = house.rooms.filter((r) => r.occupant);
-    flatmates.forEach((r, k) => {
+    this.addFlatmates(placed, house);
+  }
+
+  /**
+   * The flatmates hang around in front (unless they're online: then it's really them walking), on either side of
+   * the door and a step apart, so the doorway stays clear and nobody stands inside anybody (R39).
+   */
+  private addFlatmates(placed: Placed, house: CityHouse) {
+    const facing = placed.group.userData.facing as Facing;
+    house.rooms
+      .filter((r) => r.occupant)
+      .forEach((r, k) => {
         const login = r.occupant!.login;
         const name = r.occupant!.name ?? login;
-        const { avatar, tag, tagLabel } = this.makePerson(login, name, "lobby-label small");
+        const { avatar, tag } = this.makePerson(login, name, "small");
         avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
         this.town.add(avatar);
-        const npc: Npc = { login, avatar, home: new THREE.Vector3(), goal: new THREE.Vector3(), wait: Math.random() * 3, tag, tagLabel, target: { kind: "person", login, name }, spot: avatar.position };
+        const npc: Npc = { login, avatar, home: new THREE.Vector3(), goal: new THREE.Vector3(), wait: Math.random() * 3, tag, target: { kind: "person", login, name }, spot: avatar.position };
         const side = k % 2 ? 1 : -1;
         npc.home.copy(placed.door).add(rotate(side * (1.1 + Math.floor(k / 2) * 1.1), 0.7, yaw(facing)));
         npc.goal.copy(npc.home);
         avatar.position.copy(npc.home);
         this.npcs.push(npc);
         placed.npcs.push(npc);
-        loadPerson(login)
-          .then((p) => {
-            if (gen !== this.generation) return;
-            npc.person = p;
-            this.dress(avatar, p);
-          })
-          .catch(() => undefined);
       });
+  }
+
+  /** A house whose flatmates aren't the ones standing outside any more: those go, the new ones come out. */
+  private refreshFlatmates(house: CityHouse) {
+    const placed = this.placed.find((p) => p.house.id === house.id);
+    if (!placed) return;
+    const logins = house.rooms.flatMap((r) => (r.occupant ? [r.occupant.login] : []));
+    if (logins.join() === placed.npcs.map((n) => n.login).join()) return;
+    for (const n of placed.npcs) {
+      this.npcs.splice(this.npcs.indexOf(n), 1);
+      n.avatar.parent?.remove(n.avatar);
+      removeLabels(n.avatar);
+      disposeTree(n.avatar);
+      if (this.useOnArrival === n) this.stop();
+      if (this.highlighted === n) this.clearHighlight();
+      if (this.hover === n) this.setHover(null);
+      if (this.near === n) this.near = null;
+    }
+    placed.npcs = [];
+    this.addFlatmates(placed, house);
   }
 
   /**
    * Passers-by (passersby.ts): made-up people with GitHub-style handles on their tags, walking round the blocks on
    * the sidewalks and crossing at the zebras, so a city has life beyond the few flatmates by their doors. They're all
-   * made at once; how many show depends on the quality (`showPassersBy`), and only those who show are dressed.
+   * made at once; how many show depends on the quality (`showPassersBy`).
    */
-  private addPassersBy(n: Neighbourhood, gen: number) {
+  private addPassersBy(n: Neighbourhood) {
     this.sidewalks = sidewalks(n.blocks);
     if (!this.sidewalks.length) return;
     const rand = seeded(`walkers:${n.city}`);
@@ -1563,7 +1596,7 @@ export class Lobby {
       const stroll: Stroll = { block: Math.floor(rand() * this.sidewalks.length), at: Math.floor(rand() * 16), dir, lane: laneFor(dir, rand) };
       const at = standAt(this.sidewalks[stroll.block][stroll.at], stroll.lane);
       // The tag shows their handle; the card (the target's name) their full name.
-      const { avatar, tag, tagLabel } = this.makePerson(who.login, who.login, "lobby-label small");
+      const { avatar, tag } = this.makePerson(who.login, who.login, "small");
       avatar.position.set(at.x, 0, at.z);
       avatar.rotation.y = rand() * Math.PI * 2;
       const walker: Npc = {
@@ -1573,12 +1606,10 @@ export class Lobby {
         goal: avatar.position.clone(),
         wait: rand() * 4,
         tag,
-        tagLabel,
         target: { kind: "person", login: who.login, name: who.name, example: true },
         spot: avatar.position,
-        passerby: { stroll, next: null, speed: 1.1 + rand() * 0.5, dressing: false },
+        passerby: { stroll, next: null, speed: 1.1 + rand() * 0.5 },
       };
-      walker.avatar.userData.generation = gen;
       this.town.add(avatar);
       this.npcs.push(walker);
       this.walkers.push(walker);
@@ -1711,22 +1742,46 @@ export class Lobby {
     return found ? smooth(grid, found).slice(1).map((p) => new THREE.Vector3(p.x, 0, p.z)) : [];
   }
 
-  /** As many passers-by as the quality allows (fewer on low, and on a phone's small screen); the first time one shows, it's dressed. */
+  /** As many passers-by as the quality allows (fewer on low, and on a phone's small screen). */
   private showPassersBy() {
     const count = passerbyCount(this.opts.quality, window.innerWidth < 520);
     this.walkers.forEach((w, i) => {
       w.avatar.visible = i < count;
-      if (!w.avatar.visible || w.person || w.passerby!.dressing) return;
-      w.passerby!.dressing = true;
-      const gen = w.avatar.userData.generation as number;
-      loadPerson(w.login)
-        .then((p) => {
-          if (gen !== this.generation) return;
-          w.person = p;
-          this.dress(w.avatar, p);
-        })
-        .catch(() => undefined);
     });
+  }
+
+  /**
+   * Only the people around the view are in the scene, and they get their model the first time they come by. The rest
+   * keep walking as a position and nothing else: a person is about 30 objects (their skeleton) that three.js would go
+   * through every frame, and a city of 100 houses has 400 of them.
+   */
+  private stage() {
+    const at = this.scratch;
+    const onStage = (who: Npc | Remote, home: THREE.Object3D) => {
+      at.copy(who.avatar.position).project(this.camera);
+      const near = Math.abs(at.x) < STAGE_EDGE && Math.abs(at.y) < STAGE_EDGE;
+      if (near && !who.avatar.parent) home.add(who.avatar);
+      else if (!near && who.avatar.parent) home.remove(who.avatar);
+      if (near) this.dressUp(who);
+    };
+    for (const n of this.npcs) onStage(n, this.town);
+    for (const r of this.remotes.values()) onStage(r, this.scene);
+  }
+
+  private dressUp(who: Npc | Remote) {
+    if (who.person || who.dressing || !who.avatar.visible) return;
+    who.dressing = true;
+    const { login } = who.avatar.userData as { login: string };
+    const gen = this.generation;
+    loadPerson(login, "character" in who ? who.character : undefined)
+      .then((person) => {
+        // Rebuilt or gone meanwhile.
+        if (gen !== this.generation && !("character" in who)) return;
+        if ("character" in who && this.remotes.get(login) !== who) return;
+        who.person = person;
+        this.dress(who.avatar, person);
+      })
+      .catch(() => undefined);
   }
 
   /**
@@ -1885,10 +1940,8 @@ export class Lobby {
     this.solids.push(...plan.colliders);
     model.group.updateMatrixWorld(true);
     for (const piece of model.stands) this.occluder(piece);
-    const label = this.label("", "lobby-label house arena", 7.6);
-    label.element.innerHTML = '<span class="cup" aria-hidden="true">🏆</span><span class="name"></span>';
-    label.element.querySelector(".name")!.textContent = words.arena;
-    model.group.add(label);
+    const label = new Tag(model.group, 7.6, { kind: "arena", text: words.arena });
+    this.flags.push(label);
     model.setDisplay(this.arenaDisplay);
     const door = new THREE.Vector3(plan.gate.door.x, 0, plan.gate.door.z);
     this.arena = { model, plan, box: plan.gate.box, door, label, spot: door.clone(), target: { kind: "arena", city }, ring: -1, exit: 0 };
@@ -1951,24 +2004,19 @@ export class Lobby {
   // ---- People ----
 
   /** A placeholder person with a name tag (name, then their house) and a ring at their feet, in their house's colour. */
-  private makePerson(login: string, name: string, tagClass: string): { avatar: THREE.Group; tag: HTMLElement; tagLabel: CSS2DObject } {
+  private makePerson(login: string, name: string, kind: TagKind): { avatar: THREE.Group; tag: Tag } {
     const avatar = makeAvatar(colorFor(login));
     avatar.userData.login = login;
     avatar.userData.name = name;
-    const label = this.label("", tagClass, 1.75);
-    const who = document.createElement("span");
-    who.className = "name";
-    who.textContent = name;
-    label.element.append(who);
-    this.badge(label.element, login);
-    avatar.add(label);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.58, 28), new THREE.MeshBasicMaterial({ color: NOBODY, transparent: true, opacity: 0.9 }));
+    const tag = new Tag(avatar, 1.75, { kind, text: name });
+    this.badge(tag, login);
+    const ring = new THREE.Mesh(RING, ringPaint(NOBODY));
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.17;
     ring.name = "ring";
     avatar.add(ring);
     this.paintRing(avatar, login);
-    return { avatar, tag: label.element, tagLabel: label };
+    return { avatar, tag };
   }
 
   /**
@@ -1986,27 +2034,29 @@ export class Lobby {
     const ring = avatar.getObjectByName("ring") as THREE.Mesh | undefined;
     if (!ring) return;
     const home = login ? this.residents.get(login) : undefined;
-    (ring.material as THREE.MeshBasicMaterial).color.set(home ? colorFor(home.houseId) : NOBODY);
+    ring.material = ringPaint(home ? colorFor(home.houseId) : NOBODY);
   }
 
   /**
    * The small badge after a name: their house, on the house's colour (the same as the ring at their feet), so
    * flatmates read as a group. Someone without a house gets none. Rebuilt whenever the residents change.
    */
-  private badge(tag: HTMLElement, login: string | null) {
-    tag.querySelector(".home")?.remove();
-    this.tagWidths.delete(tag);
+  private badge(tag: Tag, login: string | null) {
     const home = login ? this.residents.get(login) : undefined;
-    if (!home) return;
-    const el = document.createElement("span");
-    el.className = "home";
-    el.textContent = home.houseName.length > 12 ? `${home.houseName.slice(0, 11)}…` : home.houseName;
+    if (!home) {
+      tag.say({ home: null });
+      return;
+    }
     const color = new THREE.Color(colorFor(home.houseId));
-    el.style.background = `#${color.getHexString()}`;
     // Dark text on a light colour, white on a dark one. The colour's channels are linear, as luminance wants.
     const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
-    el.style.color = luminance > 0.25 ? "#1d1d1f" : "#fff";
-    tag.append(el);
+    tag.say({
+      home: {
+        text: home.houseName.length > 12 ? `${home.houseName.slice(0, 11)}…` : home.houseName,
+        background: `#${color.getHexString()}`,
+        color: luminance > 0.25 ? "#1d1d1f" : "#fff",
+      },
+    });
     // Their Arena title, as the city lists them, unless the live line already told us (people online, and you).
     const won = home.badge ?? null;
     if (login && login !== this.opts.login && !this.remotes.has(login) && JSON.stringify(this.tagBadges.get(tag) ?? null) !== JSON.stringify(won)) {
@@ -2021,23 +2071,14 @@ export class Lobby {
    * city's listing; passers-by never. When the tag is crowded its words go but the trophy stays, in its colour
    * (style.css); it's redrawn when the language changes.
    */
-  private trophy(tag: HTMLElement) {
-    tag.querySelector(".won")?.remove();
-    this.tagWidths.delete(tag);
+  private trophy(tag: Tag) {
     const badge = this.tagBadges.get(tag);
-    if (!badge) return;
+    if (!badge) {
+      tag.say({ won: null });
+      return;
+    }
     const chip = badgeChip(badge, language.lang);
-    const el = document.createElement("span");
-    el.className = `won ${chip.tone}`;
-    el.setAttribute("role", "img");
-    el.setAttribute("aria-label", words.wonTitle(chip.full));
-    el.innerHTML = TROPHY;
-    // The words in their own span: a crowded tag keeps the trophy in its colour and drops only the words.
-    const words_ = document.createElement("span");
-    words_.className = "t";
-    words_.textContent = chip.text;
-    el.append(words_);
-    tag.querySelector(".name")?.after(el);
+    tag.say({ won: { text: chip.text, tone: chip.tone } });
   }
 
   /** Puts a loaded person in place of a placeholder avatar (keeping its name tag and ring). */
@@ -2065,23 +2106,25 @@ export class Lobby {
     }, 2200);
   }
 
-  private label(text: string, className: string, y: number): CSS2DObject {
-    const el = document.createElement("div");
-    el.className = className;
-    el.textContent = text;
-    const obj = new CSS2DObject(el);
-    obj.position.set(0, y, 0);
-    return obj;
-  }
-
   // ---- Rendering, input, the frame loop ----
+
+  /**
+   * The machine can't keep up: draw less, in the order you'd notice least. First fewer pixels (a sharp screen has four
+   * times as many as it needs for a city seen from afar), then no shadows. Your setting stays as you chose it.
+   */
+  private easeOff() {
+    if (this.opts.quality !== "high" || this.easedOff >= 2) return;
+    this.easedOff++;
+    this.applyQuality();
+  }
 
   private applyQuality() {
     const high = this.opts.quality === "high";
     this.showPassersBy();
-    this.renderer.setPixelRatio(high ? Math.min(window.devicePixelRatio, 2) : 1);
-    this.renderer.shadowMap.enabled = high;
-    this.sun.castShadow = high;
+    this.renderer.setPixelRatio(high && this.easedOff === 0 ? Math.min(window.devicePixelRatio, 2) : 1);
+    const shadows = high && this.easedOff < 2;
+    this.renderer.shadowMap.enabled = shadows;
+    this.sun.castShadow = shadows;
     // Outlines are for the machines that can afford them. On low quality, the cursor and the ring do the job.
     if (high && !this.composer) this.makeComposer();
     if (!high) this.dropComposer();
@@ -2133,6 +2176,7 @@ export class Lobby {
     this.narrow = w < FRAMED.narrow;
     this.renderer.setSize(w, h);
     this.labels.setSize(w, h);
+    this.tags.setSize(w, h);
     if (this.composer) {
       this.composer.setPixelRatio(this.renderer.getPixelRatio());
       this.composer.setSize(w, h);
@@ -2144,6 +2188,11 @@ export class Lobby {
     const width = this.halfWidth(half);
     Object.assign(this.camera, { left: -width, right: width, top: width / this.aspect, bottom: -width / this.aspect });
     this.camera.updateProjectionMatrix();
+    // The shadows only need to cover what's on screen, plus what a tall building just outside it throws in. Less to
+    // draw into the shadow map, and sharper shadows from the same map.
+    const reach = width * SHADOW_REACH;
+    Object.assign(this.sun.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach });
+    this.sun.shadow.camera.updateProjectionMatrix();
   }
 
   /** Half of the view's width on the ground, for a zoom of `half`. */
@@ -2463,12 +2512,13 @@ export class Lobby {
     const centre = this.player.position;
     const animateRange = this.viewHalf * 2.2;
     for (const n of this.npcs) if (n.person && n.avatar.position.distanceTo(centre) < animateRange) n.person.mixer.update(dt);
-    for (const r of this.remotes.values()) r.person?.mixer.update(dt);
+    for (const r of this.remotes.values()) if (r.avatar.parent) r.person?.mixer.update(dt);
     if (this.tick % 6 === 0) {
       const tagRange = this.viewHalf < 9 ? this.viewHalf * 2 : TAG_RANGE;
-      for (const n of this.npcs) showTag(n, n === h || (n.avatar.position.distanceTo(centre) < tagRange && !n.hidden));
-      for (const r of this.remotes.values()) showTag(r, r === h || (r.avatar.position.distanceTo(centre) < tagRange * 1.6 && !r.hidden));
+      for (const n of this.npcs) n.tag.on = n === h || (n.avatar.position.distanceTo(centre) < tagRange && !n.hidden);
+      for (const r of this.remotes.values()) r.tag.on = r === h || (r.avatar.position.distanceTo(centre) < tagRange * 1.6 && !r.hidden);
       this.declutterTags(h);
+      if (this.tick % 60 === 0) this.tags.sayNames(this.flags, this.tagSpots, this.tagCount);
     }
 
     // The camera follows from the isometric angle, turned and gliding (or snapping, for calm motion). It looks at
@@ -2485,6 +2535,7 @@ export class Lobby {
     this.lastOffset = offset;
     // A name tag whose owner stands behind a building would float over its roof: a few people a tick are checked.
     if (this.tick % 3 === 0) this.checkTags(offset);
+    if (this.tick % 10 === 0) this.stage();
     // The sun follows the view, so shadows stay sharp wherever you are.
     this.sun.position.copy(look).add(new THREE.Vector3(18, 22, 6));
     this.sun.target.position.copy(look);
@@ -2602,37 +2653,28 @@ export class Lobby {
   private declutterTags(h: Thing | null) {
     const you = this.player.position;
     let n = this.tagSpot(0, this.playerTag, you, -1, true);
-    for (const p of this.npcs) if (p.avatar.visible && p.tag.style.visibility === "") n = this.tagSpot(n, p.tag, p.avatar.position, apart(p.avatar.position, you), p === h);
-    for (const r of this.remotes.values()) if (r.tag.style.visibility === "") n = this.tagSpot(n, r.tag, r.avatar.position, apart(r.avatar.position, you), r === h);
-    declutter(this.tagSpots, n, this.width < NARROW_TAGS);
-    for (let i = 0; i < n; i++) {
-      const spot = this.tagSpots[i];
-      if (!spot.el) continue;
-      if (!spot.shown) spot.el.style.visibility = "hidden";
-      spot.el.classList.toggle("crowded", spot.crowded);
-    }
+    for (const p of this.npcs) if (p.avatar.visible && p.tag.on) n = this.tagSpot(n, p.tag, p.avatar.position, apart(p.avatar.position, you), p === h);
+    for (const r of this.remotes.values()) if (r.tag.on) n = this.tagSpot(n, r.tag, r.avatar.position, apart(r.avatar.position, you), r === h);
+    declutter(this.tagSpots, n, this.width < NARROW_TAGS ? 1 : TAG_MOST);
+    for (let i = 0; i < n; i++) this.tagSpots[i].tag!.crowd(this.tagSpots[i].crowded);
+    this.tagCount = n;
   }
 
   /** Fills the pool's spot `i` with a tag on screen (its head's point, projected) and returns the next index. */
-  private tagSpot(i: number, el: HTMLElement, at: THREE.Vector3, d: number, keep: boolean): number {
+  private tagSpot(i: number, tag: Tag, at: THREE.Vector3, d: number, keep: boolean): number {
     const v = this.scratch.copy(at).setY(at.y + 1.9).project(this.camera);
     if (Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) return i;
     let spot = this.tagSpots[i];
     if (!spot) {
-      spot = { x: 0, y: 0, w: 0, d: 0, keep: false, shown: true, crowded: false, el: null };
+      spot = { x: 0, y: 0, w: 0, d: 0, keep: false, shown: true, crowded: false, tag: null };
       this.tagSpots.push(spot);
-    }
-    let w = this.tagWidths.get(el);
-    if (w === undefined) {
-      w = el.offsetWidth || 80;
-      this.tagWidths.set(el, w);
     }
     spot.x = ((v.x + 1) / 2) * this.width;
     spot.y = ((1 - v.y) / 2) * this.height;
-    spot.w = w;
+    spot.w = this.tags.widthOf(tag);
     spot.d = d;
     spot.keep = keep;
-    spot.el = el;
+    spot.tag = tag;
     return i + 1;
   }
 
@@ -2700,22 +2742,14 @@ export class Lobby {
 
   private loop = () => {
     this.animationFrame = requestAnimationFrame(this.loop);
-    this.step(Math.min(this.clock.getDelta(), 0.05));
+    const dt = this.clock.getDelta();
+    if (this.budget.add(dt * 1000)) this.easeOff();
+    this.step(Math.min(dt, 0.05));
     this.draw();
-    this.labels.render(this.scene, this.camera);
+    this.tags.draw(this.camera, this.flags, this.tagSpots, this.tagCount);
+    // Going through the whole scene to find the few words left in it is not free: when there are none, only now and then.
+    if (this.labels.domElement.childElementCount > 0 || this.tick % 6 === 0) this.labels.render(this.scene, this.camera);
   };
-}
-
-/**
- * Shows or hides someone's name tag. A hidden tag leaves the page altogether: `tagLabel.visible` stops the label
- * renderer moving it, every frame, and `display` takes it out of Chrome's styling. With `visibility: hidden` alone,
- * moving the tags nobody could see cost about 50 ms of style recalculation a frame while walking (profiled 31 Oct).
- * `display` is set here too, not left to the renderer, because `tagSpot` measures a tag as soon as it's back.
- */
-function showTag(who: { tag: HTMLElement; tagLabel: CSS2DObject }, on: boolean) {
-  who.tag.style.visibility = on ? "" : "hidden";
-  who.tag.style.display = on ? "" : "none";
-  who.tagLabel.visible = on;
 }
 
 /** A building's footprint in the world: `w` wide and `d` deep, turned with its plot. */
@@ -2762,6 +2796,15 @@ function shortestAngle(from: number, to: number): number {
   if (d > Math.PI) d -= Math.PI * 2;
   if (d < -Math.PI) d += Math.PI * 2;
   return d;
+}
+
+// Something that will never move: three.js stops working out where it is, every frame, along with all its parts.
+function freeze(root: THREE.Object3D) {
+  root.updateWorldMatrix(true, true);
+  root.traverse((o) => {
+    o.matrixAutoUpdate = false;
+    o.matrixWorldAutoUpdate = false;
+  });
 }
 
 // three.js removes a name tag's element only when the tag itself is removed, not when a group holding it is.

@@ -2,6 +2,8 @@
 // house chip, and, on a narrow screen, which show at all. Pure and allocation-free, so Lobby.ts can run it every few
 // frames over the same objects; the geometry is tested here.
 
+import type { Tag } from "./tagLayer";
+
 export interface TagSpot {
   // The tag's centre on screen, and its width, in pixels (its height is TAG_HEIGHT).
   x: number;
@@ -14,8 +16,8 @@ export interface TagSpot {
   // The answers: shown at all, and faded back (no house chip) because a nearer tag overlaps it.
   shown: boolean;
   crowded: boolean;
-  // The element it stands for: Lobby.ts's business.
-  el: HTMLElement | null;
+  // The tag it stands for: Lobby.ts's business.
+  tag: Tag | null;
 }
 
 export const TAG_HEIGHT = 18;
@@ -25,9 +27,10 @@ const before = (a: TagSpot, b: TagSpot) => (a.keep === b.keep ? a.d < b.d : a.ke
 /**
  * Works out the first `count` spots of `spots`, a pool reused from call to call: they're sorted in place, nearest
  * first with the kept ones ahead (an insertion sort: a few dozen tags, and no new array). A tag overlapping a nearer
- * one that stays clear is crowded. On a narrow screen only the kept tags and the nearest other person's show.
+ * one that stays clear is crowded. Only the kept tags and the `most` nearest other people's show (on a narrow screen,
+ * Lobby.ts asks for one).
  */
-export function declutter(spots: TagSpot[], count: number, narrow: boolean): void {
+export function declutter(spots: TagSpot[], count: number, most: number): void {
   for (let i = 1; i < count; i++) {
     const s = spots[i];
     let j = i - 1;
@@ -40,7 +43,7 @@ export function declutter(spots: TagSpot[], count: number, narrow: boolean): voi
   let others = 0;
   for (let i = 0; i < count; i++) {
     const s = spots[i];
-    s.shown = s.keep || !narrow || others++ < 1;
+    s.shown = s.keep || others++ < most;
     s.crowded = false;
     if (!s.shown || s.keep) continue;
     for (let j = 0; j < i; j++) {

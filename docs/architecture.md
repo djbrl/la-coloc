@@ -79,6 +79,13 @@ room's CPU and memory, which feed the bill.
 
 - A WebSocket at `/lobby-ws` carries who is walking where, waves, and a one-word "look at your bell" to the person
   concerned. The page then asks the API for the details, so nothing private travels on the line.
+- A city holds as many lobbies as it needs, 32 people each: a newcomer takes the first with room, so no page ever draws
+  more than 32 people online. Visitors watch without taking a place. The head count stays per city, and a city with
+  several lobbies shows a button to change (`apps/api/src/lobby/presence.ts`).
+- Movement goes out ten times a second as one binary frame per lobby, 8 bytes per mover: a small number for who (their
+  slot in the lobby, given in the JSON `snapshot` and `join`), x, z and heading. Joining, leaving and waves stay JSON.
+- The city stream (`GET /api/city/stream`) says the whole city when it opens, then only the houses that changed. The
+  API works that out once per change, at most once a second, however many pages listen, and not at all when none do.
 - Only pages from our own site may connect: the API checks the page's origin against `COLOC_PUBLIC_URL` and the
   list in `COLOC_WEB_ORIGIN`. In development `npm run up` also sets `COLOC_DEV_ORIGINS=1`, which lets in any
   `http://localhost:<port>` page (Multiprise picks the port), but not while it shares the city, and never on an

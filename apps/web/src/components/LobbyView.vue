@@ -15,7 +15,7 @@ import { type Emote, Lobby, type LobbyEvents, type Target } from "../lobby/Lobby
 import { checkCore, core } from "../core";
 import { language } from "../i18n";
 import { caps, cityOwnsKeys } from "../lobby/keys";
-import { LobbyLink } from "../lobby/link";
+import { type LobbyCount, LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
@@ -89,6 +89,21 @@ const players = ref(new Map<string, { github?: boolean; example?: boolean; badge
 const crowd = ref<number | null>(null);
 const connected = ref(false);
 const census = ref<Record<string, number>>({});
+// The lobbies of the cities that need several (32 people each), and the one we're in.
+const lobbies = ref<Record<string, LobbyCount[]>>({});
+const lobbyHere = ref(1);
+const LOBBY_SIZE = 32;
+const cityLobbies = computed(() => (inWorkshop.value ? [] : (lobbies.value[city.value] ?? [])));
+// The next lobby of this city with room, going round.
+const nextLobby = computed(() => {
+  const list = cityLobbies.value;
+  const at = list.findIndex((l) => l.n === lobbyHere.value);
+  for (let i = 1; i < list.length; i++) {
+    const l = list[(at + i) % list.length];
+    if (l.people < LOBBY_SIZE) return l.n;
+  }
+  return null;
+});
 const sheet = ref<"" | "find" | "travel">("");
 const query = ref("");
 // The strip of keys, bottom left: folded or not. The full list and the big map are overlays.
@@ -601,7 +616,8 @@ onMounted(() => {
   }
 
   link = new LobbyLink({
-    onSnapshot: (list) => {
+    onSnapshot: (list, n) => {
+      lobbyHere.value = n;
       lobby?.clearRemotes();
       list.forEach((p) => lobby?.addRemote(p));
       others.value = new Set(list.map((p) => p.login).filter((l) => l !== me.value?.login));
@@ -625,7 +641,10 @@ onMounted(() => {
       connected.value = up;
       if (!up) void checkCore();
     },
-    onCensus: (counts) => (census.value = counts),
+    onCensus: (counts, perLobby) => {
+      census.value = counts;
+      lobbies.value = perLobby;
+    },
     // Something new under your bell: the top bar's bell fetches it.
     onNotice: () => void loadNotices(),
     onChat: chatPinged,
@@ -1222,6 +1241,16 @@ function statsOf(name: string) {
     <template v-if="ready && !failed">
       <!-- Each piece of the screen shows once the tutorial has unlocked it (always, outside the tutorial). The HUD
            comes first in the page, so Tab reaches the skip link, the top bar and these buttons before the city. -->
+      <button
+        v-if="shows('place') && cityLobbies.length > 1"
+        class="hud lobby-number"
+        :disabled="nextLobby === null"
+        :aria-label="w.lobbyOf(lobbyHere, cityLobbies.length)"
+        @click="nextLobby !== null && link?.changeLobby(nextLobby)"
+      >
+        <Icon name="people" :size="18" />
+        <span>{{ lobbyHere }}</span>
+      </button>
       <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? w.inWorkshop(placeName) : w.inCity(crumb)" @click="openSheet('travel')">
         <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" /></svg>
         <span class="city">{{ crumb }}</span>
@@ -1572,6 +1601,7 @@ function statsOf(name: string) {
 /* Where you are, a red key just left of the site's own keys (App.vue says how wide they are in --keys-width). */
 .place { top: 24px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 16px; border: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
 .place .city { font: 800 20px/1.1 var(--font); white-space: nowrap; }
+.lobby-number { top: 94px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 6px; height: 46px; min-height: 0; padding: 0 12px; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 800 16px/1 var(--font); box-shadow: 0 3px 0 var(--hairline); cursor: pointer; }
 .place:hover:not(:disabled) { background: var(--accent-fill-hover); }
 .place:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 /* What needs attention in this city, a yellow chip at the top; absent while all is well. It never catches clicks. */
@@ -1693,11 +1723,13 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 }
 @media (max-width: 899px) {
   .find-key, .place { top: calc(24px + var(--core-offset, 0px)); }
+  .lobby-number { top: calc(94px + var(--core-offset, 0px)); }
 }
 @media (max-width: 520px) {
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
   .find-key { top: calc(12px + var(--core-offset, 0px)); left: 12px; width: 46px; height: 46px; box-shadow: inset 0 0 0 3px var(--panel-red), 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
+  .lobby-number { top: calc(66px + var(--core-offset, 0px)); right: calc(12px + var(--keys-width, 0px) + 6px); }
   .place { top: calc(12px + var(--core-offset, 0px)); right: calc(12px + var(--keys-width, 0px) + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
   .place svg { display: none; }
   .place .city { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
