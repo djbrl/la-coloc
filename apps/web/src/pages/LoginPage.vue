@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Logging in: GitHub first, the demo beside it. On a dev server, a quiet second step lets you be anyone. Behind it, the
-// landing's flat at night (public/landing/sign-warm.webp, rendered from our own scene) under a dark veil.
+// landing's flat at night (public/landing/street.webp, rendered from our own scene) under a dark veil.
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import UiSteps from "../components/UiSteps.vue";
@@ -132,7 +132,7 @@ async function devLogin(as: string) {
   place-items: center;
   min-height: 100dvh;
   padding: 16px;
-  background: linear-gradient(var(--scrim), var(--scrim)), #120c1c url("/landing/sign-warm.webp") center / cover no-repeat;
+  background: linear-gradient(var(--scrim), var(--scrim)), #120c1c url("/landing/street.webp") center / cover no-repeat;
 }
 .card { width: min(500px, 100%); }
 /* The name is the whole title here: bigger than a panel's, and its band grows with it. */

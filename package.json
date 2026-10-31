@@ -20,6 +20,7 @@
     "licences:check": "npx --yes license-checker-rseidelsohn --excludePrivatePackages --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;0BSD;CC0-1.0;Unlicense;BlueOak-1.0.0;Python-2.0;CC-BY-4.0;OFL-1.1' > /dev/null && echo 'licences OK: no copyleft'",
     "share": "node scripts/share.mjs",
     "perf": "node scripts/perf.mjs",
+    "render:landing": "node scripts/render-landing.mjs",
     "up": "node scripts/up.mjs"
   },
   "engines": {

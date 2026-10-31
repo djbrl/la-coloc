@@ -17,13 +17,13 @@
          on /login, the still of the city it opens on, fetched straight away. -->
     <style>
       #app:empty { min-height: 100vh; background: linear-gradient(180deg, #6fa6dc 0%, #cfe2f2 100%); }
-      .at-login #app:empty { background: #120c1c url("/landing/sign-warm.webp") center / cover no-repeat; }
+      .at-login #app:empty { background: #120c1c url("/landing/street.webp") center / cover no-repeat; }
     </style>
     <script>
       if (location.pathname === "/login") {
         document.documentElement.classList.add("at-login");
         const still = document.createElement("link");
-        Object.assign(still, { rel: "preload", as: "image", href: "/landing/sign-warm.webp" });
+        Object.assign(still, { rel: "preload", as: "image", href: "/landing/street.webp" });
         document.head.append(still);
       }
     </script>

@@ -1049,3 +1049,47 @@ at (about 180 calls) if the budget ever needs it.
 A slow machine steps down by itself (`frameBudget.ts`): under 27 fps for 3 seconds halves the pixels, then again it drops
 the shadows. Not tested on a weak GPU: `npm run perf` slows the CPU only, and Metal on an M1 Pro is a strong GPU.
 
+### The landing's room is live (31 October, branch `landing-3d`)
+
+The wall, the name and the sign stay the picture they were. The room behind the window is now the scene that picture was
+rendered from, drawn on a canvas laid exactly over the window (`lobby/landingRoom.ts`).
+
+- **The wall holds still while the room moves.** The camera moves, but its view is pinned to the wall's plane
+  (`windowFrustum` in `landing.ts`): what's on the plane stays put, and the deeper something is, the more it shifts. It
+  also leans in once at the start, from the picture's distance, which deepens the room.
+- **Cheap on purpose.** The canvas is about a sixth of the screen, and the furniture is merged into a few meshes.
+  It only loads once the picture is up, and the city reuses what it loaded.
+- **The picture is the fallback.** No WebGL, reduced motion, data saver, or too slow (`FrameBudget`: fewer pixels, then
+  the picture) and the page is simply what it was.
+- **Further back.** The camera stands across the road: sidewalk, the building's edges, the city behind, the name, window
+  and sign gathered near the middle. The flatmates talk in turn, because three bubbles would hide a smaller window.
+  `npm run render:landing` remakes the picture; its numbers must match the ones in `landing.ts`.
+- **Clicks.** A flatmate reacts and the talk moves on to the next exchange (their bubble does the same, for the keyboard). The lamp
+  turns on and off, and it's a real light: the shadows go with it. "Try the demo" zooms through the window into the city.
+
+Measured at Retina size, uncapped, on an M1 Pro on battery at 41%: about 550 fps, about 300 fps with the CPU 4x slower. Not
+tested on a weak GPU or a real phone (only Chrome's phone size).
+
+Then Jib's review, the same day:
+
+- **Night only.** The day and all-nighter versions and the clock that chose between them are gone: one picture
+  (`street.webp`), one palette, one set of lights, and much less code.
+- **A real header.** Name, language, log in, try the demo, in a bar of their own above the scene, in the colour of the
+  sky's top. The site's name stays painted on the wall too, as part of the picture.
+- **Depth.** The far buildings used to be paler than the near ones, against a flat sky, so everything looked pasted on
+  one plane. Now the sky is a gradient (a glow on the horizon, nearly black overhead) and the city is three flat rows of
+  silhouettes: the further back, the closer to the sky's colour. Next door stays the darkest, being the nearest.
+- **A city up late.** Lots of lit windows in a few colours and a soft yellow gradient rising from the street in front of
+  each row of buildings, so each row stands out from the one behind. A few windows on the picture go on and off, by
+  opacity only.
+- **What they talk about.** Four short exchanges on building things together and tech news, not on life in the flat.
+  All three lines come from the same exchange, so it reads as a conversation.
+- **A softer lamp.** We tried lighting the room only from the computers' blue; the warm lamp was better. It stays, dimmer
+  than before, with more even light in the room so the wall behind the flatmates isn't dark.
+- **The name is a broken neon sign.** Tubes drawn as one SVG path per letter, hanging crooked from the left end of its
+  rail. Only the last C blinks, which makes it LA COLO (summer camp, in French) now and then. It's its own layer and only
+  its opacity changes, so nothing is redrawn; reduced motion leaves it dim and still.
+- **Dark-skinned flatmates, with no new art.** Kenney's people all paint themselves from one atlas with three columns of
+  skin side by side. The flatmates get a copy of it with all three painted one deep brown (`deepSkinAtlas`); the city's
+  people keep the original. The render script paints the same numbers.
+

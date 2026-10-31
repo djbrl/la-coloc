@@ -55,8 +55,9 @@ export const welcomeWords = defineWords(
   },
 );
 
-// The landing page: the sign, the buttons, and the three flatmates' lines per mood (they say "tu" to each other, in
-// French; the page itself says "vous"). The sign's words are arrays: one entry per line on the sign.
+// The landing page: the sign, the buttons, and what the three flatmates talk about, one exchange at a time: Kofi, Awa,
+// then Moussa (they say "tu" to each other, in French; the page itself says "vous"). The sign's words are arrays: one
+// entry per line on the sign.
 export const landingWords = defineWords(
   "landing",
   {
@@ -71,16 +72,13 @@ export const landingWords = defineWords(
     takenName: "3 rooms taken out of 4",
     moveIn: "Move in",
     moveInName: "Move in with GitHub",
-    picture: {
-      day: "In broad daylight. Through the big window of a brick building, three flatmates in one room: one sitting up in bed with a laptop, one at the open fridge with a can, one at a desk in front of two screens. In front of the wall, a metal pole holds the sign.",
-      warm: "At night. Through the big window of a brick building, three flatmates in one room: one sitting up in bed with a laptop, one at the open fridge with a can, one at a desk in front of two screens. In front of the wall, a metal pole holds the sign.",
-      blue: "In the dead of night, under the light of the screens. Through the big window of a brick building, three flatmates in one room: one sitting up in bed with a laptop, one at the open fridge with a can, one at a desk in front of two screens. In front of the wall, a metal pole holds the sign.",
-    },
-    lines: {
-      day: ["Still in bed. My app's been up since this morning.", "Your PR's approved. And who ate my yoghurt?", "Rent's due Friday. Go do some reviews."],
-      warm: ["My app crashed. Only my room noticed.", "3 reviews, 1,500 FCFA off my rent.", "Merged. It's live."],
-      blue: ["One more commit. Then bed.", "Last can. I'll still review your PR.", "Deploying at 4am. Only my room restarts."],
-    },
+    picture: "At night. Through the big window of a brick building, under a broken neon sign, three flatmates in one room: one sitting up in bed with a laptop, one at the open fridge with a can, one at a desk in front of two screens. Behind the roof, the city. In front of the wall, a metal pole holds the sign.",
+    talks: [
+      ["I'm starting a tontine app. Who's taking the back end?", "Me, if you review my PR.", "I'll handle the deploy."],
+      ["Another Lagos startup just raised millions.", "We've got users, though.", "Four. One's my mum."],
+      ["New AI model. Apparently it replaces devs.", "It read my code and quit.", "Hire it. We're behind on reviews."],
+      ["The Mobile Money API changed again last night.", "I'll fix the SDK, you do the tests?", "Send it, I'll review right now."],
+    ],
   },
   {
     nav: "Principal",
@@ -94,16 +92,13 @@ export const landingWords = defineWords(
     takenName: "3 chambres prises sur 4",
     moveIn: "J'emménage",
     moveInName: "J'emménage avec GitHub",
-    picture: {
-      day: "En plein jour. Par la grande fenêtre d'un immeuble en brique, trois colocs dans la même pièce : un assis dans son lit avec un portable, une devant le frigo ouvert avec une canette, un au bureau devant deux écrans. Devant le mur, un poteau en métal porte le panneau.",
-      warm: "La nuit. Par la grande fenêtre d'un immeuble en brique, trois colocs dans la même pièce : un assis dans son lit avec un portable, une devant le frigo ouvert avec une canette, un au bureau devant deux écrans. Devant le mur, un poteau en métal porte le panneau.",
-      blue: "En pleine nuit, sous la lumière des écrans. Par la grande fenêtre d'un immeuble en brique, trois colocs dans la même pièce : un assis dans son lit avec un portable, une devant le frigo ouvert avec une canette, un au bureau devant deux écrans. Devant le mur, un poteau en métal porte le panneau.",
-    },
-    lines: {
-      day: ["Encore au lit. Mon appli tourne depuis ce matin.", "Ta PR est validée. Et qui a mangé mon yaourt ?", "Loyer vendredi. Va faire des reviews."],
-      warm: ["Mon appli a planté. Seule ma chambre l'a vu.", "3 reviews, 1 500 FCFA de moins sur mon loyer.", "Mergé. C'est en ligne."],
-      blue: ["Encore un commit. Après, dodo.", "Dernière canette. Je relis quand même ta PR.", "Déploiement à 4h. Seule ma chambre redémarre."],
-    },
+    picture: "La nuit. Par la grande fenêtre d'un immeuble en brique, sous une enseigne au néon cassée, trois colocs dans la même pièce : un assis dans son lit avec un portable, une devant le frigo ouvert avec une canette, un au bureau devant deux écrans. Derrière le toit, la ville. Devant le mur, un poteau en métal porte le panneau.",
+    talks: [
+      ["Je lance une appli de tontine. Qui prend le back ?", "Moi, si tu relis ma PR.", "Je m'occupe du déploiement."],
+      ["Encore une startup de Lagos qui lève des millions.", "Nous, on a des utilisateurs.", "Quatre. Dont ma mère."],
+      ["Nouveau modèle d'IA. Il paraît qu'il remplace les devs.", "Il a lu mon code et il a démissionné.", "Recrute-le, on a des reviews en retard."],
+      ["L'API Mobile Money a encore changé cette nuit.", "Je corrige le SDK, tu fais les tests ?", "Envoie, je relis tout de suite."],
+    ],
   },
 );
 
