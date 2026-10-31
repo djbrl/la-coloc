@@ -341,7 +341,7 @@ async function resetDemo() {
 .inner { display: grid; align-content: start; gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
 
 .options { list-style: none; margin: 0; padding: 0; display: grid; line-height: 1.3; }
-.options :deep(.list-row) { min-height: 56px; padding: 0; }
+.options :deep(.list-row) { min-height: 50px; padding: 0; }
 /* Rows here are a word and a control: plain text, not a name. */
 .options :deep(.title) { font-size: 17px; font-weight: 600; }
 .flip { cursor: pointer; }
@@ -356,7 +356,7 @@ async function resetDemo() {
 
 /* Starting over: rows with an arrow, a line between them and the options above. */
 .acts { display: grid; }
-.act { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0; border-radius: 0; border-top: 2px solid var(--row-line); background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; }
+.act { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; padding: 0; border-radius: 0; border-top: 2px solid var(--row-line); background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; }
 .act:hover:not(:disabled) { background: var(--tile); }
 .act.danger { color: var(--danger); }
 .act.danger:hover:not(:disabled) { background: var(--danger-soft); }

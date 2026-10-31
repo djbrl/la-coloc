@@ -53,7 +53,7 @@ const project = computed(() => room.value?.project ?? props.home?.project ?? nul
 const state = computed(() => (room.value ? roomState(room.value, props.house?.status, props.house?.demo) : null));
 // Its state in words, first in the line under the name ("Online."), the dot beside the name in colour.
 const stateWords = computed(() => (room.value ? roomLine(room.value, props.house?.status, props.house?.demo) : ""));
-const where = computed(() => homeLine(props.login, props.home));
+const where = computed(() => homeLine(props.home));
 const occupant = computed(() => room.value?.occupant ?? null);
 const madeUp = computed(() => !!props.example || !!props.house?.demo || occupant.value?.github === false);
 
@@ -130,7 +130,7 @@ async function send(kind: "invite" | "rent" | "withdraw") {
     <BadgeChip v-if="badge" class="worn" :badge="badge" />
     <p class="soft small who">
       <template v-if="where">{{ where }}</template>
-      <template v-else>{{ w.visiting(login) }}</template>
+      <template v-else>{{ w.visiting }}</template>
       <template v-if="isMe">{{ w.thatsYou }}</template>
     </p>
 

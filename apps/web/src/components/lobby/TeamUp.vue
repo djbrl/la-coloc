@@ -112,7 +112,7 @@ async function takeBack() {
 /* The house window's main key is on ink (its foot keeps the one red key), like PersonPeek's. */
 .go, .go:hover:not(:disabled) { background: var(--text); color: var(--surface); box-shadow: none; }
 .way:disabled { opacity: 0.45; cursor: not-allowed; }
-.back { flex: none; width: 44px; height: 44px; min-height: 0; padding: 0; display: grid; place-items: center; background: none; box-shadow: none; color: var(--text); font: 400 24px/1 var(--display); }
+.back { flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; background: none; box-shadow: none; color: var(--text); font: 400 24px/1 var(--display); }
 .back:hover:not(:disabled) { background: var(--fill); }
 .error, .said { flex-basis: 100%; margin: 0; font-size: 14px; }
 .said { color: var(--muted); }

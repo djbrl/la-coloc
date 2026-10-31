@@ -13,6 +13,8 @@ export const icons = {
   check: "M9 11l3 3 8-8 M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9",
   // A speech bubble: the channel.
   chat: "M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z",
+  // A house's channel: a #, so it never looks like a direct message's bubble.
+  channel: "M10 4 8 20 M16 4l-2 16 M5 9h15 M4 15h15",
   // A fridge, seen from the front.
   fridge: "M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M5 10h14 M9 6v2 M9 13v3",
   // A push pin: the house's news, the notes it pins on its board.

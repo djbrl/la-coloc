@@ -39,7 +39,7 @@ const main = computed(() => {
   const r = props.actions.reach;
   switch (r?.kind) {
     case "chat":
-      return { icon: "chat" as const, word: w.person.chat };
+      return { icon: "channel" as const, word: w.person.chat };
     case "knock":
     case "pick":
       return { icon: "knock" as const, word: w.knock };

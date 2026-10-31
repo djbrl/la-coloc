@@ -467,7 +467,7 @@ canvas { display: block; flex: none; cursor: pointer; }
 .houses { list-style: none; margin: 0; padding: 0 8px; flex: 1; min-width: 240px; display: grid; align-content: start; overflow-y: auto; overscroll-behavior: contain; line-height: 1.3; }
 .entry { position: relative; cursor: pointer; }
 /* The row's one button covers the whole row, so a click anywhere on it travels. */
-.houses .go { width: 34px; min-height: 34px; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); }
+.houses .go { width: 46px; min-height: 46px; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); }
 .houses .go::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-md); }
 .entry:hover .go { color: var(--text); }
 .houses .go:hover:not(:disabled) { background: none; }

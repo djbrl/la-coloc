@@ -89,10 +89,10 @@ function said(s: Seat): string {
 }
 button.seat:hover:not(:disabled) { background: none; }
 button.seat:hover .face, button.seat:focus-visible .face { transform: translateY(-2px); }
-.face { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--r-md); transition: transform 0.15s var(--ease); }
+.face { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: var(--r-md); transition: transform 0.15s var(--ease); }
 .you .face { box-shadow: 0 0 0 3px var(--panel-red); }
 /* An empty seat: a dashed square where a face would be. */
-.hole { width: 44px; height: 44px; border-radius: var(--r-md); border: 3px dashed var(--text); }
+.hole { width: 46px; height: 46px; border-radius: var(--r-md); border: 3px dashed var(--text); }
 button.free:hover .hole { border-color: var(--panel-red); }
 .badge {
   position: absolute;

@@ -178,7 +178,7 @@ h2 { margin: 0; font-family: var(--display); }
   .landing { --u: calc(100vw / 1010); height: auto; min-height: 100dvh; overflow: hidden; }
   .top { top: 16px; left: 16px; right: 16px; justify-content: flex-end; gap: 6px; }
   .key { padding: 0 11px; font-size: 15px; }
-  .lang { width: 44px; padding: 0; }
+  .lang { width: 46px; padding: 0; }
   .scene { position: static; width: auto; height: auto; translate: none; display: flex; flex-direction: column; }
   /* The window's crop: the picture is 1440u wide, drawn from x 58, down to just under the sill at y 838. */
   .scene::before { content: ""; order: -1; display: block; height: calc(838 * var(--u)); }

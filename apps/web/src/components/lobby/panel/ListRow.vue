@@ -35,7 +35,7 @@ defineProps<{
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 56px;
+  min-height: 50px;
   padding: 6px 0;
   transition: background-color var(--dur-fast) var(--ease);
 }

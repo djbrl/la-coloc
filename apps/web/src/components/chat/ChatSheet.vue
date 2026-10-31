@@ -106,7 +106,7 @@ onBeforeUnmount(() => document.removeEventListener("visibilitychange", onVisible
 .inner { display: flex; flex-direction: column; gap: 10px; }
 /* The tabs: words on the white, the chosen one on ink. */
 .tabs { flex: none; display: flex; gap: 4px; min-width: 0; }
-.tab { flex: 1 1 auto; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 6px; border-radius: var(--r-sm); background: none; color: var(--text); font: 800 15px/1 var(--font); white-space: nowrap; }
+.tab { flex: 1 1 auto; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 0 6px; border-radius: var(--r-sm); background: none; color: var(--text); font: 800 15px/1 var(--font); white-space: nowrap; }
 .tab:hover:not(:disabled) { background: var(--tile); }
 .tab[aria-selected="true"], .tab[aria-selected="true"]:hover:not(:disabled) { background: var(--text); color: var(--surface); }
 .tab:focus-visible { outline-offset: 1px; }

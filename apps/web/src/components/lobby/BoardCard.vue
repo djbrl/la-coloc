@@ -52,7 +52,7 @@ function line(h: CityHouse): string {
 .pins { list-style: none; margin: 0; padding: 0; display: grid; }
 .pins li + li { border-top: 2px solid var(--row-line); }
 /* Each house: one wide row, its name and counts in one sentence, a red pin when something's late. */
-.pin.big { width: 100%; justify-content: flex-start; gap: 10px; min-height: 56px; padding: 6px 0; border-radius: 0; background: none; box-shadow: none; text-align: left; font: 600 16px/1.2 var(--font); }
+.pin.big { width: 100%; justify-content: flex-start; gap: 10px; min-height: 50px; padding: 6px 0; border-radius: 0; background: none; box-shadow: none; text-align: left; font: 600 16px/1.2 var(--font); }
 .pin .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .pin strong { font-weight: 800; }
 .pin svg { color: var(--muted); }

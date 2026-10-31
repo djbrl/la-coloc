@@ -79,7 +79,7 @@ onMounted(() => input.value?.focus({ preventScroll: true }));
 .search:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
 .search input { flex: 1; min-width: 0; height: 100%; border: 0; padding: 0; background: none; color: var(--text); font: 600 15px/1 var(--num); outline: none; box-shadow: none; }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.row { width: 100%; min-height: 0; height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.row { width: 100%; min-height: 0; height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .row.at { background: var(--fill); box-shadow: inset 2px 0 0 var(--accent); }
 .row:disabled { opacity: 0.6; cursor: default; }
 .name { min-width: 0; display: flex; align-items: baseline; gap: 8px; overflow: hidden; white-space: nowrap; font: 600 14px/1 var(--num); }

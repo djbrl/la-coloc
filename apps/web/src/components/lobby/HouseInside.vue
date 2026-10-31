@@ -817,9 +817,9 @@ function rundownEnded() {
 .lines :deep(.lead) { color: var(--ink); }
 /* More than four rooms, or the bill: lower rows, so the panel still fits without scrolling. */
 .many :deep(.list-row) { min-height: 60px; }
-.many :deep(.avatar) { width: 44px !important; height: 44px !important; }
-.many .door { width: 44px; height: 44px; }
-.bill-lines :deep(.list-row) { min-height: 54px; }
+.many :deep(.avatar) { width: 46px !important; height: 46px !important; }
+.many .door { width: 46px; height: 46px; }
+.bill-lines :deep(.list-row) { min-height: 50px; }
 .paid { flex: none; color: var(--live); }
 .none { padding: 8px 0; }
 /* A free room's door, a dashed square where a face would be, and the sticker beside it. */
@@ -891,7 +891,7 @@ a.go:hover { text-decoration: none; }
 @media (max-width: 560px) {
   /* A phone: the sticker and the button take the free room's row, and a little less room for the faces. */
   .lines :deep(.list-row) { min-height: 64px; }
-  .door { width: 44px; height: 44px; }
+  .door { width: 46px; height: 46px; }
   .free-lead .door { display: none; }
   .part-n { font-size: 44px; }
   .go { font-size: 20px; }

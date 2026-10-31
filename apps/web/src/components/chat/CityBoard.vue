@@ -252,7 +252,7 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
 .head { flex: none; display: flex; align-items: center; gap: 8px; min-height: 46px; }
 .head h3 { flex: 1; min-width: 0; margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grow { flex: 1; }
-.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 34px; height: 34px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 46px; height: 46px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
 .icon-key:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .icon-key.sure { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
 .new { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; font-size: 14px; --lip: 2px; }
@@ -260,7 +260,7 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
 .empty { margin: 0; padding: 8px 2px; }
 .visitor { flex: none; margin: 0; text-align: center; }
 .lines { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 2px; display: grid; gap: 6px; align-content: start; }
-.lines :deep(.list-row) { min-height: 54px; padding: 8px 10px; gap: 10px; }
+.lines :deep(.list-row) { min-height: 50px; padding: 2px 10px; gap: 10px; }
 .lead-tag { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--tile); color: var(--accent); }
 .replies-count { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font: 600 14px/1 var(--num); }
 .open { width: 32px; padding: 0 !important; justify-content: center; background: none; box-shadow: none; color: var(--muted); }

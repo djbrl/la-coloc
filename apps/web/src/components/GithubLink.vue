@@ -24,6 +24,6 @@ defineProps<{ person: Pick<Person, "login" | "github"> }>();
 </template>
 
 <style scoped>
-.gh { flex: none; width: 34px; height: 34px; display: inline-grid; place-items: center; border-radius: var(--r-pill); background: var(--fill); color: var(--text); }
+.gh { flex: none; width: 46px; height: 46px; display: inline-grid; place-items: center; border-radius: var(--r-pill); background: var(--fill); color: var(--text); }
 .gh:hover { background: var(--fill-hover); text-decoration: none; }
 </style>

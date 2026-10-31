@@ -23,8 +23,8 @@ describe("what a house card says", () => {
 
 describe("what a person card says", () => {
   it("says where someone lives, or nothing for a visitor", () => {
-    expect(homeLine("moussa", { houseName: "Sacré-Cœur", city: "Dakar" })).toBe("@moussa · lives in Sacré-Cœur, Dakar");
-    expect(homeLine("moussa", null)).toBeNull();
+    expect(homeLine({ houseName: "Sacré-Cœur", city: "Dakar" })).toBe("Lives in Sacré-Cœur, Dakar");
+    expect(homeLine(null)).toBeNull();
   });
 
   it("finds their room in the house", () => {

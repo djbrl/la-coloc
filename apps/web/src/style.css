@@ -186,7 +186,7 @@ code { font-family: var(--code); font-size: 0.86em; }
 
 /* Lists are rows, and the only lines on a sign run between two of them. */
 .rows { list-style: none; margin: 0; padding: 0; }
-.rows > li { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 0; flex-wrap: wrap; }
+.rows > li { display: flex; align-items: center; gap: 12px; min-height: 50px; padding: 12px 0; flex-wrap: wrap; }
 .rows > li + li { border-top: 2px solid var(--row-line); }
 .rows .end { margin-left: auto; }
 
@@ -228,7 +228,7 @@ button.link, .more {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 44px;
+  min-height: 46px;
   padding: 0;
   background: none;
   color: var(--accent);
@@ -338,7 +338,7 @@ button.toggle[role="switch"][aria-checked] .knob { display: none; }
 
 /* A segmented control: the parts apart, the chosen one on ink. */
 .segmented { display: flex; gap: 3px; }
-.segmented > button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border-radius: var(--r-sm); background: var(--fill); color: var(--text); font-family: var(--font); font-size: 15px; font-weight: 800; }
+.segmented > button { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 10px; border-radius: var(--r-sm); background: var(--fill); color: var(--text); font-family: var(--font); font-size: 15px; font-weight: 800; }
 .segmented > button:hover:not(:disabled) { background: var(--fill-hover); }
 .segmented > button:is(.on, [aria-checked="true"]), .segmented > button:is(.on, [aria-checked="true"]):hover:not(:disabled) { background: var(--text); color: var(--surface); }
 

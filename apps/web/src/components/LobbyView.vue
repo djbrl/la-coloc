@@ -1635,10 +1635,10 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .field input { flex: 1; min-width: 0; min-height: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; font-size: 19px; font-weight: 800; }
 .field input:focus { outline: none; }
 .field input::-webkit-search-cancel-button { display: none; }
-.field .x { flex: none; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); font: 400 20px/1 var(--display); }
+.field .x { flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); font: 400 20px/1 var(--display); }
 .find .entries { flex: 0 1 auto; min-height: 0; list-style: none; margin: 0; padding: 6px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); overflow-y: auto; overscroll-behavior: contain; }
 .find .entries li + li { border-top: 2px solid var(--row-line); }
-.find .entry { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; cursor: pointer; }
+.find .entry { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; cursor: pointer; }
 .find .entry:hover:not(:disabled) { background: var(--tile); }
 .find .entry:focus-visible { outline: none; background: var(--accent-soft); }
 .find .mark { flex: none; color: var(--panel-red); }
@@ -1653,7 +1653,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 /* The rows: lines between them, each one whole button, lit under the pointer and when it holds the focus. */
 .sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 0 6px; display: grid; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
 .sheet .entries li + li { border-top: 2px solid var(--row-line); }
-.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 16px/1.2 var(--font); text-align: left; cursor: pointer; }
+.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 50px; padding: 6px 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 16px/1.2 var(--font); text-align: left; cursor: pointer; }
 .sheet .entry:hover:not(:disabled) { background: var(--tile); }
 .sheet .entry:focus-visible { outline: none; background: var(--accent-soft); }
 .sheet .entry:active { transform: translateY(1px); }
@@ -1696,9 +1696,9 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 }
 @media (max-width: 520px) {
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
-  .find-key { top: calc(12px + var(--core-offset, 0px)); left: 12px; width: 44px; height: 44px; box-shadow: inset 0 0 0 3px var(--panel-red), 0 3px 0 rgba(20, 12, 18, 0.45); }
+  .find-key { top: calc(12px + var(--core-offset, 0px)); left: 12px; width: 46px; height: 46px; box-shadow: inset 0 0 0 3px var(--panel-red), 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
-  .place { top: calc(12px + var(--core-offset, 0px)); right: calc(12px + var(--keys-width, 0px) + 6px); height: 44px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
+  .place { top: calc(12px + var(--core-offset, 0px)); right: calc(12px + var(--keys-width, 0px) + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
   .place svg { display: none; }
   .place .city { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
   .prompt { gap: 10px; padding-left: 14px; font-size: 15px; max-width: 100%; }
@@ -1710,7 +1710,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .centre:not(.lifted) { left: 12px; bottom: max(28px, env(safe-area-inset-bottom)); transform: none; align-items: flex-start; max-width: calc(100vw - 180px); }
   /* The tools stand in a column down the right, under the keys, in the thumb's way of nothing. */
   .tools { top: calc(68px + var(--core-offset, 0px)); right: 12px; bottom: auto; flex-direction: column; gap: 6px; }
-  .tools button { width: 44px; height: 44px; box-shadow: 0 3px 0 var(--accent-lip); }
+  .tools button { width: 46px; height: 46px; box-shadow: 0 3px 0 var(--accent-lip); }
   /* One line: the city's name is already top right, and anything longer ends in "…". */
   .top { top: calc(68px + var(--core-offset, 0px)); left: 12px; right: 64px; transform: none; max-width: none; padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top p { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }

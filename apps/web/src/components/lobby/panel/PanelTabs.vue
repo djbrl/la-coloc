@@ -71,7 +71,7 @@ function onKey(e: KeyboardEvent, i: number) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 44px;
+  min-height: 46px;
   padding: 0 6px;
   border-radius: var(--r-sm);
   background: none;

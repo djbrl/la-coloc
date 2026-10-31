@@ -36,13 +36,13 @@ const quick = computed((): { key: string; does: string; icon: IconName }[] => [
 /* A game's button hints along the bottom: white key caps, 48px, with a lip; the key for what's in reach in yellow. */
 .legend { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; white-space: nowrap; }
 .walk { display: flex; gap: 5px; margin-right: 8px; }
-kbd { min-width: 48px; height: 48px; padding: 0 8px; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 800 19px/1 var(--font); }
-.item { display: inline-flex; align-items: center; height: 48px; padding: 0 12px 0 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 800 16px/1 var(--font); }
+kbd { min-width: 46px; height: 46px; padding: 0 8px; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 800 19px/1 var(--font); }
+.item { display: inline-flex; align-items: center; height: 46px; padding: 0 12px 0 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 800 16px/1 var(--font); }
 .item kbd { background: none; box-shadow: none; }
 .use kbd { border-radius: var(--r-md) 0 0 var(--r-md); background: var(--sticker); margin-right: 8px; }
-.keys { min-height: 48px; cursor: pointer; }
+.keys { min-height: 46px; cursor: pointer; }
 .keys:hover:not(:disabled) { background: var(--tile); }
-.hide, .peek { display: grid; place-items: center; width: 48px; height: 48px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 400 18px/1 var(--display); cursor: pointer; }
+.hide, .peek { display: grid; place-items: center; width: 46px; height: 46px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 400 18px/1 var(--display); cursor: pointer; }
 .hide { width: 36px; }
 .hide:hover:not(:disabled), .peek:hover:not(:disabled) { background: var(--tile); }
 /* Not enough width for everything: the walking keys go first, then the icons. */

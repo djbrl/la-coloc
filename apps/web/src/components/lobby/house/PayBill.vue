@@ -107,11 +107,11 @@ h3 { font-size: 24px; outline: none; }
 .ops button { min-height: 46px; padding: 0 14px; background: none; box-shadow: none; color: var(--text); font: 800 17px/1 var(--font); }
 .ops button:hover:not(:disabled) { background: var(--tile); }
 .ops button[aria-checked="true"], .ops button[aria-checked="true"]:hover:not(:disabled) { background: var(--text); color: var(--surface); }
-.how { font-size: 17px; line-height: 2; }
+.how { font-size: 17px; line-height: 46px; }
 /* The amount and the reference: bold, on a chip you can copy from. */
 .value { font: 800 1em var(--num); white-space: nowrap; padding: 2px 6px; border-radius: var(--r-xs); background: var(--fill); }
 .mono { font-family: var(--code); font-size: 14px; overflow-wrap: anywhere; white-space: normal; }
-.copy { display: inline-grid; place-items: center; width: 30px; min-height: 30px; height: 30px; padding: 0; margin: 0 2px; vertical-align: middle; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
+.copy { display: inline-grid; place-items: center; width: 46px; min-height: 46px; height: 46px; padding: 0; margin: 0 2px; vertical-align: middle; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
 .copy:hover:not(:disabled) { background: var(--tile); }
 .mock { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.3; color: var(--muted); }
 .mock :deep(svg) { flex: none; margin-top: 1px; }
