@@ -106,17 +106,17 @@ const nowSaid = computed(() => w.stageOf(reached.value + 1, STAGES.length, w.sta
 <style scoped>
 .launch { display: grid; gap: 10px; }
 .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.title { margin: 0; font: 800 22px/1.15 var(--display); letter-spacing: -0.02em; }
+.title { margin: 0; font: 800 22px/1.15 var(--display); }
 .live .title { color: var(--live); }
-.clock { font: 500 13px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.clock { font: 600 14px/1 var(--num); color: var(--muted); font-variant-numeric: tabular-nums; }
 .track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
 .stage { display: grid; justify-items: center; gap: 6px; text-align: center; min-width: 0; }
 .dot { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--line-strong); color: var(--on-accent); }
-.word { font-size: 13px; line-height: 1.2; color: var(--muted); }
+.word { font-size: 14px; line-height: 1.2; color: var(--muted); }
 .done .dot { background: var(--accent-fill); box-shadow: 0 2px 0 var(--accent-lip); }
 .done .word { color: var(--text); }
 .live .done .dot { background: var(--live); box-shadow: none; color: var(--surface); }
-/* The stage running now: the ring breathes in the orange. */
+/* The stage running now: the ring breathes in the red. */
 .now .dot { box-shadow: inset 0 0 0 2px var(--accent-fill); animation: breathe 1.2s var(--ease) infinite; }
 .now .word { color: var(--text); font-weight: 600; }
 .stuck .dot { box-shadow: inset 0 0 0 2px var(--danger); background: var(--danger-soft); }
@@ -124,8 +124,8 @@ const nowSaid = computed(() => w.stageOf(reached.value + 1, STAGES.length, w.sta
 @keyframes breathe {
   50% { box-shadow: inset 0 0 0 2px var(--accent-fill), 0 0 0 6px var(--focus); }
 }
-/* The bar: a sunken track, filled in the orange, striped while it runs, green once live. */
-.bar { height: 8px; border-radius: 4px; background: var(--fill); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
+/* The bar: a sunken track, filled in the red, striped while it runs, green once live. */
+.bar { height: 8px; border-radius: 4px; background: var(--fill); overflow: hidden; }
 .bar span { display: block; height: 100%; border-radius: 4px; background: repeating-linear-gradient(-45deg, var(--accent-fill) 0 8px, var(--accent-fill-hover) 8px 16px); background-size: 22px 22px; transition: width 600ms var(--ease); animation: run 0.8s linear infinite; }
 .live .bar span { background: var(--live); animation: none; }
 .failed .bar span { background: var(--danger); animation: none; }
@@ -134,13 +134,13 @@ const nowSaid = computed(() => w.stageOf(reached.value + 1, STAGES.length, w.sta
 }
 .sub { margin: 0; font-size: 14px; color: var(--muted); }
 .why { margin: 0; font-size: 15px; color: var(--danger); }
-.log { margin: 0; padding: 8px 10px; border-radius: var(--r-sm); background: var(--code-bg); color: var(--code-text); font: 500 12px/1.4 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 4.4em; overflow: hidden; }
+.log { margin: 0; padding: 8px 10px; border-radius: var(--r-sm); background: var(--code-bg); color: var(--code-text); font: 600 14px/1.4 var(--num); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 4.4em; overflow: hidden; }
 .nav { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.quiet { min-height: 40px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 14px; font-weight: 600; margin-right: auto; }
+.quiet { min-height: 46px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 14px; font-weight: 600; margin-right: auto; }
 .quiet:hover:not(:disabled) { background: var(--tile); color: var(--text); }
-.go { min-height: 44px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; }
+.go { min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; }
 @media (max-width: 520px) {
-  .word { font-size: 12px; }
+  .word { font-size: 14px; }
   .title { font-size: 19px; }
 }
 @media (prefers-reduced-motion: reduce) {

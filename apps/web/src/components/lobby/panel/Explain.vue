@@ -36,7 +36,7 @@ const id = `explain-${useId()}`;
 <style scoped>
 .explain { display: grid; gap: 6px; min-width: 0; }
 /* The sentence about you: body text, a size under a row's title, so the rows stay the heart of the panel. */
-.summary { font-size: 14px; line-height: 1.35; color: var(--text); }
+.summary { font-size: 15px; line-height: 1.3; color: var(--text); }
 .summary > span { margin-right: 6px; }
 /* The "?": a small round key at the end of the sentence, like a game's hint button. */
 .ask {
@@ -48,21 +48,19 @@ const id = `explain-${useId()}`;
   padding: 0;
   vertical-align: -5px;
   border-radius: 50%;
-  background: var(--fill);
-  color: var(--muted);
-  font: 700 13px/1 var(--font);
+  background: var(--text);
+  color: var(--surface);
+  font: 800 13px/1 var(--font);
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 /* A finger needs more than 22px: the press area reaches 8px past the circle, invisibly. */
 .ask { position: relative; }
 .ask::after { content: ""; position: absolute; inset: -8px; }
-.ask:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
-.ask[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
-/* The explanation: muted, a touch smaller, with the accent's line down its left edge to tie it to the "?". */
+.ask:hover:not(:disabled) { background: var(--muted); color: var(--surface); }
+.ask[aria-expanded="true"] { background: var(--accent-fill); color: var(--on-accent); }
+/* The explanation: muted, a touch smaller, under the "?". */
 .why {
-  padding-left: 10px;
-  border-left: 2px solid var(--accent-fill);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
   color: var(--muted);
   animation: unfold var(--dur) var(--ease);

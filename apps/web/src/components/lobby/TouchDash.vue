@@ -94,13 +94,13 @@ const AROUND = 2 * Math.PI * RADIUS;
 </template>
 
 <style scoped>
-/* Sits on the lobby itself (position: relative), in the right column: under the round tools, above the minimap,
-   which is 130px tall on a phone and 170px elsewhere, standing 28px off the bottom (12px and 16px off the right). */
+/* Sits on the lobby itself (position: relative), in the right thumb's reach: over the tools in the corner, or on a
+   phone over the minimap, which is 130px tall there, standing 28px off the bottom and 12px off the right. */
 .touch-dash {
   position: absolute;
   z-index: 10;
-  right: 16px;
-  bottom: calc(max(28px, env(safe-area-inset-bottom)) + 170px + 16px);
+  right: 24px;
+  bottom: calc(max(28px, env(safe-area-inset-bottom)) + 50px + 16px);
   width: 64px;
   height: 64px;
   min-height: 0;
@@ -109,10 +109,10 @@ const AROUND = 2 * Math.PI * RADIUS;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--surface);
-  color: var(--accent);
+  background: var(--panel-red);
+  color: var(--on-panel);
   /* A game pad's button: round, with a lip that sinks when pressed. */
-  box-shadow: var(--lift), 0 3px 0 var(--line-strong);
+  box-shadow: 0 5px 0 var(--accent-lip);
   cursor: pointer;
   touch-action: manipulation;
   user-select: none;
@@ -126,15 +126,15 @@ const AROUND = 2 * Math.PI * RADIUS;
 }
 .touch-dash > svg { grid-area: 1 / 1; }
 /* Pushed in: it moves down by what its lip loses. */
-.touch-dash:active { transform: translateY(2px); box-shadow: var(--lift), 0 1px 0 var(--line-strong); }
-.touch-dash.cooling { color: var(--muted); }
-.touch-dash:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.touch-dash:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
+.touch-dash.cooling { opacity: 0.7; }
+.touch-dash:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 
 /* The ring starts at the top and fills clockwise over the wait. */
 .ring { transform: rotate(-90deg); pointer-events: none; }
 .fill {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--sticker);
   stroke-width: 4;
   stroke-linecap: round;
   stroke-dashoffset: 0;

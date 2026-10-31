@@ -73,13 +73,10 @@ function open(place: Place) {
   align-content: start;
 }
 .top { display: flex; }
-.chunk { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 12px; font-size: 15px; font-weight: 600; }
-/* The panel's own top padding assumes the lobby sheet's bar above it. */
-.panel { padding-top: 22px; }
+.chunk { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 16px 0 12px; font-size: 15px; font-weight: 600; }
 /* On a page the channel grows with its messages up to a height, then they scroll inside it and the send box stays in view. */
 .panel :deep(.chat-host) { max-height: min(64vh, 560px); flex: none; }
 @media (max-width: 480px) {
   .house-page { padding-top: 12px; gap: 14px; }
-  .panel { padding-top: 14px; }
 }
 </style>

@@ -99,7 +99,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 <template>
   <!-- No eyebrow over the step (the tracker at the top already shows the chapter): it's in the box's hidden name. -->
   <div class="coach" :class="[`at-${step}`]" role="dialog" :aria-label="label" @keydown="onKey">
-    <button type="button" class="x" :aria-label="w.skip" @click="emit('stop')"><QuestIcon name="close" :size="16" /></button>
+    <button type="button" class="x" :aria-label="w.skip" @click="emit('stop')"><span aria-hidden="true">X</span></button>
 
     <div class="body" aria-live="polite">
       <template v-if="waiting && needsApi && !live">
@@ -264,20 +264,20 @@ onBeforeUnmount(() => clearTimeout(timer));
 }
 /* The close key sits in the corner; the step's first line leaves room for it. */
 .coach { position: relative; padding-top: 14px; }
-.body > :first-child { padding-right: 30px; }
-.x { position: absolute; top: 8px; right: 8px; flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); }
+.body > :first-child { padding-right: 46px; }
+.x { position: absolute; top: 6px; right: 6px; flex: none; width: 44px; height: 44px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); font: 400 18px/1 var(--display); }
 .x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .body { display: grid; gap: 6px; }
-.text { margin: 0; font: 700 19px/1.3 var(--display); letter-spacing: -0.015em; }
+.text { margin: 0; font: 700 19px/1.3 var(--display); }
 .sub { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
 .line { margin: 0; font-size: 16px; line-height: 1.45; }
 .error { color: var(--danger); }
 /* Your address, big, in the monospace: the thing to remember. A long one wraps rather than push the card wider. */
-.url { margin: 4px 0; padding: 10px 12px; border-radius: var(--r-md); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); font: 600 20px/1.25 var(--mono); color: var(--accent); overflow-wrap: anywhere; }
+.url { margin: 4px 0; padding: 10px 12px; border-radius: var(--r-md); background: var(--tile); font: 600 20px/1.25 var(--num); color: var(--accent); overflow-wrap: anywhere; }
 /* The keys of the step, as big raised caps. */
 .caps { margin: 4px 0 0; display: flex; gap: 6px; }
 .caps kbd { min-width: 36px; height: 36px; padding: 0 8px; border-radius: var(--r-sm); border-bottom-width: 3px; font-size: 14px; }
-/* Chapter 4's two ways in: big tiles, the ready-made page first and in the orange. */
+/* Chapter 4's two ways in: big tiles, the ready-made page first and in the red. */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
 .tile { display: flex; align-items: flex-start; gap: 10px; min-height: 0; padding: 12px; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); text-align: left; font: inherit; line-height: 1.3; text-decoration: none; cursor: pointer; }
 .tile:hover:not(:disabled):not(.off) { background: var(--tile); text-decoration: none; }
@@ -289,7 +289,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 .main .tile-icon { background: var(--accent-fill); color: var(--on-accent); }
 .tile-text { display: grid; gap: 3px; min-width: 0; }
 .tile-title { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 15px; }
-.tile-sub { font-size: 13px; color: var(--muted); }
+.tile-sub { font-size: 14px; color: var(--muted); }
 /* Waiting on GitHub: three dots that take turns. */
 .dots { display: flex; gap: 6px; margin-top: 2px; }
 .dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-fill); animation: dot 1.2s var(--ease) infinite; }
@@ -305,14 +305,14 @@ onBeforeUnmount(() => clearTimeout(timer));
 .nav { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .nav:empty { display: none; }
 .nav > .quiet:first-child { margin-right: auto; }
-.count { margin-right: auto; font: 500 13px/1 var(--mono); color: var(--muted); }
-.quiet { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 14px; font-weight: 600; }
+.count { margin-right: auto; font: 600 14px/1 var(--num); color: var(--muted); }
+.quiet { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 14px; font-weight: 600; }
 .quiet:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
 .quiet:active:not(:disabled) { transform: translateY(1px); }
-.go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; }
-.go.wide { flex: 1 1 auto; min-height: 52px; font-size: 19px; }
+.go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; }
+.go.wide { flex: 1 1 auto; min-height: 60px; font-size: 19px; }
 a.go:hover { text-decoration: none; }
-button:focus-visible, a:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .coach, .dots span { animation: none; }
   .quiet:active:not(:disabled), .tile:active { transform: none; }

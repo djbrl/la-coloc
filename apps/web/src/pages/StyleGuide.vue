@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // The style guide: every shared piece of the interface, in day and in night side by side, with made-up data so it
 // needs no API. Only in development builds (main.ts adds the /styleguide route only when import.meta.env.DEV), so
-// the words here are for the team and are not translated. Each half sits in a "tone-day" or "tone-night" box,
-// which sets that theme's tokens (style.css) whatever the page's own theme is.
+// the words here are for the team and are not translated. The page sits in a "tone-day" box (the site has one look),
+// which sets the tokens (style.css).
 import { reactive, ref } from "vue";
 import HouseCard from "../components/lobby/HouseCard.vue";
 import Icon from "../components/lobby/house/Icon.vue";
@@ -23,7 +23,7 @@ import Avatar from "../components/Avatar.vue";
 import LoadingScreen from "../components/LoadingScreen.vue";
 import type { CityHouse, Person } from "../types";
 
-const tones = ["day", "night"] as const;
+const tones = ["day"] as const;
 
 const swatches = [
   "--bg", "--surface", "--tile", "--fill", "--fill-hover", "--line", "--line-strong", "--text", "--muted",
@@ -38,7 +38,7 @@ const states: State[] = [
   { tone: "neutral", word: "Off" },
 ];
 
-// One switch state per theme, so flipping one shows the motion without the other moving.
+// One switch state per column.
 const switches = reactive({ day: [true, false], night: [true, false] });
 const segments = reactive({ day: "day", night: "night" });
 const tab = reactive({ day: "rooms", night: "rooms" });
@@ -106,7 +106,7 @@ const pressed = ref("");
     </header>
 
     <div class="halves">
-      <section v-for="t in tones" :key="t" :class="`tone-${t} half`" :aria-label="`${t} theme`">
+      <section v-for="t in tones" :key="t" :class="`tone-${t} half`" :aria-label="t">
         <p class="tone-name mono">{{ t === "day" ? "/ day" : "/ night" }}</p>
 
         <h2 class="sec">Type</h2>
@@ -243,28 +243,28 @@ const pressed = ref("");
 .sec { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 22px; }
 .stack { display: grid; gap: 10px; justify-items: start; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
-.d1 { font: 800 44px/1 var(--display); letter-spacing: -0.035em; }
-.d2 { font: 700 24px/1.1 var(--display); letter-spacing: -0.02em; }
+.d1 { font: 800 44px/1 var(--display); }
+.d2 { font: 700 24px/1.1 var(--display); }
 .said { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
 .swatches { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
-.swatches li { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
-.chip { flex: none; width: 28px; height: 28px; border-radius: var(--r-sm); box-shadow: inset 0 0 0 1px var(--hairline); }
+.swatches li { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.chip { flex: none; width: 28px; height: 28px; border-radius: var(--r-sm); }
 .meters { display: grid; gap: 10px; max-width: 280px; }
 .toast { justify-self: start; }
 /* A patch of the lobby's evening sky, for the flags. */
 .scene { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 22px 18px 26px; border-radius: var(--r-lg); background: linear-gradient(180deg, #2a2148 0%, #4b3a74 45%, #8a6aa0 100%); }
 .scene .lobby-label { position: relative; }
 .icons { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); }
-.icons li { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); box-shadow: inset 0 0 0 1px var(--line); }
+.icons li { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); }
 /* The panel at the size the lobby's sheet gives it. */
 .panel-box { height: 600px; max-width: 600px; display: flex; flex-direction: column; padding-top: 14px; border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
 .panel-box > :deep(.panel-shape) { flex: 1 1 auto; }
 .plain { list-style: none; margin: 0; padding: 0; }
 .lines { display: grid; gap: 4px; line-height: 1.3; }
 .door { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--border); color: var(--free); }
-.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; font-size: 17px; }
+.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; font-size: 17px; }
 /* Full-screen pieces, shown in a box of their own. */
-.stage { position: relative; overflow: hidden; border-radius: var(--r-lg); box-shadow: inset 0 0 0 1px var(--line); background: linear-gradient(180deg, #2a2148 0%, #4b3a74 45%, #8a6aa0 100%); }
+.stage { position: relative; overflow: hidden; border-radius: var(--r-lg); background: linear-gradient(180deg, #2a2148 0%, #4b3a74 45%, #8a6aa0 100%); }
 .welcome-box { height: 440px; }
 .loading-box { height: 420px; }
 </style>

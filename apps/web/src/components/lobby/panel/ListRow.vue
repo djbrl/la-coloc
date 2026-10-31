@@ -8,9 +8,9 @@
 defineProps<{
   title: string;
   sub?: string | null;
-  // The viewer's own row: a light orange wash.
+  // The viewer's own row: a soft fill.
   mine?: boolean;
-  // A free room, an empty seat: drawn as an outline, no fill.
+  // A free room, an empty seat.
   open?: boolean;
   // Lit for a moment (picked from the crew above it, say).
   lit?: boolean;
@@ -30,41 +30,32 @@ defineProps<{
 </template>
 
 <style scoped>
-/* A dashboard's row: the surface with a 1px edge, dense. */
+/* A row on the white, with a line between it and the next: no box. */
 .list-row {
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 56px;
-  padding: 8px 12px;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
-  transition: box-shadow var(--dur) var(--ease), background-color var(--dur-fast) var(--ease);
+  padding: 6px 0;
+  transition: background-color var(--dur-fast) var(--ease);
 }
-/* A free room, an empty seat: a dashed outline, nothing inside. */
-.list-row.open { background: none; box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+.list-row + .list-row { border-top: 2px solid var(--row-line); }
 /* Rows behave like a game menu's entries: the whole row lights under the pointer, and the one holding the keyboard
-   focus is the selected entry, filled with the soft orange (a fill, never an outline or a stripe). */
-.list-row:hover { background: var(--tile); }
-.list-row:focus-within { background: var(--accent-soft); outline: none; }
-/* Yours: a lighter wash of the same orange, like a pinned entry. */
-.list-row.mine { background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface)); }
-.list-row.mine:focus-within { background: var(--accent-soft); }
-/* Lit for a moment (picked from the crew above it): the selected fill, a shade stronger. */
-.list-row.lit { background: color-mix(in srgb, var(--accent-fill) 22%, var(--surface)); }
-.lead { flex: none; width: 40px; display: grid; place-items: center; color: var(--muted); }
+   focus is the selected entry (a fill, never an outline or a stripe). */
+.list-row:hover { background: var(--tile); box-shadow: -6px 0 0 var(--tile), 6px 0 0 var(--tile); }
+.list-row:focus-within { background: var(--accent-soft); box-shadow: -6px 0 0 var(--accent-soft), 6px 0 0 var(--accent-soft); outline: none; }
+/* Yours, and a row lit for a moment (picked from the crew above it): the same soft fill. */
+.list-row.mine, .list-row.lit { background: var(--accent-soft); box-shadow: -6px 0 0 var(--accent-soft), 6px 0 0 var(--accent-soft); }
+.lead { flex: none; min-width: 40px; display: grid; place-items: center; color: var(--panel, var(--muted)); }
 .lead:empty { display: none; }
 .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
-.title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sub, .text :deep(.sub) { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Numbers and times on the right, in the monospace, as a dashboard lines them up. */
-.meta { flex: none; display: flex; align-items: center; gap: 10px; color: var(--muted); font: 500 12px/1.2 var(--mono); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.title { font-size: 18px; font-weight: 800; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub, .text :deep(.sub) { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* What's on the right: words and numbers that line up. */
+.meta { flex: none; display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 14px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .end { flex: none; display: flex; align-items: center; gap: 8px; }
-/* Buttons in a row are small pills. */
-.end :deep(button), .end :deep(a.button) { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; font-weight: 600; }
-/* A row's main button keeps a shorter lip, to its size. */
-.end :deep(:is(button, a.button).primary) { --lip: 2px; }
+/* A row's buttons are one size: 46. A ghost unless a component says it's the row's main action. */
+.end :deep(button:not(.toggle)), .end :deep(a.button) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 0 14px; border-radius: var(--r-sm); font-size: 18px; }
 @media (max-width: 480px) {
   .meta { display: none; }
 }

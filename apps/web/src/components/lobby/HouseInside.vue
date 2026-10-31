@@ -30,10 +30,12 @@ import Rundown from "./house/Rundown.vue";
 import { evenSplit, fcfa, type ServerInfo } from "./house/server";
 import { linkedHouse, markTourSeen, toursSeen } from "./house/tours";
 import { houseWords as w } from "./house/words";
+import FreeSticker from "./FreeSticker.vue";
 import ListRow from "./panel/ListRow.vue";
 import Panel from "./panel/Panel.vue";
 import PanelHead from "./panel/PanelHead.vue";
 import PanelTabs, { type Tab } from "./panel/PanelTabs.vue";
+import StatusPill from "./panel/StatusPill.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { explain, houseState, houseTrouble, roomLine, roomState } from "./panel/words";
 import type { Place } from "./place";
@@ -396,13 +398,11 @@ async function takeRoom() {
 // "An example project."). A free room says its size there, in the sentence.
 // A team's room names its people together, occupant first: "Awa + Moussa · Ndaje".
 function rowTitle(room: Room): string {
-  if (!room.occupant) return w.freeRoom;
-  const who = teamNames(room.occupant, room.team);
-  return room.project ? `${who} · ${room.project}` : who;
+  return room.occupant ? teamNames(room.occupant, room.team) : w.freeRow(room.limits.memoryMb);
 }
 function rowSub(room: Room): string {
   const h = house.value!;
-  if (!room.occupant) return `${w.freeRow(room.limits.memoryMb)} ${seeded(room.ad) ?? w.knockToAsk}`;
+  if (!room.occupant) return seeded(room.ad) ?? w.knockToAsk;
   const what = seeded(room.projectDescription) ?? (room.project ? w.noDescription : w.noProject);
   return roomState(room, h.status, h.demo).tone === "live" ? what : `${roomLine(room, h.status, h.demo)} ${what}`;
 }
@@ -583,11 +583,11 @@ function rundownEnded() {
       </template>
 
       <!-- Rooms: one row each, with who lives there, what they build, and whether it's online. -->
-      <ul v-if="shownTab === 'rooms'" ref="list" class="plain lines" data-tour="rooms">
+      <ul v-if="shownTab === 'rooms'" ref="list" class="plain lines" :class="{ many: house.rooms.length > 4 }" data-tour="rooms">
         <ListRow v-if="takeRow" :title="w.roomForYou" open>
           <span v-if="takeError" class="sub warn" role="alert">{{ takeError }}</span>
           <span v-else class="sub">{{ explain.room(256, 0.5) }}</span>
-          <template #lead><span class="door"><Icon name="plus" :size="20" /></span></template>
+          <template #lead><span class="door"><Icon name="plus" :size="28" /></span></template>
           <template v-if="!coached" #end>
             <button type="button" class="primary" :disabled="taking" @click="takeRoom"><Icon name="door" :size="16" />{{ w.takeIt }}</button>
           </template>
@@ -597,22 +597,28 @@ function rundownEnded() {
           :key="room.name"
           :data-room="room.name"
           :title="rowTitle(room)"
-          :sub="rowSub(room)"
           :mine="viewer?.room === room.name"
           :open="!room.occupant"
           :lit="lit.includes(room.name)"
         >
+          <!-- Their @handle, and what the project does (or the free room's size and the ad). -->
+          <span class="sub"><span v-if="room.occupant" class="handle">@{{ room.occupant.login }}</span> {{ rowSub(room) }}</span>
+          <!-- What they build, and the room's state only when it needs attention: the dot on the face says it's fine. -->
+          <template v-if="room.occupant" #meta>
+            <span v-if="room.project" class="project">{{ room.project }}</span>
+            <StatusPill v-if="['warn', 'danger'].includes(roomState(room, house.status, house.demo).tone)" :state="roomState(room, house.status, house.demo)" />
+          </template>
           <template #lead>
-            <!-- The room's state as a dot on the face; the row's line says it in words. -->
+            <!-- The room's state as a dot on the face. A free room: its open door and the yellow sticker. -->
             <span v-if="room.occupant" class="face">
-              <Avatar :person="room.occupant" :size="40" decorative />
+              <Avatar :person="room.occupant" :size="56" decorative />
               <!-- Teammates on its project: their small faces on the lower left, the first two. -->
               <span v-if="room.team?.length" class="mates" aria-hidden="true">
-                <Avatar v-for="p in room.team.slice(0, 2)" :key="p.login" :person="p" :size="20" decorative />
+                <Avatar v-for="p in room.team.slice(0, 2)" :key="p.login" :person="p" :size="24" decorative />
               </span>
               <StatusDot class="on-face" :state="roomState(room, house.status, house.demo)" />
             </span>
-            <span v-else class="door"><Icon name="door" :size="20" /></span>
+            <span v-else class="free-lead"><span class="door"><Icon name="door" :size="28" /></span><FreeSticker :n="1" /></span>
           </template>
           <template v-if="actionOf(room)" #end>
             <button
@@ -662,8 +668,8 @@ function rundownEnded() {
               <span class="when" :class="{ late: c.late }">{{ dueWords(dueOf(c)) }}</span> · {{ c.repo }}#{{ c.prNumber }}
             </span>
             <template #lead>
-              <Avatar v-if="c.author" :person="c.author" :size="40" decorative />
-              <span v-else class="door"><Icon name="check" :size="20" /></span>
+              <Avatar v-if="c.author" :person="c.author" :size="56" decorative />
+              <span v-else class="door"><Icon name="check" :size="28" /></span>
             </template>
             <template #end>
               <a :href="c.prUrl" class="button" target="_blank" rel="noopener" :aria-label="w.reviewName(`${c.repo}#${c.prNumber}`)">
@@ -687,7 +693,7 @@ function rundownEnded() {
             <span class="sub">
               <span class="when" :class="{ late: c.late }">{{ dueWords(dueOf(c)) }}</span> · {{ c.repo }}#{{ c.prNumber }}
             </span>
-            <template #lead><Avatar :person="c.assignee" :size="40" decorative /></template>
+            <template #lead><Avatar :person="c.assignee" :size="56" decorative /></template>
           </ListRow>
         </ul>
       </template>
@@ -706,12 +712,16 @@ function rundownEnded() {
           @paid="paid"
           @back="paying = false"
         />
-        <!-- The month's bill: a line per flatmate, yours first, in two sentences each. The total is the tab's
-             summary sentence, above (Panel). -->
+        <!-- The month's bill: a line per flatmate, yours first: who, what their reviews took off, what they owe (the
+             sentence for it on hover and for a screen reader), and a tick once paid. Then your part, big. The whole
+             bill is the tab's summary, above (Panel). -->
         <template v-else-if="bill">
-          <ul class="plain lines">
-            <ListRow v-for="l in billLines" :key="l.login" :title="lineWords(l, me).reviews" :mine="l.login === me">
-              <span class="sub">{{ lineWords(l, me).owes }}</span>
+          <ul class="plain lines bill-lines">
+            <ListRow v-for="l in billLines" :key="l.login" :title="nameOf(personOf(l))" :sub="lineWords(l, me).reviews" :mine="l.login === me">
+              <template #meta>
+                <span class="amount" :title="lineWords(l, me).owes" :class="{ due: !l.paid && l.due > 0 }">{{ fcfa(l.due) }}<span class="sr-only">. {{ lineWords(l, me).owes }}</span></span>
+                <Icon v-if="l.paid" name="tick" :size="26" class="paid" />
+              </template>
               <template #lead>
                 <span class="face">
                   <Avatar :person="personOf(l)" :size="40" decorative />
@@ -720,6 +730,10 @@ function rundownEnded() {
               </template>
             </ListRow>
           </ul>
+          <p v-if="myDue" class="your-part">
+            <span class="part-word">{{ w.yourPart }}</span>
+            <span class="part-sum"><span class="part-n">{{ fcfa(myDue.due).replace(/\s*FCFA$/, "") }}</span> FCFA</span>
+          </p>
         </template>
         <!-- An API without the bill yet: the month's cost split evenly, as an estimate (its total is the summary). -->
         <template v-else-if="house.monthlyCostFcfa && share">
@@ -730,7 +744,7 @@ function rundownEnded() {
               :title="viewer?.room === r.name ? w.yourShare(fcfa(share)) : w.theirShare(nameOf(r.occupant!).split(' ')[0], fcfa(share))"
               :mine="viewer?.room === r.name"
             >
-              <template #lead><Avatar :person="r.occupant!" :size="40" decorative /></template>
+              <template #lead><Avatar :person="r.occupant!" :size="56" decorative /></template>
             </ListRow>
           </ul>
         </template>
@@ -778,54 +792,69 @@ function rundownEnded() {
 .empty { padding: 24px var(--gutter); display: grid; gap: 8px; }
 .head { display: grid; gap: 8px; min-width: 0; }
 
-/* The chef's invite in the head: a chunky pill with an icon, like a game's menu buttons. */
-.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--quiet-edge); font-size: 14px; font-weight: 600; }
-.chip:hover:not(:disabled) { background: var(--tile); }
+/* The chef's invite on the band: a white key with an icon, the ones PanelHead sizes. */
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; }
 .chip:active:not(:disabled) { transform: translateY(1px); }
-/* The review rule's switch, at the end of its sentence: a small key, orange while strict. */
-.rule { display: inline-grid; place-items: center; width: 24px; height: 24px; min-height: 0; padding: 0; margin-left: 4px; vertical-align: middle; border-radius: var(--r-xs); background: var(--surface); color: var(--muted); box-shadow: var(--quiet-edge); }
-.rule:hover:not(:disabled) { background: var(--tile); color: var(--text); }
-.rule[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-fill); }
-/* The exchange under the faces: two quiet sentences, each at most two lines. */
-.life { display: grid; gap: 4px; font-size: 13px; line-height: 1.35; color: var(--muted); }
+/* The review rule's switch, at the end of its sentence: a small key, yellow while strict. */
+.rule { display: inline-grid; place-items: center; width: 26px; height: 26px; min-height: 0; padding: 0; margin-left: 4px; vertical-align: middle; border-radius: var(--r-xs); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
+.rule:hover:not(:disabled) { background: var(--tile); }
+.rule[aria-pressed="true"] { background: var(--sticker); color: var(--ink); box-shadow: none; }
+/* The exchange under the faces: two sentences, each at most two lines. */
+.life { display: grid; gap: 4px; font-size: 14px; line-height: 1.25; color: var(--muted); }
 .life p { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tontine { color: var(--text); }
-/* The tontine's line shows its faces' glow whole, so it doesn't clip like the other line. */
+/* The tontine's line keeps its ring whole, so it doesn't clip like the other line. */
 .life p.tontine { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; overflow: visible; padding-left: 3px; }
-/* The tontine's faces in turn order: whose turn it is, lit in warm light, then the next ones, smaller. */
+/* The tontine's faces in turn order: whose turn it is, ringed in yellow, then the next ones, smaller. */
 .turn-said { flex: 1 1 220px; min-width: 0; }
 .turns { flex: none; display: inline-flex; align-items: center; gap: 4px; }
 .turns > :not(.now) { opacity: 0.75; }
-.turns > .now { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn), 0 0 12px 3px var(--warn-soft); margin: 0 4px 0 3px; }
+.turns > .now { box-shadow: 0 0 0 3px var(--sticker); margin: 0 4px 0 3px; }
 
 .plain { list-style: none; margin: 0; padding: 0; }
-/* A tighter line height than the page's, so a row stays at the row's 60px and six of them fit with the head. */
-.lines { display: grid; gap: 4px; align-content: start; line-height: 1.3; }
+.lines { display: grid; align-content: start; line-height: 1.3; }
+.lines :deep(.list-row) { min-height: 76px; }
+.lines :deep(.lead) { color: var(--ink); }
+/* More than four rooms, or the bill: lower rows, so the panel still fits without scrolling. */
+.many :deep(.list-row) { min-height: 60px; }
+.many :deep(.avatar) { width: 44px !important; height: 44px !important; }
+.many .door { width: 44px; height: 44px; }
+.bill-lines :deep(.list-row) { min-height: 54px; }
+.paid { flex: none; color: var(--live); }
 .none { padding: 8px 0; }
-/* A free room's door, in an outlined circle where a face would be. */
-.door { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 2px dashed var(--line-strong); color: var(--free); }
-/* The "+N" row: as tall as a room's row, a dashed circle and the count, lit like a menu entry. */
-.more { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border: 0; border-radius: var(--r-md); background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--text); cursor: pointer; }
+/* A free room's door, a dashed square where a face would be, and the sticker beside it. */
+.door { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-md); border: 3px dashed var(--text); color: var(--text); }
+.free-lead { display: flex; align-items: center; gap: 12px; }
+/* The "+N" row: as tall as a room's row, a dashed square and the count, lit like a menu entry. */
+.more { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 800 18px/1.2 var(--font); text-align: left; cursor: pointer; }
 .more:hover:not(:disabled) { background: var(--tile); }
 .more:focus-visible { outline: none; background: var(--accent-soft); }
-.more .door { color: var(--muted); }
-.more-count { font: 700 16px/1 var(--mono); color: var(--muted); }
-.sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more-count { font: 800 18px/1 var(--num); }
+.sub { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sub.warn { color: var(--danger); }
+/* One @handle size, in the handles' blue. */
+.handle { font-weight: 600; color: var(--handle); }
+/* What they build, in a column the same width on every row. */
+.project { width: 130px; font-size: 16px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A face with its state's dot on the lower right, like a presence dot in a game's friend list. */
 .face { position: relative; display: inline-grid; }
-/* A team's other faces, small and overlapping on the face's lower left, each ringed in the row's colour. */
+/* A team's other faces, small and overlapping on the face's lower left, each ringed in white. */
 .face .mates { position: absolute; left: -6px; bottom: -4px; display: flex; }
-.face .mates > * { box-shadow: 0 0 0 2px var(--surface); border-radius: 50%; }
+.face .mates > * { box-shadow: 0 0 0 2px var(--surface); }
 .face .mates > * + * { margin-left: -8px; }
-/* Ringed in the row's colour, so the dot reads as a badge on the face (it replaces the dot's own halo). */
-.face .on-face { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; box-shadow: 0 0 0 2px var(--surface); animation: none; }
+.face .on-face { position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; box-shadow: 0 0 0 2px var(--surface); animation: none; }
 /* Buttons and links in a row carry an icon beside their word. */
-.lines :deep(.end button), .lines :deep(.end a.button) { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.lines :deep(.end button), .lines :deep(.end a.button) { display: inline-flex; align-items: center; gap: 6px; }
 /* When a review is due: in the row's muted words, and in the danger colour once it's late (it costs rent then). */
 .when { font-weight: 600; }
 .when.late { color: var(--danger); }
-/* "See the house's other reviews (2)": a quiet, full-width key under your own rows, with a chevron that turns down
+/* A bill's amount, and your part of it on red under the rows. The amounts line up, with or without a tick. */
+.amount { font-size: 18px; font-weight: 800; white-space: nowrap; }
+.your-part { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; padding: 6px 12px; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); }
+.part-word { font-size: 20px; font-weight: 800; }
+.part-sum { font-size: 20px; font-weight: 800; white-space: nowrap; }
+.part-n { font: 400 48px/1.05 var(--display); }
+/* "See the house's other reviews (2)": a ghost across the width under your own rows, with a chevron that turns down
    when they're shown. Quieter than a row, so your own reviews stay what the tab is about. */
 .others-toggle {
   flex: none;
@@ -833,17 +862,17 @@ function rundownEnded() {
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 40px;
+  min-height: 46px;
+  margin: 8px 0;
   padding: 0 12px;
   border-radius: var(--r-md);
   background: none;
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 600;
+  box-shadow: var(--quiet-edge);
+  color: var(--text);
+  font: 800 15px/1.2 var(--font);
   text-align: left;
 }
-.others-toggle:hover:not(:disabled) { background: var(--tile); color: var(--text); }
+.others-toggle:hover:not(:disabled) { background: var(--tile); }
 .chev { transition: transform var(--dur) var(--ease); }
 .others-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) {
@@ -856,14 +885,21 @@ function rundownEnded() {
 
 /* The foot: one big button across the width, or the one line that says why there's none. */
 .foot { flex: 1 1 auto; display: flex; align-items: center; min-width: 0; }
-.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; font-size: 18px; }
+.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; font-size: 24px; }
 a.go:hover { text-decoration: none; }
-.say { min-height: 48px; display: flex; align-items: center; font-size: 14px; color: var(--muted); }
+.say { min-height: 50px; display: flex; align-items: center; font-size: 15px; color: var(--muted); }
+@media (max-width: 560px) {
+  /* A phone: the sticker and the button take the free room's row, and a little less room for the faces. */
+  .lines :deep(.list-row) { min-height: 64px; }
+  .door { width: 44px; height: 44px; }
+  .free-lead .door { display: none; }
+  .part-n { font-size: 44px; }
+  .go { font-size: 20px; }
+}
 @media (max-width: 480px) {
   /* A phone keeps only whose turn it is beside the sentence, so the line stays two lines high. */
   .life p.tontine { flex-wrap: nowrap; }
   .turns > :not(.now) { display: none; }
-  .chip { padding: 0 10px; }
   .chip-word { display: none; }
 }
 </style>

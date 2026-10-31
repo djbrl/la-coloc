@@ -171,7 +171,8 @@ function trapTab(e: KeyboardEvent) {
     <section
       v-if="top"
       ref="sheet"
-      class="sheet"
+      class="sheet sign"
+      :class="{ deep: stack.length > 1 }"
       role="dialog"
       aria-modal="true"
       :aria-label="label || fallback"
@@ -180,16 +181,12 @@ function trapTab(e: KeyboardEvent) {
       @auxclick.capture="reportOutsideLink"
       @keydown="onKey"
     >
-      <div class="bar">
-        <button v-if="stack.length > 1" type="button" class="back-btn" @click="back">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-          {{ w.back }}
+      <div class="sign-frame">
+        <!-- Back and Close sit on the title band of whatever page is open (panel/PanelHead.vue leaves them room). -->
+        <button v-if="stack.length > 1" type="button" class="sign-x back-btn" :aria-label="w.back" @click="back">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
-        <span v-else />
-        <button type="button" class="close" :aria-label="w.close" @click="closeAll">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-        </button>
-      </div>
+        <button type="button" class="sign-x close" :aria-label="w.close" @click="closeAll"><span aria-hidden="true">X</span></button>
 
       <!-- One page at a time, keyed by place: going back mounts the page afresh, and a popped page closes its own stream. -->
       <div class="page-host">
@@ -210,6 +207,7 @@ function trapTab(e: KeyboardEvent) {
         />
         <ApplicationPage v-else-if="top.kind === 'application'" :key="topKey" :id="top.id" embedded @label="(l) => (label = l)" />
         <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded :coached="coached" @label="(l) => (label = l)" />
+        </div>
       </div>
     </section>
   </div>
@@ -220,44 +218,30 @@ function trapTab(e: KeyboardEvent) {
 .inside { position: absolute; inset: 0; z-index: 60; }
 /* On a wide screen the click-catcher over the city is clear: no dimming, the city stays lit. */
 .scrim { position: absolute; inset: 0; }
-/* A floating card over the city, like a game's pause menu: it pops in on the right with the city still lit beside
-   it, while the camera zooms so your character stands on the left. Centred in the height it has, at most 760px
-   tall, never under the top bar. */
+/* A sign over the city, like a game's pause menu: it pops in on the right with the city still lit beside it, while the
+   camera zooms so your character stands on the left. It hangs under the site's keys; a short window gives it the
+   whole height, over them. */
 .sheet {
   position: absolute;
-  top: max(72px, calc(50% - 380px));
-  bottom: max(24px, calc(50% - 380px));
+  top: 98px;
+  bottom: 24px;
   right: 32px;
-  width: min(600px, 48vw);
-  /* The sheet never scrolls: the bar stays, and the page under it (a Panel, see panel/Panel.vue) is made to fit.
+  width: min(720px, 52vw);
+  /* The sheet never scrolls: the band stays, and the page under it (a Panel, see panel/Panel.vue) is made to fit.
      Only a panel's body scrolls, inside itself, when it holds a stream. */
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow);
   outline: none;
   overflow-wrap: anywhere;
   transform-origin: 70% 50%;
   animation: pop-in var(--dur-slow) var(--ease-pop);
 }
-/* Back and Close: one slim line, no rule under it, so the page's own head is the first thing you read. */
-.bar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 44px;
-  padding: 12px 12px 0 calc(var(--gutter) - 6px);
-}
-/* Both are small square keys with a hairline edge, quiet next to the panel's own main button. */
-.back-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 12px 0 8px; border-radius: var(--r-sm); background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); font-size: 14px; font-weight: 600; }
-.close { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: var(--r-sm); display: grid; place-items: center; background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
-:is(.back-btn, .close):hover:not(:disabled) { background: var(--tile); color: var(--text); }
-/* The page fills what's left. If a window is too short for it, it scrolls here rather than spilling out. */
-.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.sign-frame { position: relative; }
+/* The band's two keys, 44px and centred in its 88px. They're placed from inside the frame's border, and the band
+   starts 3px further in, after the frame's padding. */
+.sign-x { z-index: 2; top: calc(3px + 44px); }
+.back-btn { right: auto; left: 16px; }
+.deep { --band-lead: 52px; }
+/* The page fills what's left, on the white. If a window is too short for it, it scrolls here rather than spilling out. */
+.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: var(--r-md); background: var(--surface); }
 .page-host > * { flex: 1 1 auto; min-height: 0; }
 /* The pause menu's entrance: a quick scale up from just under full size. */
 @keyframes pop-in {
@@ -269,13 +253,15 @@ function trapTab(e: KeyboardEvent) {
 @keyframes fade-in {
   from { opacity: 0; }
 }
-/* Narrower than 720px there's no room beside the panel: it becomes a sheet along the bottom edge, with rounded
-   top corners, about 70% of the screen tall so the house still shows above it. The city above stays lit (a light
+/* Narrower than 720px there's no room beside the panel: it becomes a sheet along the bottom edge, about 70% of the screen tall so the house still shows above it. The city above stays lit (a light
    veil only), since it's what the sheet is about; a tap there closes. */
 @media (max-width: 719px) {
   .inside { display: grid; place-items: end stretch; }
   .scrim { background: color-mix(in srgb, var(--scrim) 45%, transparent); animation: fade-in 0.25s var(--ease); }
-  .sheet { position: relative; inset: auto; width: 100%; height: 70dvh; min-height: min(460px, 88dvh); border-radius: var(--r-xl) var(--r-xl) 0 0; animation-name: rise-in; }
+  .sheet { position: relative; inset: auto; width: 100%; height: 70dvh; min-height: min(460px, 88dvh); animation-name: rise-in; }
+}
+@media (min-width: 720px) and (max-height: 720px) {
+  .sheet { top: 16px; bottom: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet, .scrim { animation: none; }

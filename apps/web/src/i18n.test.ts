@@ -16,7 +16,7 @@ import { downWords } from "./core";
 import { defineWords, dictionaries, langFrom, language, nbsp, startingLang, type Words } from "./i18n";
 
 // Every dictionary the site has. Importing the modules above registers them; a new one belongs in this list.
-const AREAS = ["explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common", "cards", "hud", "join", "rent", "list", "login", "room", "down", "arena"];
+const AREAS = ["landing", "explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common", "cards", "hud", "join", "rent", "list", "login", "room", "down", "arena"];
 
 // Every path to a leaf ("tour.next", "room.live"), with what's there.
 function leaves(words: object, path = ""): Map<string, unknown> {
@@ -127,7 +127,7 @@ describe("reading words", () => {
     expect(lobbyWords.online(0)).toBe("0 projet en ligne");
     expect(lobbyWords.online(2)).toBe("2 projets en ligne");
     expect(cardWords.rooms(4, 1)).toBe("4 chambres, 1 libre");
-    expect(hudWords.loadingTips).toHaveLength(6);
+    expect(hudWords.loadingMeaning("bienvenue", "wolof")).toBe("« bienvenue », en wolof.");
     for (const words of [joinWords, rentWords, listWords, loginWords, roomWords, downWords, arenaWords]) expect(Object.keys(words).length).toBeGreaterThan(0);
   });
 

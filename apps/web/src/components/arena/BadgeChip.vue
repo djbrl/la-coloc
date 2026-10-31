@@ -19,36 +19,28 @@ const said = computed(() => badgeWords(props.badge));
 </template>
 
 <style scoped>
+/* A title won in an arena: flat, in its medal's colours. */
 .badge-chip {
-  --medal: #b7791f;
-  --medal-soft: #fdf3dc;
+  --medal: #7a4e00;
+  --medal-soft: #ffe9a8;
   flex: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   max-width: 14em;
-  height: 20px;
+  height: 22px;
   padding: 0 7px 0 5px;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-xs);
   background: var(--medal-soft);
   color: var(--medal);
-  font-size: 11.5px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: 0;
   vertical-align: middle;
   white-space: nowrap;
 }
-.badge-chip.silver { --medal: #5f6b7a; --medal-soft: #eceff3; }
-.badge-chip.bronze { --medal: #9a5b2e; --medal-soft: #f7e8dc; }
+.badge-chip.silver { --medal: #3f4956; --medal-soft: #e1e5ea; }
+.badge-chip.bronze { --medal: #71401c; --medal-soft: #f3dcc9; }
 .t { overflow: hidden; text-overflow: ellipsis; }
-.compact { width: 20px; padding: 0; justify-content: center; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .badge-chip { --medal: #f2c14e; --medal-soft: #3d3218; }
-  :root:not([data-theme="light"]) .badge-chip.silver { --medal: #c9d1db; --medal-soft: #2c3138; }
-  :root:not([data-theme="light"]) .badge-chip.bronze { --medal: #e3a275; --medal-soft: #3b2a1e; }
-}
-:root[data-theme="dark"] .badge-chip { --medal: #f2c14e; --medal-soft: #3d3218; }
-:root[data-theme="dark"] .badge-chip.silver { --medal: #c9d1db; --medal-soft: #2c3138; }
-:root[data-theme="dark"] .badge-chip.bronze { --medal: #e3a275; --medal-soft: #3b2a1e; }
+.compact { width: 22px; padding: 0; justify-content: center; }
 </style>

@@ -249,20 +249,20 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
 
 <style scoped>
 .board { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-.head { flex: none; display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.head { flex: none; display: flex; align-items: center; gap: 8px; min-height: 46px; }
 .head h3 { flex: 1; min-width: 0; margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grow { flex: 1; }
-.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 34px; height: 34px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; font-weight: 600; }
+.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 34px; height: 34px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
 .icon-key:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .icon-key.sure { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
-.new { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; font-size: 14px; --lip: 2px; }
-.tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.new { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; font-size: 14px; --lip: 2px; }
+.tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .empty { margin: 0; padding: 8px 2px; }
 .visitor { flex: none; margin: 0; text-align: center; }
 .lines { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 2px; display: grid; gap: 6px; align-content: start; }
 .lines :deep(.list-row) { min-height: 54px; padding: 8px 10px; gap: 10px; }
 .lead-tag { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--tile); color: var(--accent); }
-.replies-count { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font: 500 12.5px/1 var(--mono); }
+.replies-count { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font: 600 14px/1 var(--num); }
 .open { width: 32px; padding: 0 !important; justify-content: center; background: none; box-shadow: none; color: var(--muted); }
 .entry { position: relative; cursor: pointer; }
 .entry .open::after { content: ""; position: absolute; inset: 0; }
@@ -275,7 +275,7 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
 /* Writing a post: the tags as a wrap of small radio keys, then the two fields and the button. */
 .compose { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.tag-pick { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border-radius: var(--r-pill); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font-size: 13px; font-weight: 600; }
+.tag-pick { display: inline-flex; align-items: center; gap: 5px; min-height: 46px; padding: 0 10px; border-radius: var(--r-pill); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; }
 .tag-pick[aria-checked="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 .compose input, .compose textarea { width: 100%; border-radius: var(--r-md); }
 .compose textarea { resize: vertical; min-height: 96px; font: inherit; }

@@ -55,6 +55,58 @@ export const welcomeWords = defineWords(
   },
 );
 
+// The landing page: the sign, the buttons, and the three flatmates' lines per mood (they say "tu" to each other, in
+// French; the page itself says "vous"). The sign's words are arrays: one entry per line on the sign.
+export const landingWords = defineWords(
+  "landing",
+  {
+    nav: "Main",
+    otherLanguage: "Passer en français",
+    demo: "Try the demo",
+    logIn: "Log in",
+    forRent: ["FOR", "RENT"],
+    forRentName: "For rent",
+    free: ["ROOM", "FREE"],
+    freeName: "1 room free",
+    takenName: "3 rooms taken out of 4",
+    moveIn: "Move in",
+    moveInName: "Move in with GitHub",
+    picture: {
+      day: "In broad daylight. Through the big window of a brick building, three flatmates in one room: one sitting up in bed with a laptop, one at the open fridge with a can, one at a desk in front of two screens. In front of the wall, a metal pole holds the sign.",
+      warm: "At night. Through the big window of a brick building, three flatmates in one room: one sitting up in bed with a laptop, one at the open fridge with a can, one at a desk in front of two screens. In front of the wall, a metal pole holds the sign.",
+      blue: "In the dead of night, under the light of the screens. Through the big window of a brick building, three flatmates in one room: one sitting up in bed with a laptop, one at the open fridge with a can, one at a desk in front of two screens. In front of the wall, a metal pole holds the sign.",
+    },
+    lines: {
+      day: ["Still in bed. My app's been up since this morning.", "Your PR's approved. And who ate my yoghurt?", "Rent's due Friday. Go do some reviews."],
+      warm: ["My app crashed. Only my room noticed.", "3 reviews, 1,500 FCFA off my rent.", "Merged. It's live."],
+      blue: ["One more commit. Then bed.", "Last can. I'll still review your PR.", "Deploying at 4am. Only my room restarts."],
+    },
+  },
+  {
+    nav: "Principal",
+    otherLanguage: "Switch to English",
+    demo: "Essayer la démo",
+    logIn: "Se connecter",
+    forRent: ["À", "LOUER"],
+    forRentName: "À louer",
+    free: ["chambre", "libre"],
+    freeName: "1 chambre libre",
+    takenName: "3 chambres prises sur 4",
+    moveIn: "J'emménage",
+    moveInName: "J'emménage avec GitHub",
+    picture: {
+      day: "En plein jour. Par la grande fenêtre d'un immeuble en brique, trois colocs dans la même pièce : un assis dans son lit avec un portable, une devant le frigo ouvert avec une canette, un au bureau devant deux écrans. Devant le mur, un poteau en métal porte le panneau.",
+      warm: "La nuit. Par la grande fenêtre d'un immeuble en brique, trois colocs dans la même pièce : un assis dans son lit avec un portable, une devant le frigo ouvert avec une canette, un au bureau devant deux écrans. Devant le mur, un poteau en métal porte le panneau.",
+      blue: "En pleine nuit, sous la lumière des écrans. Par la grande fenêtre d'un immeuble en brique, trois colocs dans la même pièce : un assis dans son lit avec un portable, une devant le frigo ouvert avec une canette, un au bureau devant deux écrans. Devant le mur, un poteau en métal porte le panneau.",
+    },
+    lines: {
+      day: ["Encore au lit. Mon appli tourne depuis ce matin.", "Ta PR est validée. Et qui a mangé mon yaourt ?", "Loyer vendredi. Va faire des reviews."],
+      warm: ["Mon appli a planté. Seule ma chambre l'a vu.", "3 reviews, 1 500 FCFA de moins sur mon loyer.", "Mergé. C'est en ligne."],
+      blue: ["Encore un commit. Après, dodo.", "Dernière canette. Je relis quand même ta PR.", "Déploiement à 4h. Seule ma chambre redémarre."],
+    },
+  },
+);
+
 // The settings: one sentence per row for what's chosen now, and hidden names for the controls.
 export const settingsWords = defineWords(
   "settings",
@@ -66,11 +118,6 @@ export const settingsWords = defineWords(
     viewGroup: "Show the city as",
     viewList: "See the city as a list.",
     viewWalk: "Walk the city.",
-    auto: "Auto",
-    day: "Day",
-    night: "Night",
-    themeGroup: "Looks like",
-    themeAuto: "Day or night, as your device says.",
     themeDay: "Always day.",
     themeNight: "Always night.",
     low: "Low",
@@ -105,11 +152,6 @@ export const settingsWords = defineWords(
     viewGroup: "Voir la ville",
     viewList: "Voir la ville en liste.",
     viewWalk: "Se promener dans la ville.",
-    auto: "Auto",
-    day: "Jour",
-    night: "Nuit",
-    themeGroup: "Apparence",
-    themeAuto: "Jour ou nuit, selon votre appareil.",
     themeDay: "Toujours le jour.",
     themeNight: "Toujours la nuit.",
     low: "Basse",
@@ -177,6 +219,8 @@ export const lobbyWords = defineWords(
     searchHint: "A house, a city, a stack…",
     searchName: "Search the city",
     noMatch: "No house matches that.",
+    // A search result's yellow chip.
+    freeChip: (n: number) => `${n} free`,
     close: "Close (Esc)",
     travelName: "Travel to another city",
     whereTo: "Where to?",
@@ -221,6 +265,7 @@ export const lobbyWords = defineWords(
     searchHint: "Une maison, une ville, une techno…",
     searchName: "Chercher dans la ville",
     noMatch: "Aucune maison ne correspond.",
+    freeChip: (n) => (n > 1 ? `${n} libres` : `${n} libre`),
     close: "Fermer (Échap)",
     travelName: "Aller dans une autre ville",
     whereTo: "On va où ?",

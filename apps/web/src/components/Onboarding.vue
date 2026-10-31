@@ -144,7 +144,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
   from { opacity: 0; transform: translateY(12px) scale(0.96); }
 }
 .body { display: grid; gap: 10px; }
-h2 { margin: 0; font-size: 28px; line-height: 1.12; font-weight: 700; letter-spacing: -0.02em; outline: none; }
+h2 { margin: 0; font-size: 28px; line-height: 1.12; font-weight: 700; outline: none; }
 p { margin: 0; font-size: 17px; line-height: 1.5; }
 /* A free room's window, in the colour the city draws it (the same in day and night). */
 .glow { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px 1px 2px; vertical-align: middle; }
@@ -167,7 +167,7 @@ p { margin: 0; font-size: 17px; line-height: 1.5; }
 /* Chunky buttons, as in a game's menu. */
 .foot button { min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; white-space: nowrap; }
 .foot .go { min-width: 120px; font-weight: 700; }
-button:focus-visible, .login:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+button:focus-visible, .login:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 .step-enter-active, .step-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
 .step-enter-from { opacity: 0; transform: translateY(6px); }
 .step-leave-to { opacity: 0; transform: translateY(-6px); }
@@ -182,4 +182,6 @@ button:focus-visible, .login:focus-visible { outline: 3px solid var(--accent-fil
   p { font-size: 16px; }
   .foot button { padding: 0 16px; }
 }
+/* The sign's red line inside the edge, on the flat card. */
+.welcome-card { border-radius: var(--r-md); box-shadow: inset 0 0 0 3px var(--panel-red), var(--shadow); }
 </style>

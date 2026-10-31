@@ -60,7 +60,7 @@ function onKey(e: KeyboardEvent) {
 .string { stroke: var(--muted); stroke-width: 2; }
 .paper { fill: var(--tile); stroke: var(--line-strong); stroke-width: 2; }
 .punch { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
-.name { font: 600 15px var(--mono); fill: var(--text); }
+.name { font: 600 15px var(--num); fill: var(--text); }
 /* The key drops onto the card and swings a little, like it was just handed over. */
 .swing { transform-origin: 40px 40px; animation: swing 900ms var(--ease) both; }
 .tag { transform-origin: 40px 62px; animation: swing-tag 1100ms var(--ease) both; }
@@ -76,12 +76,12 @@ function onKey(e: KeyboardEvent) {
   75% { transform: rotate(3deg); }
   100% { transform: rotate(0); }
 }
-h2 { margin: 0; font-size: 40px; line-height: 1; letter-spacing: -0.035em; }
+h2 { margin: 0; font-size: 40px; line-height: 1; }
 p { margin: 0; font-size: 17px; line-height: 1.45; }
 .soft { color: var(--muted); font-size: 15px; }
 .nav { display: flex; justify-content: center; margin-top: 10px; }
-.go { min-height: 52px; min-width: 220px; padding: 0 24px; border-radius: var(--r-md); font-size: 19px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
-button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.go { min-height: 60px; min-width: 220px; padding: 0 24px; border-radius: var(--r-md); font-size: 19px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (hover: none) {
   kbd { display: none; }
 }
@@ -94,4 +94,6 @@ button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2p
 @media (prefers-reduced-motion: reduce) {
   .card, .swing, .tag { animation: none; }
 }
+/* The sign's red line inside the edge, on the flat card. */
+.card { border-radius: var(--r-md); box-shadow: inset 0 0 0 3px var(--panel-red), var(--shadow); }
 </style>

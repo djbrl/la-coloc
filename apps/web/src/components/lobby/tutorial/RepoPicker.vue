@@ -75,18 +75,18 @@ onMounted(() => input.value?.focus({ preventScroll: true }));
 <style scoped>
 /* Dev-tool calm: a search box and dense rows, names in the monospace, the highlighted row in the accent's edge. */
 .picker { display: grid; gap: 6px; margin-top: 4px; }
-.search { display: flex; align-items: center; gap: 8px; padding: 0 10px; height: 38px; border-radius: var(--r-md); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
+.search { display: flex; align-items: center; gap: 8px; padding: 0 10px; height: 38px; border-radius: var(--r-md); background: var(--tile); color: var(--muted); }
 .search:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
-.search input { flex: 1; min-width: 0; height: 100%; border: 0; padding: 0; background: none; color: var(--text); font: 500 15px/1 var(--mono); outline: none; box-shadow: none; }
+.search input { flex: 1; min-width: 0; height: 100%; border: 0; padding: 0; background: none; color: var(--text); font: 600 15px/1 var(--num); outline: none; box-shadow: none; }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .row { width: 100%; min-height: 0; height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .row.at { background: var(--fill); box-shadow: inset 2px 0 0 var(--accent); }
 .row:disabled { opacity: 0.6; cursor: default; }
-.name { min-width: 0; display: flex; align-items: baseline; gap: 8px; overflow: hidden; white-space: nowrap; font: 500 14px/1 var(--mono); }
+.name { min-width: 0; display: flex; align-items: baseline; gap: 8px; overflow: hidden; white-space: nowrap; font: 600 14px/1 var(--num); }
 .name strong { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
-.owner { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-.meta { flex: none; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.owner { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
+.meta { flex: none; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
 .chosen .meta { color: var(--accent); }
 .lock { display: inline-flex; }
-.hint { margin: 0; font-size: 13px; color: var(--muted); }
+.hint { margin: 0; font-size: 14px; color: var(--muted); }
 </style>

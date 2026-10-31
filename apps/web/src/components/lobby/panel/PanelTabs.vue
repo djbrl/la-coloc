@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The one row of tabs in a panel: an icon and one word each, with a count when something waits there. It's the
+// The one row of tabs in a panel: one word each (an icon on a phone), with a count when something waits there. It's the
 // only way to move between a panel's parts (no second row of buttons doing the same). Arrow keys, Home and End
 // move between tabs, as in any tab list. With a single tab there's nothing to pick, and it draws nothing.
 import Icon from "../house/Icon.vue";
@@ -47,67 +47,57 @@ function onKey(e: KeyboardEvent, i: number) {
     >
       <span class="ic">
         <Icon :name="t.icon" :size="18" />
-        <span v-if="t.badge" class="badge" :class="{ alert: t.alert }" aria-hidden="true">{{ t.badge > 99 ? "99+" : t.badge }}</span>
-      </span>
+        </span>
       <span class="word">{{ t.word }}</span>
+      <span v-if="t.badge" class="badge" :class="{ alert: t.alert }" aria-hidden="true">{{ t.badge > 99 ? "99+" : t.badge }}</span>
       <span v-if="t.badge" class="sr-only">, {{ t.badge }}</span>
     </button>
   </div>
 </template>
 
 <style scoped>
-/* A sunken track; the chosen tab lifted out on the surface with a hairline and a small lip, like a pressed-out key.
-   Icons sit beside their word, so the row stays one line on a 600px panel with six tabs. */
+/* Words on the white, the chosen one on ink. No track, no line under them. */
 .panel-tabs {
   display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--r-md);
-  background: var(--fill);
+  gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
   flex: none;
 }
 .panel-tabs::-webkit-scrollbar { display: none; }
 .tab {
-  flex: 1 0 auto;
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 34px;
-  padding: 0 10px;
+  min-height: 44px;
+  padding: 0 6px;
   border-radius: var(--r-sm);
   background: none;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 500;
+  color: var(--text);
+  font: 800 17px/1 var(--font);
   white-space: nowrap;
 }
-.tab:hover:not(:disabled) { background: none; color: var(--text); }
-.tab[aria-selected="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--hairline), 0 1px 0 var(--line-strong); }
-.tab[aria-selected="true"] .ic { color: var(--accent); }
-.tab:focus-visible { outline-offset: -2px; }
-.ic { position: relative; display: inline-grid; }
-/* A count sits on the icon's corner: leave it room so it doesn't touch the word. */
-.ic:has(.badge) { margin-right: 6px; }
+.tab:hover:not(:disabled) { background: var(--tile); }
+.tab[aria-selected="true"], .tab[aria-selected="true"]:hover:not(:disabled) { background: var(--text); color: var(--surface); }
+.tab:focus-visible { outline-offset: -3px; }
+.ic { display: none; }
+/* A count: the yellow chip, something waits there. Red when it's late. */
 .badge {
-  position: absolute;
-  top: -7px;
-  right: -9px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: var(--r-sm);
-  background: var(--accent-fill);
-  color: var(--on-accent);
-  box-shadow: 0 0 0 2px var(--fill);
-  font: 500 10px/16px var(--mono);
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--sticker);
+  color: var(--ink);
+  font: 800 13px/20px var(--font);
   text-align: center;
 }
 .badge.alert { background: var(--danger); color: var(--on-danger); }
-.tab[aria-selected="true"] .badge { box-shadow: 0 0 0 2px var(--surface); }
 @media (max-width: 480px) {
+  .ic { display: inline-grid; }
   .word { display: none; }
   .tab { padding: 0 12px; }
 }

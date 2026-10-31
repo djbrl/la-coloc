@@ -54,13 +54,13 @@ function onKey(e: KeyboardEvent, i: number) {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
+  min-height: 46px;
   padding: 0 12px;
   border-radius: var(--r-sm);
   background: none;
   color: var(--muted);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
 }
 .option:hover:not(:disabled) { background: none; color: var(--text); }

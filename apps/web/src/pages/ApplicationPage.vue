@@ -255,7 +255,7 @@ async function withdraw() {
 
 /* The title here is a short sentence ("Your knock on Sacré-Cœur"): it may take two lines rather than lose its end. */
 .application-page :deep(.panel-head .title) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
-.repo { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-pill); background: var(--fill); color: var(--text); font-size: 13px; font-weight: 500; max-width: 160px; }
+.repo { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; border-radius: var(--r-pill); background: var(--fill); color: var(--text); font-size: 14px; font-weight: 600; max-width: 160px; }
 .repo:hover { background: var(--fill-hover); text-decoration: none; }
 .asides { display: inline-flex; align-items: center; gap: 6px; }
 .repo-word { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -277,11 +277,11 @@ async function withdraw() {
 .voters li.no { box-shadow: 0 0 0 2px var(--tile), 0 0 0 3.5px var(--danger); }
 .act { flex: none; display: flex; align-items: center; gap: 8px; margin-left: auto; }
 /* Chunky, game-menu buttons: the main one in the accent, the rest grey. */
-.act button, .act .button { min-height: 40px; padding: 0 16px; border-radius: var(--r-md); font-size: 14px; font-weight: 600; white-space: nowrap; }
-.act button.quiet { color: var(--muted); font-weight: 500; }
+.act button, .act .button { min-height: 46px; padding: 0 16px; border-radius: var(--r-md); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.act button.quiet { color: var(--muted); font-weight: 600; }
 .act button.quiet:hover:not(:disabled) { color: var(--danger); }
 .error { margin-top: 8px; }
-.work { margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.work { margin-top: 10px; font-size: 14px; line-height: 1.45; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 /* The vote you cast stays marked. */
 button[aria-pressed="true"]:not(.primary) { box-shadow: inset 0 0 0 2px var(--text); }
 button.primary[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--tile), 0 0 0 4px var(--accent-fill); }

@@ -75,25 +75,25 @@ async function shareNatively() {
 <style scoped>
 .share { display: grid; gap: 10px; }
 /* The postcard: a flat card inside the card, with a stamp-like dashed edge. */
-.postcard { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 10px 14px; align-items: center; padding: 12px; border-radius: var(--r-md); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); outline: 2px dashed var(--line-strong); outline-offset: -6px; }
+.postcard { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 10px 14px; align-items: center; padding: 12px; border-radius: var(--r-md); background: var(--tile); outline: 2px dashed var(--line-strong); outline-offset: -6px; }
 .art { width: 104px; }
 .side { display: grid; gap: 6px; min-width: 0; }
-.from { margin: 0; font: 700 13px/1.2 var(--display); color: var(--muted); }
-.address { margin: 0; font: 600 15px/1.3 var(--mono); color: var(--text); overflow-wrap: anywhere; }
+.from { margin: 0; font: 600 14px/1.2 var(--display); color: var(--muted); }
+.address { margin: 0; font: 600 15px/1.3 var(--num); color: var(--text); overflow-wrap: anywhere; }
 /* The ways to send it, in a row across the card's foot. */
 .ways { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
-.way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
 .way:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
 .way:active { transform: translateY(1px); }
 .way.done { color: var(--live); }
-.here { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.here { margin: 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
 .qr { display: grid; justify-items: center; gap: 4px; margin: 0; }
 .qr > svg { width: 96px; height: 96px; border-radius: var(--r-xs); }
-/* A QR code reads best dark on light, whatever the theme: the logs' two colours are that in both. */
+/* A QR code reads best dark on light: the logs' two colours are that. */
 .qr-paper { fill: var(--code-text); }
 .qr-ink { fill: var(--code-bg); }
-.qr figcaption { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
-a:focus-visible, button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.qr figcaption { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--muted); }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (max-width: 520px) {
   .postcard { grid-template-columns: 76px minmax(0, 1fr); gap: 10px; padding: 10px; }
   .art { width: 76px; }

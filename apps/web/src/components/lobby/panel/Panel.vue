@@ -28,17 +28,18 @@ defineProps<{ summary?: string | null; explain?: string | null; bodyLabel?: stri
 </template>
 
 <style scoped>
+/* The band is the head, edge to edge in the sign's frame; the rest sits on the white body under it. */
 .panel-shape {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   height: 100%;
   min-height: 0;
-  padding: 4px var(--gutter) 18px;
 }
 .p-head, .p-tabs, .p-explain, .p-foot { flex: none; }
-.p-explain { margin-top: -4px; font-size: 13px; line-height: 1.35; color: var(--muted); }
+.p-tabs, .p-explain { margin: 0 14px; }
+.p-explain { font-size: 14px; line-height: 1.35; color: var(--muted); }
 /* The summary keeps its full height even when a list below it is too long (then the body scrolls). */
 .p-summary { flex: none; }
 /* The body takes what's left. It scrolls only if what's in it can't fit (a stream, a long list). */
@@ -52,10 +53,13 @@ defineProps<{ summary?: string | null; explain?: string | null; bodyLabel?: stri
   gap: 10px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  /* Room for focus rings and row rings at the edges. */
-  margin: 0 -6px;
-  padding: 2px 6px;
+  /* Room for focus rings at the edges. */
+  padding: 2px 14px;
 }
-/* The foot sits under a hairline, like a dashboard card's footer, with the one next step in it. */
-.p-foot { display: flex; align-items: center; gap: 12px; margin: 0 calc(-1 * var(--gutter)); padding: 12px var(--gutter) 0; border-top: 1px solid var(--line); }
+/* With no tabs and no head above it (a step of a flow), the body still keeps off the band. */
+.p-body:last-child { padding-bottom: 14px; }
+/* The one next step, on the same white, with no line above it. */
+.p-foot { display: flex; align-items: center; gap: 8px; padding: 0 14px 14px; }
+.p-foot :deep(button), .p-foot :deep(a.button) { min-height: 60px; font-size: 24px; }
+.p-foot :deep(.second), .p-foot :deep(.small) { min-height: 50px; font-size: 18px; }
 </style>

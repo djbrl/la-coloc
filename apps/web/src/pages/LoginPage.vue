@@ -1,13 +1,13 @@
 <script setup lang="ts">
-// Logging in: GitHub first. On a dev server, a quiet second step lets you be anyone. Behind it, the city itself: a
-// still of the 3D lobby by day (public/login-city.webp, ~100 KB, rendered from our own scene), under a flat card
-// that keeps the words readable in either theme. A still rather than a live render: a phone pays nothing for it.
+// Logging in: GitHub first, the demo beside it. On a dev server, a quiet second step lets you be anyone. Behind it, the
+// landing's flat at night (public/landing/sign-warm.webp, rendered from our own scene) under a dark veil.
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import UiSteps from "../components/UiSteps.vue";
 import Waiting from "../components/Waiting.vue";
 import { useWhenBack, wentDown } from "../core";
 import { loginWords as w } from "../components/list/words";
+import { setVisiting } from "../landing";
 import { loadMe, postJSON } from "../session";
 
 const route = useRoute();
@@ -47,6 +47,12 @@ async function withGithub() {
   waiting.value = true;
 }
 
+// The demo: the city, as a visitor.
+function tryDemo() {
+  setVisiting(true);
+  void router.push("/");
+}
+
 async function devLogin(as: string) {
   message.value = "";
   if (!as.trim()) {
@@ -66,73 +72,86 @@ async function devLogin(as: string) {
 </script>
 
 <template>
-  <section class="band login">
-    <div class="wrap narrow card">
-      <Waiting v-if="waiting && !config" @retry="loadConfig" />
-      <p v-else-if="!config" class="muted center" aria-live="polite">{{ w.oneMoment }}</p>
-      <UiSteps v-else :step="step" :total="config.dev ? 2 : 1" center>
-        <div v-if="step === 1" class="step">
-          <h1>{{ w.moveIn }}</h1>
-          <p class="lede muted">{{ w.lede }}</p>
-          <p v-if="error" class="error" role="alert">{{ error }}</p>
-          <a v-if="config.github" class="button primary" href="/api/auth/github" :aria-busy="busy === 'github'" @click.prevent="withGithub">{{ w.withGithub }}</a>
-          <p v-else class="muted">{{ w.noGithub }}</p>
-          <template v-if="config.dev">
-            <button v-if="config.github" class="link" @click="step = 2">{{ w.useDev }} <span aria-hidden="true">›</span></button>
-            <button v-else class="primary" @click="step = 2">{{ w.useDev }}</button>
-          </template>
-        </div>
+  <section class="login">
+    <div class="card sign">
+      <div class="sign-frame">
+        <header class="sign-band title"><h1>La Coloc</h1></header>
+        <div class="sign-body body">
+          <Waiting v-if="waiting && !config" @retry="loadConfig" />
+          <p v-else-if="!config" class="muted center" aria-live="polite">{{ w.oneMoment }}</p>
+          <UiSteps v-else :step="step" :total="config.dev ? 2 : 1" center>
+            <div v-if="step === 1" class="step">
+              <p v-if="error" class="error" role="alert">{{ error }}</p>
+              <a v-if="config.github" class="button primary main" href="/api/auth/github" :aria-busy="busy === 'github'" @click.prevent="withGithub">
+                <svg viewBox="0 0 16 16" width="30" height="30" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
+                {{ w.withGithub }}
+              </a>
+              <p v-else class="muted">{{ w.noGithub }}</p>
+              <button type="button" class="second main" @click="tryDemo">{{ w.tryDemo }}</button>
+              <template v-if="config.dev">
+                <button v-if="config.github" type="button" class="link" @click="step = 2">{{ w.useDev }} <span aria-hidden="true">›</span></button>
+                <button v-else type="button" class="primary main" @click="step = 2">{{ w.useDev }}</button>
+              </template>
+            </div>
 
-        <form v-else class="step" novalidate @submit.prevent="devLogin(login)">
-          <h1>{{ w.whoToday }}</h1>
-          <p class="lede muted">{{ w.devLede }}</p>
-          <div class="quick">
-            <button v-for="who in ['jib', 'awa', 'moussa', 'koffi']" :key="who" type="button" :disabled="!!busy" @click="devLogin(who)">
-              {{ busy === who ? "…" : who }}
-            </button>
-          </div>
-          <div class="row">
-            <input
-              v-model="login"
-              data-autofocus
-              :placeholder="w.newName"
-              :aria-label="w.loginName"
-              autocapitalize="off"
-              spellcheck="false"
-              :aria-invalid="!!message"
-              @input="message = ''"
-            />
-            <button class="primary" :disabled="!!busy">{{ w.logIn }}</button>
-          </div>
-          <p v-if="message" class="error small" role="alert">{{ message }}</p>
-          <button type="button" class="link" @click="step = 1; message = ''"><span aria-hidden="true">‹</span> {{ w.back }}</button>
-        </form>
-      </UiSteps>
+            <form v-else class="step" novalidate @submit.prevent="devLogin(login)">
+              <h2 class="who">{{ w.whoToday }}</h2>
+              <p class="muted">{{ w.devLede }}</p>
+              <div class="quick">
+                <button v-for="who in ['jib', 'awa', 'moussa', 'koffi']" :key="who" type="button" :disabled="!!busy" @click="devLogin(who)">
+                  {{ busy === who ? "…" : who }}
+                </button>
+              </div>
+              <div class="row">
+                <input
+                  v-model="login"
+                  data-autofocus
+                  :placeholder="w.newName"
+                  :aria-label="w.loginName"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  :aria-invalid="!!message"
+                  @input="message = ''"
+                />
+                <button class="primary" :disabled="!!busy">{{ w.logIn }}</button>
+              </div>
+              <p v-if="message" class="error small" role="alert">{{ message }}</p>
+              <button type="button" class="link" @click="step = 1; message = ''"><span aria-hidden="true">‹</span> {{ w.back }}</button>
+            </form>
+          </UiSteps>
+        </div>
+      </div>
     </div>
   </section>
 </template>
 
 <style scoped>
+/* The flat at night behind a dark veil, and the sign in the middle of it. */
 .login {
-  padding: 12vh 16px 32px;
-  min-height: calc(100vh - 48px);
-  /* The city's day sky under the still, so the page is never black while the picture arrives (index.html starts
-     fetching it before the app has even loaded). */
-  background: url("/login-city.webp") center / cover no-repeat, linear-gradient(180deg, #6fa6dc 0%, #cfe2f2 100%);
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 16px;
+  background: linear-gradient(var(--scrim), var(--scrim)), #120c1c url("/landing/sign-warm.webp") center / cover no-repeat;
 }
-/* A flat floating card over the city, like the lobby's: no glass, no blur. */
-.card { max-width: 560px; padding: 40px 32px 32px; border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow); }
+.card { width: min(500px, 100%); }
+/* The name is the whole title here: bigger than a panel's, and its band grows with it. */
+.title { height: auto; padding: 10px 16px; }
+.title h1 { font-size: 74px; line-height: 1.08; white-space: nowrap; }
 .center { text-align: center; }
-.step { display: grid; gap: 20px; justify-items: center; text-align: center; width: 100%; }
-.lede { max-width: 520px; }
-.button.primary { min-height: 48px; padding: 0 28px; margin-top: 8px; }
+.step { display: grid; gap: 10px; justify-items: stretch; text-align: center; width: 100%; }
+.main { min-height: 60px; width: 100%; font-size: 24px; }
+.link { justify-self: center; }
+.who { font-size: 24px; }
 .quick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.quick button { min-width: 88px; }
-.row { display: flex; gap: 10px; width: 100%; max-width: 440px; }
+.quick button { flex: 1 1 88px; }
+.row { display: flex; gap: 8px; width: 100%; }
 .row input { flex: 1; min-width: 0; }
+@media (max-width: 520px) {
+  .title h1 { font-size: clamp(36px, 13vw, 74px); }
+  .main { font-size: 18px; }
+}
 @media (max-width: 420px) {
   .row { flex-direction: column; }
-  .login { padding-top: 8vh; }
-  .card { padding: 28px 20px 24px; }
 }
 </style>

@@ -197,7 +197,7 @@ async function deleteSecret(name: string) {
 
 <style scoped>
 .secrets { display: grid; gap: 10px; align-content: start; }
-.secret :deep(.title) { font-family: var(--mono); font-size: 14px; }
+.secret :deep(.title) { font-family: var(--code); font-size: 14px; }
 .lock { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--fill); color: var(--muted); }
 .asking { color: var(--danger) !important; }
 .off { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--danger); }

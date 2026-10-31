@@ -11,14 +11,14 @@ defineProps<{ state: State }>();
 </template>
 
 <style scoped>
-/* A dashboard's status dot: the colour, with a faint halo of itself. Something in progress (amber) breathes. */
-.status-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.live { background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
-.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); animation: breathe 1.4s var(--ease) infinite; }
-.danger { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
-.free { background: var(--free); box-shadow: 0 0 0 3px var(--free-soft); }
+/* One flat dot: green when fine, yellow in progress (it breathes), red when down, blue when free. */
+.status-dot { display: inline-block; flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); }
+.live { background: var(--live); }
+.warn { background: var(--sticker); animation: breathe 1.4s var(--ease) infinite; }
+.danger { background: var(--danger); }
+.free { background: var(--free-window); }
 @keyframes breathe {
-  50% { box-shadow: 0 0 0 5px var(--warn-soft); }
+  50% { opacity: 0.55; }
 }
 @media (prefers-reduced-motion: reduce) {
   .warn { animation: none; }

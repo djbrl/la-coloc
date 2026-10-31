@@ -145,13 +145,17 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
       <template v-for="m in messages" :key="m.id">
         <p v-if="!m.author" class="system">{{ knockLine(m) }}</p>
         <div v-else class="msg" :class="{ mine: m.author.login === me }" @keydown.esc.stop="menuFor = null">
-          <Avatar v-if="m.author.login !== me" :person="m.author" :size="28" decorative />
+          <Avatar v-if="m.author.login !== me" :person="m.author" :size="40" decorative />
           <div class="body">
-            <p class="meta">
-              <template v-if="m.author.login !== me">{{ nameOf(m) }}<BadgeChip v-if="m.author.badge" class="worn" :badge="m.author.badge" /> · </template>
-              <span v-else class="sr-only">{{ w.you }} · </span>{{ time(m.at) }}
-            </p>
-            <p class="bubble"><template v-for="(part, i) in linkParts(m.body)" :key="i"><a v-if="part.href" :href="part.href" target="_blank" rel="noopener noreferrer nofollow ugc">{{ part.text }}</a><template v-else>{{ part.text }}</template></template></p>
+            <div class="bubble">
+              <p class="who">
+                <span class="name">{{ nameOf(m) }}</span>
+                <span class="handle">@{{ m.author.login }}</span>
+                <BadgeChip v-if="m.author.badge" class="worn" :badge="m.author.badge" />
+                <span class="at">{{ time(m.at) }}</span>
+              </p>
+              <p class="said"><template v-for="(part, i) in linkParts(m.body)" :key="i"><a v-if="part.href" :href="part.href" target="_blank" rel="noopener noreferrer nofollow ugc">{{ part.text }}</a><template v-else>{{ part.text }}</template></template></p>
+            </div>
             <!-- A message's tools, under it while open: one row of small keys. -->
             <div v-if="menuFor === m.id" class="tools">
               <template v-if="m.author.login !== me">
@@ -201,16 +205,22 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
 /* Few messages sit at the bottom, by the composer, the way a chat reads. */
 .list > :first-child { margin-top: auto; }
 .empty { padding: 24px 0; text-align: center; }
-.system { text-align: center; font-size: 13px; color: var(--muted); padding: 4px 0; }
+.system { text-align: center; font-size: 14px; color: var(--muted); padding: 4px 0; }
 .msg { flex: none; display: flex; gap: 10px; align-items: flex-end; max-width: 85%; }
 .msg.mine { margin-left: auto; justify-content: flex-end; }
 .body { display: grid; gap: 4px; min-width: 0; }
 .mine .body { justify-items: end; }
-.meta { font-size: 12px; color: var(--muted); padding: 0 14px; }
-.meta .worn { margin: -2px 0 0 6px; height: 18px; font-size: 11px; }
-.bubble { padding: 10px 16px; border-radius: var(--r-xl); background: var(--fill); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.4; }
-.bubble a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.mine .bubble { background: var(--accent-fill); color: var(--on-accent); }
+/* A message: who (their name, then their @handle), then what they said. Yours on ink. */
+.bubble { padding: 8px 11px 9px; border-radius: var(--r-md); background: var(--fill); }
+.who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; line-height: 1.15; }
+.name { font-size: 16px; font-weight: 800; }
+.handle { font-size: 14px; font-weight: 600; color: var(--handle); }
+.who .worn { height: 22px; font-size: 14px; }
+.at { font-size: 14px; font-weight: 600; color: var(--muted); }
+.said { margin-top: 4px; font-size: 16px; line-height: 1.2; white-space: pre-wrap; overflow-wrap: anywhere; }
+.said a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.mine .bubble { background: var(--text); color: var(--surface); }
+.mine .handle, .mine .at { color: inherit; }
 /* The "…" beside a message: quiet until the pointer is on the message or it holds the focus. */
 .msg-more { flex: none; align-self: center; width: 28px; height: 28px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-xs); background: none; color: var(--muted); box-shadow: none; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .mine .msg-more { order: -1; }
@@ -220,13 +230,13 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
   .msg-more { opacity: 0.7; }
 }
 .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 6px; }
-.tool { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 0 10px; border-radius: var(--r-sm); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; font-weight: 600; color: var(--text); }
+.tool { display: inline-flex; align-items: center; gap: 5px; min-height: 46px; padding: 0 10px; border-radius: var(--r-sm); background: var(--surface); font-size: 14px; font-weight: 600; color: var(--text); }
 .tool:hover:not(:disabled) { background: var(--fill); }
-.tool.sure { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
-.note { font-size: 12.5px; color: var(--muted); }
+.tool.sure { background: var(--sticker); color: var(--ink); box-shadow: none; }
+.note { font-size: 14px; color: var(--muted); }
 .note.error { color: var(--danger); }
-.compose { flex: none; display: flex; gap: 10px; }
-.compose input { flex: 1 1 auto; min-width: 0; border-radius: var(--r-pill); padding-left: 20px; }
+.compose { flex: none; display: flex; gap: 8px; }
+.compose input { flex: 1 1 auto; min-width: 0; }
 /* "Send" stays one word on one line, however narrow the panel. */
 .compose button { flex: none; white-space: nowrap; }
 .chat > .error { flex: none; }

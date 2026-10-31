@@ -18,8 +18,8 @@ const fill = computed(() => hexOf(colorFor(props.id)));
 </template>
 
 <style scoped>
-.house-badge { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md); background: var(--tile); }
+.house-badge { flex: none; display: grid; place-items: center; width: 40px; height: 40px; }
 /* A solid edge, dashed for an example house, as on the map. */
-.swatch { stroke: var(--line-strong); stroke-width: 1.6; stroke-linejoin: round; }
+.swatch { stroke: var(--ink); stroke-width: 1.6; stroke-linejoin: round; }
 .swatch.sample { stroke: var(--muted); stroke-dasharray: 2.4 2; }
 </style>

@@ -2,7 +2,7 @@
 // The neighbourhood from above, north up, like a game's minimap: the city in its own day colours (the sand or red
 // earth, the asphalt streets, the market with its parasols, the park's trees, the shops in the city's wall colour),
 // each house as a little house in its colour, a dot per person in their house's colour, and you as a bright yellow
-// arrow pointing the way you face. An orange pin marks the tutorial's goal (`goal`). Walking is the game: clicking
+// arrow pointing the way you face. A red pin marks the tutorial's goal (`goal`). Walking is the game: clicking
 // the small map opens the big one, it never moves you. With `large` it fills the middle of the screen (the M key),
 // every house named next to it, and the houses listed beside it as a game menu's entries (the panels' rows). Picking
 // a house, on the map or in the list, is the one fast travel left: it takes you to its door. Empty ground does nothing.
@@ -36,7 +36,7 @@ const props = defineProps<{
   // as the travel menu counts it, not the flatmates drawn standing by their doors.
   online: number;
   large?: boolean;
-  // A house the tutorial wants you to walk to: an orange pin over it, with a halo (static with calm motion).
+  // A house the tutorial wants you to walk to: a red pin over it, with a halo (static with calm motion).
   goal?: string | null;
 }>();
 // `go`: travel to a house's door (big map only); `open`: the small map was clicked, open the big one.
@@ -70,7 +70,7 @@ function pickSize(): { w: number; h: number } {
     const w = Math.min(480, window.innerWidth - 64);
     return { w, h: Math.round(w * 0.75) };
   }
-  return phone ? { w: 120, h: 90 } : { w: 170, h: 130 };
+  return phone ? { w: 120, h: 90 } : { w: 196, h: 196 };
 }
 
 // The city's look (its grounds and wall colour), and whether it has a coast to draw along its south side.
@@ -130,7 +130,7 @@ function frame() {
 
 // ---- Drawing: the city once into a layer of its own, the people over it at the screen's frame rate ----
 
-// The city, its houses and (big map) their names: drawn again only when the city, its houses, the size or the theme
+// The city, its houses and (big map) their names: drawn again only when the city, its houses, or the size
 // change, then copied under the moving markers each frame.
 let base: HTMLCanvasElement | null = null;
 
@@ -280,9 +280,9 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(raf);
 });
 
-// The city's layer is drawn again only when the city, its houses, the size or the theme change (the pin's orange is
-// a token). A new word from the engine starts a glide; nothing is drawn while nobody moves.
-watch(() => [props.neighbourhood, props.houses, size.value, settings.theme], draw, { flush: "post" });
+// The city's layer is drawn again only when the city, its houses, or the size change.
+// A new word from the engine starts a glide; nothing is drawn while nobody moves.
+watch(() => [props.neighbourhood, props.houses, size.value], draw, { flush: "post" });
 watch(() => [props.residents, props.goal], paintFrame, { flush: "post" });
 watch(() => props.state, glideTo, { flush: "post" });
 
@@ -295,14 +295,14 @@ function onKey(e: KeyboardEvent) {
 <template>
   <!-- Big: a scrim dims the city, and a click on it (not on the panel) closes. -->
   <div v-if="large" class="veil" @click.self="emit('close')">
-    <section class="big" role="dialog" aria-modal="true" :aria-label="said.mapOf(neighbourhood.city)" @keydown.esc.stop="emit('close')" @keydown="onKey">
-      <div class="head">
+    <section class="big sign" role="dialog" aria-modal="true" :aria-label="said.mapOf(neighbourhood.city)" @keydown.esc.stop="emit('close')" @keydown="onKey">
+      <div class="sign-frame">
+      <header class="sign-band large">
         <h2>{{ neighbourhood.city }}</h2>
-        <p class="soft">{{ said.mapHint }}</p>
-      </div>
-      <button class="x" :aria-label="said.closeMap" @click="emit('close')">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-      </button>
+        <p class="sign-sub">{{ said.mapHint }}</p>
+        <button class="sign-x" :aria-label="said.closeMap" @click="emit('close')"><span aria-hidden="true">X</span></button>
+      </header>
+      <div class="sign-body">
       <div class="row">
         <div class="holder">
           <canvas
@@ -344,6 +344,8 @@ function onKey(e: KeyboardEvent) {
           </ListRow>
         </ul>
       </div>
+      </div>
+      </div>
     </section>
   </div>
 
@@ -377,28 +379,19 @@ function onKey(e: KeyboardEvent) {
 </template>
 
 <style scoped>
-/* The frame: the site's surface with a solid edge and a lip under it, like a game's HUD piece or the site's chunky
-   buttons. Flat: no glass, no blur. The map inside keeps its own day colours whatever the theme. */
-.small, .big { color: var(--text); background: var(--surface); }
+/* The frame: the sign's off-white board with a red line inside its edge and a hard shadow. Flat: no glass, no blur.
+   */
 .small {
   display: grid;
   gap: 5px;
-  padding: 5px 5px 6px;
-  border-radius: var(--r-lg);
-  box-shadow: inset 0 0 0 2px var(--line-strong), 0 var(--lip) 0 var(--line-strong), var(--lift);
+  padding: 7px;
+  background: var(--board);
+  color: var(--text);
+  box-shadow: inset 0 0 0 3px var(--panel-red), var(--lift);
 }
 .holder { position: relative; flex: none; }
-/* The map's own crisp edge, drawn over the canvas so it never covers a click. */
-.holder::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: var(--r-md);
-  box-shadow: inset 0 0 0 2px var(--line-strong);
-  pointer-events: none;
-}
 /* The small map opens the big one; on the big map only a house can be picked. */
-canvas { display: block; flex: none; border-radius: var(--r-md); cursor: pointer; }
+canvas { display: block; flex: none; cursor: pointer; }
 .big canvas { cursor: default; }
 .big canvas.pointing { cursor: pointer; }
 /* The compass: a small round badge on the map's top right corner, an N under a little pointer. */
@@ -411,10 +404,10 @@ canvas { display: block; flex: none; border-radius: var(--r-md); cursor: pointer
   display: grid;
   place-items: center;
   border-radius: var(--r-pill);
-  background: var(--surface);
-  color: var(--accent);
-  box-shadow: 0 0 0 1.5px var(--line-strong);
-  font: 800 10px/1 var(--display);
+  background: #ffffff;
+  color: var(--panel-red);
+  box-shadow: 0 0 0 2px var(--ink);
+  font: 800 10px/1 var(--font);
   pointer-events: none;
 }
 .compass::before {
@@ -425,10 +418,10 @@ canvas { display: block; flex: none; border-radius: var(--r-md); cursor: pointer
   transform: translateX(-50%);
   border: 3.5px solid transparent;
   border-top: 0;
-  border-bottom: 4px solid var(--accent-fill);
+  border-bottom: 4px solid var(--panel-red);
 }
-.big .compass { top: 8px; right: 8px; width: 24px; height: 24px; font-size: 12px; }
-/* The goal's halo: a soft orange ring around its house, under the pin, swelling and fading like a sonar ping.
+.big .compass { top: 8px; right: 8px; width: 24px; height: 24px; font-size: 14px; }
+/* The goal's halo: a soft red ring around its house, under the pin, swelling and fading like a sonar ping.
    Still and faint with calm motion. It never takes a click: the canvas below does. */
 .halo {
   position: absolute;
@@ -445,56 +438,41 @@ canvas { display: block; flex: none; border-radius: var(--r-md); cursor: pointer
   from { opacity: 0.9; transform: translate(-50%, -50%) scale(0.6); }
   to { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
 }
-/* The two counts: small pills, an icon and a number each. */
-.chips { display: flex; justify-content: center; gap: 6px; }
+/* The two counts: an icon and a number each. */
+.chips { display: flex; justify-content: center; gap: 14px; }
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px 2px 6px;
-  border-radius: var(--r-pill);
-  background: var(--fill);
   color: var(--text);
-  font: 700 var(--t-xs)/1.3 var(--mono);
+  font: 800 14px/1.2 var(--font);
 }
-.chip svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; color: var(--muted); }
-.tip { position: absolute; transform: translate(-50%, calc(-100% - 10px)); padding: 4px 9px; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--lift); font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; }
+.chip svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tip { position: absolute; transform: translate(-50%, calc(-100% - 10px)); padding: 4px 9px; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--lift); font-size: 14px; font-weight: 600; white-space: nowrap; pointer-events: none; }
 .veil { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: var(--scrim); }
 .big {
   position: relative;
   width: min(880px, 100%);
   max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 22px 24px 24px;
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow);
-  display: grid;
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
   animation: menu-pop var(--dur-slow) var(--ease-pop);
 }
+.big .sign-body { overflow-y: auto; overscroll-behavior: contain; }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
 }
-/* The big map gets the same solid edge and lip as the small one. */
-.big .holder { border-radius: var(--r-md); box-shadow: 0 0 0 3px var(--line-strong), 0 calc(var(--lip) + 2px) 0 var(--line-strong); }
-.head { display: grid; gap: 4px; padding-right: 48px; }
-h2 { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
-.soft { margin: 0; font-size: 14px; color: var(--muted); }
-/* The round close button in the corner, like the lobby's cards. */
-.x { position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
-.x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
 .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
 /* The houses: the panels' rows, the list scrolling inside itself when it's longer than the map is tall. */
-.houses { list-style: none; margin: 0; padding: 2px; flex: 1; min-width: 240px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; line-height: 1.3; }
+.houses { list-style: none; margin: 0; padding: 0 8px; flex: 1; min-width: 240px; display: grid; align-content: start; overflow-y: auto; overscroll-behavior: contain; line-height: 1.3; }
 .entry { position: relative; cursor: pointer; }
 /* The row's one button covers the whole row, so a click anywhere on it travels. */
-.houses .go { width: 34px; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); }
+.houses .go { width: 34px; min-height: 34px; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); }
 .houses .go::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-md); }
 .entry:hover .go { color: var(--text); }
 .houses .go:hover:not(:disabled) { background: none; }
 .houses .go:focus-visible { outline: none; color: var(--accent); }
-button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .big, .halo { animation: none; }
   .halo { opacity: 0.6; }

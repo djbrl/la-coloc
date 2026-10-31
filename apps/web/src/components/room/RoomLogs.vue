@@ -56,7 +56,7 @@ watch(
   border-radius: var(--r-lg);
   background: var(--code-bg);
   color: var(--code-text);
-  font: 12.5px/1.6 var(--mono);
+  font: 12.5px/1.6 var(--code);
   white-space: pre-wrap;
   word-break: break-word;
 }

@@ -118,11 +118,9 @@ function onClick(e: MouseEvent) {
 </script>
 
 <template>
-  <dialog ref="dialog" class="sheet" :aria-label="w.knockOn(room.name)" @close="emit('close')" @click="onClick">
+  <dialog ref="dialog" class="sheet step-sign" :aria-label="w.knockOn(room.name)" @close="emit('close')" @click="onClick">
     <div class="inner">
-      <button type="button" class="x" :aria-label="w.cancel" @click="dialog?.close()">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-      </button>
+      <button type="button" class="x" :aria-label="w.cancel" @click="dialog?.close()"><span aria-hidden="true">X</span></button>
 
       <!-- Already knocked here: one screen, one way on. -->
       <UiSteps v-if="already" :step="1" :total="1" focus-on-mount>
@@ -206,10 +204,6 @@ function onClick(e: MouseEvent) {
   max-height: calc(100dvh - 32px);
   padding: 0;
   border: none;
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -218,33 +212,23 @@ function onClick(e: MouseEvent) {
 @keyframes sheet-in {
   from { opacity: 0; transform: translateY(16px) scale(0.98); }
 }
-.inner { position: relative; padding: 28px 32px 28px; }
-/* The round close button in the corner, like the lobby's cards. */
-.x { position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); z-index: 1; }
-.x:hover:not(:disabled) { color: var(--text); }
 .form { display: grid; gap: 16px; }
-.form h2 { padding-right: 44px; font-size: 28px; line-height: 1.05; overflow-wrap: anywhere; }
-.lead { font-size: 19px; font-weight: 500; }
+.lead { font-size: 19px; font-weight: 600; }
 .quote { margin: 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--accent-fill); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
 .form a { overflow-wrap: anywhere; }
 .nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
 /* Chunky buttons, as in a game's menu: the main one in the accent, the way back in grey. */
 .nav button { min-height: 50px; border-radius: var(--r-md); padding: 0 20px; font-weight: 600; white-space: nowrap; }
-.nav .primary { min-width: 140px; }
+.nav .primary { flex: 1 1 auto; min-height: 60px; font-size: 22px; }
 .nav .second { display: inline-flex; align-items: center; gap: 6px; padding-left: 14px; }
 @media (max-width: 480px) {
-  .inner { padding: 24px 20px 24px; }
 }
 /* A short window (a landscape phone, a small laptop with the bars open): tighter, so the buttons stay in view. */
 @media (max-height: 640px) {
-  .inner { padding-top: 20px; padding-bottom: 20px; }
-  .x { top: 12px; }
   .form { gap: 10px; }
-  .form h2 { font-size: 22px; }
   .form textarea { height: 104px; }
   .nav { margin-top: 0; }
-  .inner :deep(.steps) { gap: 14px; }
-}
+  }
 @media (prefers-reduced-motion: reduce) {
   .sheet[open] { animation: none; }
 }

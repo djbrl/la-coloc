@@ -3,6 +3,7 @@
 // lobby's no-3D twin: one floating card, like the lobby's panels, with the city's name and numbers, a search and a
 // filter, and the houses as rows (components/list/CityRow.vue), each one way into its house's page.
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
+import { useRoute } from "vue-router";
 import LoadingScreen from "../components/LoadingScreen.vue";
 import Waiting from "../components/Waiting.vue";
 import Choice, { type Option } from "../components/list/Choice.vue";
@@ -11,10 +12,16 @@ import CityRow from "../components/list/CityRow.vue";
 import ListCard from "../components/list/ListCard.vue";
 import { listWords as w } from "../components/list/words";
 import { core, useWhenBack, wentDown } from "../core";
+import { opensOnLanding, visiting } from "../landing";
 import { me, meLoaded } from "../session";
 import { settings } from "../settings";
 import { openStream, type Stream } from "../stream";
 import type { CityHouse } from "../types";
+import LandingPage from "./LandingPage.vue";
+
+const route = useRoute();
+// Someone logged out starts on the landing (landing.ts says exactly when); a link to a place in the city goes there.
+const landing = computed(() => opensOnLanding({ known: meLoaded.value, loggedIn: !!me.value, visiting: visiting.value, linked: !!route.query.in || !!route.query.city }));
 
 // three.js is big: it only loads when someone opens the lobby, behind the same loading screen.
 const LobbyView = defineAsyncComponent({ loader: () => import("../components/LobbyView.vue"), loadingComponent: LoadingScreen, delay: 0 });
@@ -74,7 +81,8 @@ const listLine = computed(() => {
 </script>
 
 <template>
-  <div v-if="error" class="list">
+  <LandingPage v-if="landing" />
+  <div v-else-if="error" class="list">
     <ListCard>
       <div class="card">
         <h1 class="name">{{ w.city }}</h1>
@@ -124,13 +132,13 @@ const listLine = computed(() => {
 .list { max-width: calc(760px + 2 * var(--gutter)); margin: 0 auto; padding: 72px var(--gutter) 80px; }
 .card { display: grid; gap: 14px; padding: 26px var(--gutter) 22px; }
 .head { display: grid; gap: 6px; }
-.name { font-size: 32px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+.name { font-size: 32px; line-height: 1.1; }
 .line { font-size: 14px; color: var(--muted); }
 .again { justify-self: start; }
 .controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
-.controls input { min-height: 44px; padding: 10px 16px; border: 0; border-radius: var(--r-md); background: var(--fill); font-size: 15px; }
+.controls input { min-height: 50px; padding: 10px 16px; border: 0; border-radius: var(--r-md); background: var(--fill); font-size: 15px; }
 .controls input:focus { box-shadow: 0 0 0 3px var(--focus); }
-.explain { margin-top: -4px; font-size: 13px; line-height: 1.3; color: var(--muted); }
+.explain { margin-top: -4px; font-size: 14px; line-height: 1.3; color: var(--muted); }
 .plain { list-style: none; margin: 0; padding: 0; }
 /* The same tight rows as the lobby's panels. */
 .lines { display: grid; gap: 6px; align-content: start; line-height: 1.3; }

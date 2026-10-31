@@ -126,12 +126,8 @@ async function send(kind: "invite" | "rent" | "withdraw") {
 </script>
 
 <template>
-  <LobbyCard :label="w.personLabel(name)">
-    <h2>{{ name }}</h2>
+  <LobbyCard :label="w.personLabel(name)" :title="name" :sub="`@${login}`" :close-name="w.close" @close="emit('close')">
     <BadgeChip v-if="badge" class="worn" :badge="badge" />
-    <button class="x" :aria-label="w.close" @click="emit('close')">
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-    </button>
     <p class="soft small who">
       <template v-if="where">{{ where }}</template>
       <template v-else>{{ w.visiting(login) }}</template>
@@ -201,23 +197,25 @@ async function send(kind: "invite" | "rent" | "withdraw") {
 </template>
 
 <style scoped>
-.who { margin-top: -6px; overflow-wrap: anywhere; }
-.worn { justify-self: start; margin-top: -4px; }
-/* Their project, as a small block: what it's called, whether it's online, and what it does. */
-.project { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-md); background: var(--tile); }
-.ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--surface); color: var(--muted); }
+.who { overflow-wrap: anywhere; }
+.worn { justify-self: start; }
+/* The honest marker: a quiet word, its sentence on hover and for a screen reader. */
+.tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--r-xs); background: var(--fill); color: var(--text); font-size: 14px; font-weight: 800; line-height: 20px; }
+/* Their project, as one row: what it's called, whether it's online, and what it does. */
+.project { display: flex; gap: 12px; align-items: flex-start; }
+.ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; color: var(--panel); }
 .what { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.name strong { overflow-wrap: anywhere; }
+.name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 18px; }
+.name strong { font-weight: 800; overflow-wrap: anywhere; }
 .desc { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 /* A disabled main action (an example person, a full house) stays readable but plainly off. */
-.menu .big.primary:disabled { background: var(--fill); color: var(--muted); box-shadow: none; cursor: not-allowed; }
-/* Already invited: the tick and the word, then "Take back" as a quiet key. */
+.menu .big.primary:disabled { opacity: 1; background: var(--fill); color: var(--muted); cursor: not-allowed; }
+/* Already invited: the tick and the word, then "Take back" as a ghost. */
 .sent { display: flex; align-items: center; gap: 8px; }
-.done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 50px; padding: 0 14px; border-radius: var(--r-md); background: var(--live-soft); color: var(--live); font-weight: 700; }
+.done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 50px; color: var(--live); font-weight: 800; }
 .sent .quiet { flex: none; }
 /* Just waved: the tile turns the "done" green for a moment. */
-.menu .tile.waved { background: var(--live-soft); color: var(--live); box-shadow: none; }
+.menu .tile.waved, .menu .tile.waved:hover:not(:disabled) { background: transparent; color: var(--live); box-shadow: inset 0 0 0 3px var(--live); }
 /* Several free rooms: pick the one to offer, above the invitation. */
 .rooms { flex-wrap: wrap; }
 .rooms > button { flex: 1 1 auto; justify-content: center; }

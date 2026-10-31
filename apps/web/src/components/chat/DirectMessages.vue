@@ -123,8 +123,8 @@ async function toggleBlock() {
       <p v-if="!conversations.items.length" class="soft empty">{{ w.noConversations }}</p>
       <ul v-else ref="listEl" class="lines">
         <ListRow v-for="c in conversations.items" :key="c.with.login" :title="c.with.name ?? c.with.login" class="entry" :class="{ unread: c.unread > 0 }">
-          <template #lead><Avatar :person="c.with" :size="34" decorative /></template>
-          <span class="sub">{{ c.last.mine ? w.you : "" }}{{ c.last.body }}</span>
+          <template #lead><Avatar :person="c.with" :size="46" decorative /></template>
+          <span class="sub"><span class="handle">@{{ c.with.login }}</span> {{ c.last.mine ? w.you : "" }}{{ c.last.body }}</span>
           <template #meta>
             <BadgeChip v-if="c.with.badge" compact :badge="c.with.badge" />
             <span>{{ noteWhen(c.last.at) }}</span>
@@ -142,19 +142,20 @@ async function toggleBlock() {
 <style scoped>
 .dm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .head { flex: none; display: flex; align-items: center; gap: 10px; }
-.head h3 { flex: 1; min-width: 0; margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.head h3 { flex: 1; min-width: 0; margin: 0; font: 800 18px/1.2 var(--font); text-transform: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .head .worn { margin-left: 8px; }
-.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 34px; height: 34px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; font-weight: 600; }
+.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 46px; height: 46px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
 .icon-key:hover:not(:disabled) { background: var(--fill); color: var(--text); }
-.icon-key.sure { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
+.icon-key.sure { background: var(--sticker); color: var(--ink); box-shadow: none; }
 .icon-key.on { color: var(--danger); }
 .empty { margin: 0; padding: 8px 2px; }
-.lines { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 2px; display: grid; gap: 6px; align-content: start; }
-.lines :deep(.list-row) { min-height: 54px; padding: 8px 10px; gap: 10px; }
+.lines { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 0 6px; display: grid; align-content: start; }
+.lines :deep(.list-row) { min-height: 62px; }
+.handle { font-weight: 600; color: var(--handle); }
 /* Unread: the name and the last line in full weight. */
 .entry.unread :deep(.title) { font-weight: 800; }
 .entry.unread .sub { color: var(--text); }
-.count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill); background: var(--accent-fill); color: var(--on-accent); font: 700 11px/18px var(--font); text-align: center; }
+.count { min-width: 22px; height: 22px; padding: 0 5px; border-radius: var(--r-xs); background: var(--sticker); color: var(--ink); font: 800 14px/22px var(--font); text-align: center; }
 .open { width: 32px; padding: 0 !important; justify-content: center; background: none; box-shadow: none; color: var(--muted); }
 /* The whole row answers a click, not only the arrow. */
 .entry { position: relative; cursor: pointer; }

@@ -43,8 +43,7 @@ import { findHouses, homePlace, workshopRow } from "./lobby/home";
 import Inside from "./lobby/Inside.vue";
 import KeyLegend from "./lobby/KeyLegend.vue";
 import KeysSheet from "./lobby/KeysSheet.vue";
-import HouseBadge from "./lobby/HouseBadge.vue";
-import HouseStats from "./lobby/HouseStats.vue";
+import { houseStatsWords } from "./lobby/houseStats";
 import Minimap from "./lobby/Minimap.vue";
 import TouchDash from "./lobby/TouchDash.vue";
 import PersonCard from "./lobby/PersonCard.vue";
@@ -1175,6 +1174,8 @@ function findHouse(h: CityHouse) {
   card.value = { kind: "house", house: h };
 }
 
+// An example house says so in its row.
+const sampleWord = computed(() => houseStatsWords.sampleTag);
 // Find's rows: the city's houses, and the workshop if you live there; matched by house, project or person (home.ts).
 const found = computed(() => {
   const row = workshopRow(workshop.value);
@@ -1222,8 +1223,15 @@ function statsOf(name: string) {
       <!-- Each piece of the screen shows once the tutorial has unlocked it (always, outside the tutorial). The HUD
            comes first in the page, so Tab reaches the skip link, the top bar and these buttons before the city. -->
       <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? w.inWorkshop(placeName) : w.inCity(crumb)" @click="openSheet('travel')">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" /></svg>
         <span class="city">{{ crumb }}</span>
-        <span class="chev" aria-hidden="true">›</span>
+      </button>
+
+      <!-- Top left: the search, drawn as the field it opens (the find sheet's input lands exactly here). -->
+      <button v-if="shows('tools')" class="hud find-key" :aria-label="w.find" @click="openSheet('find')">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="3" /><path d="M16 16l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+        <span class="find-word">{{ w.searchHint }}</span>
+        <kbd aria-hidden="true">F</kbd>
       </button>
 
       <!-- Top centre, during the quest: its tracker, eight stamps and the chapter you're in. -->
@@ -1268,24 +1276,21 @@ function statsOf(name: string) {
           <Icon name="house" :size="20" />
         </button>
         <button :aria-label="w.cityBoard(city)" :title="w.cityBoard(city)" @click="openChat('board', {})">
-          <Icon name="board" :size="20" />
+          <Icon name="board" :size="22" />
         </button>
         <!-- The arena: you walk to the stadium's entrance (never during the quest: the workshop has none). -->
         <button v-if="!inWorkshop" :aria-label="aw.goTo" :title="aw.goTo" @click="goToArena">
-          <Icon name="trophy" :size="20" />
-        </button>
-        <button :aria-label="w.find" @click="openSheet('find')">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+          <Icon name="trophy" :size="22" />
         </button>
         <button :aria-label="w.turnLeft" @click="lobby?.rotate(-1)">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
         <button :aria-label="w.turnRight" @click="lobby?.rotate(1)">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       </div>
 
-      <!-- Bottom left: the open card, if any, with the keys underneath it. -->
+      <!-- On the right, under the keys: the open card, if any. -->
       <div class="hud dock">
         <Transition name="rise">
           <HouseCard
@@ -1318,8 +1323,10 @@ function statsOf(name: string) {
           <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />
           <BoardCard v-else-if="card?.kind === 'board'" :key="cardKey" :city="city" :houses="here" @open="boardHouse" @city-board="cityBoard" @close="closeCard" />
         </Transition>
-        <KeyLegend v-if="shows('keys')" :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" />
       </div>
+
+      <!-- Along the bottom: the keys. -->
+      <div v-if="shows('keys')" class="hud keys-row"><KeyLegend :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" /></div>
 
       <!-- Bottom centre: the quest's coach, what's in reach (or highlighted with [ and ]) while no card is open. The
            HUD's thumbs up and down are gone (Jib, 15 10); waving still happens from a person's card. The coach must stay usable over a house's window, so the column lifts above it; on a wide
@@ -1382,7 +1389,7 @@ function statsOf(name: string) {
         </Transition>
       </div>
 
-      <!-- Bottom right: the neighbourhood from above. Clicking it (or M) opens it big; it never moves you. -->
+      <!-- Bottom left (bottom right on a phone): the neighbourhood from above. Clicking it (or M) opens it big; it never moves you. -->
       <div v-if="neighbourhood && shows('map')" class="hud map" :class="{ covered: !!card, questing: inWorkshop, finding: !!goal }">
         <Minimap :neighbourhood="neighbourhood" :houses="shown" :residents="residents" :state="mapState" :online="others.size + (me ? 1 : 0)" :goal="goal" @open="bigMap = true" />
       </div>
@@ -1471,36 +1478,38 @@ function statsOf(name: string) {
     <ArenaPanel v-if="card?.kind === 'arena' && !place" :key="cardKey" :city="card.city" :crowd="crowd" @close="closeCard" />
 
     <Transition name="fade">
-      <div v-if="sheet" class="scrim" @click="sheet = ''" />
+      <div v-if="sheet" class="scrim" :class="{ clear: sheet === 'find' }" @click="sheet = ''" />
     </Transition>
-    <!-- Find and travel: floating menus in the middle of the screen, a bold title, then one row per house or city,
-         like a game's menu entries. The close button comes last, so the first field or row takes the focus. -->
+    <!-- Find: the search field stays where it was, with the houses under it. Travel: a sign in the middle of the screen.
+         One row per house or city, like a game's menu entries. The close button comes after the field, so the field
+         takes the focus. -->
     <Transition name="sheet">
-      <section v-if="sheet === 'find'" ref="sheetEl" class="sheet" role="dialog" aria-modal="true" :aria-label="w.findTitle" @keydown.esc="sheet = ''">
-        <h2>{{ w.findTitle }}</h2>
-        <div class="search">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z M15.5 15.5L21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      <section v-if="sheet === 'find'" ref="sheetEl" class="find" role="dialog" aria-modal="true" :aria-label="w.findTitle" @keydown.esc="sheet = ''">
+        <div class="field">
+          <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="3" /><path d="M16 16l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
           <input v-model="query" type="search" :placeholder="w.searchHint" :aria-label="w.searchName" autofocus />
+          <button class="x" :aria-label="w.close" @click="sheet = ''"><span aria-hidden="true">X</span></button>
         </div>
         <ul v-if="found.length" class="entries">
           <li v-for="h in found" :key="h.id">
             <button class="entry" @click="findHouse(h)">
-              <!-- The house in its own colour (dashed for an example), its city, and its people and rooms as icons. -->
-              <HouseBadge :id="h.id" :sample="h.demo" />
-              <span class="text">
-                <span class="title">{{ h.name }}</span>
-                <span class="line"><span class="city">{{ h.city }}</span><HouseStats :house="h" :sample="h.demo" /></span>
-              </span>
-              <span class="chev"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+              <Icon name="house" :size="22" class="mark" />
+              <span class="title">{{ h.name }}</span>
+              <span class="where">{{ h.demo ? `${h.city} · ${sampleWord}` : h.city }}</span>
+              <span v-if="freeRooms(h).length" class="free-chip">{{ w.freeChip(freeRooms(h).length) }}</span>
             </button>
           </li>
         </ul>
         <p v-else class="none">{{ w.noMatch }}</p>
-        <button class="x" :aria-label="w.close" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
       </section>
       <!-- Where to: Africa with a dot per city, and the cities as rows beside it (under it on a phone). -->
-      <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet travel" role="dialog" aria-modal="true" :aria-label="w.travelName" @keydown.esc="sheet = ''">
-        <h2>{{ w.whereTo }}</h2>
+      <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet travel sign" role="dialog" aria-modal="true" :aria-label="w.travelName" @keydown.esc="sheet = ''">
+        <div class="sign-frame">
+        <header class="sign-band large">
+          <h2>{{ w.whereTo }}</h2>
+          <button class="sign-x" :aria-label="w.close" @click="sheet = ''"><span aria-hidden="true">X</span></button>
+        </header>
+        <div class="sign-body">
         <div class="atlas">
           <AfricaMap class="africa" :cities="cities.map((c) => c.name)" :here="city" :lit="litCity" @travel="travel" @hover="(c) => (litCity = c)" />
           <ul class="entries">
@@ -1529,7 +1538,8 @@ function statsOf(name: string) {
             </li>
           </ul>
         </div>
-        <button class="x" :aria-label="w.close" @click="sheet = ''"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg></button>
+        </div>
+        </div>
       </section>
     </Transition>
 
@@ -1543,112 +1553,120 @@ function statsOf(name: string) {
 /* Its own stacking context: three.js gives every name tag a z-index, which would otherwise float over the sheets. */
 .stage { position: absolute; inset: 0; z-index: 0; isolation: isolate; outline: none; }
 /* Tabbed to with the keyboard: a ring inside the screen's edge says the city has the keys now. */
-.stage:focus-visible { box-shadow: inset 0 0 0 3px var(--accent-fill); }
+.stage:focus-visible { box-shadow: inset 0 0 0 3px var(--ring); }
 .stage :deep(canvas) { display: block; }
 /* No WebGL: one flat card in the middle says so. */
-.failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: var(--r-xl); background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
-/* Everything on top of the city is a flat piece of the site's surface, lifted by a shadow: no glass, no blur. */
+.failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
+/* Everything on top of the city is flat, with a hard shadow: no glass, no blur. */
 .hud { position: absolute; z-index: 10; color: var(--text); transition: opacity var(--dur) var(--ease); }
-/* A house, a room or a knock is open: like a game's pause menu, the HUD around it steps back (who's here, the
-   round tools and the minimap, which the panel would half cover), leaving the place and the keys. */
-.paused .hud.top, .paused .hud.tools, .paused .hud.map { opacity: 0; pointer-events: none; }
-/* The HUD's pieces are flat keys on the surface: a hairline edge, a small lip under the ones you can press. */
-.place, .tools button { background: var(--surface); color: var(--text); box-shadow: var(--lift), 0 2px 0 var(--line-strong); }
-/* Where you are, as a breadcrumb: a slash in the monospace, then the city's name in the display face. */
-.place { top: 60px; left: 16px; display: flex; align-items: center; gap: 8px; padding: 6px 12px; min-height: 44px; border: 0; border-radius: var(--r-md); cursor: pointer; }
-.place::before { content: "/"; font: 500 16px/1 var(--mono); color: var(--accent); }
-.place .city { font: 800 20px/1.1 var(--display); letter-spacing: -0.02em; }
-.place .chev { font-size: 20px; line-height: 1; color: var(--muted); transition: transform var(--dur-fast) var(--ease); }
-.place:hover .chev { transform: translateX(2px); }
-/* What needs attention in this city, in a strip at the top with its dot (red: a server down, amber: a failed build);
-   absent while all is well. It never catches clicks. */
-.top { top: calc(64px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
-.top::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
-.top.danger::before { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+/* A house, a room or a knock is open: like a game's pause menu, the HUD around it steps back (the search, the tools, the
+   minimap and the key hints, which the panel would half cover), leaving the place and the site's keys. */
+.paused .hud.top, .paused .hud.tools, .paused .hud.map, .paused .hud.find-key, .paused .hud.keys-row { opacity: 0; pointer-events: none; }
+/* The search, top left: a white field with a red edge. Pressed, it opens the real one in the same place. */
+.find-key, .field { display: flex; align-items: center; gap: 10px; height: 62px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel-red), var(--lift); }
+.find-key { top: 24px; left: 24px; width: min(420px, 30vw); min-width: 240px; font: 800 19px/1 var(--font); text-align: left; }
+.find-key:hover:not(:disabled) { background: var(--tile); }
+.find-key svg, .field svg { flex: none; color: var(--panel-red); }
+.find-word { flex: 1; min-width: 0; color: var(--muted); font-weight: 600; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.find-key kbd { flex: none; }
+/* Where you are, a red key just left of the site's own keys (App.vue says how wide they are in --keys-width). */
+.place { top: 24px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 16px; border: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
+.place .city { font: 800 20px/1.1 var(--font); white-space: nowrap; }
+.place:hover:not(:disabled) { background: var(--accent-fill-hover); }
+.place:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
+/* What needs attention in this city, a yellow chip at the top; absent while all is well. It never catches clicks. */
+.top { top: calc(98px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: var(--r-md); background: var(--sticker); color: var(--ink); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
+.top.danger::before { content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--panel-red); }
 .top:empty { display: none; }
-.top p { margin: 0; font-size: 14px; font-weight: 500; min-width: 0; }
+.top p { margin: 0; font-size: 15px; font-weight: 800; min-width: 0; }
 .top .narrow { display: none; }
-/* The quest's tracker takes the pill's place, at the top centre. */
-.quest { top: calc(64px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); }
-/* News and tips: one line under the pill, popping in and out; never in the way of a click. */
-.news { top: calc(112px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
+/* The quest's tracker takes the chip's place, at the top centre. */
+.quest { top: calc(24px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); }
+/* News and tips: one line under the chip, popping in and out; never in the way of a click. */
+.news { top: calc(146px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
 /* The toast's look is shared (style.css); here only its place. */
 .toast kbd { margin: 0 1px; }
-/* The corner offers, under the place button: a soft accent pill and a small way to say no. */
-.corner { top: calc(116px + var(--core-offset, 0px)); left: 16px; display: grid; gap: 8px; justify-items: start; max-width: min(340px, calc(100vw - 96px)); }
+/* The corner offers, under the search: a white strip and a small way to say no. */
+.corner { top: calc(100px + var(--core-offset, 0px)); left: 24px; display: grid; gap: 8px; justify-items: start; max-width: min(340px, calc(100vw - 96px)); }
 .chip { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); }
-.chip-go { min-height: 40px; padding: 6px 12px; border: 0; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 600; line-height: 1.3; text-align: left; cursor: pointer; }
-.chip-go:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-sm); display: grid; place-items: center; background: none; color: var(--muted); cursor: pointer; }
-.chip-x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
-.tools { top: 60px; right: 16px; display: grid; gap: 8px; }
-/* The "can't reach the city" card (CoreStatus.vue) sits at the top centre. On a screen too narrow to leave it room
-   beside the place and the tools, they step down under it, like the pill and the news do at every width. */
-@media (max-width: 899px) {
-  .place, .tools { top: calc(60px + var(--core-offset, 0px)); }
-}
-.tools button { width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; display: grid; place-items: center; cursor: pointer; }
-.tools button:active:not(:disabled) { transform: translateY(2px); box-shadow: var(--lift); }
-/* The dock stacks the card over the keys; its empty space lets clicks through to the city. */
-.dock { left: 16px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-start; gap: 12px; pointer-events: none; }
+.chip-go { min-height: 46px; padding: 6px 12px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text); font: 800 15px/1.2 var(--font); text-align: left; cursor: pointer; }
+.chip-go:hover:not(:disabled) { background: var(--tile); }
+.chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-sm); display: grid; place-items: center; background: none; color: var(--text); cursor: pointer; }
+.chip-x:hover:not(:disabled) { background: var(--fill); }
+/* The tools, in the bottom right corner: red keys, a size down from the top ones. */
+.tools { right: 24px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; gap: 8px; }
+.tools button { width: 50px; height: 50px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; display: grid; place-items: center; background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
+.tools button:hover:not(:disabled) { background: var(--accent-fill-hover); }
+.tools button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
+/* The open card, under the keys on the right; its empty space lets clicks through to the city. */
+.dock { top: 112px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; pointer-events: none; }
 .dock > * { pointer-events: auto; }
-/* The middle column: the coach or the prompt; the gaps let clicks through. */
-.centre { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+/* The keys along the bottom. Their empty space lets clicks through too. */
+.keys-row { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); pointer-events: none; }
+.keys-row > * { pointer-events: auto; }
+/* The middle column, over the keys: the coach or the prompt; the gaps let clicks through. */
+.centre { left: 50%; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 62px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .centre > * { pointer-events: auto; }
 /* During the tutorial the column sits above a house's inside (60), so the coach's buttons stay in reach. */
 .centre.lifted { z-index: 70; }
-/* A wide screen docks the window on the right: the coach moves to the bottom left, above the keys. */
+/* A wide screen docks the window on the right: the coach moves to the bottom left. */
 @media (min-width: 900px) {
-  .centre.aside { left: 16px; bottom: max(76px, env(safe-area-inset-bottom)); transform: none; align-items: flex-start; }
+  .centre.aside { left: 24px; bottom: max(28px, env(safe-area-inset-bottom)); transform: none; align-items: flex-start; }
 }
-/* The interact prompt, like a game's: what's in reach in the display face, and the one action as the orange key. */
-.prompt { display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 18px; border-radius: var(--r-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow); white-space: nowrap; font-size: 16px; max-width: calc(100vw - 32px); animation: prompt-pop var(--dur-slow) var(--ease-pop); }
-.prompt strong { font: 800 18px/1.1 var(--display); letter-spacing: -0.02em; }
+/* The interact prompt, like a game's: what's in reach, and the one action as the red key. */
+.prompt { display: flex; align-items: center; gap: 16px; padding: 7px 7px 7px 18px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); white-space: nowrap; font-size: 16px; max-width: calc(100vw - 32px); animation: prompt-pop var(--dur-slow) var(--ease-pop); }
+.prompt strong { font-size: 18px; font-weight: 800; }
 @keyframes prompt-pop {
   from { transform: scale(0.96); }
 }
 .soft { color: var(--muted); }
-/* The one main action: the orange key with its lip, and the key it answers to. */
-.pill { border: 0; border-radius: var(--r-md); padding: 8px 14px 8px 16px; min-height: 44px; font: 700 17px/1 var(--display); letter-spacing: -0.01em; background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 var(--lip) 0 var(--accent-lip); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
-.pill:active:not(:disabled) { transform: translateY(calc(var(--lip) - var(--lip-pressed))); box-shadow: 0 var(--lip-pressed) 0 var(--accent-lip); }
-.map { right: 16px; bottom: max(28px, env(safe-area-inset-bottom)); }
-/* Our own hovers, so the site's grey button hover doesn't paint over these. */
+/* The one main action: the red key, and the key it answers to. */
+.pill { border: 0; border-radius: var(--r-md); padding: 0 8px 0 16px; min-height: 46px; font: 400 18px/1 var(--display); background: var(--accent-fill); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
+.pill:active:not(:disabled) { transform: translateY(1px); }
 .pill:hover:not(:disabled) { background: var(--accent-fill-hover); }
-.place:hover:not(:disabled), .tools button:hover:not(:disabled) { background: var(--fill); }
-button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.map { left: 24px; bottom: max(28px, env(safe-area-inset-bottom)); }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 .scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); }
-/* Find and travel: a floating menu in the middle of the screen, flat and big-cornered, popping in. */
-.sheet { position: absolute; z-index: 50; top: 50%; left: 50%; translate: -50% -50%; width: min(500px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 96px)); padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 14px; border-radius: var(--r-xl); background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
-.sheet h2 { flex: none; margin: 0; padding-right: 48px; font-size: 28px; line-height: 1.05; }
-/* The round close button in the corner, like the lobby's cards. */
-.sheet .x { position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
-.sheet .x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
-.sheet .search { flex: none; position: relative; }
-.sheet .search svg { position: absolute; left: 15px; top: 50%; translate: 0 -50%; color: var(--muted); pointer-events: none; }
-.sheet input { width: 100%; min-height: 48px; padding: 10px 16px 10px 46px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--tile); color: inherit; font-size: 17px; }
-.sheet input:focus { border-color: var(--accent-fill); background: var(--surface); }
-/* The rows: the panels' list rows, each one whole button, lit under the pointer and when it holds the focus. */
-.sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0 -6px; padding: 2px 6px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
-/* The same look as the panels' ListRow (a surface row with a 1px edge). Where you are is the orange dot on the map. */
-.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px 8px 12px; border: 0; border-radius: var(--r-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: inherit; line-height: 1.3; text-align: left; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease); }
+/* The search doesn't dim the city: a click beside it still closes it. */
+.scrim.clear { background: none; }
+/* Find: the field in the same place as the key that opened it, the houses in a white card under it. */
+.find { position: absolute; z-index: 50; top: 24px; left: 24px; width: min(420px, calc(100vw - 48px)); max-height: calc(100dvh - 60px); display: flex; flex-direction: column; gap: 12px; }
+.field { flex: none; padding-right: 9px; }
+.field input { flex: 1; min-width: 0; min-height: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; font-size: 19px; font-weight: 800; }
+.field input:focus { outline: none; }
+.field input::-webkit-search-cancel-button { display: none; }
+.field .x { flex: none; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); font: 400 20px/1 var(--display); }
+.find .entries { flex: 0 1 auto; min-height: 0; list-style: none; margin: 0; padding: 6px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); overflow-y: auto; overscroll-behavior: contain; }
+.find .entries li + li { border-top: 2px solid var(--row-line); }
+.find .entry { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; cursor: pointer; }
+.find .entry:hover:not(:disabled) { background: var(--tile); }
+.find .entry:focus-visible { outline: none; background: var(--accent-soft); }
+.find .mark { flex: none; color: var(--panel-red); }
+.find .title { flex: 1; min-width: 0; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find .where { flex: none; color: var(--muted); }
+.find .free-chip { flex: none; padding: 2px 8px; border-radius: var(--r-xs); background: var(--sticker); color: var(--ink); font-size: 15px; font-weight: 800; }
+.find .none { margin: 0; padding: 14px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); font-size: 16px; }
+/* Travel: a sign in the middle of the screen, popping in. */
+.sheet { position: absolute; z-index: 50; top: 50%; left: 50%; translate: -50% -50%; display: flex; flex-direction: column; color: var(--text); }
+.sheet.travel { width: min(860px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 48px)); }
+.sheet .sign-body { display: flex; flex-direction: column; min-height: 0; }
+/* The rows: lines between them, each one whole button, lit under the pointer and when it holds the focus. */
+.sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 0 6px; display: grid; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
+.sheet .entries li + li { border-top: 2px solid var(--row-line); }
+.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 16px/1.2 var(--font); text-align: left; cursor: pointer; }
 .sheet .entry:hover:not(:disabled) { background: var(--tile); }
-/* The selected entry is filled with the soft orange: a fill, never an outline. */
 .sheet .entry:focus-visible { outline: none; background: var(--accent-soft); }
 .sheet .entry:active { transform: translateY(1px); }
 .sheet .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
-.sheet .title { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet .sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet .line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; font-size: 13px; color: var(--muted); }
-.sheet .chev { flex: none; display: grid; color: var(--muted); }
-.sheet .none { margin: 0; padding: 8px 2px; font-size: 15px; color: var(--muted); }
-/* Where to: wider, the map on the left and the cities beside it. */
-.sheet.travel { width: min(820px, calc(100vw - 32px)); max-height: min(700px, calc(100dvh - 96px)); }
+.sheet .title { font-size: 18px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet .chev { flex: none; display: grid; color: var(--text); }
+/* Where to: the map on the left and the cities beside it. */
 .atlas { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 18px; align-items: start; }
-.atlas .africa { max-height: calc(min(700px, 100dvh - 96px) - 110px); max-width: 100%; justify-self: center; }
-.atlas .entries { max-height: calc(min(700px, 100dvh - 96px) - 110px); }
-/* A city's stats: small icon chips, the numbers in the monospace; a zero steps back. */
-.sheet .stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; color: var(--muted); }
-.sheet .stat { display: inline-flex; align-items: center; gap: 4px; font: 500 12.5px/1.2 var(--mono); }
+.atlas .africa { max-height: calc(min(720px, 100dvh - 48px) - 150px); max-width: 100%; justify-self: center; }
+.atlas .entries { max-height: calc(min(720px, 100dvh - 48px) - 150px); }
+/* A city's stats: icons and numbers; a zero steps back. */
+.sheet .stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; }
+.sheet .stat { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sheet .stat.zero { opacity: 0.55; }
 .rise-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .rise-leave-active { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
@@ -1661,31 +1679,50 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 @media (prefers-reduced-motion: reduce) {
   .rise-enter-active, .rise-leave-active, .fade-enter-active, .fade-leave-active, .sheet-enter-active, .sheet-leave-active { transition: none; }
   .prompt { animation: none; }
-  .pill:active:not(:disabled), .tools button:active:not(:disabled) { transform: none; }
+  .pill:active:not(:disabled), .tools button:active:not(:disabled), .place:active:not(:disabled) { transform: none; }
 }
 /* No keyboard, no key hints. */
 @media (hover: none) {
   kbd { display: none; }
+  .centre { bottom: max(28px, env(safe-area-inset-bottom)); }
+}
+/* Not much width: the search shrinks to its icon, the place to its name. */
+@media (max-width: 1000px) {
+  .find-key { width: 62px; min-width: 0; justify-content: center; padding: 0; }
+  .find-word, .find-key kbd { display: none; }
+}
+@media (max-width: 899px) {
+  .find-key, .place { top: calc(24px + var(--core-offset, 0px)); }
 }
 @media (max-width: 520px) {
+  /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
+  .find-key { top: calc(12px + var(--core-offset, 0px)); left: 12px; width: 44px; height: 44px; box-shadow: inset 0 0 0 3px var(--panel-red), 0 3px 0 rgba(20, 12, 18, 0.45); }
+  .find-key svg { width: 22px; height: 22px; }
+  .place { top: calc(12px + var(--core-offset, 0px)); right: calc(12px + var(--keys-width, 0px) + 6px); height: 44px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
+  .place svg { display: none; }
+  .place .city { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
   .prompt { gap: 10px; padding-left: 14px; font-size: 15px; max-width: 100%; }
   .prompt strong { font-size: 16px; }
   .prompt .soft { display: none; }
   .prompt > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* The prompt moves to the left, beside the minimap rather than under it. The coach (lifted)
      keeps the middle. */
-  .centre:not(.lifted) { left: 16px; transform: none; align-items: flex-start; max-width: calc(100vw - 180px); }
-  /* One line: the city's name is already top left, and anything longer ends in "…". */
-  .top { top: calc(112px + var(--core-offset, 0px)); max-width: calc(100vw - 24px); padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .centre:not(.lifted) { left: 12px; bottom: max(28px, env(safe-area-inset-bottom)); transform: none; align-items: flex-start; max-width: calc(100vw - 180px); }
+  /* The tools stand in a column down the right, under the keys, in the thumb's way of nothing. */
+  .tools { top: calc(68px + var(--core-offset, 0px)); right: 12px; bottom: auto; flex-direction: column; gap: 6px; }
+  .tools button { width: 44px; height: 44px; box-shadow: 0 3px 0 var(--accent-lip); }
+  /* One line: the city's name is already top right, and anything longer ends in "…". */
+  .top { top: calc(68px + var(--core-offset, 0px)); left: 12px; right: 64px; transform: none; max-width: none; padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top p { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
   .top .wide { display: none; }
   .top .narrow { display: inline; }
-  .news { top: calc(156px + var(--core-offset, 0px)); }
-  /* The tracker steps down under the place and the tools, like the pill does. */
-  .quest { top: calc(112px + var(--core-offset, 0px)); }
+  .news { top: calc(112px + var(--core-offset, 0px)); max-width: calc(100vw - 80px); }
+  /* The tracker steps down under the place and the keys. */
+  .quest { top: calc(68px + var(--core-offset, 0px)); }
   .toast { font-size: 14px; }
-  .corner { top: calc(200px + var(--core-offset, 0px)); }
-  .map { right: 12px; }
+  .corner { top: calc(68px + var(--core-offset, 0px)); left: 12px; }
+  /* The minimap stays on the thumb's side on a phone. */
+  .map { left: auto; right: 12px; }
   /* In the quest the coach takes the bottom of a phone's screen: the map moves to the top right, under the
      tracker, while it points at the house you're looking for, and steps aside after that. */
   .map.questing { display: none; }
@@ -1694,11 +1731,13 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .map.questing.finding { display: block; top: calc(160px + var(--core-offset, 0px)); bottom: auto; }
   /* A card is a sheet along the bottom edge here: the map would hide under it. */
   .map.covered { display: none; }
-  /* Cards become a sheet along the bottom edge; the keys, if a narrow window still shows them, sit above it. */
-  .dock { left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
-  .dock .legend, .dock .peek { order: -1; align-self: flex-start; margin: 0 16px 12px; }
-  /* Find and travel become a sheet along the bottom edge. */
-  .sheet, .sheet.travel { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 86dvh; border-radius: var(--r-xl) var(--r-xl) 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+  /* Cards become a sheet along the bottom edge. */
+  .dock { top: auto; left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
+  .keys-row { display: none; }
+  /* Find keeps the top of the screen, clear of the on-screen keyboard. */
+  .find { top: 12px; left: 12px; width: calc(100vw - 24px); }
+  /* Travel becomes a sheet along the bottom edge. */
+  .sheet, .sheet.travel { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 86dvh; padding-bottom: max(7px, env(safe-area-inset-bottom)); }
   /* Where to: the map on top, small, and the cities under it, scrolling. */
   .atlas { grid-template-columns: minmax(0, 1fr); gap: 10px; overflow-y: auto; }
   .atlas .africa { width: auto; height: 30dvh; max-height: none; }

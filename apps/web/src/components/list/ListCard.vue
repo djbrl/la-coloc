@@ -6,39 +6,31 @@ defineProps<{ title?: string; explain?: string | null; headingId?: string }>();
 </script>
 
 <template>
-  <section v-if="title" class="list-card" :aria-labelledby="headingId">
-    <header class="head">
-      <h2 :id="headingId" class="title">{{ title }}</h2>
-      <p v-if="explain" class="explain">{{ explain }}</p>
-    </header>
-    <slot />
+  <section v-if="title" class="list-card sign" :aria-labelledby="headingId">
+    <div class="sign-frame">
+      <header class="sign-band">
+        <h2 :id="headingId">{{ title }}</h2>
+      </header>
+      <div class="sign-body">
+        <p v-if="explain" class="explain">{{ explain }}</p>
+        <slot />
+      </div>
+    </div>
   </section>
-  <div v-else class="list-card bare"><slot /></div>
+  <div v-else class="list-card bare sign"><div class="sign-frame"><div class="sign-white"><slot /></div></div></div>
 </template>
 
 <style scoped>
-.list-card {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-  padding: 20px var(--gutter) 22px;
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  box-shadow: var(--lift), 0 0 0 1px var(--hairline);
-  animation: pop-in 0.22s var(--ease);
-}
-.list-card.bare { display: block; padding: 0; }
-.head { display: grid; gap: 4px; }
-.title { font-size: 20px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
-.explain { font-size: 13px; line-height: 1.3; color: var(--muted); }
+.list-card { min-width: 0; animation: pop-in 0.22s var(--ease); }
+.sign-band { padding-right: 16px; }
+.sign-body { display: grid; gap: 12px; }
+.sign-white { background: var(--surface); border-radius: var(--r-md); overflow: hidden; }
+.explain { font-size: 14px; line-height: 1.3; color: var(--muted); }
 /* The pause menu's entrance: a quick scale up from just under full size. */
 @keyframes pop-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
 }
 @media (prefers-reduced-motion: reduce) {
   .list-card { animation: none; }
-}
-@media (max-width: 480px) {
-  .list-card { border-radius: var(--r-xl); }
 }
 </style>

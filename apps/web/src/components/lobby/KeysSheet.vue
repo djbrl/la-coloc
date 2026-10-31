@@ -64,8 +64,10 @@ function onKey(e: KeyboardEvent) {
 <template>
   <!-- The veil dims the city; a click on it (not on the panel) closes. -->
   <div class="veil" @click.self="emit('close')">
-    <section class="keys" role="dialog" aria-modal="true" :aria-label="w.theKeys" @keydown.esc.stop="emit('close')" @keydown="onKey">
-      <h2>{{ w.theKeys }}</h2>
+    <section class="keys sign" role="dialog" aria-modal="true" :aria-label="w.theKeys" @keydown.esc.stop="emit('close')" @keydown="onKey">
+      <div class="sign-frame">
+      <header class="sign-band large"><h2>{{ w.theKeys }}</h2></header>
+      <div class="sign-body inner">
       <div class="groups">
         <section v-for="g in groups" :key="g.name" class="group" :aria-label="g.name">
           <h3>{{ g.name }}</h3>
@@ -83,56 +85,48 @@ function onKey(e: KeyboardEvent) {
         </section>
       </div>
       <button ref="closeButton" class="close" @click="emit('close')">{{ w.close }}<kbd aria-hidden="true">{{ w.escKey }}</kbd></button>
+      </div>
+      </div>
     </section>
   </div>
 </template>
 
 <style scoped>
 .veil { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: var(--scrim); }
-/* A flat card, big corners, a quick pop: a game's controls screen. */
+/* A red sign: a game's controls screen, popping in. */
 .keys {
-  width: min(600px, 100%);
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
   max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 24px 24px 20px;
-  border-radius: var(--r-xl);
-  color: var(--text);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  display: grid;
-  gap: 16px;
   animation: menu-pop var(--dur-slow) var(--ease-pop);
 }
+.sign-band { padding-right: 16px; }
+.inner { display: grid; gap: 14px; overflow-y: auto; overscroll-behavior: contain; }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.94); }
 }
-h2 { margin: 0; font-size: 28px; line-height: 1.05; }
-/* Two columns of groups, each group a soft tile with its name over its rows. */
-.groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
-.group { display: grid; gap: 8px; padding: 12px 14px 14px; border-radius: var(--r-lg); background: var(--tile); box-shadow: inset 0 0 0 1px var(--line); }
-/* A group's name as a dashboard's section label: small capitals in the monospace. */
-h3 { margin: 0; font: 500 11px/1.2 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+/* Two columns of groups, each its name over its rows. */
+.groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; align-items: start; }
+.group { display: grid; gap: 6px; }
+h3 { margin: 0; font-size: 15px; color: var(--panel); }
 /* One column for the caps, as wide as the group's widest combination, so the words line up beside them. */
-ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 14px; }
-li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; min-height: 32px; font-size: 15px; line-height: 1.25; }
+ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; }
+li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; min-height: 32px; font-size: 16px; line-height: 1.2; }
 .combo { display: inline-flex; align-items: center; gap: 4px; }
-.join { font-size: 12px; font-weight: 600; color: var(--muted); }
-.does { min-width: 0; font-weight: 500; }
-/* A key cap: raised on the surface, with a thicker bottom edge, like a real key. */
-kbd { min-width: 28px; height: 28px; padding: 0 7px; border-bottom-width: 3px; font-size: 12px; }
+.join { font-size: 14px; font-weight: 800; color: var(--muted); }
+.does { min-width: 0; font-weight: 600; }
+kbd { min-width: 28px; height: 28px; padding: 0 7px; font-size: 14px; }
 kbd.wide { min-width: 44px; }
-/* Close: a chunky button across the width, with its key. */
-.close { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); font-size: 17px; font-weight: 700; }
+/* Close: a ghost across the width, with its key. */
+.close { display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: transparent; box-shadow: var(--quiet-edge); }
 .close:hover:not(:disabled) { background: var(--tile); }
 .close:active { transform: translateY(1px); }
-.close:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
 @media (max-width: 560px) {
   .groups { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-height: 640px) {
-  .keys { padding-top: 18px; gap: 12px; }
-  .group { padding: 10px 12px 12px; }
+  .inner { gap: 10px; }
   li { min-height: 28px; }
 }
 /* No keyboard, no keys to list. */
