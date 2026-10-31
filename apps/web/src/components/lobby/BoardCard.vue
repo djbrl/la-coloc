@@ -27,11 +27,7 @@ function line(h: CityHouse): string {
 </script>
 
 <template>
-  <LobbyCard :label="w.boardLabel(city)">
-    <h2>{{ w.board }}</h2>
-    <button class="x" :aria-label="w.close" @click="emit('close')">
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-    </button>
+  <LobbyCard class="board" :label="w.boardLabel(city)" :title="w.board" :close-name="w.close" @close="emit('close')">
     <p v-if="waiting.length" class="soft">{{ w.boardWaiting(city) }}</p>
     <p v-else class="soft">{{ w.boardNone(city) }}</p>
 
@@ -51,12 +47,15 @@ function line(h: CityHouse): string {
 </template>
 
 <style scoped>
-.pins { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+/* "Le tableau des revues" is longer than a small band: two lines, the band keeps its height. */
+.board :deep(.sign-band > h2) { white-space: normal; }
+.pins { list-style: none; margin: 0; padding: 0; display: grid; }
+.pins li + li { border-top: 2px solid var(--row-line); }
 /* Each house: one wide row, its name and counts in one sentence, a red pin when something's late. */
-.pin.big { width: 100%; justify-content: flex-start; gap: 10px; min-height: 52px; padding: 8px 12px 8px 14px; text-align: left; font-size: 15px; font-weight: 400; background: var(--tile); }
+.pin.big { width: 100%; justify-content: flex-start; gap: 10px; min-height: 50px; padding: 6px 0; border-radius: 0; background: none; box-shadow: none; text-align: left; font: 600 16px/1.2 var(--font); }
 .pin .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.pin strong { font-weight: 600; }
+.pin strong { font-weight: 800; }
 .pin svg { color: var(--muted); }
 .city.big { width: 100%; }
-.late { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
+.late { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--danger); }
 </style>

@@ -15,6 +15,8 @@ included, and only forbids selling the fonts alone or reusing their reserved nam
 `licences:check`'s allowed list for that reason.
 Added 15 10 (branch `first-home`): `uqr` 0.1.3 (MIT, no dependencies; by Anthony Fu, from Project Nayuki's QR code generator, also MIT),
 in the web app, to draw the QR code of a newcomer's address in the quest's "Show it off" card (`tutorial/share.ts`).
+Added 31 10 (the "Panneau" brand): two more fonts, self-hosted from npm: `@fontsource/archivo-black` and `@fontsource/caveat-brush` (SIL Open
+Font Licence 1.1, same reasoning as above).
 
 ## Art and assets
 Only assets we made ourselves, or under CC0 / a permissive licence, with the source written down here.
@@ -27,9 +29,12 @@ project to be free of third-party rights (Art. 6).
 | Mini Characters 1.0 by Kenney: 12 animated characters | `apps/web/public/lobby/people/` | https://kenney.nl/assets/mini-characters | CC0 1.0 (public domain) |
 | City Kit (Commercial) 2.1 by Kenney: shops, towers, skyline buildings, parasols | `apps/web/public/lobby/city/` | https://kenney.nl/assets/city-kit-commercial | CC0 1.0 (public domain) |
 | City Kit (Roads) by Kenney: traffic light, sign, construction cone, barrier, fence | `apps/web/public/lobby/street/` | https://kenney.nl/assets/city-kit-roads | CC0 1.0 (public domain) |
-| Bricolage Grotesque (weights 700, 800; Latin and Latin Extended) by the Bricolage Grotesque Project Authors (Atelier Triay) | `apps/web/src/fonts.css`, from `node_modules/@fontsource/bricolage-grotesque` | https://github.com/ateliertriay/bricolage, via https://fontsource.org | SIL OFL 1.1 |
-| JetBrains Mono (weight 500; Latin and Latin Extended) by JetBrains | `apps/web/src/fonts.css`, from `node_modules/@fontsource/jetbrains-mono` | https://github.com/JetBrains/JetBrainsMono, via https://fontsource.org | SIL OFL 1.1 |
-| The login page's background: a screenshot of our own 3D city (Lomé, by day), 1600×1000 WebP, about 100 KB | `apps/web/public/login-city.webp` | Rendered by the lobby from the Kenney kits above and our code, 15 10 2026 | Ours (made from CC0 assets) |
+| Bricolage Grotesque (weights 600, 800; Latin and Latin Extended) by the Bricolage Grotesque Project Authors (Atelier Triay) | `apps/web/src/fonts.css`, from `node_modules/@fontsource/bricolage-grotesque` | https://github.com/ateliertriay/bricolage, via https://fontsource.org | SIL OFL 1.1 |
+| JetBrains Mono (weight 500; Latin and Latin Extended; real code only: logs, secrets, commands) by JetBrains | `apps/web/src/fonts.css`, from `node_modules/@fontsource/jetbrains-mono` | https://github.com/JetBrains/JetBrainsMono, via https://fontsource.org | SIL OFL 1.1 |
+| Archivo Black (weight 400; Latin and Latin Extended) by the Archivo Black Project Authors (Omnibus-Type): titles and buttons | `apps/web/src/fonts.css`, from `node_modules/@fontsource/archivo-black` | https://github.com/Omnibus-Type/ArchivoBlack, via https://fontsource.org | SIL OFL 1.1 |
+| Caveat Brush (weight 400; Latin and Latin Extended) by Impallari Type (© 2015 Google Inc.): only the marker writing on the landing's sign | `apps/web/src/fonts.css`, from `node_modules/@fontsource/caveat-brush` | https://fontsource.org/fonts/caveat-brush | SIL OFL 1.1 |
+| The landing's three moods (a flat's window on a brick wall, by day, warm night and all-nighter), also behind the login page: 2400×1500 WebP, 70 to 95 KB each | `apps/web/public/landing/sign-day.webp`, `sign-warm.webp`, `sign-blue.webp` | Rendered by us, with Kenney's CC0 characters, 30 10 2026 | Ours (made from CC0 assets) |
+| The login page's former background, no longer shown: a screenshot of our own 3D city (Lomé, by day), 1600×1000 WebP, about 100 KB | `apps/web/public/login-city.webp` | Rendered by the lobby from the Kenney kits above and our code, 15 10 2026 | Ours (made from CC0 assets) |
 | The share previews' pictures: the loading screens below, cropped to 1200×630 JPEG (Dakar, Kigali, Marrakech, Tunis; `city.jpg` is Dakar's) | `apps/web/public/og/*.jpg` | Made from our own renders, 19 10 2026 | Ours (made from CC0 assets) |
 | The loading screen's backgrounds: screenshots of our own 3D city by day (Dakar, Kigali, Marrakech, Tunis), 1600×1000 WebP, about 80 KB each | `apps/web/public/loading/*.webp` | Rendered by the lobby from the Kenney kits above and our code, 16 10 2026 | Ours (made from CC0 assets) |
 

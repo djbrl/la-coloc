@@ -45,15 +45,15 @@ function onKey(e: KeyboardEvent) {
   from { opacity: 0; transform: translateY(12px) scale(0.95); }
 }
 .art { width: 200px; margin: -6px auto -2px; }
-h2 { margin: 0; font-size: 38px; line-height: 1.02; letter-spacing: -0.035em; }
+h2 { margin: 0; font-size: 38px; line-height: 1.02; }
 p { margin: 0; font-size: 17px; line-height: 1.45; }
-.address { font: 600 15px/1.3 var(--mono); color: var(--accent); overflow-wrap: anywhere; }
+.address { font: 600 15px/1.3 var(--num); color: var(--accent); overflow-wrap: anywhere; }
 .soft { color: var(--muted); font-size: 15px; }
 .error { color: var(--danger); font-size: 15px; }
 .nav { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 
-.go { flex: 1 1 auto; min-height: 52px; padding: 0 24px; border-radius: var(--r-md); font-size: 19px; }
-button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.go { flex: 1 1 auto; min-height: 60px; padding: 0 24px; border-radius: var(--r-md); font-size: 19px; }
+button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (max-width: 520px) {
   .card { padding: 18px; gap: 10px; }
   .art { width: 150px; }
@@ -64,4 +64,6 @@ button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2p
 @media (prefers-reduced-motion: reduce) {
   .card { animation: none; }
 }
+/* The sign's red line inside the edge, on the flat card. */
+.card { border-radius: var(--r-md); box-shadow: inset 0 0 0 3px var(--panel-red), var(--shadow); }
 </style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The quest's tracker, at the top of the screen: eight stamps on a string, like a passport filling up, and the
-// chapter you're in, in words. A finished chapter is stamped in the orange with its icon; the one you're in has a
+// chapter you're in, in words. A finished chapter is stamped in the red with its icon; the one you're in has a
 // ring that breathes; the ones to come are dashed circles. A new stamp lands with a little thump (the view plays
 // the sound). On "Welcome home" the same row shows every stamp, bigger (`full`).
 import { computed } from "vue";
@@ -47,15 +47,15 @@ const said = (c: Chapter) => {
 .full .stamps { gap: 8px; }
 .full .stamps::before { left: 16px; right: 16px; }
 /* To come: a dashed circle. */
-.stamp.later { box-shadow: inset 0 0 0 1.5px var(--line-strong); background: var(--surface); }
+.stamp.later { background: var(--surface); }
 .stamp.later::after { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--line-strong); }
-/* Now: the orange ring, breathing; the icon in the orange. */
+/* Now: the red ring, breathing; the icon in the red. */
 .stamp.now { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill), 0 0 0 0 var(--focus); animation: breathe 1.8s var(--ease) infinite; }
 @keyframes breathe {
   50% { box-shadow: inset 0 0 0 2px var(--accent-fill), 0 0 0 5px transparent; }
   0%, 100% { box-shadow: inset 0 0 0 2px var(--accent-fill), 0 0 0 0 var(--focus); }
 }
-/* Done: stamped in the orange, dark ink, a slight tilt like a real stamp. */
+/* Done: stamped in the red, dark ink, a slight tilt like a real stamp. */
 .stamp.done { background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 2px 0 var(--accent-lip); transform: rotate(-8deg); }
 .stamp.done:nth-child(even) { transform: rotate(6deg); }
 /* The newest stamp lands: big, then pressed down. */
@@ -66,8 +66,8 @@ const said = (c: Chapter) => {
   100% { transform: scale(1) rotate(-8deg); }
 }
 .where { display: flex; align-items: baseline; gap: 8px; margin: 0; white-space: nowrap; }
-.n { font: 500 13px/1 var(--mono); color: var(--accent); }
-.name { font: 800 16px/1.1 var(--display); letter-spacing: -0.015em; }
+.n { font: 600 14px/1 var(--num); color: var(--accent); }
+.name { font: 800 16px/1.1 var(--display); }
 @media (max-width: 520px) {
   .tracker { gap: 10px; padding: 6px 12px 6px 8px; }
   .stamp { width: 18px; height: 18px; }

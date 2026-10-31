@@ -3,8 +3,7 @@
 // blocks and what stands on their plots, the Arena as a little stadium, the houses as little house shapes, people as
 // dots, you as an arrow).
 // The colours are the 3D city's own, in its day look, because the city is always drawn by day: the same sand, red
-// earth or grass under your feet, the same asphalt, the same wall colour on the shops. The page's day and night
-// theme only changes the frame around the map, never the map.
+// earth or grass under your feet, the same asphalt, the same wall colour on the shops.
 import type { CityStyle } from "../../lobby/cityStyle";
 import { FACING_DIR, type Neighbourhood, seeded } from "../../lobby/neighbourhood";
 

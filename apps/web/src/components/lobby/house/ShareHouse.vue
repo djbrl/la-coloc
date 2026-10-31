@@ -68,7 +68,7 @@ async function shareNatively() {
 <template>
   <span ref="root" class="share" @keydown.esc.stop="close()">
     <button ref="key" type="button" class="key" :aria-label="w.share.name(name)" :title="w.share.name(name)" :aria-expanded="open" aria-haspopup="dialog" @click="toggle">
-      <Icon name="share" :size="18" />
+      <Icon name="share" :size="22" />
     </button>
     <Transition name="pop">
       <div v-if="open" class="card" role="dialog" :aria-label="w.share.name(name)">
@@ -91,18 +91,17 @@ async function shareNatively() {
 
 <style scoped>
 .share { position: relative; display: inline-flex; }
-/* The head's key: a round-cornered icon button, like the top bar's. */
-.key { width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
-.key:hover:not(:disabled), .key[aria-expanded="true"] { background: var(--tile); }
-/* A flat card under the key, on the right edge, over the panel. */
-.card { position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; width: min(320px, 80vw); display: grid; gap: 10px; padding: 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); }
-.link { margin: 0; font: 500 12.5px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+/* The band's key: white, 46px. */
+.key { width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; }
+/* A flat card under the key, on the right edge, over the panel: on the band it must set its own colours. */
+.card { position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; width: min(320px, 80vw); display: grid; gap: 10px; padding: 12px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel), var(--lift); }
+.link { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--handle); overflow-wrap: anywhere; }
 .ways { display: flex; flex-wrap: wrap; gap: 6px; }
-.way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: var(--tile); color: var(--text); box-shadow: var(--quiet-edge); font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
-.way:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
-.way.done { color: var(--live); }
-.here { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); }
-a:focus-visible, button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.share .way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); box-shadow: var(--quiet-edge); font: 400 15px/1 var(--display); text-decoration: none; }
+.share .way:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
+.share .way.done { color: var(--live); }
+.here { margin: 0; font-size: 14px; line-height: 1.3; color: var(--muted); }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 .pop-enter-active, .pop-leave-active { transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease-pop); }
 .pop-enter-from, .pop-leave-to { opacity: 0; transform: translateY(-4px); }
 @media (prefers-reduced-motion: reduce) {

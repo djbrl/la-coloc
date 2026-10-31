@@ -39,7 +39,7 @@ const main = computed(() => {
   const r = props.actions.reach;
   switch (r?.kind) {
     case "chat":
-      return { icon: "chat" as const, word: w.person.chat };
+      return { icon: "channel" as const, word: w.person.chat };
     case "knock":
     case "pick":
       return { icon: "knock" as const, word: w.knock };
@@ -78,7 +78,7 @@ onMounted(() => card.value?.focus({ preventScroll: true }));
 
 <template>
   <section ref="card" class="peek" tabindex="-1" :aria-label="w.person.label(name)" @keydown.esc.stop="emit('close')">
-    <Avatar :person="person" :size="40" decorative />
+    <Avatar :person="person" :size="56" decorative />
     <div class="who">
       <p class="name">
         <strong>{{ name }}</strong>
@@ -114,51 +114,52 @@ onMounted(() => card.value?.focus({ preventScroll: true }));
         <Icon name="hand" :size="18" />
       </button>
     </div>
-    <button type="button" class="x" :aria-label="w.person.close" @click="emit('close')">
-      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
-    </button>
+    <button type="button" class="x" :aria-label="w.person.close" @click="emit('close')"><span aria-hidden="true">X</span></button>
   </section>
 </template>
 
 <style scoped>
-/* A flat card under the faces, on the tile colour: the person, then their actions on the right. */
+/* A flat strip under the faces: the person, then their actions on the right. */
 .peek {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 10px 40px 10px 12px;
+  gap: 8px 12px;
+  padding: 8px 54px 8px 8px;
   border-radius: var(--r-md);
   background: var(--tile);
-  box-shadow: inset 0 0 0 1px var(--line);
   outline: none;
   animation: peek-in var(--dur-slow) var(--ease-pop);
 }
 @keyframes peek-in {
   from { opacity: 0; transform: translateY(-4px); }
 }
-.who { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
-.name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; }
-.name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who { flex: 1 1 120px; min-width: 0; display: grid; gap: 1px; }
+.name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 18px; }
+.name strong { flex: none; max-width: 100%; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Short of room, the title won gives way, never the name. */
+.name :deep(.badge-chip) { flex: 0 1 auto; min-width: 22px; }
 /* The honest marker: a quiet word, its full sentence on hover and for a screen reader. */
-.tag { flex: none; padding: 0 6px; border-radius: var(--r-xs); background: var(--fill); color: var(--muted); font-size: 11.5px; font-weight: 600; line-height: 17px; }
-.line { display: flex; gap: 8px; min-width: 0; font-size: 13px; color: var(--muted); }
-.handle { flex: none; font: 500 12.5px/1.45 var(--mono); }
+.tag { flex: none; padding: 0 6px; border-radius: var(--r-xs); background: var(--fill); font-size: 14px; font-weight: 800; line-height: 20px; }
+.line { display: flex; gap: 8px; min-width: 0; font-size: 14px; color: var(--muted); }
+.handle { flex: none; font-weight: 600; color: var(--handle); }
 .what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.acts { flex: none; display: flex; align-items: center; gap: 6px; }
-/* Reaching out is this card's main action, but the panel's foot keeps the one orange key: this one is the soft orange. */
-.acts .go { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); box-shadow: none; font-size: 14px; font-weight: 600; white-space: nowrap; text-decoration: none; }
-.acts .go:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-fill); }
-.acts .icon { width: 34px; height: 34px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); }
+/* Team-up's two ways are wide: the keys drop to their own line rather than leave the panel. */
+.acts { flex: 0 1 auto; min-width: 0; margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+/* Reaching out is this strip's main action, but the panel's foot keeps the one red key: this one's on ink. */
+.acts .go { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; background: var(--text); color: var(--surface); box-shadow: none; font-size: 15px; }
+.acts .go:hover:not(:disabled) { background: var(--text); }
+.acts .icon { width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; background: var(--surface); }
 .acts .icon:disabled { opacity: 0.45; cursor: not-allowed; }
-.acts .icon.waved { color: var(--accent); }
-.done { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); background: var(--live-soft); color: var(--live); font-size: 14px; font-weight: 600; }
-.error { font-size: 13px; }
-.x { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-xs); background: none; color: var(--muted); box-shadow: none; }
-.x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
+.acts .icon.waved { color: var(--panel-red); }
+.done { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; color: var(--live); font-size: 15px; font-weight: 800; }
+.error { font-size: 14px; }
+.x { position: absolute; top: 50%; right: 6px; width: 44px; height: 44px; min-height: 0; margin-top: -22px; padding: 0; display: grid; place-items: center; background: none; box-shadow: none; color: var(--text); font: 400 18px/1 var(--display); }
+.x:hover:not(:disabled) { background: var(--fill); }
 @media (max-width: 520px) {
-  .peek { flex-wrap: wrap; }
   .acts { width: 100%; justify-content: flex-end; }
+  .x { top: 6px; margin-top: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .peek { animation: none; }

@@ -14,11 +14,7 @@ const title = computed(() => w.emptyTitle[props.plot.lot]);
 </script>
 
 <template>
-  <LobbyCard :label="w.emptyLabel">
-    <h2>{{ title }}</h2>
-    <button class="x" :aria-label="w.close" @click="emit('close')">
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
-    </button>
+  <LobbyCard :label="w.emptyLabel" :title="title" :close-name="w.close" @close="emit('close')">
     <p class="soft small lead">{{ w.nobodyYet }}</p>
     <p>{{ w.couldStand }} {{ explain.house }}</p>
     <div class="menu">
@@ -29,5 +25,5 @@ const title = computed(() => w.emptyTitle[props.plot.lot]);
 </template>
 
 <style scoped>
-.lead { margin-top: -6px; }
+.lead { font-size: 14px; }
 </style>

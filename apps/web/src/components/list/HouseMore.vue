@@ -91,5 +91,5 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .mark.live { background: var(--live-soft); color: var(--live); }
 .mark.warn { background: var(--warn-soft); color: var(--warn); }
 .mark.danger { background: var(--danger-soft); color: var(--danger); }
-.mono :deep(.title) { font-family: var(--mono); font-size: 14px; }
+.mono :deep(.title) { font-family: var(--num); font-size: 14px; }
 </style>

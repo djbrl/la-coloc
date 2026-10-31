@@ -30,6 +30,6 @@ const name = computed(() => props.person.name ?? props.person.login);
 </template>
 
 <style scoped>
-.avatar { border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; object-fit: cover; }
-.initials { background: var(--fill); color: var(--text); font-weight: 600; letter-spacing: 0; }
+.avatar { border-radius: var(--r-md); flex: none; display: inline-flex; align-items: center; justify-content: center; object-fit: cover; }
+.initials { background: var(--fill); color: var(--text); font-weight: 800; }
 </style>

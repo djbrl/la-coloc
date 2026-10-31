@@ -62,5 +62,5 @@ useWhenBack(() => void fetchRoom());
 
 <style scoped>
 .room { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-.visitor { flex: none; margin: 0; text-align: center; font-size: 13px; color: var(--muted); }
+.visitor { flex: none; margin: 0; text-align: center; font-size: 14px; color: var(--muted); }
 </style>

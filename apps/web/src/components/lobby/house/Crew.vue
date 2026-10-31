@@ -53,7 +53,7 @@ function said(s: Seat): string {
           <BadgeChip v-if="s.kind === 'person' && s.person.badge" class="trophy" compact :badge="s.person.badge" />
           <span v-if="s.kind === 'knock'" class="badge bell"><Icon name="knock" :size="12" /></span>
         </span>
-        <!-- No label under an empty seat or a knock: the dashed circle and the bell say it, the hidden name in words. -->
+        <!-- No label under an empty seat or a knock: the dashed square and the bell say it, the hidden name in words. -->
         <span v-if="s.kind !== 'free'" class="name">{{ first(s.person) }}</span>
       </button>
     </li>
@@ -65,8 +65,8 @@ function said(s: Seat): string {
 .crew {
   display: flex;
   gap: 4px;
-  margin: 0 -4px;
-  padding: 4px 4px 2px;
+  margin: 0;
+  padding: 4px 0 2px;
   list-style: none;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -83,16 +83,17 @@ function said(s: Seat): string {
   border-radius: var(--r-md);
   background: none;
   color: var(--text);
-  font-size: 12px;
-  line-height: 14px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 16px;
 }
 button.seat:hover:not(:disabled) { background: none; }
 button.seat:hover .face, button.seat:focus-visible .face { transform: translateY(-2px); }
-.face { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; transition: transform 0.15s var(--ease); }
-.you .face { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-fill); }
-/* An empty seat: a dashed circle where a face would be. */
-.hole { width: 44px; height: 44px; border-radius: 50%; border: 2px dashed var(--border); }
-button.free:hover .hole { border-color: var(--accent-fill); }
+.face { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: var(--r-md); transition: transform 0.15s var(--ease); }
+.you .face { box-shadow: 0 0 0 3px var(--panel-red); }
+/* An empty seat: a dashed square where a face would be. */
+.hole { width: 46px; height: 46px; border-radius: var(--r-md); border: 3px dashed var(--text); }
+button.free:hover .hole { border-color: var(--panel-red); }
 .badge {
   position: absolute;
   display: grid;
@@ -102,13 +103,12 @@ button.free:hover .hole { border-color: var(--accent-fill); }
   border-radius: 50%;
   box-shadow: 0 0 0 2px var(--surface);
 }
-.crown { top: -6px; right: -6px; background: var(--warn-soft); color: var(--warn); }
+.crown { top: -6px; right: -6px; background: var(--sticker); color: var(--ink); }
 /* A title won in an arena: its trophy on the face's other corner. */
 .trophy { position: absolute; left: -5px; bottom: -4px; box-shadow: 0 0 0 2px var(--surface); }
 .bell { right: -4px; bottom: -4px; background: var(--accent-fill); color: var(--on-accent); }
-.name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.you .name { font-weight: 700; }
-.knock .name { color: var(--accent); font-weight: 600; }
+.name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.knock .name { color: var(--panel-red); }
 @media (prefers-reduced-motion: reduce) {
   .face { transition: none; }
   button.seat:hover .face, button.seat:focus-visible .face { transform: none; }

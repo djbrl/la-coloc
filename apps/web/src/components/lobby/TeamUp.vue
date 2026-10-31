@@ -19,7 +19,7 @@ const props = defineProps<{
   size?: "big" | "small";
 }>();
 
-// 0: the one key. 1: which way round. Back to 0 with the little ×.
+// 0: the one key. 1: which way round. Back to 0 with the little chevron (the card's own X stays the card's).
 const step = ref<0 | 1>(0);
 const busy = ref(false);
 const error = ref("");
@@ -87,7 +87,7 @@ async function takeBack() {
         <Icon name="plus" :size="big ? 20 : 16" /> {{ w.bringIntoMine }}
       </button>
       <button type="button" class="back" :aria-label="w.teamNotNow" :title="w.teamNotNow" @click="step = 0">
-        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+        <span aria-hidden="true">‹</span>
       </button>
     </div>
 
@@ -100,20 +100,20 @@ async function takeBack() {
 .team { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .is-big { width: 100%; }
 .is-big > .big.primary { flex: 1 1 auto; }
-/* Done, or waiting: the tick colour (green) for a team, the quiet one while it waits. */
-.done { display: inline-flex; align-items: center; gap: 8px; border-radius: var(--r-md); background: var(--live-soft); color: var(--live); font-weight: 700; white-space: nowrap; }
-.done.wait { background: var(--fill); color: var(--muted); }
-.is-big .done { flex: 1; min-height: 50px; padding: 0 14px; }
-.is-small .done { min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; font-weight: 600; }
+/* Done, or waiting: the green word for a team, the quiet one while it waits. */
+.done { display: inline-flex; align-items: center; gap: 8px; color: var(--live); font-weight: 800; white-space: nowrap; }
+.done.wait { color: var(--muted); }
+.is-big .done { flex: 1; min-height: 50px; font-size: 18px; }
+.is-small .done { min-height: 46px; font-size: 15px; }
 .ways { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .is-big .ways .way { flex: 1 1 140px; font-size: 15px; }
-.way:not(.big), .go, .quiet:not(.big) { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border-radius: var(--r-sm); font-size: 14px; font-weight: 600; white-space: nowrap; }
-/* The house window's main key is the soft orange (its foot keeps the one orange key), like PersonPeek's. */
-.go { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
-.go:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-fill); }
+.way:not(.big), .go, .quiet:not(.big) { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; background: var(--surface); box-shadow: var(--quiet-edge); color: var(--text); font-size: 15px; white-space: nowrap; }
+.way:not(.big):hover:not(:disabled), .quiet:not(.big):hover:not(:disabled) { background: var(--tile); }
+/* The house window's main key is on ink (its foot keeps the one red key), like PersonPeek's. */
+.go, .go:hover:not(:disabled) { background: var(--text); color: var(--surface); box-shadow: none; }
 .way:disabled { opacity: 0.45; cursor: not-allowed; }
-.back { flex: none; width: 30px; height: 30px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-xs); background: none; color: var(--muted); box-shadow: none; }
-.back:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
-.error, .said { flex-basis: 100%; margin: 0; font-size: 13px; }
+.back { flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; background: none; box-shadow: none; color: var(--text); font: 400 24px/1 var(--display); }
+.back:hover:not(:disabled) { background: var(--fill); }
+.error, .said { flex-basis: 100%; margin: 0; font-size: 14px; }
 .said { color: var(--muted); }
 </style>

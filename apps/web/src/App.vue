@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, watchEffect } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
 import { useRoute } from "vue-router";
-import Avatar from "./components/Avatar.vue";
 import Bell from "./components/bell/Bell.vue";
 import ChatButton from "./components/chat/ChatButton.vue";
 import ChatSheet from "./components/chat/ChatSheet.vue";
@@ -19,12 +18,14 @@ const fullscreen = computed(() => route.meta.fullscreen === true);
 // "Calmer motion" in the settings pane quiets the whole site, not only the lobby.
 watchEffect(() => document.documentElement.classList.toggle("reduce-motion", settings.reduceMotion));
 
-// Day or night: the <html> element carries `data-theme="light"` or `"dark"`, and style.css picks the tokens from it.
-// "System" means no attribute at all, so the system's own preference decides.
-watchEffect(() => {
-  if (settings.theme === "system") delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = settings.theme;
+// The lobby's place key stands just left of the keys here, however many there are: they say how wide they are.
+const keysEl = ref<HTMLElement | null>(null);
+let keysWatcher: ResizeObserver | null = null;
+onMounted(() => {
+  keysWatcher = new ResizeObserver(() => document.documentElement.style.setProperty("--keys-width", `${keysEl.value?.offsetWidth ?? 0}px`));
+  if (keysEl.value) keysWatcher.observe(keysEl.value);
 });
+onBeforeUnmount(() => keysWatcher?.disconnect());
 
 // Your house, in the top bar: in the lobby it opens inside the city (never leaving the game); in the list view it's
 // the house's page.
@@ -45,31 +46,29 @@ const gear = (() => {
 
 <template>
   <a class="skip" href="#main">{{ w.skip }}</a>
-  <!-- The lobby can ask for the bar to go (the tutorial does, until its last step). -->
+  <!-- The lobby can ask for the bar to go (the tutorial does, until its last step; so does the landing). -->
   <header v-show="lobbyUi.chrome" class="bar" :class="{ float: fullscreen }">
     <nav class="inner" :aria-label="w.main">
       <RouterLink to="/" class="logo">La Coloc</RouterLink>
-      <div class="side">
+      <div ref="keysEl" class="side">
         <template v-if="meLoaded">
           <!-- The chat: for everyone (visitors read the city's room and board). -->
           <ChatButton />
           <template v-if="me">
-            <!-- On a phone, your house is an icon (its name stays for screen readers), so the bar fits. Logging out
-                 lives in the settings, away from the bell: no mis-tap logs you out. -->
-            <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item house" :title="h.name">
-              <Icon name="house" :size="18" class="narrow" />
-              <span class="word">{{ h.name }}</span>
+            <!-- Your house: an icon key, its name for a screen reader and on hover. -->
+            <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item icon house" :title="h.name">
+              <Icon name="house" />
+              <span class="sr-only">{{ h.name }}</span>
             </RouterLink>
             <Bell />
-            <span class="item me">
-              <Avatar :person="me" :size="26" decorative />
-              <span class="sr-only">{{ w.loggedInAs(me.login) }}</span>
-            </span>
           </template>
-          <RouterLink v-else to="/login" class="item">{{ w.logIn }}</RouterLink>
+          <RouterLink v-else-if="route.path !== '/login'" to="/login" class="item word-key">
+            <Icon name="login" class="narrow" />
+            <span class="word">{{ w.logIn }}</span>
+          </RouterLink>
         </template>
         <button class="item icon" :aria-label="w.settings" :aria-expanded="settingsPane.open" @click="settingsPane.open = true">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path :d="gear" fill="currentColor" fill-rule="evenodd" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="gear" fill="currentColor" fill-rule="evenodd" /></svg>
         </button>
       </div>
     </nav>
@@ -93,42 +92,69 @@ const gear = (() => {
 </template>
 
 <style scoped>
-.skip { position: absolute; left: 12px; top: -60px; z-index: 100; padding: 10px 16px; border-radius: var(--r-md); background: var(--accent-fill); color: var(--on-accent); font-weight: 700; box-shadow: 0 var(--lip) 0 var(--accent-lip); }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 100; display: inline-flex; align-items: center; height: 50px; padding: 0 16px; border-radius: var(--r-md); background: var(--accent-fill); color: var(--on-accent); font-family: var(--display); }
 .skip:focus { top: 8px; }
 
-/* A flat bar: the site's surface and a hairline, no blur. Over the lobby it floats at the top edge, the same way. */
+/* On a page of its own the bar is the sign's red, flat, the name on the left and small keys on the right. */
 .bar {
+  --key: 40px;
+  --key-icon: 22px;
   position: sticky;
   top: 0;
   z-index: 50;
-  height: 48px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--hairline);
+  height: 56px;
+  background: var(--panel-red);
+  color: var(--on-panel);
 }
-.bar.float { position: fixed; left: 0; right: 0; }
 .inner { height: 100%; max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-/* The name in the display face, after a small orange tile: the mark, until there's a real logo. */
-.logo { display: inline-flex; align-items: center; gap: 8px; font: 800 18px/1 var(--display); letter-spacing: -0.03em; color: var(--text); white-space: nowrap; }
-.logo::before { content: ""; width: 14px; height: 14px; border-radius: 4px; background: var(--accent-fill); box-shadow: 0 2px 0 var(--accent-lip); }
+.logo { font: 400 20px/1 var(--display); text-transform: uppercase; color: inherit; white-space: nowrap; }
 .logo:hover { text-decoration: none; }
-.side { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.item { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; font-size: 14px; font-weight: 500; color: var(--text); opacity: 0.88; white-space: nowrap; }
-.item:hover { opacity: 1; text-decoration: none; }
-.house { min-width: 0; max-width: 160px; }
-.word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.narrow { display: none; }
-.house.router-link-active { opacity: 1; font-weight: 600; }
-.me { padding: 0 6px; }
-button.item { min-height: 36px; background: none; border-radius: var(--r-sm); }
-button.item:hover:not(:disabled) { background: var(--fill); }
-.icon { width: 36px; justify-content: center; padding: 0; box-shadow: inset 0 0 0 1px var(--line); }
+.side { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* The chat, the bell and the gear are the same key, in or out of the lobby: red, with a lip. */
+.item, .side :deep(.ring) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  height: var(--key);
+  padding: 0;
+  border-radius: var(--r-md);
+  background: var(--panel-red);
+  color: var(--on-panel);
+  white-space: nowrap;
+}
+.icon, .side :deep(.ring) { width: var(--key); }
+.item svg, .side :deep(.ring svg) { width: var(--key-icon); height: var(--key-icon); }
+.word-key { padding: 0 14px; font: 400 18px/1 var(--display); }
+.word-key .narrow { display: none; }
+.item:hover, .side :deep(.ring:hover:not(:disabled)), .side :deep(.ring[aria-expanded="true"]) { background: var(--accent-fill-hover); text-decoration: none; }
+.house.router-link-active { background: var(--accent-lip); }
+.item:focus-visible, .side :deep(.ring:focus-visible) { outline-color: var(--ink); }
+
+/* Over the city (and the login's picture) there's no bar at all: the same keys, big, in the top right corner. */
+.bar.float { --key: 62px; --key-icon: 28px; position: fixed; left: 0; right: 0; height: 0; background: none; }
+.bar.float .inner { display: block; max-width: none; padding: 0; }
+.bar.float .logo { display: none; }
+.bar.float .side { position: absolute; top: 24px; right: 24px; }
+.bar.float :is(.item, :deep(.ring)) { box-shadow: 0 5px 0 var(--accent-lip); }
+.bar.float :is(.item, :deep(.ring)):active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
+.bar.float .word-key { padding: 0 18px; font-size: 20px; }
 
 /* While the core is down, the card under the bar (CoreStatus.vue) takes its place in the page instead of covering it. */
-.flow { min-height: calc(100vh - 48px); padding-top: var(--core-offset, 0px); outline: none; }
+.flow { min-height: calc(100vh - 56px); padding-top: var(--core-offset, 0px); outline: none; }
 .full { outline: none; }
+/* The "can't reach the city" card sits at the top centre; on a screen too narrow to leave it room, the keys step down. */
+@media (max-width: 899px) {
+  .bar.float .side { top: calc(24px + var(--core-offset, 0px)); }
+}
 @media (max-width: 520px) {
-  .item { padding: 0 8px; }
-  .narrow { display: block; }
-  .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* A phone: smaller keys in a tighter corner, and the login's word becomes its icon (the word stays for a screen reader). */
+  .bar.float { --key: 44px; --key-icon: 22px; }
+  .bar.float .side { top: calc(12px + var(--core-offset, 0px)); right: 12px; gap: 6px; }
+  .bar.float :is(.item, :deep(.ring)) { box-shadow: 0 3px 0 var(--accent-lip); }
+  .word-key .narrow { display: block; }
+  .word-key .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .bar.float .word-key { width: var(--key); padding: 0; }
 }
 </style>

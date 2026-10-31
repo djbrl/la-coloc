@@ -77,18 +77,18 @@ function onKey(e: KeyboardEvent) {
   from { opacity: 0; transform: translateY(12px) scale(0.95); }
 }
 .error { color: var(--danger); font-size: 15px; }
-h2 { margin: 0; font-size: 40px; line-height: 1; letter-spacing: -0.035em; }
+h2 { margin: 0; font-size: 40px; line-height: 1; }
 p { margin: 0; font-size: 17px; line-height: 1.5; }
 .soft { color: var(--muted); }
 .nav { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; }
 /* The way out on the left, a quiet grey button; the main action as wide as the rest of the line, in the accent. */
 .nav > .quiet:first-child { margin-right: auto; }
-/* The way out: a quiet key with a grey edge. The main action: the orange key (style.css gives it its lip). */
-.quiet { min-height: 52px; padding: 0 18px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 15px; font-weight: 600; }
+/* The way out: a quiet key with a grey edge. The main action: the main key from style.css. */
+.quiet { min-height: 60px; padding: 0 18px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 15px; font-weight: 600; }
 .quiet:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
 .quiet:active:not(:disabled) { transform: translateY(1px); }
-.go { flex: 1 1 auto; min-height: 52px; padding: 0 24px; border-radius: var(--r-md); font-size: 19px; }
-button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2px; }
+.go { flex: 1 1 auto; min-height: 60px; padding: 0 24px; border-radius: var(--r-md); font-size: 19px; }
+button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (max-width: 520px) {
   .card { padding: 22px 20px 18px; }
   h2 { font-size: 30px; }
@@ -98,4 +98,6 @@ button:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 2p
   .card { animation: none; }
   .quiet:active:not(:disabled) { transform: none; }
 }
+/* The sign's red line inside the edge, on the flat card. */
+.card { border-radius: var(--r-md); box-shadow: inset 0 0 0 3px var(--panel-red), var(--shadow); }
 </style>

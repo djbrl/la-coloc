@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The bell in the top bar: how many notifications are unread (a small orange count), and, pressed, a flat card
+// The bell in the top bar: how many notifications are unread (a small yellow count), and, pressed, a flat card
 // under it with the latest ones as dense rows: who (their face), what (one line, bell.ts), and what you can do
 // (move in or say no to an invitation, open a knock or a house, find a plot to rent together). Opening it marks
 // them read; the ones that were new keep a dot while it stays open. Esc or a click outside closes it.
@@ -113,53 +113,58 @@ function go(to: Parameters<typeof router.push>[0] | null) {
 <template>
   <div class="bell">
     <button ref="button" class="ring" :aria-label="w.bellName(notices.unread)" :aria-expanded="open" aria-haspopup="dialog" @click="toggle">
-      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-        <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z M10 20.5a2.2 2.2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round" />
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="M12 2a6 6 0 0 0-6 6c0 6-3 8-3 9h18c0-1-3-3-3-9a6 6 0 0 0-6-6zM9.5 19a2.5 2.5 0 0 0 5 0z" />
       </svg>
       <span v-if="notices.unread" class="badge" aria-hidden="true">{{ badge }}</span>
     </button>
 
     <Transition name="pop">
-      <section v-if="open" ref="card" class="card" role="dialog" :aria-label="w.label" @keydown.esc.stop="close()">
-        <button class="x" :aria-label="w.close" @click="close()">
-          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
-        </button>
-        <p v-if="!rows.length" class="empty">{{ w.empty }}</p>
-        <ul v-else class="list">
-          <ListRow v-for="row in rows" :key="row.n.id" :title="row.title" :class="{ fresh: fresh.has(row.n.id) }">
-            <template #lead>
-              <Avatar v-if="row.n.from" :person="row.n.from" :size="34" decorative />
-              <span v-else class="lead-icon"><Icon name="house" :size="18" /></span>
-            </template>
-            <span class="detail">
-              <span class="when">{{ noteWhen(row.n.createdAt) }}</span>
-              <template v-if="refused[row.n.id]"> · <span class="refused" role="alert">{{ refused[row.n.id] }}</span></template>
-              <template v-else-if="row.sub"> · {{ row.sub }}</template>
-            </span>
-            <template v-if="row.actions.length" #end>
-              <span class="acts">
-                <template v-for="a in row.actions" :key="a">
-                  <!-- Saying yes, and finding a plot, are words; no and open are icons with their names. -->
-                  <button v-if="a === 'accept' || a === 'plot'" type="button" class="act" :class="{ yes: a === 'accept' }" :disabled="busy === row.n.id" @click="act(row.n, a)">
-                    {{ a === "accept" ? row.acceptWord : w.findPlot }}
-                  </button>
-                  <button
-                    v-else
-                    type="button"
-                    class="act icon"
-                    :disabled="busy === row.n.id"
-                    :aria-label="a === 'decline' ? w.noThanks : w.openName(row.title)"
-                    :title="a === 'decline' ? w.noThanks : w.open"
-                    @click="act(row.n, a)"
-                  >
-                    <svg v-if="a === 'decline'" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
-                    <Icon v-else name="next" :size="16" />
-                  </button>
+      <section v-if="open" ref="card" class="card sign blue" role="dialog" :aria-label="w.label" @keydown.esc.stop="close()">
+        <div class="sign-frame">
+          <header class="sign-band">
+            <h2>{{ w.label }}</h2>
+            <button class="sign-x" :aria-label="w.close" @click="close()"><span aria-hidden="true">X</span></button>
+          </header>
+          <div class="sign-body body">
+            <p v-if="!rows.length" class="empty">{{ w.empty }}</p>
+            <ul v-else class="list">
+              <ListRow v-for="row in rows" :key="row.n.id" :title="row.title" :class="{ fresh: fresh.has(row.n.id) }">
+                <template #lead>
+                  <Avatar v-if="row.n.from" :person="row.n.from" :size="46" decorative />
+                  <span v-else class="lead-icon"><Icon name="house" :size="22" /></span>
                 </template>
-              </span>
-            </template>
-          </ListRow>
-        </ul>
+                <span class="detail">
+                  <span class="when">{{ noteWhen(row.n.createdAt) }}</span>
+                  <template v-if="refused[row.n.id]"> · <span class="refused" role="alert">{{ refused[row.n.id] }}</span></template>
+                  <template v-else-if="row.sub"> · {{ row.sub }}</template>
+                </span>
+                <template v-if="row.actions.length" #end>
+                  <span class="acts">
+                    <template v-for="a in row.actions" :key="a">
+                      <!-- Saying yes, and finding a plot, are words; no and open are icons with their names. -->
+                      <button v-if="a === 'accept' || a === 'plot'" type="button" class="act" :class="{ yes: a === 'accept' }" :disabled="busy === row.n.id" @click="act(row.n, a)">
+                        {{ a === "accept" ? row.acceptWord : w.findPlot }}
+                      </button>
+                      <button
+                        v-else
+                        type="button"
+                        class="act icon"
+                        :disabled="busy === row.n.id"
+                        :aria-label="a === 'decline' ? w.noThanks : w.openName(row.title)"
+                        :title="a === 'decline' ? w.noThanks : w.open"
+                        @click="act(row.n, a)"
+                      >
+                        <svg v-if="a === 'decline'" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+                        <Icon v-else name="next" :size="18" />
+                      </button>
+                    </template>
+                  </span>
+                </template>
+              </ListRow>
+            </ul>
+          </div>
+        </div>
       </section>
     </Transition>
   </div>
@@ -167,63 +172,47 @@ function go(to: Parameters<typeof router.push>[0] | null) {
 
 <style scoped>
 .bell { position: relative; display: flex; }
-/* The top bar's round-cornered icon button, like the settings gear beside it. */
-.ring { position: relative; width: 36px; min-height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); background: none; color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
-.ring:hover:not(:disabled) { background: var(--fill); }
-/* The count: a small orange pill on the bell's corner. */
-.badge {
-  position: absolute;
-  top: -4px;
-  right: -5px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: var(--r-pill);
-  background: var(--accent-fill);
-  color: var(--on-accent);
-  font: 700 11px/18px var(--font);
-  text-align: center;
-  box-shadow: 0 0 0 2px var(--surface);
-}
-/* A flat floating card under the bar, on the right: the panels' rows, nothing else. */
+/* The key itself is drawn by the bar (App.vue), like the chat's and the gear. The count, in yellow: something waits. */
+.badge { position: absolute; top: 5px; right: 5px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--sticker); color: var(--ink); font: 800 14px/22px var(--font); text-align: center; }
+/* The notifications, a sign under the keys on the right. */
 .card {
   position: fixed;
-  top: 56px;
-  right: max(16px, calc((100vw - var(--wrap)) / 2 - var(--gutter) + 16px));
+  top: 98px;
+  right: 24px;
   z-index: 60;
   width: min(420px, calc(100vw - 32px));
-  max-height: min(560px, calc(100dvh - 80px));
-  overflow-y: auto;
-  padding: 40px 10px 10px;
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  max-height: min(640px, calc(100dvh - 120px));
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
 }
-.x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-xs); background: none; color: var(--muted); box-shadow: none; }
-.x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
-.empty { margin: 0; padding: 4px 8px 10px; color: var(--muted); font-size: 14px; }
-.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.list :deep(.list-row) { min-height: 52px; padding: 8px 10px; gap: 10px; }
-.list :deep(.list-row .title) { font-size: 14px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
-/* New since you last looked: a small orange dot before the face. */
+.body { overflow-y: auto; overscroll-behavior: contain; }
+.empty { margin: 0; color: var(--muted); font-size: 15px; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; }
+.list :deep(.list-row) { flex-wrap: wrap; gap: 8px 10px; padding: 10px 0; }
+.list :deep(.list-row .text) { flex: 1 1 200px; }
+.list :deep(.list-row .title) { font-size: 16px; line-height: 1.15; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+/* The actions take the row's full width under the words, as in a stack of cards. */
+.list :deep(.list-row .end) { flex: 1 1 100%; }
+/* New since you last looked: a small yellow dot before the face. */
 .list :deep(.list-row.fresh) { position: relative; }
-.list :deep(.list-row.fresh)::before { content: ""; position: absolute; left: 3px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--accent-fill); }
-.lead-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--tile); color: var(--muted); }
-.detail { font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.list :deep(.list-row.fresh)::before { content: ""; position: absolute; left: -9px; top: 26px; width: 8px; height: 8px; border-radius: 50%; background: var(--sticker); box-shadow: 0 0 0 1px var(--ink); }
+.lead-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: var(--r-md); background: var(--tile); color: var(--panel); }
+.detail { font-size: 15px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .when { font-variant-numeric: tabular-nums; }
 .refused { color: var(--danger); }
-.acts { display: flex; align-items: center; gap: 4px; }
-.acts .act { min-height: 32px; padding: 0 10px; border-radius: var(--r-sm); font-size: 13px; font-weight: 600; white-space: nowrap; }
-.acts .act.icon { width: 32px; padding: 0; justify-content: center; }
-/* The yes is this row's main action: the soft orange, as on the person cards. */
-.acts .act.yes { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
-.acts .act.yes:hover:not(:disabled) { box-shadow: inset 0 0 0 1.5px var(--accent-fill); }
+.acts { flex: 1; display: flex; align-items: center; gap: 6px; }
+.acts .act { flex: 1; justify-content: center; white-space: nowrap; }
+.acts .act.icon { flex: none; width: 46px; padding: 0; }
+/* The yes is this row's main action, the sign's red. */
+.acts .act.yes, .acts .act.yes:hover:not(:disabled) { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
+.acts .act:not(.yes) { background: transparent; box-shadow: var(--quiet-edge); }
 .pop-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .pop-leave-active { transition: opacity var(--dur-fast) var(--ease); }
 .pop-enter-from { opacity: 0; transform: translateY(-6px); }
 .pop-leave-to { opacity: 0; }
 @media (max-width: 520px) {
-  .card { top: 52px; right: 16px; }
+  .card { top: 66px; right: 16px; max-height: calc(100dvh - 82px); }
 }
 @media (prefers-reduced-motion: reduce) {
   .pop-enter-active, .pop-leave-active { transition: none; }

@@ -61,7 +61,7 @@ const fullWhen = (iso: string) => new Date(iso).toLocaleString(locale(), { dateS
   line-clamp: 2;
   white-space: normal;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 /* The note's kind, as its icon in a soft disc of its colour where a face would be. */
 .kind { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--fill); color: var(--muted); }

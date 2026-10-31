@@ -6,8 +6,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { chatSheet, conversations, loadBlocks, loadConversations } from "../../conversations";
 import { me } from "../../session";
-import Icon from "../lobby/house/Icon.vue";
-import type { IconName } from "../lobby/house/icons";
 import CityBoard from "./CityBoard.vue";
 import CityRoom from "./CityRoom.vue";
 import { badge, type ChatTab, chatTabs, pickTab } from "./chat";
@@ -17,7 +15,6 @@ import { chatWords as w } from "./words";
 
 const tabs = computed(() => chatTabs(me.value));
 const tab = computed(() => pickTab(chatSheet.tab, tabs.value));
-const icons: Record<ChatTab, IconName> = { dm: "chat", city: "globe", board: "board", house: "house" };
 const sheet = ref<HTMLElement | null>(null);
 
 // Opened: the tab holding the keyboard, so Esc and the arrows work at once (a conversation focuses its own box).
@@ -58,73 +55,62 @@ onBeforeUnmount(() => document.removeEventListener("visibilitychange", onVisible
 
 <template>
   <Transition name="pop">
-    <section v-if="chatSheet.open" ref="sheet" class="chat-sheet" role="dialog" :aria-label="w.label" @keydown.esc.stop="close">
-      <div class="top">
-        <div class="tabs" role="tablist" :aria-label="w.label" @keydown="tabKey">
-          <button
-            v-for="t in tabs"
-            :key="t"
-            type="button"
-            role="tab"
-            class="tab"
-            :data-tab="t"
-            :aria-selected="tab === t"
-            :tabindex="tab === t ? 0 : -1"
-            :title="w.tabs[t]"
-            @click="chatSheet.tab = t"
-          >
-            <Icon :name="icons[t]" :size="18" />
-            <!-- The chosen tab says its name; the others are icons, named for screen readers. -->
-            <span :class="tab === t ? 'word' : 'sr-only'">{{ w.tabs[t] }}</span>
-            <span v-if="t === 'dm' && conversations.unread" class="tab-count" aria-hidden="true">{{ badge(conversations.unread) }}</span>
-          </button>
+    <section v-if="chatSheet.open" ref="sheet" class="chat-sheet sign black" role="dialog" :aria-label="w.label" @keydown.esc.stop="close">
+      <div class="sign-frame">
+        <header class="sign-band">
+          <h2>{{ w.label }}</h2>
+          <!-- The city the City and Board tabs are about. -->
+          <p v-if="tab === 'city' || tab === 'board'" class="sign-sub">{{ chatSheet.city }}</p>
+          <button type="button" class="sign-x" :aria-label="w.close" @click="close"><span aria-hidden="true">X</span></button>
+        </header>
+        <div class="sign-body inner">
+          <div class="tabs" role="tablist" :aria-label="w.label" @keydown="tabKey">
+            <button
+              v-for="t in tabs"
+              :key="t"
+              type="button"
+              role="tab"
+              class="tab"
+              :data-tab="t"
+              :aria-selected="tab === t"
+              :tabindex="tab === t ? 0 : -1"
+              :title="w.tabs[t]"
+              @click="chatSheet.tab = t"
+            >
+              {{ w.tabs[t] }}
+              <span v-if="t === 'dm' && conversations.unread" class="tab-count" aria-hidden="true">{{ badge(conversations.unread) }}</span>
+            </button>
+          </div>
+          <div class="body" role="tabpanel" :aria-label="w.tabs[tab]">
+            <DirectMessages v-if="tab === 'dm'" />
+            <CityRoom v-else-if="tab === 'city'" />
+            <CityBoard v-else-if="tab === 'board'" />
+            <HouseRoom v-else />
+          </div>
         </div>
-        <span v-if="tab === 'city' || tab === 'board'" class="where">{{ chatSheet.city }}</span>
-        <button type="button" class="x" :aria-label="w.close" @click="close">
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
-        </button>
-      </div>
-      <div class="body" role="tabpanel" :aria-label="w.tabs[tab]">
-        <DirectMessages v-if="tab === 'dm'" />
-        <CityRoom v-else-if="tab === 'city'" />
-        <CityBoard v-else-if="tab === 'board'" />
-        <HouseRoom v-else />
       </div>
     </section>
   </Transition>
 </template>
 
 <style scoped>
-/* A flat card on the right, under the top bar: the city stays in view on its left. */
+/* A black sign on the right, under the keys: the city stays in view on its left. */
 .chat-sheet {
   position: fixed;
-  top: 60px;
-  right: 16px;
+  top: 98px;
+  right: 24px;
   z-index: 55;
   width: min(420px, calc(100vw - 32px));
-  height: min(640px, calc(100dvh - 80px));
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 14px 14px;
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow);
+  height: min(640px, calc(100dvh - 122px));
 }
-.top { flex: none; display: flex; align-items: center; gap: 8px; }
-/* The tabs: icon keys on a sunken track; the chosen one lifted, with its name. */
-.tabs { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); min-width: 0; }
-.tab { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; min-width: 38px; padding: 0 10px; justify-content: center; border-radius: var(--r-sm); background: none; color: var(--muted); font-size: 14px; font-weight: 700; box-shadow: none; white-space: nowrap; }
-.tab:hover:not(:disabled) { background: none; color: var(--text); }
-.tab[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--hairline), 0 1px 0 var(--line-strong); }
-.tab:focus-visible { outline: 3px solid var(--accent-fill); outline-offset: 1px; }
-.tab-count { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--r-pill); background: var(--accent-fill); color: var(--on-accent); font: 700 10px/16px var(--font); text-align: center; box-shadow: 0 0 0 2px var(--fill); }
-/* The city the City and Board tabs are about, in the display face. */
-.where { flex: 1; min-width: 0; font: 800 17px/1.1 var(--display); letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
-.x { flex: none; margin-left: auto; width: 32px; height: 32px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
-.where + .x { margin-left: 0; }
-.x:hover:not(:disabled) { background: var(--fill-hover); color: var(--text); }
+.inner { display: flex; flex-direction: column; gap: 10px; }
+/* The tabs: words on the white, the chosen one on ink. */
+.tabs { flex: none; display: flex; gap: 4px; min-width: 0; }
+.tab { flex: 1 1 auto; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 0 6px; border-radius: var(--r-sm); background: none; color: var(--text); font: 800 15px/1 var(--font); white-space: nowrap; }
+.tab:hover:not(:disabled) { background: var(--tile); }
+.tab[aria-selected="true"], .tab[aria-selected="true"]:hover:not(:disabled) { background: var(--text); color: var(--surface); }
+.tab:focus-visible { outline-offset: 1px; }
+.tab-count { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--sticker); color: var(--ink); font: 800 13px/20px var(--font); text-align: center; }
 .body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .pop-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .pop-leave-active { transition: opacity var(--dur-fast) var(--ease); }
@@ -132,7 +118,7 @@ onBeforeUnmount(() => document.removeEventListener("visibilitychange", onVisible
 .pop-leave-to { opacity: 0; }
 /* A phone: a sheet along the bottom edge, most of the screen's height. */
 @media (max-width: 520px) {
-  .chat-sheet { top: auto; bottom: 0; right: 0; left: 0; width: 100%; height: 86dvh; border-radius: var(--r-xl) var(--r-xl) 0 0; padding: 12px 16px max(14px, env(safe-area-inset-bottom)); }
+  .chat-sheet { top: auto; bottom: 0; right: 0; left: 0; width: 100%; height: 86dvh; }
   .pop-enter-from { transform: translateY(12px); }
 }
 @media (prefers-reduced-motion: reduce) {

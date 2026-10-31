@@ -1,13 +1,13 @@
 // The quest marker: where the tutorial wants you to walk (chapter 2, "Find a home"). A game's beacon, built from
-// plain shapes: a glowing orange ring on the ground at a house's door, a wave rippling out of it, a soft column of
+// plain shapes: a glowing red ring on the ground at a house's door, a wave rippling out of it, a soft column of
 // light rising from it, and a diamond turning above, so it reads from far away in the isometric camera, by day and
 // by night. Nothing is downloaded: the two soft gradients are drawn on small canvases here. It's light, not a thing:
 // it can't be clicked or walked into (the lobby keeps it out of the town it aims at and walks around). With calm
 // motion it glows steadily: no pulse, no wave, no bobbing.
 import * as THREE from "three";
 
-// The site's accent orange (--accent-fill), and a white edge so the diamond reads on any ground.
-const ORANGE = 0xf2600f;
+// The site's accent red (--accent-fill), and a white edge so the diamond reads on any ground.
+const ACCENT = 0xb3202c;
 const EDGE = 0xffffff;
 // Sizes, in world units (a house is about 5 wide and 5 tall; you are about 1.6 tall).
 const RING = { inner: 0.8, outer: 1.05 };
@@ -49,10 +49,10 @@ function gradient(kind: "radial" | "vertical"): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-// A flat, unlit material: the beacon is its own light. Not tone-mapped and not fogged, so the orange stays the
-// site's orange at dusk and at the far end of town.
+// A flat, unlit material: the beacon is its own light. Not tone-mapped and not fogged, so the red stays the
+// site's red at dusk and at the far end of town.
 function glow(options: THREE.MeshBasicMaterialParameters): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({ color: ORANGE, transparent: true, depthWrite: false, fog: false, toneMapped: false, ...options });
+  return new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, depthWrite: false, fog: false, toneMapped: false, ...options });
 }
 
 export class Beacon {
@@ -84,7 +84,7 @@ export class Beacon {
     // A thinner, brighter core, added on top of whatever is behind it: it glows at night and still shows by day.
     const core = this.mesh(new THREE.CylinderGeometry(0.16, 0.16, COLUMN.height * 0.8, 16, 1, true), glow({ map: fade, opacity: 0.7, blending: THREE.AdditiveBlending }));
     core.position.y = 0.17 + (COLUMN.height * 0.8) / 2;
-    // The diamond: solid orange, with a white edge (a slightly bigger copy, drawn inside out behind it).
+    // The diamond: solid red, with a white edge (a slightly bigger copy, drawn inside out behind it).
     this.diamond = new THREE.Group();
     const shape = new THREE.OctahedronGeometry(DIAMOND.size);
     const solid = this.mesh(shape, glow({ transparent: false, depthWrite: true }));

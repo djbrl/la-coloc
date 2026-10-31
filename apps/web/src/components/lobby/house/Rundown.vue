@@ -240,7 +240,7 @@ onBeforeUnmount(() => {
 .dots { display: flex; gap: 5px; }
 .d { width: 6px; height: 6px; border-radius: 50%; background: var(--fill); }
 .d.on { width: 16px; border-radius: 3px; background: var(--accent-fill); }
-.go { min-height: 40px; padding: 0 20px; font-size: 15px; font-weight: 600; }
+.go { min-height: 46px; padding: 0 20px; font-size: 15px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   .ring, .bubble { transition: none; }
 }

@@ -56,7 +56,7 @@ const plaque = computed(() => (props.name.length > 12 ? `${props.name.slice(0, 1
 .leaves { fill: none; stroke: var(--leaf); stroke-width: 5; stroke-linecap: round; }
 .wall { fill: var(--wall); stroke: var(--line-strong); stroke-width: 1.5; }
 .roof { fill: var(--roof); }
-/* A wax-print band under the roof: the orange, dashed like a printed border. */
+/* A wax-print band under the roof: the red, dashed like a printed border. */
 .band { stroke: var(--accent-fill); stroke-width: 4; stroke-dasharray: 6 4; }
 .win { fill: var(--window-off); stroke: var(--line-strong); stroke-width: 1.2; }
 .lit .win.mine { fill: var(--window-lit); stroke: var(--accent-fill); animation: flicker 4s ease-in-out infinite; }
@@ -65,7 +65,7 @@ const plaque = computed(() => (props.name.length > 12 ? `${props.name.slice(0, 1
 .door { fill: var(--accent-fill); stroke: var(--accent-lip); stroke-width: 1.4; }
 .knob { fill: var(--on-accent); }
 .plaque { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; }
-.plaque-text { font: 600 7px var(--mono); fill: var(--text); }
+.plaque-text { font: 600 7px var(--num); fill: var(--text); }
 .glow { animation: glow 4s ease-in-out infinite; }
 @keyframes flicker {
   0%, 100% { opacity: 1; }

@@ -175,13 +175,13 @@ async function finish() {
 /* Four short rows, each its own little tile: the name on the left, the value on the right. */
 .facts { display: grid; gap: 6px; margin: 0; }
 /* Dense dashboard rows: the surface with a 1px edge, the value in the monospace when it's technical. */
-.fact { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.fact { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 46px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); }
 .flow .fact { background: var(--surface); }
 .facts.tight .fact { min-height: 38px; }
 dt { flex: none; font-size: 14px; font-weight: 600; color: var(--muted); }
 dd { margin: 0; min-width: 0; font-size: 15px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 dd a { color: var(--accent); }
 dd.unset { color: var(--muted); }
-.aside { font-size: 13px; color: var(--muted); }
+.aside { font-size: 14px; color: var(--muted); }
 .bar { display: flex; gap: 8px; }
 </style>

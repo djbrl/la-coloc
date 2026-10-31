@@ -42,5 +42,5 @@ onBeforeUnmount(() => clearTimeout(timer));
 .icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--fill); color: var(--muted); }
 .said { font-size: 19px; font-weight: 600; line-height: 1.25; }
 .line { font-size: 14px; line-height: 1.4; color: var(--muted); }
-.chunk { margin-top: 6px; min-height: 44px; padding: 0 22px; font-size: 16px; font-weight: 600; }
+.chunk { margin-top: 6px; min-height: 50px; padding: 0 22px; font-size: 16px; font-weight: 600; }
 </style>

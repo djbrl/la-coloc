@@ -34,8 +34,8 @@ export function roomsLine(h: Pick<CityHouse, "rooms">): string {
 }
 
 /** "@moussa · lives in Sacré-Cœur, Dakar", or null for someone just visiting (the card says so in words). */
-export function homeLine(login: string, home: Pick<Home, "houseName" | "city"> | null): string | null {
-  return home ? w.livesIn(login, home.houseName, home.city) : null;
+export function homeLine(home: Pick<Home, "houseName" | "city"> | null): string | null {
+  return home ? w.livesIn(home.houseName, home.city) : null;
 }
 
 /** Someone's room in their house, as the city lists it: where their project's name, words and state live. */

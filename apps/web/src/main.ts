@@ -26,7 +26,7 @@ const router = createRouter({
     { path: "/houses/:id", component: HousePage, props: true },
     { path: "/houses/:id/rooms/:room", component: RoomPage, props: true },
     { path: "/applications/:id", component: ApplicationPage, props: true },
-    { path: "/login", component: LoginPage },
+    { path: "/login", component: LoginPage, meta: { fullscreen: true } },
     // The style guide (every shared piece in day and night, made-up data, no API), in development builds only:
     // the bundler drops this branch, and the page with it, from a production build.
     ...(import.meta.env.DEV ? [{ path: "/styleguide", component: () => import("./pages/StyleGuide.vue") }] : []),

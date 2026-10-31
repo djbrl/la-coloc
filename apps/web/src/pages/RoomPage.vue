@@ -362,7 +362,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .room-panel { flex: 1 1 auto; }
 
 .untitled :deep(.title) { color: var(--muted); }
-.what { margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.what { margin-top: 10px; font-size: 14px; line-height: 1.45; color: var(--muted); }
 .what a { color: var(--accent); }
 
 /* One tab's content. It grows with what it holds (the body scrolls if that's too much), except the logs, which
@@ -375,11 +375,11 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .team { margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
 .faces { display: inline-flex; align-items: center; }
 .faces > * + * { margin-left: -6px; }
-.faces :deep(img), .faces :deep(.avatar) { box-shadow: 0 0 0 2px var(--surface); border-radius: 50%; }
+.faces :deep(img), .faces :deep(.avatar) { box-shadow: 0 0 0 2px var(--surface); }
 .mate { position: relative; display: inline-grid; }
 .off { position: absolute; top: -5px; right: -5px; width: 16px; height: 16px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; background: var(--surface); color: var(--muted); box-shadow: 0 0 0 1px var(--line-strong); }
-.off:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
-.names { flex: 1 1 auto; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.off:hover:not(:disabled) { background: var(--sticker); color: var(--ink); }
+.names { flex: 1 1 auto; min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .message { margin: auto; display: grid; justify-items: center; gap: 14px; padding: 32px 16px; text-align: center; }
 .icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--fill); color: var(--muted); }
