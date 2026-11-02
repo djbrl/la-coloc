@@ -34,8 +34,8 @@ onMounted(() => key.value?.focus({ preventScroll: true }));
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
-  background: var(--panel-red);
-  color: var(--on-panel);
+  background: var(--surface);
+  color: var(--text);
 }
 .words { display: grid; align-content: center; justify-items: center; gap: clamp(12px, 2.4dvh, 24px); padding: 16px; text-align: center; animation: door-words var(--dur-slow) var(--ease-pop) 0.1s backwards; }
 h1 { font-size: clamp(36px, min(10vw, 10dvh), 124px); line-height: 0.98; }
@@ -43,9 +43,9 @@ h1 { font-size: clamp(36px, min(10vw, 10dvh), 124px); line-height: 0.98; }
 .name { display: block; color: var(--sticker); }
 p { margin: 0; max-width: 34em; font-size: clamp(16px, 2.4dvh, 20px); line-height: 1.35; }
 /* A yellow key, since a red one would vanish on the red: the same size and lip as the site's main action. */
-.enter { min-height: 60px; min-width: min(280px, 100%); padding: 0 32px; background: var(--sticker); color: var(--ink); box-shadow: 0 5px 0 var(--accent-lip); font-size: 20px; }
+.enter { min-height: 60px; min-width: min(280px, 100%); padding: 0 32px; background: var(--sticker); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); font-size: 20px; }
 .enter:hover:not(:disabled) { background: var(--on-panel); }
-.enter:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
+.enter:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
 .enter:focus-visible { outline: 3px solid var(--on-panel); outline-offset: 3px; }
 /* The skyline stands along the whole bottom edge, and rises as you arrive. It wants 37.5% of the width to show whole;
    a tall phone gives it more (its sides crop), a very wide window less (its top crops), so the words always have room. */

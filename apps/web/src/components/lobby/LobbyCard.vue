@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The sign every lobby card sits in: a red title band with its X, a white body. It reads like a game's interaction
-// menu rather than a web page: a few facts, then chunky buttons (one primary, the others as tiles).
+// The window every lobby card sits in: a dark frame, the wall with its name and X, and a sill for what you can do. It
+// reads like a game's interaction menu rather than a web page: a few facts, then the buttons (one lit, the others dark).
 // It floats over the city without blocking it
 // (no scrim, no focus trap), pops in, lands focus on its main action when it opens, and keeps Enter to itself:
 // Enter presses the focused button, and must not also reach the lobby, which would read it as E.
@@ -52,7 +52,7 @@ function onKey(e: KeyboardEvent) {
   from { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
 /* The cards fill the slot, so their shared styles live here, reached with :deep. */
-.card :deep(.sign-sub .status-dot) { display: inline-block; margin-left: 6px; vertical-align: -1px; box-shadow: 0 0 0 2px var(--on-panel); }
+.card :deep(.sign-sub .status-dot) { display: inline-block; margin-left: 6px; vertical-align: -1px; box-shadow: 0 0 0 2px var(--surface); }
 .card :deep(p) { margin: 0; font-size: 16px; line-height: 1.25; }
 .card :deep(.soft) { color: var(--muted); }
 .card :deep(.small) { font-size: 14px; }
@@ -60,7 +60,8 @@ function onKey(e: KeyboardEvent) {
 .card :deep(.error) { color: var(--danger); font-size: 14px; }
 
 /* The menu: the main action as a wide button, then the others as equal tiles in a row. */
-.card :deep(.menu) { display: grid; gap: 8px; margin-top: 2px; }
+/* It stays in view when the facts above it have to scroll. */
+.card :deep(.menu) { position: sticky; bottom: -14px; display: grid; gap: 8px; margin: 4px -16px -14px; padding: 12px 14px; }
 .card :deep(.tiles) { display: flex; flex-wrap: wrap; gap: 8px; }
 .card :deep(.big) {
   display: inline-flex;
@@ -74,20 +75,21 @@ function onKey(e: KeyboardEvent) {
   background: transparent;
   color: var(--text);
   box-shadow: var(--quiet-edge);
-  font: 400 18px/1.1 var(--display);
+  font: 500 16px/1.1 var(--font);
   text-decoration: none;
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-/* The main one, in the sign's red and 60px tall. Pressed, it sinks a little. */
-.card :deep(.big.primary) { min-height: 60px; background: var(--accent-fill); color: var(--on-accent); box-shadow: none; font-size: 24px; }
-.card :deep(.big:hover:not(:disabled)) { background: var(--tile); text-decoration: none; }
-.card :deep(.big.primary:hover:not(:disabled)) { background: var(--accent-fill-hover); }
+/* The main one, a lit tube, 54px tall. */
+.card :deep(.big.primary) { min-height: 54px; background: var(--accent-fill); color: var(--on-accent); box-shadow: var(--tube); font-size: 18px; }
+.card :deep(.big:hover:not(:disabled)) { background: var(--fill-hover); text-decoration: none; }
+.card :deep(.big.primary:hover:not(:disabled)) { background: var(--accent-fill-hover); box-shadow: var(--tube-hot); }
 .card :deep(.big:active:not(:disabled)) { transform: translateY(1px); }
-.card :deep(.big:disabled) { opacity: 0.42; cursor: not-allowed; }
-/* A tile: an icon and its word. The first of them is on ink, as the mockups' Message. */
+.card :deep(.big:disabled) { opacity: 0.5; cursor: not-allowed; }
+/* A tube that's off: no glow, no promise. */
+.card :deep(.big.primary:disabled) { background: transparent; color: var(--text); box-shadow: var(--quiet-edge); }
+/* A tile: an icon and its word. */
 .card :deep(.tile) { flex: 1 1 auto; padding: 0 10px; font-size: 15px; }
-.card :deep(.tile:first-child:not(:disabled)), .card :deep(.tile:first-child:not(:disabled):hover) { background: var(--text); color: var(--surface); box-shadow: none; }
 .card :deep(.big svg) { flex: none; }
 @media (max-width: 520px) {
   .card { width: 100%; max-height: 74dvh; padding-bottom: max(7px, env(safe-area-inset-bottom)); }

@@ -28,7 +28,7 @@ const height = computed(() => 52 + Math.ceil(props.house.rooms.length / cols.val
 <style scoped>
 .house { width: 100%; max-width: 140px; display: block; margin: 0 auto; }
 .roof { fill: var(--roof); }
-.wall { fill: var(--wall); }
+.wall { fill: var(--wall-drawn); }
 .wall.making { fill: none; stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; }
 .win.lit { fill: var(--live); }
 .win.down { fill: var(--danger); }

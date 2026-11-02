@@ -281,10 +281,10 @@ onBeforeUnmount(() => clearTimeout(timer));
 .body > :first-child { padding-right: 46px; }
 /* The share card keeps that room itself, on its heading only: the card below it has the coach's whole width. */
 .at-share .body > :first-child { padding-right: 0; }
-.x { position: absolute; top: 6px; right: 6px; flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); font: 400 18px/1 var(--display); }
+.x { position: absolute; top: 6px; right: 6px; flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); font: 500 18px/1 var(--font); }
 .x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .body { display: grid; gap: 6px; }
-.text { margin: 0; font: 700 19px/1.3 var(--display); }
+.text { margin: 0; font: 500 18px/1.3 var(--font); }
 .sub { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
 .line { margin: 0; font-size: 16px; line-height: 1.45; }
 .error { color: var(--danger); }

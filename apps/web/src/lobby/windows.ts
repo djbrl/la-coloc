@@ -7,6 +7,7 @@
 // room's window blink red for a moment (its app crashed and restarted, life.ts): only that one, the others stay lit.
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { softDot } from "./glow";
 import type { LiveHouse, WindowState } from "./live";
 
 // Window colours, by state; `glass` is a window with the lights off.
@@ -26,6 +27,8 @@ const FLASH = { time: 2.2, blink: 14 };
 export class HouseFace {
   readonly group = new THREE.Group();
   private windows: THREE.InstancedMesh;
+  // The light its windows throw on the sidewalk: goes out with them in a power cut.
+  private spill: THREE.Mesh | null = null;
   private states: WindowState[] = [];
   private powerCut = false;
   private crane: THREE.Group | null = null;
@@ -49,9 +52,23 @@ export class HouseFace {
     this.group.add(this.windows);
   }
 
+  /** The light on the sidewalk in front: a soft dot, so only once there's a page to draw it on (not in the tests). */
+  private throwLight() {
+    if (this.spill || typeof document === "undefined") return;
+    this.spill = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: softDot(), color: 0xc77a3a, opacity: 0.8, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }),
+    );
+    this.spill.raycast = () => {};
+    this.group.add(this.spill);
+  }
+
   /** Lays the windows out on a front wall `width` wide, `height` tall (walls only, below the roof), `front` from the centre. */
   fit(width: number, height: number, front: number) {
     this.size = { width, height, front };
+    this.throwLight();
+    this.spill?.position.set(0, 0.2, front + 1);
+    this.spill?.scale.set(width * 1.9, 1, 4.2);
     this.layout();
   }
 
@@ -136,6 +153,7 @@ export class HouseFace {
   }
 
   private paint(time: number) {
+    if (this.spill) this.spill.visible = !this.powerCut;
     for (let i = 0; i < this.rooms; i++) {
       const state = this.states[i] ?? "dark";
       this.windows.setColorAt(i * 3, this.color.setHex(COLORS.frame));
@@ -145,9 +163,7 @@ export class HouseFace {
         continue;
       }
       this.color.setHex(COLORS[state]);
-      // By day a lit window is less of a lantern; a down one flickers (two sines out of step, never quite dark).
-      // By day, a lit window reads as warm glass rather than a glow.
-      if (state === "lit") this.color.multiplyScalar(0.82);
+      // A down window flickers (two sines out of step, never quite dark).
       if (state === "down") this.color.multiplyScalar(0.55 + 0.45 * Math.abs(Math.sin(time * 9 + i) * Math.sin(time * 3.1 + i * 2)));
       // A crash: bright red over whatever it shows, blinking (or still, with calm motion).
       const until = this.flashes.get(i);

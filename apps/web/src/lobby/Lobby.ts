@@ -42,6 +42,7 @@ import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
 import { FrameBudget } from "./frameBudget";
 import { Tag, type TagKind, TagLayer } from "./tagLayer";
 import { declutter, type TagSpot } from "./tags";
+import { softDot } from "./glow";
 import { dye } from "./tint";
 import { HouseFace } from "./windows";
 import { hudWords as words } from "../components/lobby/words";
@@ -79,8 +80,8 @@ const TAG_MOST = 16; // and no more of them than this, the nearest
 const SHADOW_REACH = 1.8; // how much wider than the view the shadow map is
 const STAGE_EDGE = 1.25; // how far past the edge of the view people stay in the scene (1 is the edge): their shadows still fall in it, and you can't outrun it
 const NOBODY = 0xd8d8de; // the ring colour of someone without a house
-// The city is always seen by day, bright and colourful, whatever the time there or the site's theme (15 10 2026):
-// a night city read as gloomy. No dusk, no lamps coming on: the light is set once per city (see `light`).
+// The city is always seen at dusk, as the landing's street, whatever the time there: the light is set once per city (see
+// `light`). A night city read as gloomy on 15 10 2026, so the sky keeps its orange and the windows carry the colour.
 const SPACING = 0.9;
 // How much nearer than a building a person must be to win "in reach" (see `reach`).
 const PEOPLE_MARGIN = 0.8; // the closest two people standing at a door may get (R39)
@@ -645,7 +646,8 @@ export class Lobby {
         m.position.set(p.x, 0.14, p.z);
         m.rotation.y = yaw(p.facing);
         m.userData.plotKey = p.key;
-        dye(m, style);
+        // Two buildings out of three have somebody home at dusk.
+        dye(m, style, Math.abs(Math.round(p.x * 3 + p.z * 7)) % 3 !== 0);
         plot.objects.push(m);
         this.occluder(m);
         this.onRoof(m, lot.kind === "shop", roof);
@@ -668,7 +670,7 @@ export class Lobby {
       this.load(gen, loadModel(SKYLINE[s.variant], s.scale * 1.4, "height"), (m) => {
         m.position.set(s.x, 0, s.z);
         m.rotation.y = yaw(s.facing);
-        dye(m, style);
+        dye(m, style, Math.abs(Math.round(s.x * 3 + s.z * 7)) % 3 !== 0);
         this.skyline.push(m);
       });
     }
@@ -1505,7 +1507,7 @@ export class Lobby {
           if (gen !== this.generation) return;
           const local = new THREE.Box3().setFromObject(model);
           placeholder.group.visible = false;
-          dye(model, this.style);
+          dye(model, this.style, house.rooms.some((r) => r.occupant));
           group.add(model);
           this.occluder(model);
           freeze(model);
@@ -1885,22 +1887,29 @@ export class Lobby {
   }
 
   /**
-   * The street lamps: scenery only, always off (no light, no switching). Two instanced meshes, posts and bulbs: two
-   * draw calls however many crossings there are.
+   * The street lamps, lit: a post, a warm bulb, a pool on the ground and a halo round the bulb. No real light, which would
+   * cost a shader pass per lamp: the pool and the halo are soft dots added on top. Four draw calls however many crossings
+   * there are.
    */
   private addLamps(spots: { x: number; z: number }[]) {
     const n = spots.length;
     if (!n) return;
     const post = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.08, 2.6, 8), new THREE.MeshStandardMaterial({ color: 0x2c2a33, roughness: 0.6, metalness: 0.4 }), n);
-    const bulb = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 14, 10), new THREE.MeshStandardMaterial({ color: 0x77736c }), n);
+    const bulb = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffe2a0, toneMapped: false }), n);
+    const added = { map: softDot(), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false };
+    const pool = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ ...added, color: 0xb9784a, opacity: 0.75 }), n);
+    const halo = new THREE.Points(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(spots.flatMap((p) => [p.x, 2.7, p.z]), 3)), new THREE.PointsMaterial({ ...added, color: 0xffc27a, opacity: 0.8, size: 44, sizeAttenuation: false }));
     const m = new THREE.Matrix4();
+    const wide = new THREE.Matrix4().makeScale(7, 1, 7);
     spots.forEach((p, i) => {
       post.setMatrixAt(i, m.makeTranslation(p.x, 1.3, p.z));
       bulb.setMatrixAt(i, m.makeTranslation(p.x, 2.7, p.z));
+      pool.setMatrixAt(i, m.makeTranslation(p.x, 0.17, p.z).multiply(wide));
     });
     post.castShadow = true;
-    for (const mesh of [post, bulb]) mesh.computeBoundingSphere();
-    this.town.add(post, bulb);
+    for (const mesh of [post, bulb, pool]) mesh.computeBoundingSphere();
+    for (const added of [pool, halo]) added.raycast = () => {};
+    this.town.add(post, bulb, pool, halo);
   }
 
   /** The chores board on the market square (R19): a cork board on two legs, facing the street. */
@@ -1969,7 +1978,7 @@ export class Lobby {
     b.pins.add(makePins(key.split("").map((k) => k === "r")));
   }
 
-  /** The light: the sky, the sun and the fog of full day, tinted by the city's sky colour. Set when a city is built. */
+  /** The light: the sky, the sun and the fog of dusk, tinted by the city's sky colour. Set when a city is built. */
   private light() {
     const l = daylight(new THREE.Color(this.style.palette.sky).getHex());
     this.hemi.color.setHex(l.sky);
@@ -2532,7 +2541,7 @@ export class Lobby {
     if (this.tick % 3 === 0) this.checkTags(offset);
     if (this.tick % 10 === 0) this.stage();
     // The sun follows the view, so shadows stay sharp wherever you are.
-    this.sun.position.copy(look).add(new THREE.Vector3(18, 22, 6));
+    this.sun.position.copy(look).add(new THREE.Vector3(20, 13, 8));
     this.sun.target.position.copy(look);
 
     // A building between the camera and you fades, so you're never lost behind a wall.

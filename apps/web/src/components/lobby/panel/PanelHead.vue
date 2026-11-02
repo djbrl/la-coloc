@@ -28,17 +28,17 @@ defineProps<{ title: string; state?: State | null; line?: string | null }>();
 </template>
 
 <style scoped>
-/* The title band of a large sign: always 88px, the name at 34, one line under it or none. On the band's right, room
+/* The head of a large window: always 88px, the name at 40, one line under it or none. On the band's right, room
    for the X the window around it draws (Inside.vue). A panel a level down leaves room on its left for the back key. */
 .panel-head { flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; padding-left: calc(16px + var(--band-lead, 0px)); }
 .lead { flex: none; display: grid; place-items: center; }
 .t { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
 .name { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.title { min-width: 0; font-size: 34px; line-height: 1.08; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.line { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 16px; line-height: 1.2; }
+.title { min-width: 0; font-size: 40px; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; line-height: 1.2; }
 .where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* On the band, a dot wears a white ring so green still reads on red. */
-.panel-head :deep(.status-dot) { box-shadow: 0 0 0 2px var(--on-panel); }
+/* On the wall, a dot wears a pale ring so it reads on the orange. */
+.panel-head :deep(.status-dot) { box-shadow: 0 0 0 2px var(--surface); }
 .aside { flex: none; display: flex; gap: 8px; align-items: center; }
 .aside :deep(button), .aside :deep(a.button) { min-height: 46px; padding: 0 14px; background: var(--surface); color: var(--panel); box-shadow: none; font-size: 15px; }
 @media (max-width: 480px) {

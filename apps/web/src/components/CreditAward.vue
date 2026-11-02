@@ -99,7 +99,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
   to { transform: rotate(360deg); }
 }
 /* The coin: flat yellow, a hard lip under it, and a dashed line inside its edge like the postcard's stamp. */
-.coin { position: relative; display: grid; align-content: center; justify-items: center; gap: 4px; width: 100%; height: 100%; border-radius: 50%; background: var(--sticker); color: var(--ink); box-shadow: 0 9px 0 var(--accent-lip); }
+.coin { position: relative; display: grid; align-content: center; justify-items: center; gap: 4px; width: 100%; height: 100%; border-radius: 50%; background: var(--sticker); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
 .coin::before { content: ""; position: absolute; inset: 5%; border: 3px dashed var(--ink); border-radius: 50%; }
 .sum { font: 800 calc(var(--coin) * 0.2)/1 var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .unit { font: 400 calc(var(--coin) * 0.075)/1 var(--display); }
@@ -109,7 +109,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 .line.error { color: var(--danger); }
 .foot { display: flex; gap: 8px; width: min(360px, 100%); }
 .foot .second { flex: none; min-height: 60px; background: var(--surface); }
-.go { flex: 1 1 0; min-height: 60px; font-size: 20px; box-shadow: 0 5px 0 var(--accent-lip); }
+.go { flex: 1 1 0; min-height: 60px; font-size: 20px; box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
 .go:focus-visible, .second:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .award, .seal, .seal.landed, .burst { animation: none; }

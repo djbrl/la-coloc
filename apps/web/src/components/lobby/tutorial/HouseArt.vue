@@ -54,7 +54,7 @@ const plaque = computed(() => (props.name.length > 12 ? `${props.name.slice(0, 1
 .ground { stroke: var(--line-strong); stroke-width: 2; stroke-linecap: round; }
 .trunk { fill: none; stroke: var(--roof); stroke-width: 4; stroke-linecap: round; }
 .leaves { fill: none; stroke: var(--leaf); stroke-width: 5; stroke-linecap: round; }
-.wall { fill: var(--wall); stroke: var(--line-strong); stroke-width: 1.5; }
+.wall { fill: var(--wall-drawn); stroke: var(--line-strong); stroke-width: 1.5; }
 .roof { fill: var(--roof); }
 /* A wax-print band under the roof: the red, dashed like a printed border. */
 .band { stroke: var(--accent-fill); stroke-width: 4; stroke-dasharray: 6 4; }

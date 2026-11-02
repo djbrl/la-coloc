@@ -102,11 +102,11 @@ async function shareNatively() {
 <style scoped>
 .share { display: grid; gap: 14px; }
 /* Leaves room for the coach's close key in the corner. */
-.heading { margin: 0; padding-right: 46px; font: 700 19px/1.3 var(--display); }
+.heading { margin: 0; padding-right: 46px; font: 500 18px/1.3 var(--font); }
 /* The postcard: a flat card inside the card, with a stamp-like dashed edge. The drawing, where it's from, the QR. */
 .postcard { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 18px; border-radius: var(--r-md); background: var(--tile); outline: 2px dashed var(--line-strong); outline-offset: -6px; }
 .art { min-width: 0; }
-.from { margin: 0; font: 600 16px/1.3 var(--display); color: var(--muted); }
+.from { margin: 0; font: 500 16px/1.3 var(--font); color: var(--muted); }
 /* The address on its own line, across the card: the thing being shared. A long one wraps rather than widen the card. */
 .address { margin: 0; font: 600 18px/1.3 var(--code); color: var(--accent); text-align: center; overflow-wrap: anywhere; }
 .tell { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; font-size: 19px; }

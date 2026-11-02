@@ -14,6 +14,7 @@ import { landingWords as w } from "../components/words";
 import { language, setLang } from "../i18n";
 import { headsOnPicture, setVisiting, windowOnPicture } from "../landing";
 import type { LandingRoom } from "../lobby/landingRoom";
+import { NEON_BROKEN, NEON_CABLE, NEON_RAIL, NEON_TUBES, NEON_VIEW } from "../components/neon";
 import { lobbyUi } from "../settings";
 
 const router = useRouter();
@@ -125,14 +126,6 @@ function tryDemo() {
   entering.value = true;
   window.setTimeout(walkIn, ENTERING_MS);
 }
-
-// The name on the wall, as neon tubes: one line per letter. The last C is on its way out, so it's kept apart to blink;
-// while it's off, the sign reads LA COLO.
-const NEON_VIEW = "-20 2 615 140";
-const NEON_TUBES = "M0 24V120H46 M64 120L95 24L126 120M75 86H115 M233 41A38 48 0 1 0 233 103 M290 24A38 48 0 1 0 290 120A38 48 0 1 0 290 24 M350 24V120H396 M456 24A38 48 0 1 0 456 120A38 48 0 1 0 456 24";
-const NEON_BROKEN = "M575 41A38 48 0 1 0 575 103";
-const NEON_RAIL = "M-10 72H580";
-const NEON_CABLE = "M575 103C582 118 596 118 600 146";
 
 // A few windows in the city that go on and off, each at its own pace, on the picture.
 const CITY_WINDOWS = [
@@ -327,7 +320,7 @@ onBeforeUnmount(() => {
 .bottom-tie { bottom: calc(-12 * var(--s)); height: calc(32 * var(--s)); }
 .edge { padding: calc(4 * var(--s)); border: calc(3 * var(--s)) solid #b3202c; border-radius: calc(18 * var(--s)); }
 .red { position: relative; padding: calc(4 * var(--s)) calc(10 * var(--s)) calc(10 * var(--s)); border-radius: calc(13 * var(--s)); background: #b3202c; color: #ffffff; text-align: center; }
-h2 { margin: 0; font-family: var(--display); }
+h2 { margin: 0; font-family: var(--sign-font); }
 .l1, .l2 { display: block; }
 .l1 { font-size: calc(82 * var(--s)); line-height: 1.08; }
 .l2 { margin-top: calc(-6 * var(--s)); font-size: calc(77 * var(--s)); line-height: 1; }
