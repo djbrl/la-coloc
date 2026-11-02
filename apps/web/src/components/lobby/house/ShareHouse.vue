@@ -1,14 +1,14 @@
 <script setup lang="ts">
 // The house panel's share key: an icon in its head that opens a small flat card under it, with the ways to send the
 // house to someone: copy the link, WhatsApp (a wa.me link with the message ready), and the phone's own share sheet
-// where there is one. The link is the API's share page (shareHouse.ts), so WhatsApp shows the house's name and a
-// picture of its city. On a laptop's own site (localhost) the link opens nowhere else: only the copy, and one line
+// where there is one. The link is the API's share page (shareHouse.ts), so a person lands on "Join <house>" and
+// WhatsApp shows the same words with a picture of its city. On a laptop's own site (localhost) the link opens nowhere else: only the copy, and one line
 // that says so. Esc or a click outside closes the card.
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import { language } from "../../../i18n";
 import { canShareNatively, whatsappLink } from "../tutorial/share";
 import Icon from "./Icon.vue";
-import { houseShareLink, houseShareText, shareWays } from "./shareHouse";
+import { houseShareLink, shareWays } from "./shareHouse";
 import { houseWords as w } from "./words";
 
 const props = defineProps<{ houseId: string; name: string; city: string }>();
@@ -20,7 +20,7 @@ const key = ref<HTMLButtonElement | null>(null);
 let copiedTimer = 0;
 
 const link = computed(() => houseShareLink(location.origin, props.houseId, language.lang));
-const text = computed(() => houseShareText(props.name, props.city, link.value));
+const text = computed(() => w.share.text(props.name, props.city, link.value));
 const ways = computed(() => shareWays(link.value, canShareNatively()));
 
 async function toggle() {

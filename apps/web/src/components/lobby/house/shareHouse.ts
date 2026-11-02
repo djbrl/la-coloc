@@ -1,6 +1,7 @@
-// Sharing a house: the link to send, and what the message says. The link is the API's share page on the site's own
-// origin (`/api/share/house/:id`): a tiny page with the house's name, city and picture for WhatsApp's preview, which
-// then sends the visitor on to the house in the city. Plain functions, so they're tested; ShareHouse.vue draws them.
+// Sharing a house: the link to send, and the ways offered. The link is the API's share page on the site's own origin
+// (`/api/share/house/:id`): a page of its own saying "Join <house> on La Coloc", with its stats and a key into the city,
+// and the same words for WhatsApp's preview. Plain functions, so they're tested; ShareHouse.vue draws them, and the
+// message that goes with the link is in words.ts.
 import { opensAnywhere } from "../tutorial/share";
 
 /**
@@ -10,11 +11,6 @@ import { opensAnywhere } from "../tutorial/share";
 export function houseShareLink(origin: string, houseId: string, lang: "en" | "fr" = "en"): string {
   const link = `${origin.replace(/\/+$/, "")}/api/share/house/${encodeURIComponent(houseId)}`;
   return lang === "fr" ? `${link}?lang=fr` : link;
-}
-
-/** The message that goes with it: "Sacré-Cœur, Dakar: https://…". The same in every language: names and a link. */
-export function houseShareText(house: string, city: string, link: string): string {
-  return `${house}, ${city}: ${link}`;
 }
 
 /**

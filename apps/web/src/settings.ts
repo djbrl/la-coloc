@@ -1,5 +1,6 @@
 // The player's settings, kept in this browser. The settings pane edits them; the lobby and the city read them.
 import { reactive, watch } from "vue";
+import { type Missions, noMissions } from "./components/lobby/missions";
 
 export interface Settings {
   // How the city shows: the walkable 3D lobby, or a plain list.
@@ -18,6 +19,8 @@ export interface Settings {
   shortcuts: boolean;
   // On a slow phone or connection the lobby offers the list view once; this remembers it did.
   listOffered: boolean;
+  // The city's four missions: which are done, folded or not, and gone for good once they're all done (lobby/missions.ts).
+  missions: Missions;
 }
 
 /**
@@ -42,6 +45,7 @@ const defaults: Settings = {
   welcomed: false,
   shortcuts: true,
   listOffered: false,
+  missions: noMissions(),
 };
 
 function read(): Settings {

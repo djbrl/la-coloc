@@ -5,14 +5,16 @@
 // than a field or two to fill in is a short step flow. On a page of its own the panel just grows.
 // The tabs live in components/room; this page holds the room's data and talks to the API.
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import Icon from "../components/lobby/house/Icon.vue";
 import Panel from "../components/lobby/panel/Panel.vue";
 import PanelHead from "../components/lobby/panel/PanelHead.vue";
 import PanelTabs, { type Tab as PanelTab } from "../components/lobby/panel/PanelTabs.vue";
-import { bare, explain, roomLine, roomState } from "../components/lobby/panel/words";
+import { explain, roomLine, roomState } from "../components/lobby/panel/words";
 import { TUTORIAL_HOUSE } from "../components/lobby/tutorial/tutorial";
 import RoomCode from "../components/room/RoomCode.vue";
 import RoomHistory from "../components/room/RoomHistory.vue";
+import RoomLease from "../components/room/RoomLease.vue";
 import RoomLogs from "../components/room/RoomLogs.vue";
 import RoomOverview from "../components/room/RoomOverview.vue";
 import RoomSecrets from "../components/room/RoomSecrets.vue";
@@ -36,7 +38,9 @@ import type { RoomManage } from "../types";
 // steps back. Left out, it's worked out: your room in the workshop while your tutorial isn't done.
 // Vue turns a missing boolean prop into false; the explicit undefined default keeps "not said" apart from "no".
 const props = withDefaults(defineProps<{ id: string; room: string; embedded?: boolean; coached?: boolean }>(), { coached: undefined });
-const emit = defineEmits<{ label: [text: string] }>();
+// `left`: you ended your lease here, and the lobby's sheet goes back to the house.
+const emit = defineEmits<{ label: [text: string]; left: [houseId: string] }>();
+const router = useRouter();
 const data = ref<RoomManage | null>(null);
 // Why there's no room to show, kept as which sentence it is so it follows a language change.
 const errorKind = ref<"" | "needLogin" | "notYours" | "missing">("");
@@ -49,6 +53,8 @@ const formNote = ref<Note | null>(null);
 const savingSettings = ref(false);
 const action = ref<"" | "redeploy" | "restart">("");
 const actionNote = ref<Note | null>(null);
+// Sent to the Code tab to sort out a failed build, or to upload a project: it opens on that flow.
+const fixing = ref(false);
 const logs = ref("");
 const logsMessage = ref("");
 const logsLoading = ref(false);
@@ -156,12 +162,15 @@ async function saveSettings(): Promise<boolean> {
   return res.ok;
 }
 
+const showLog = ref(false);
 async function run(what: "redeploy" | "restart") {
   actionNote.value = null;
   action.value = what;
   const res = await sendJSON("POST", `${base.value}/${what}`, {});
   action.value = "";
-  actionNote.value = res.ok ? quiet(what === "redeploy" ? w.buildingFollow : w.restartingNote) : loud(res.message);
+  showLog.value = res.ok && what === "redeploy";
+  // A build shows itself in the log window; only a refusal or a restart needs a line here.
+  actionNote.value = !res.ok ? loud(res.message) : what === "restart" ? quiet(w.restartingNote) : null;
 }
 
 async function fetchLogs() {
@@ -182,8 +191,8 @@ watch(follow, (on) => {
   if (on) followTimer = window.setInterval(fetchLogs, 4000);
 });
 
-// The tabs: an icon and a word each, and the one line under them that says what the open one is for.
-type TabKey = "overview" | "code" | "secrets" | "logs" | "history";
+// The tabs: an icon and a word each. Only the secrets need a line to say what they are.
+type TabKey = "overview" | "code" | "secrets" | "logs" | "history" | "lease";
 const tab = ref<TabKey>("overview");
 const tabs = computed<PanelTab[]>(() => [
   { key: "overview", icon: "gauge", word: w.tabs.overview },
@@ -191,27 +200,27 @@ const tabs = computed<PanelTab[]>(() => [
   { key: "secrets", icon: "lock", word: w.tabs.secrets, badge: data.value?.secrets.length || undefined },
   { key: "logs", icon: "logs", word: w.tabs.logs },
   { key: "history", icon: "clock", word: w.tabs.history },
+  // For whoever lives here, unless the room has no lease to end (the workshop, an example).
+  ...(data.value?.lease ? [{ key: "lease", icon: "door" as const, word: w.tabs.lease }] : []),
 ]);
-const explains = computed<Record<TabKey, string>>(() => ({
-  overview: explain.project,
-  code: explain.code,
-  secrets: explain.secrets,
-  logs: explain.logs,
-  history: explain.history,
-}));
 // A "Saved." from one tab shouldn't greet you on the next.
 watch(tab, () => (formNote.value = null));
 
 const state = computed(() => (data.value ? roomState(data.value.room) : null));
 const online = computed(() => !!data.value?.room.url && data.value.room.status !== "empty");
+// Whose room this is: "Your room", "Awa's room".
+const whose = computed(() => {
+  const who = data.value?.room.occupant;
+  return !who || who.login === me.value?.login ? w.yourRoom : w.theirRoom((who.name ?? who.login).split(" ")[0]);
+});
+// The project hasn't got a name yet: the room stands in for it, and the line under it only gives the state.
+const named = computed(() => !!data.value?.settings.project || workshop.value);
 // The head's line, after the state's dot: the state in words, then whose room it is and where. "Online. Your room
 // in Sacré-Cœur."
 const headLine = computed(() => {
   const d = data.value;
   if (!d) return "";
-  const who = d.room.occupant;
-  const whose = !who || who.login === me.value?.login ? w.yourRoom : w.theirRoom((who.name ?? who.login).split(" ")[0]);
-  return w.headLine(roomLine(d.room), whose, d.house.name);
+  return named.value ? w.headLine(roomLine(d.room), whose.value, d.house.name) : `${roomLine(d.room)} ${d.house.name}.`;
 });
 
 // Teaming up (components/lobby/team.ts): the occupant and their teammates as faces under the head. The occupant can
@@ -236,9 +245,15 @@ async function offTeam(login: string) {
   else void load();
 }
 
+// The room isn't yours any more: back to the house, in the lobby's sheet or on its own page.
+function leftRoom() {
+  if (props.embedded) emit("left", props.id);
+  else void router.push(`/houses/${props.id}`);
+}
+
 const workshop = computed(() => props.id === TUTORIAL_HOUSE);
 const coached = computed(() => props.coached ?? (!!props.embedded && workshop.value && !!me.value && me.value.tutorialDone === false));
-const title = computed(() => (data.value ? projectTitle(data.value.settings, workshop.value) : ""));
+const title = computed(() => (!data.value ? "" : named.value ? projectTitle(data.value.settings, workshop.value) : whose.value));
 const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 </script>
 
@@ -249,30 +264,18 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
     <Panel
       v-if="data && state"
       class="room-panel"
-      :explain="explains[tab]"
+      :explain="tab === 'secrets' ? explain.secrets : null"
       :body-id="`tabpanel-${tab}`"
       :body-labelledby="`tab-${tab}`"
     >
       <template #head>
-        <PanelHead :title="title" :state="state" :line="headLine" :class="{ untitled: !data.settings.project && !workshop }">
+        <PanelHead :title="title" :state="state" :line="headLine">
           <template v-if="online" #aside>
             <a :href="data.room.url!" target="_blank" rel="noopener" class="chunk small">
               <Icon name="external" :size="16" /> {{ w.open }}<span class="sr-only">{{ w.openProject }}</span>
             </a>
           </template>
         </PanelHead>
-        <!-- What a room is for, in one line, and where it can be seen. -->
-        <p class="what">
-          {{ explain.room(data.room.limits.memoryMb, data.room.limits.cpus) }}
-          <template v-if="online">
-            {{ w.address }}
-            <a :href="data.room.url!" target="_blank" rel="noopener" class="mono">{{ bare(data.room.url!) }}<span class="sr-only">{{ w.newTab }}</span></a><template
-              v-if="data.room.previewUrl"
-            >{{ w.andPreview }}
-              <a :href="data.room.previewUrl" target="_blank" rel="noopener" class="mono">{{ bare(data.room.previewUrl) }}<span class="sr-only">{{ w.newTab }}</span></a></template>.
-          </template>
-          <template v-else>{{ explain.online }}</template>
-        </p>
         <!-- A team on this project: the occupant's face, then each teammate's (with a × for whoever may take them
              off), and "Leave the team" for a teammate. -->
         <div v-if="team.length && data.room.occupant && teamOf" class="team" role="group" :aria-label="w.team">
@@ -320,19 +323,25 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
             :action-note="actionNote"
             :when="when"
             :coached="coached"
+            :show-log="showLog"
+            @log-shown="showLog = false"
             @run="run"
+            @tab="(to) => { fixing = true; tab = to; }"
           />
           <RoomCode
             v-else-if="tab === 'code'"
             :data="data"
+            :base="base"
+            :fixing="fixing"
+            @run="(what) => { fixing = false; tab = 'overview'; run(what); }"
+            @fixed="fixing = false"
             :form="form"
-            :saving="savingSettings"
-            :form-note="formNote"
-            :save="saveSettings"
             :reset="fillForm"
+            :reload="load"
           />
           <RoomSecrets v-else-if="tab === 'secrets'" :data="data" :base="base" :reload="load" :when="when" />
           <RoomLogs v-else-if="tab === 'logs'" v-model:follow="follow" :text="logs" :message="logsMessage" :loading="logsLoading" @refresh="fetchLogs" />
+          <RoomLease v-else-if="tab === 'lease' && data.lease" :lease="data.lease" :base="base" @left="leftRoom" />
           <RoomHistory v-else :deployments="data.deployments" :github="data.github" :when="when" />
         </div>
       </Transition>
@@ -360,10 +369,6 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .room-page:not(.embedded) { max-width: calc(640px + 2 * var(--gutter)); margin: 0 auto; padding: 24px 0 64px; }
 .room-page:not(.embedded) .back { align-self: flex-start; margin: 0 var(--gutter) 4px; }
 .room-panel { flex: 1 1 auto; }
-
-.untitled :deep(.title) { color: var(--muted); }
-.what { margin-top: 10px; font-size: 14px; line-height: 1.45; color: var(--muted); }
-.what a { color: var(--accent); }
 
 /* One tab's content. It grows with what it holds (the body scrolls if that's too much), except the logs, which
    take exactly the body's height so only the log box scrolls. */

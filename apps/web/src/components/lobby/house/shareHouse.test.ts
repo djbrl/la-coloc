@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { whatsappLink } from "../tutorial/share";
-import { houseShareLink, houseShareText, shareWays } from "./shareHouse";
+import { houseShareLink, shareWays } from "./shareHouse";
+import { houseWords } from "./words";
 
 describe("sharing a house", () => {
   it("links to the API's share page on the site's own origin", () => {
@@ -11,8 +12,8 @@ describe("sharing a house", () => {
 
   it("says the house, its city and the link, ready for WhatsApp", () => {
     const link = houseShareLink("https://la-coloc.vercel.app", "sacre-coeur");
-    const text = houseShareText("Sacré-Cœur", "Dakar", link);
-    expect(text).toBe("Sacré-Cœur, Dakar: https://la-coloc.vercel.app/api/share/house/sacre-coeur");
+    const text = houseWords.share.text("Sacré-Cœur", "Dakar", link);
+    expect(text).toBe("Join Sacré-Cœur in Dakar on La Coloc, the server you share with friends: https://la-coloc.vercel.app/api/share/house/sacre-coeur");
     expect(whatsappLink(text)).toBe(`https://wa.me/?text=${encodeURIComponent(text)}`);
   });
 

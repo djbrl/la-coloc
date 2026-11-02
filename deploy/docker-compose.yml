@@ -1,0 +1,35 @@
+# The server's Postgres and Traefik. Same idea as dev/docker-compose.yml, with two differences: nothing is published
+# past 127.0.0.1, because Docker's published ports walk straight past ufw, and Caddy is the only public door.
+services:
+  traefik:
+    image: traefik:v3.2
+    # The caretaker looks for this name, to plug the proxy into each room's network.
+    container_name: coloc-traefik
+    command:
+      - --providers.file.directory=/etc/traefik/rooms
+      - --providers.file.watch=true
+      - --providers.providersThrottleDuration=200ms
+      - --entrypoints.web.address=:80
+      - --api.dashboard=false
+    ports:
+      - "127.0.0.1:8000:80"
+    volumes:
+      # Read-only: only the caretakers write routes.
+      - /var/lib/coloc/agent/proxy:/etc/traefik/rooms:ro
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    container_name: coloc-db
+    environment:
+      POSTGRES_USER: coloc
+      POSTGRES_PASSWORD: ${COLOC_DB_PASSWORD:?}
+      POSTGRES_DB: coloc
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - coloc-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  coloc-db:

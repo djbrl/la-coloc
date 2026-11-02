@@ -23,12 +23,10 @@ const emit = defineEmits<{ done: [] }>();
 const steps = computed((): { part: string; text: string; below?: string }[] => [
   {
     part: "header",
-    below: "life",
     text: props.demo ? w.tour.headerExample(props.name) : w.tour.header(props.name),
   },
-  { part: "crew", text: w.tour.crew },
-  { part: "tabs", text: w.tour.tabs },
   { part: "rooms", text: w.tour.rooms },
+  { part: "tabs", text: w.tour.tabs },
   { part: "foot", text: props.next ? `${w.tour.foot} ${props.next}` : w.tour.foot },
 ]);
 

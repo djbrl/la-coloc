@@ -30,7 +30,7 @@ defineProps<{
 </template>
 
 <style scoped>
-/* A row on the white, with a line between it and the next: no box. */
+/* A row on the white: no box, and no line between rows. Air and the row's own light keep them apart. */
 .list-row {
   display: flex;
   align-items: center;
@@ -39,7 +39,6 @@ defineProps<{
   padding: 6px 0;
   transition: background-color var(--dur-fast) var(--ease);
 }
-.list-row + .list-row { border-top: 2px solid var(--row-line); }
 /* Rows behave like a game menu's entries: the whole row lights under the pointer, and the one holding the keyboard
    focus is the selected entry (a fill, never an outline or a stripe). */
 .list-row:hover { background: var(--tile); box-shadow: -6px 0 0 var(--tile), 6px 0 0 var(--tile); }

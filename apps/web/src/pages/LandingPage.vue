@@ -167,7 +167,7 @@ onBeforeUnmount(() => {
         <button type="button" class="key lang" :lang="language.lang === 'fr' ? 'en' : 'fr'" :aria-label="w.otherLanguage" @click="setLang(language.lang === 'fr' ? 'en' : 'fr')">
           {{ language.lang === "fr" ? "EN" : "FR" }}
         </button>
-        <a class="key" :href="loginAt">{{ w.logIn }}</a>
+        <a class="key" :href="loginAt">{{ w.signInShort }}</a>
         <button type="button" class="key main" @click="tryDemo">{{ w.demo }}</button>
       </nav>
     </header>
@@ -200,14 +200,13 @@ onBeforeUnmount(() => {
         <div class="sign-board">
           <span class="tie top-tie" aria-hidden="true" />
           <span class="tie bottom-tie" aria-hidden="true" />
-          <span class="note" role="img" :aria-label="w.freeName"><span class="n" aria-hidden="true">1</span><span class="w" aria-hidden="true">{{ w.free[0] }}<br />{{ w.free[1] }}</span></span>
           <div class="edge">
             <div class="red">
               <h2 :aria-label="w.forRentName"><span class="l1" aria-hidden="true">{{ w.forRent[0] }}</span><span class="l2" aria-hidden="true">{{ w.forRent[1] }}</span></h2>
               <span class="taken" role="img" :aria-label="w.takenName">3/4</span>
-              <a class="slot" :href="loginAt" :aria-label="w.moveInName">
+              <a class="slot" :href="loginAt">
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
-                {{ w.moveIn }}
+                {{ w.signIn }}
               </a>
             </div>
           </div>
@@ -326,9 +325,6 @@ onBeforeUnmount(() => {
 .tie { position: absolute; left: 50%; z-index: 1; width: calc(10 * var(--s)); height: calc(30 * var(--s)); margin-left: calc(-5 * var(--s)); border-radius: calc(3 * var(--s)); background: #17151a; }
 .top-tie { top: calc(-10 * var(--s)); }
 .bottom-tie { bottom: calc(-12 * var(--s)); height: calc(32 * var(--s)); }
-.note { position: absolute; right: calc(-20 * var(--s)); top: calc(-16 * var(--s)); z-index: 2; display: flex; align-items: center; gap: calc(7 * var(--s)); padding: calc(6 * var(--s)) calc(13 * var(--s)) calc(7 * var(--s)) calc(11 * var(--s)); rotate: 7deg; background: #ffd21f; color: #17151a; box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35); font-family: "Caveat Brush", cursive; }
-.note .n { font-size: calc(64 * var(--s)); line-height: 0.9; }
-.note .w { font-size: calc(27 * var(--s)); line-height: 0.92; }
 .edge { padding: calc(4 * var(--s)); border: calc(3 * var(--s)) solid #b3202c; border-radius: calc(18 * var(--s)); }
 .red { position: relative; padding: calc(4 * var(--s)) calc(10 * var(--s)) calc(10 * var(--s)); border-radius: calc(13 * var(--s)); background: #b3202c; color: #ffffff; text-align: center; }
 h2 { margin: 0; font-family: var(--display); }
@@ -336,7 +332,7 @@ h2 { margin: 0; font-family: var(--display); }
 .l1 { font-size: calc(82 * var(--s)); line-height: 1.08; }
 .l2 { margin-top: calc(-6 * var(--s)); font-size: calc(77 * var(--s)); line-height: 1; }
 .taken { position: absolute; left: calc(6 * var(--s)); top: calc(34 * var(--s)); rotate: -6deg; font: 400 calc(40 * var(--s)) / 1 "Caveat Brush", cursive; color: #2a0c10; }
-.slot { display: flex; align-items: center; justify-content: center; gap: calc(12 * var(--s)); height: calc(72 * var(--s)); margin-top: calc(8 * var(--s)); border-radius: calc(13 * var(--s)); background: #ffffff; color: #17151a; font: 400 calc(27 * var(--s)) / 1 var(--display); transition: background-color var(--dur) var(--ease); }
+.slot { display: flex; align-items: center; justify-content: center; gap: calc(12 * var(--s)); height: calc(72 * var(--s)); margin-top: calc(8 * var(--s)); padding: 0 calc(18 * var(--s)); border-radius: calc(13 * var(--s)); background: #ffffff; color: #17151a; font: 600 calc(19 * var(--s)) / 1 var(--font); white-space: nowrap; transition: background-color var(--dur) var(--ease); }
 .slot:hover { background: #ffe9a8; text-decoration: none; }
 .slot svg { flex: none; width: calc(34 * var(--s)); height: calc(34 * var(--s)); }
 

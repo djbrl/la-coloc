@@ -7,8 +7,10 @@ export class Slots {
 
   constructor(readonly size: number) {}
 
-  async run<T>(job: () => Promise<T>): Promise<T> {
-    if (this.busy >= this.size) await new Promise<void>((resolve) => this.waiting.push(resolve));
+  // With a signal, a build cancelled while it waits leaves the line at once, and never takes a slot.
+  async run<T>(job: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    signal?.throwIfAborted();
+    if (this.busy >= this.size) await this.turn(signal);
     else this.busy++;
     try {
       return await job();
@@ -18,6 +20,21 @@ export class Slots {
       if (next) next();
       else this.busy--;
     }
+  }
+
+  private turn(signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const go = () => {
+        signal?.removeEventListener("abort", leave);
+        resolve();
+      };
+      const leave = () => {
+        this.waiting.splice(this.waiting.indexOf(go), 1);
+        reject(signal!.reason);
+      };
+      this.waiting.push(go);
+      signal?.addEventListener("abort", leave, { once: true });
+    });
   }
 
   get queued(): number {

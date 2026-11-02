@@ -2,15 +2,45 @@
 // Chapter 3's moment: the room is yours. A card in the middle of the screen hands you the keys (a drawn key on a
 // ring, with your room's name on its tag), says which room in which house, and what the room gives you. The keys
 // jingle as it lands (the view plays the sound). One button, "Move in", and Enter presses it.
-import { onMounted, ref } from "vue";
+//
+// In the quest the first rent comes first, so nobody forgets that a house is a real server people pay for: your share,
+// how you'd pay, and one press. It's a simulation and it says so: nothing is sent anywhere, and the keys follow.
+import { nextTick, onMounted, ref, watch } from "vue";
+import { play } from "../../../lobby/sound";
+import { fcfa } from "../house/server";
 import { explain } from "../panel/words";
 import { tutorialWords as w } from "./words";
 
-defineProps<{ room: string; house: string; memoryMb?: number; cpus?: number }>();
+const props = defineProps<{
+  room: string;
+  house: string;
+  memoryMb?: number;
+  cpus?: number;
+  // The first rent to pay before the keys: your share, the server's whole cost, and how people pay there.
+  rent?: { share: number; total: number; operators: string[] } | null;
+}>();
 const emit = defineEmits<{ next: [] }>();
 
 const go = ref<HTMLButtonElement | null>(null);
-onMounted(() => setTimeout(() => go.value?.focus({ preventScroll: true }), 0));
+const focusGo = () => setTimeout(() => go.value?.focus({ preventScroll: true }), 0);
+onMounted(focusGo);
+
+// The rent: unpaid, being "sent" for a moment, then the keys.
+const stage = ref<"rent" | "paying" | "keys">(props.rent ? "rent" : "keys");
+const operator = ref(props.rent?.operators[0] ?? "");
+const PAYING_MS = 1100;
+function pay() {
+  stage.value = "paying";
+  window.setTimeout(() => {
+    stage.value = "keys";
+    play("keys");
+  }, PAYING_MS);
+}
+watch(stage, async (now) => {
+  if (now !== "keys") return;
+  await nextTick();
+  focusGo();
+});
 
 // Enter and Space press the focused button; they must not reach the engine, where Enter means "use what's in reach".
 function onKey(e: KeyboardEvent) {
@@ -20,7 +50,19 @@ function onKey(e: KeyboardEvent) {
 
 <template>
   <div class="layer">
-    <section class="card" role="dialog" aria-modal="true" aria-labelledby="quest-keys-title" @keydown="onKey">
+    <section v-if="stage !== 'keys'" class="card" role="dialog" aria-modal="true" aria-labelledby="quest-rent-title" @keydown="onKey">
+      <h2 id="quest-rent-title" class="rent-title">{{ w.rentTitle }}</h2>
+      <p class="amount"><strong>{{ fcfa(rent!.share) }}</strong> <span>{{ w.rentMonth }}</span></p>
+      <p class="soft">{{ w.rentWhy(fcfa(rent!.total)) }}</p>
+      <div class="ops" role="radiogroup" :aria-label="w.rentHow">
+        <button v-for="o in rent!.operators" :key="o" type="button" role="radio" :aria-checked="operator === o" :disabled="stage === 'paying'" @click="operator = o">{{ o }}</button>
+      </div>
+      <div class="nav">
+        <button ref="go" type="button" class="primary go" :disabled="stage === 'paying'" @click="pay">{{ stage === "paying" ? w.rentPaying(operator) : w.rentPay(fcfa(rent!.share)) }}</button>
+      </div>
+      <p class="mock">{{ w.rentMock }}</p>
+    </section>
+    <section v-else class="card" role="dialog" aria-modal="true" aria-labelledby="quest-keys-title" @keydown="onKey">
       <!-- The key on its ring, with a paper tag that carries the room's name. -->
       <svg class="key" viewBox="0 0 220 120" aria-hidden="true">
         <circle cx="40" cy="40" r="22" class="ring" />
@@ -79,6 +121,15 @@ function onKey(e: KeyboardEvent) {
 h2 { margin: 0; font-size: 40px; line-height: 1; }
 p { margin: 0; font-size: 17px; line-height: 1.45; }
 .soft { color: var(--muted); font-size: 15px; }
+.rent-title { font-size: 30px; }
+.amount { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 2px 8px; color: var(--muted); }
+.amount strong { font: 400 44px/1.05 var(--display); color: var(--panel-red); white-space: nowrap; }
+/* How you'd pay: words on the white, the chosen one on ink, as the panel's tabs. */
+.ops { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.ops button { min-height: 44px; padding: 0 12px; background: none; box-shadow: none; color: var(--text); font: 800 15px/1 var(--font); }
+.ops button:hover:not(:disabled) { background: var(--tile); }
+.ops button[aria-checked="true"], .ops button[aria-checked="true"]:hover:not(:disabled) { background: var(--text); color: var(--surface); }
+.mock { color: var(--muted); font-size: 14px; line-height: 1.3; }
 .nav { display: flex; justify-content: center; margin-top: 10px; }
 .go { min-height: 60px; min-width: 220px; padding: 0 24px; border-radius: var(--r-md); font-size: 19px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
 button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }

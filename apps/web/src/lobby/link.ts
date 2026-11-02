@@ -104,10 +104,6 @@ export class LobbyLink {
     this.send({ type: "move", ...state });
   }
 
-  emote(name: Emote) {
-    this.send({ type: "emote", name });
-  }
-
   close() {
     this.closed = true;
     clearTimeout(this.timer);

@@ -25,6 +25,32 @@ describe("name tags in a pile-up", () => {
     expect(names(spots, (s) => s.crowded)).toEqual(["near"]);
   });
 
+  it("doesn't blink: a faded tag stays faded until there's clear space around it", () => {
+    const near = spot("near", 100, 100, 1);
+    const far = spot("far", 170, 100, 5);
+    declutter([near, far], 2, Infinity);
+    expect(far.crowded).toBe(true);
+    far.x = 185;
+    declutter([near, far], 2, Infinity);
+    expect(far.crowded).toBe(true);
+    far.x = 200;
+    declutter([near, far], 2, Infinity);
+    expect(far.crowded).toBe(false);
+  });
+
+  it("doesn't swap who's faded when two people are about as far away", () => {
+    const a = spot("a", 100, 100, 3);
+    const b = spot("b", 110, 100, 3.2);
+    declutter([a, b], 2, Infinity);
+    expect(b.crowded).toBe(true);
+    a.d = 3.4;
+    declutter([a, b], 2, Infinity);
+    expect([a.crowded, b.crowded]).toEqual([false, true]);
+    a.d = 6;
+    declutter([a, b], 2, Infinity);
+    expect([a.crowded, b.crowded]).toEqual([true, false]);
+  });
+
   it("shows only yours and the nearest person's on a narrow screen", () => {
     const spots = [spot("far", 300, 300, 9), spot("you", 0, 0, -1, true), spot("near", 200, 0, 2), spot("mid", 400, 0, 4)];
     declutter(spots, 4, 1);

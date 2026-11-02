@@ -32,7 +32,7 @@ export async function standings(db: Db, id: string, limit: number): Promise<{ us
  * the call that flips closed_at awards, so it awards once however many try (null: it was already closed). A title
  * just won goes on: it's the winner's most recent.
  */
-export async function closeWeek(tx: Db, id: string, at: Date): Promise<{ city: string; awards: AwardRow[] } | null> {
+export async function closeWeek(tx: Db, id: string, at: Date): Promise<{ city: string; prizeFcfa: number; awards: AwardRow[] } | null> {
   const [closed] = await tx
     .update(arenaChallenges)
     .set({ closedAt: at })
@@ -41,7 +41,7 @@ export async function closeWeek(tx: Db, id: string, at: Date): Promise<{ city: s
   if (!closed) return null;
   const entry = catalogueEntry(closed.slug, closed.kind);
   const podium = (await standings(tx, id, PODIUM)).filter((s) => s.points > 0);
-  if (!podium.length) return { city: closed.city, awards: [] };
+  if (!podium.length) return { city: closed.city, prizeFcfa: closed.prizeFcfa, awards: [] };
   const awards = await tx
     .insert(arenaAwards)
     .values(
@@ -59,5 +59,5 @@ export async function closeWeek(tx: Db, id: string, at: Date): Promise<{ city: s
     .onConflictDoNothing()
     .returning();
   for (const a of awards) await wearNew(tx, a);
-  return { city: closed.city, awards };
+  return { city: closed.city, prizeFcfa: closed.prizeFcfa, awards };
 }

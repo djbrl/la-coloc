@@ -14,6 +14,7 @@ import { and, count, desc, eq, gt, inArray, like, max, ne, or, sql } from "drizz
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import { blockBetween, blockedBy, channelMessages, person } from "../doorbell/queries";
+import { isChatGuest } from "../houses/guests";
 import type { MessageView, PersonView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -277,12 +278,12 @@ export class ChatService {
   }
 
   // Whether `userId` may read a channel: a city's room, its arena's and a post's replies are public; a DM is its two people's;
-  // a house's living room is its flatmates'; a knock's thread, the applicant's and the house's.
+  // a house's living room is its flatmates' and the guests they let in; a knock's thread, the applicant's and the house's.
   private async canRead(channel: string, userId: string): Promise<boolean> {
     if (channel.startsWith("city:") || channel.startsWith("arena:") || channel.startsWith("post:")) return true;
     const pair = dmPeople(channel);
     if (pair) return pair.includes(userId);
-    if (channel.startsWith("house:")) return !!(await this.houses.membership(channel.slice(6), userId));
+    if (channel.startsWith("house:")) return !!(await this.houses.membership(channel.slice(6), userId)) || (await isChatGuest(this.db, channel.slice(6), userId));
     if (channel.startsWith("application:")) {
       const [app] = await this.db.select().from(applications).where(eq(applications.id, channel.slice(12)));
       return !!app && (app.applicantId === userId || !!(await this.houses.membership(app.houseId, userId)));

@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { explain } from "../lobby/panel/words";
 import {
+  buildFailed,
+  buildTrouble,
+  canChangeCode,
   canRestart,
+  codeBody,
   codeRows,
   deploymentStep,
   deploymentTitle,
   draftRows,
   firstLine,
+  imageNameOk,
   memoryUse,
   neverOnline,
   parsePort,
   projectTitle,
+  readTrouble,
   secretName,
   secretNameOk,
   settingsBody,
@@ -75,11 +81,11 @@ describe("how the room is doing", () => {
     const limits = { memoryMb: 256, cpus: 0.5 };
     const usage = { cpuPercent: 0.2, memoryBytes: 9 * 1048576, memoryLimitBytes: 256 * 1048576, at: "" };
     const builds = [build("prod", "failed", "2026-10-10T10:00:00Z"), build("prod", "live", "2026-10-07T12:00:00Z")];
-    expect(roomSentence({ status: "live", limits, usage }, builds, now)).toBe("Online for 3 days, using 9 of its 256 MB and almost no CPU.");
-    expect(roomSentence({ status: "live", limits, usage: { ...usage, cpuPercent: 12.4 } }, [], now)).toBe("Online, using 9 of its 256 MB and 12% of a CPU.");
-    expect(roomSentence({ status: "empty", limits, usage: null }, [], now)).toBe("Never built yet. It has 256 MB of memory and half a CPU of its own.");
+    expect(roomSentence({ status: "live", limits, usage }, builds, now)).toBe("Online for 3 days: 9 of 256 MB, almost no CPU.");
+    expect(roomSentence({ status: "live", limits, usage: { ...usage, cpuPercent: 12.4 } }, [], now)).toBe("Online: 9 of 256 MB, 12% of a CPU.");
+    expect(roomSentence({ status: "empty", limits, usage: null }, [], now)).toBe("Never built yet. 256 MB of memory, half a CPU.");
     expect(roomSentence({ status: "failed", limits: { memoryMb: 512, cpus: 1 }, usage: null }, builds, now)).toBe(
-      "Its last build failed 2 hours ago. It has 512 MB of memory and 1 CPU of its own.",
+      "Its last build failed 2 hours ago. 512 MB of memory, 1 CPU.",
     );
     expect(span(3 * 60_000)).toBe("a few minutes");
     expect(span(25 * 60_000)).toBe("25 minutes");
@@ -161,5 +167,49 @@ describe("secrets and history", () => {
     expect(deploymentStep("pushing").tone).toBe("warn");
     expect(firstLine("\n  npm ERR! missing script\nmore")).toBe("npm ERR! missing script");
     expect(firstLine(null)).toBe("");
+  });
+});
+
+describe("uploading a project", () => {
+  const form = { project: "x", projectDescription: "y", source: " https://github.com/a/b ", branch: "", buildPath: "", port: "" };
+
+  it("saves where the code comes from and leaves the project's name alone", () => {
+    expect(codeBody(form, false, 8080)).toEqual({ source: "https://github.com/a/b", branch: null, buildPath: ".", port: 8080 });
+    expect(codeBody(form, true, null).source).toBeUndefined();
+    expect(codeBody({ ...form, source: "file://" }, false, null).source).toBeUndefined();
+  });
+
+  it("says why a project couldn't be read, in plain words", () => {
+    expect(readTrouble("git clone failed: fatal: Remote branch dev not found in upstream origin")).toBe("branch");
+    expect(readTrouble("git clone failed: remote: Repository not found.")).toBe("repo");
+    expect(readTrouble("git clone failed: fatal: could not read Username for 'https://github.com'")).toBe("repo");
+    expect(readTrouble("The house's server didn't answer in time.")).toBe("slow");
+    expect(readTrouble("repo must be an https:// URL")).toBeNull();
+  });
+
+  it("takes an image's name the way the API does", () => {
+    expect(imageNameOk("nginx:alpine")).toBe(true);
+    expect(imageNameOk("ghcr.io/you/app:1.0")).toBe(true);
+    expect(imageNameOk("Bad Name; rm")).toBe(false);
+  });
+
+  it("lets a chef choose the code only for a room nobody lives in", () => {
+    const person = { id: "1" } as never;
+    expect(canChangeCode({ as: "flatmate", room: { occupant: person } })).toBe(true);
+    expect(canChangeCode({ as: "teammate", room: { occupant: person } })).toBe(true);
+    expect(canChangeCode({ as: "chef", room: { occupant: person } })).toBe(false);
+    expect(canChangeCode({ as: "chef", room: { occupant: null } })).toBe(true);
+  });
+});
+
+describe("a cancelled build", () => {
+  it("isn't a failure anywhere it's shown", () => {
+    expect(buildTrouble("Build cancelled.")).toBe("cancelled");
+    expect(buildFailed({ status: "failed", detail: "Build cancelled." })).toBe(false);
+    expect(buildFailed({ status: "failed", detail: "build failed: npm" })).toBe(true);
+    expect(buildFailed({ status: "live", detail: null })).toBe(false);
+    expect(buildFailed(undefined)).toBe(false);
+    expect(deploymentStep("failed", "Build cancelled.")).toMatchObject({ word: "Cancelled", tone: "warn" });
+    expect(deploymentStep("failed", "git clone failed")).toMatchObject({ word: "Failed", tone: "danger" });
   });
 });

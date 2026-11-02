@@ -26,11 +26,12 @@ OFL (contest Art. 6, checked by `npm run licences:check`).*
 | Piece | What it does | Where it runs |
 |---|---|---|
 | **Website** (`apps/web`) | The 3D city, the panels, the quest, the bell. Vue 3, Vite, three.js. Builds to static files | The browser |
-| **API** (`apps/api`) | Login, every route, GitHub webhooks, the link to each caretaker, the lobby's live line. NestJS | One server (today: a laptop) |
+| **API** (`apps/api`) | Login, every route, GitHub webhooks, the link to each caretaker, the lobby's live line. NestJS | One server (`deploy/`, or a laptop) |
 | **Database** | Postgres. Tests use PGlite (Postgres in memory), so they need no Docker | Next to the API |
 | **Caretaker** (`apps/agent`) | Builds each room's project with Docker, runs it with its limits, measures usage, reports back. Plain Node | Each house server |
 | **Traefik** | The front door of a house server: sends `<room>.<house domain>` to the right container | Each house server, in Docker |
 | **GitHub App** | Login, linking repos, reviewers on pull requests, previews, deploy on merge | GitHub |
+| **Caddy** | On a real server, the only public door: the built site, HTTPS for everything, rooms handed to Traefik | The server (`deploy/`) |
 | **Vercel + tunnel** | Only for `npm run share`: the site on Vercel, the API on a laptop behind a Cloudflare tunnel | Vercel, Cloudflare |
 
 Choices worth saying to a jury:
@@ -56,13 +57,17 @@ Choices worth saying to a jury:
 3. It sends a `deploy` message to that house's caretaker over the WebSocket, with the repo, a one-hour GitHub
    token, the room's limits, its decrypted secrets and variables such as `COLOC_ROOM` and `COLOC_CITY`
    (`apps/api/src/rooms/room-deployer.ts`).
-4. The caretaker (`apps/agent/src/deploy.ts`) clones the repo, builds the image from the repo's Dockerfile (one build
-   at a time per house, `slots.ts`; with no network if `COLOC_BUILD_OFFLINE=1`) and starts a new container with its
+4. The caretaker (`apps/agent/src/deploy.ts`) clones the repo, builds the image from the repo's Dockerfile, or from one it
+   writes when there's none (`apps/agent/src/recipe.ts`: Node, Python, Go, PHP, plain sites), one build
+   at a time per house (`slots.ts`; with no network if `COLOC_BUILD_OFFLINE=1`), and starts a new container with its
    walls (`room-spec.ts`: memory and CPU caps, no extra rights, a read-only disk, its own sealed network, and user
    65534 unless the image picks a user other than root). It clones only `https://` repos; a `file://` folder only
    when `COLOC_ALLOW_LOCAL_REPOS` names it (in development, the quest's starter page).
 5. It checks the new container answers, rewrites the room's route file so Traefik sends visitors to it, waits for
    Traefik to follow, then stops the old one. Nobody sees a gap.
+   A room's source can also be `docker://name:tag`: pulled instead of cloned and built, then the same walls. While it
+   builds, its lines go back as `deploy_log` batches; the API keeps the latest ones in memory (`agents/logs.broker.ts`)
+   and the log window asks `GET .../rooms/:room/build-log?from=N` once a second (`components/room/BuildLog.vue`).
 6. At each step it sends a `deploy_status` message back. The API saves it, comments on the pull request, and pushes
    the change to open pages: the window lights up, fireworks go off. The room's address the caretaker reports is
    kept only if it is http(s) and `<room>.<house domain>` (or its preview's), so a caretaker can't put another
@@ -102,6 +107,50 @@ room's CPU and memory, which feed the bill.
 - On the shared site the quick tunnel holds those streams back, so the page asks every 4 seconds instead
   (`apps/web/src/stream.ts`): one poller per address, a tick skipped while the last answer is out or while the
   database is down, and an answer at once when the tab comes back into view.
+
+## Before a build, and when one is lost
+
+- `POST .../rooms/:room/inspect` asks the caretaker to clone the repo and read small plain files, without following
+  links (`apps/agent/src/inspect.ts`). It answers with the stack, the port and where that came from, the settings the
+  env example names, and flags such as "nothing here to run". The Code tab (`RoomCode.vue`) shows that and blocks a
+  build it knows can't work.
+- Each time a caretaker's line opens, its `hello` lists the builds it's still on. The API marks any other unfinished
+  build of that house as failed (`houses.service.ts`, `failLostBuilds`), so a restart never leaves a room "building".
+
+## Credit
+
+Fake money counted in FCFA, in `apps/api/src/credit/`: `users.credit`, and a `credit_entries` ledger whose unique `key`
+stops anything being charged or paid twice. `GET /api/credit` is your balance and history; `/api/me` carries the balance.
+A server's first month, rent and a project's first time online spend it. A review and first place in the Arena earn it.
+Limits: one server and three projects a person (`houses/money.ts`). Replacing it with real money means swapping
+`houses/payment.ts` and these few calls.
+
+## A full house's chat
+
+`house_guests` (migration 0019) holds who asked to join a full house's channel. A flatmate answers under the bell, and a
+guest reads and writes that channel and nothing else (`houses/guests.ts`, `notifications.service.ts`). An example house
+has nobody to answer, so its host lets you in with a line (`doorbell.service.ts`, `welcomeGuest`).
+
+## Leases and several rooms
+
+A person can rent up to 3 rooms (`MAX_ROOMS_PER_PERSON`; the workshop doesn't count). Someone who already lives in a house takes another free room with `POST /api/houses/:id/rooms/:room/take`. In the bill a person's memory and CPU are the sum of their rooms.
+
+The billing cycle is the calendar month (UTC). Ending a lease (`POST .../leave`, `houses/leases.service.ts`) has two steps:
+
+- **Right away** the room is free for anyone: any build is cancelled, its containers go, and its project, repo link, secrets, team and history are removed.
+- **When the month ends** the money follows. A `lease_ends` row keeps the room on the bill of the person who left, and not on a new occupant's, so no line moves this month. If it was their last room there they stay a flatmate until then, with no room (`memberships.leaving_month`).
+
+`settleLeases` does the second step, when the API starts and every hour: it removes people who have left, passes the chef's role to the first in the tontine line if the chef was one of them (the only time the chef changes), and closes a house with nobody left.
+
+## Uploading a project
+
+Wherever a repo is asked for, `RepoPicker.vue` lists the repos the person let the GitHub App see (`GET /api/github/repos`, `github/repos.service.ts`, shared with the quest). In a room, picking one links it (`POST .../import`) and the caretaker reads it straight away (`POST .../inspect`). A public link or a Docker Hub image takes one Import press and is read the same way. One screen then says what was found, and the main button is Put it online. There is no separate check step.
+
+A knock only lists public repos: its link is shown to the house.
+
+## Cancelling a build
+
+`POST .../cancel-build` sends the caretaker `cancel_build`. It aborts that room's real builds, running or waiting (`agent/src/builds.ts`, an `AbortController` per build; Docker stops a build when its client hangs up). The deployment ends as failed with "Build cancelled.", which the web treats as going back rather than as a failure. Whatever was online stays online.
 
 ## The chat
 
@@ -172,10 +221,11 @@ A good hour of reading: `packages/protocol/src/index.ts` → `apps/agent/src/roo
 
 Planned at the start, not in the code. Each is on [TODO.md](../TODO.md) or was cut:
 
-- The real server on Datacloud, HTTPS for rooms, and nothing yet serves the built site in production.
+- The real server on Datacloud: `deploy/` has only run on a DigitalOcean droplet so far.
 - A database per room (the "kitchen"), backups, disk limits and disk measurement.
 - A job queue (pg-boss) and timed jobs: webhooks are handled straight away, and a few timers do the rest.
-- Builds without a Dockerfile (Nixpacks), and gVisor for stronger walls.
+- Real payment and a real hosting provider: `houses/payment.ts` simulates the first, `houses/landlord.ts` stands in for the second.
+- gVisor for stronger walls, and more stacks without a Dockerfile (Railpack would replace `recipe.ts` if they pile up).
 - GitHub's Deployments panel (needs one more App permission).
 - `bills` and `listings` tables (a free room's ad is a column on `rooms`). Teams are `room_teammates`, migration 0017.
 - Real payments.

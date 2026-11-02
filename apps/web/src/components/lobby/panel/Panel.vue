@@ -62,4 +62,7 @@ defineProps<{ summary?: string | null; explain?: string | null; bodyLabel?: stri
 .p-foot { display: flex; align-items: center; gap: 8px; padding: 0 14px 14px; }
 .p-foot :deep(button), .p-foot :deep(a.button) { min-height: 60px; font-size: 24px; }
 .p-foot :deep(.second), .p-foot :deep(.small) { min-height: 50px; font-size: 18px; }
+@media (max-width: 480px) {
+  .p-foot :deep(button), .p-foot :deep(a.button) { min-height: 54px; font-size: 19px; }
+}
 </style>

@@ -22,6 +22,7 @@ import type { MessageView, PersonView } from "../houses/house.types";
 import { arenaChannel, CITY_HISTORY } from "../chat/channels";
 import { ChatService } from "../chat/chat.service";
 import { Limiter } from "../chat/limiter";
+import { CreditService } from "../credit/credit.service";
 import { awardOf, badgeOf, wear } from "./badges";
 import { closeWeek, standings } from "./podium";
 import { catalogueEntry, type PointsRow, type Text } from "./catalogue";
@@ -92,12 +93,16 @@ export class ArenaService {
   private openFolders = new Map<string, { open: boolean | null; until: number }>();
   private pulls = new Map<string, { facts: PullFacts | null; until: number }>();
 
+  private readonly credit: CreditService;
+
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly chat: ChatService,
     // Null when the GitHub App isn't configured: GitHub's public API is asked instead.
     @Inject(GITHUB_CLIENT) private readonly github: GithubAppClient | null,
-  ) {}
+  ) {
+    this.credit = new CreditService(db);
+  }
 
   // ---- The week ----
 
@@ -157,7 +162,13 @@ export class ArenaService {
    */
   async closeAndAward(id: string): Promise<(typeof arenaAwards.$inferSelect)[]> {
     await this.lastLook(id);
-    const result = await this.db.transaction((tx) => closeWeek(tx, id, this.clock()));
+    const result = await this.db.transaction(async (tx) => {
+      const closed = await closeWeek(tx, id, this.clock());
+      // 1st place's prize goes to their credit, with the title.
+      const first = closed?.awards.find((a) => a.place === 1);
+      if (first && closed!.prizeFcfa > 0) await this.credit.earn(first.userId, closed!.prizeFcfa, "arena", `arena:${first.id}`, tx);
+      return closed;
+    });
     if (!result) return [];
     this.changed(result.city);
     if (result.awards.length) this.log.log(`${id}: awarded ${result.awards.length} title${result.awards.length === 1 ? "" : "s"}`);

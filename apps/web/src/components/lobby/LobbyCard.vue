@@ -12,10 +12,10 @@ const emit = defineEmits<{ close: [] }>();
 const root = ref<HTMLElement | null>(null);
 
 // A moment later, not at once: a click's own focus (on the stage) lands after we mount and would win.
-// The main action (the primary button) if there is one, else the first menu button, else anything you can press.
+// The main action (the primary button) if you can press it, else the first menu button, else anything you can press.
 onMounted(() =>
   setTimeout(() => {
-    const el = [".primary", ".big", "button, a"].map((s) => root.value?.querySelector<HTMLElement>(s)).find(Boolean);
+    const el = [".primary:not(:disabled)", ".big:not(:disabled)", "button, a"].map((s) => root.value?.querySelector<HTMLElement>(s)).find(Boolean);
     el?.focus({ preventScroll: true });
   }, 0),
 );

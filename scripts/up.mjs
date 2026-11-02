@@ -165,6 +165,10 @@ run(
       PORT: String(PORT),
       ...sharing,
       COLOC_PUBLIC_URL: process.env.COLOC_PUBLIC_URL ?? (share ? SITE : "http://localhost:5175"),
+      // A house that pays for its server gets its caretaker on this machine (apps/api/src/houses/landlord.ts).
+      COLOC_LANDLORD_AGENT: join(root, "apps/agent/dist/index.js"),
+      COLOC_LANDLORD_API_URL: `ws://localhost:${PORT}/agent`,
+      COLOC_LANDLORD_KEY: keys.agentSecret,
       // While sharing, the dev origins are off: name this machine's own site, on Multiprise's port too.
       COLOC_WEB_ORIGIN:
         process.env.COLOC_WEB_ORIGIN ??

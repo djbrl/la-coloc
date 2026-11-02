@@ -1,17 +1,18 @@
 // Who is in a house and what a viewer should do there, worked out from the house view alone. No DOM here, so the
-// house panel's choices (the faces under its name, the one button in its foot, the one button on each room row)
-// are easy to test and read the same way everywhere.
+// house panel's choices (the housemates' list, the one button in its foot, the keys on a room's page) are easy to
+// test and read the same way everywhere.
 import type { HouseView, Person, Room, Viewer } from "../../../types";
+import { messageAction } from "../../chat/chat";
+import { dayName } from "./exchange";
 import { explain } from "../panel/words";
 import { houseWords } from "./words";
 
-// One place in the crew row under the house's name: someone who lives here, someone knocking, or a free room.
+// One line of the housemates' list: someone who lives here, or someone knocking. (Free rooms are on the floor plan.)
 export type Seat =
   | { kind: "person"; key: string; person: Person; room: string | null; chef: boolean; you: boolean }
-  | { kind: "knock"; key: string; person: Person; id: string; room: string }
-  | { kind: "free"; key: string; room: string };
+  | { kind: "knock"; key: string; person: Person; id: string; room: string };
 
-/** The crew row: the chef first, then everyone else in room order, then anyone knocking, then the free rooms. */
+/** The housemates: the chef first, then everyone else in room order, then anyone knocking. */
 export function crewOf(house: Pick<HouseView, "rooms" | "members" | "chef" | "doorbell">, me: string | null): Seat[] {
   const chef = house.chef?.login ?? null;
   const people: Seat[] = [];
@@ -29,20 +30,20 @@ export function crewOf(house: Pick<HouseView, "rooms" | "members" | "chef" | "do
 
   // Only flatmates get the doorbell; for everyone else it's null.
   const knocks: Seat[] = (house.doorbell ?? []).map((d) => ({ kind: "knock", key: `k:${d.id}`, person: d.applicant, id: d.id, room: d.room }));
-  const free: Seat[] = house.rooms.filter((r) => !r.occupant).map((r) => ({ kind: "free", key: `f:${r.name}`, room: r.name }));
-  return [...people, ...knocks, ...free];
+  return [...people, ...knocks];
 }
 
 // What the foot of the house panel offers: the one next step for this viewer, or a line saying there's none.
 export type Foot =
   | { kind: "login" }
   | { kind: "rent"; waiting: boolean }
-  | { kind: "room"; room: string }
   // One free room: the button knocks on it.
   | { kind: "knock"; room: string }
   // Several free rooms: the button points at their rows, and you pick one there.
   | { kind: "pick" }
   | { kind: "thread"; id: string }
+  // A full house: ask to join its group chat.
+  | { kind: "askChat" }
   | { kind: "say"; text: string }
   // Nothing: the one next step is already on screen elsewhere (the workshop's "A room for you" row, or the quest's
   // card), so the foot doesn't say it a second time.
@@ -53,7 +54,7 @@ export interface Situation {
   making: boolean;
   // The chef made the server's key and is waiting for it to call home.
   keyMade: boolean;
-  // An example house in the city: nothing to join.
+  // An example house in the city: no rooms to join, though a full one lets you into its chat.
   demo: boolean;
   // The tutorial's workshop: a newcomer takes a room there instead of knocking.
   tutorial: boolean;
@@ -77,59 +78,82 @@ export function footFor(s: Situation): Foot {
   if (v.member) {
     if (v.role === "chef" && s.making) return { kind: "rent", waiting: s.keyMade };
     if (s.making) return { kind: "say", text: houseWords.foot.waitChef };
-    if (v.room) return { kind: "room", room: v.room };
+    // Your room is on the floor plan: its tile is the way in, so the foot has nothing to add.
+    if (v.room) return { kind: "none" };
+    // Their last lease here has ended: they're still on the bill and in the chat for now.
+    if (v.leavingUntil) return { kind: "say", text: houseWords.foot.leaving(dayName(v.leavingUntil)) };
     return { kind: "say", text: explain.house };
   }
   if (v.application) return { kind: "thread", id: v.application };
   if (canKnock(s)) return s.freeRooms.length === 1 ? { kind: "knock", room: s.freeRooms[0] } : { kind: "pick" };
-  if (s.demo) return { kind: "say", text: houseWords.foot.example };
-  return { kind: "say", text: houseWords.foot.full };
+  if (s.demo && s.freeRooms.length > 0) return { kind: "say", text: houseWords.foot.example };
+  if (v.guest === "accepted") return { kind: "none" };
+  if (v.guest === "open") return { kind: "say", text: houseWords.foot.chatAsked };
+  if (v.guest === "declined" || s.tutorial) return { kind: "say", text: houseWords.foot.full };
+  return { kind: "askChat" };
 }
 
-// The one button at the end of a room's row. A row never repeats the foot: when the foot already opens your room or
-// knocks on the only free one, that row offers what's left (visiting your project) or nothing.
-export type RowAction = "open" | "visit" | "knock" | null;
+// ---- A room's page, and a person on the housemates' list: what you can do about them ----
 
-export function rowAction(room: Pick<Room, "name" | "status" | "url" | "occupant" | "demo" | "team">, s: Situation, foot: Foot): RowAction {
-  if (!room.occupant) {
-    if (!canKnock(s)) return null;
-    return foot.kind === "knock" && foot.room === room.name ? null : "knock";
-  }
-  if (s.making) return null;
-  // A seeded example room shows as lived in, but nothing runs at its address.
-  const visitable = !room.demo && room.status === "live" && !!room.url;
-  if (s.viewer?.room === room.name) {
-    if (foot.kind === "room" && foot.room === room.name) return visitable ? "visit" : null;
-    return "open";
-  }
-  // A teammate on this room's project opens it like its occupant: they can update and set it up too.
-  const login = s.viewer?.login;
-  if (login && room.team?.some((p) => p.login === login)) return "open";
-  return visitable ? "visit" : null;
-}
-
-// ---- A person picked in the crew row: what you can do about them ----
-
-// Reaching out, without direct messages (the team chose: the house chat and knock threads only). A flatmate writes to
-// them in the house chat; an outsider knocks on their house (or opens the knock they have); someone logged out is
-// asked to log in. Nothing when it's you, or when there's no way in (a full or example house).
-export type ReachOut =
-  | { kind: "chat" }
+// One key on a room's page: manage it (yours, or a project you team up on), chat, knock, see the knock you have, or
+// take the free room in a house you already live in.
+export type RoomKey =
+  | { kind: "manage" }
+  | { kind: "login" }
+  // A direct message: to a flatmate, or a chat request to someone whose house you don't live in.
+  | { kind: "chat"; login: string }
+  // The same key, off: a made-up person has nobody behind them to read it.
+  | { kind: "chatOff" }
+  // The same key, when you're logged out: it takes you to log in.
+  | { kind: "chatLogin" }
   | { kind: "knock"; room: string }
   | { kind: "pick" }
   | { kind: "thread"; id: string }
-  | { kind: "login" }
-  | null;
+  | { kind: "take"; room: string };
+
+const isExample = (person: Pick<Person, "github">, roomDemo: boolean, s: Situation) => s.demo || roomDemo || person.github === false;
+
+/** The Chat key on someone in this house, the same rule as on a street card (chat/chat.ts). Only you have none. */
+export function chatKey(person: Pick<Person, "login" | "github">, roomDemo: boolean, s: Situation): RoomKey | null {
+  const action = messageAction({ isMe: s.viewer?.login === person.login, example: isExample(person, roomDemo, s) }, s.viewer);
+  if (action?.kind === "open") return { kind: "chat", login: person.login };
+  if (action?.kind === "example") return { kind: "chatOff" };
+  return action?.kind === "login" ? { kind: "chatLogin" } : null;
+}
+
+/** What a room's page offers: the main key, and a second one when there's more to do. Chat comes first on anyone else. */
+export function roomKeys(room: Pick<Room, "name" | "occupant" | "demo" | "team">, s: Situation): { main: RoomKey | null; second: RoomKey | null } {
+  const v = s.viewer;
+  const one = (main: RoomKey | null) => ({ main, second: null });
+  const canLogIn = !s.demo && !s.tutorial && s.freeRooms.length > 0;
+  if (!room.occupant) {
+    if (!v) return one(canLogIn ? { kind: "login" } : null);
+    // You live here already: no vote needed, it's another room for you.
+    if (v.member) return one(!s.demo && !s.tutorial && !room.demo ? { kind: "take", room: room.name } : null);
+    if (v.application) return one({ kind: "thread", id: v.application });
+    return one(canKnock(s) ? { kind: "knock", room: room.name } : null);
+  }
+  const chat = chatKey(room.occupant, !!room.demo, s);
+  if (!v) return one(chat);
+  if (room.occupant.login === v.login) return one({ kind: "manage" });
+  if (room.team?.some((p) => p.login === v.login)) return { main: chat, second: { kind: "manage" } };
+  if (v.member) return one(chat);
+  if (v.application) return { main: chat, second: { kind: "thread", id: v.application } };
+  if (canKnock(s)) return { main: chat, second: s.freeRooms.length === 1 ? { kind: "knock", room: s.freeRooms[0] } : { kind: "pick" } };
+  return one(chat);
+}
+
+/** A room's project address, when something runs there. A seeded example room shows as lived in, but nothing does. */
+export function liveAddress(room: Pick<Room, "status" | "url" | "demo">): string | null {
+  return !room.demo && room.status === "live" ? room.url : null;
+}
 
 export interface PersonActions {
-  reach: ReachOut;
   // Their GitHub profile, only for someone with a real GitHub account: a made-up person's login may well be a
   // stranger's handle on GitHub, so it's never linked.
   github: string | null;
-  // A made-up person, seeded so the city isn't empty: said in words on their card.
+  // A made-up person, seeded so the city isn't empty: said in words on their page.
   example: boolean;
-  // Waving is your avatar's emote in the city: only from the lobby, logged in, at someone else.
-  wave: boolean;
   // In the workshop, a newcomer has no real house yet: someone who lives in one can invite them to it (the API picks
   // its first free room, and says so if there's none). Then "Invited", until they answer.
   invite: { kind: "invite"; houseId: string; houseName: string } | { kind: "invited" } | null;
@@ -140,38 +164,33 @@ export function personActions(
   roomDemo: boolean,
   s: Situation,
   // `home`: your own real house (the workshop isn't one), if you have one; `invited`: you've invited them already.
-  opts: { inCity: boolean; home?: { id: string; name: string } | null; invited?: boolean },
+  opts: { home?: { id: string; name: string } | null; invited?: boolean },
 ): PersonActions {
-  const you = s.viewer?.login === person.login;
-  const example = s.demo || roomDemo || person.github === false;
-  const github = person.github === true ? `https://github.com/${encodeURIComponent(person.login)}` : null;
-  const wave = opts.inCity && !!s.viewer && !you;
-  if (you) return { reach: null, github, example, wave: false, invite: null };
-  if (s.tutorial && s.viewer && !example && opts.home) {
-    const invite = opts.invited ? ({ kind: "invited" } as const) : ({ kind: "invite", houseId: opts.home.id, houseName: opts.home.name } as const);
-    return { reach: null, github, example, wave, invite };
+  const example = isExample(person, roomDemo, s);
+  const github = person.github === true && !example ? `https://github.com/${encodeURIComponent(person.login)}` : null;
+  if (s.tutorial && s.viewer && s.viewer.login !== person.login && !example && opts.home) {
+    return { github, example, invite: opts.invited ? { kind: "invited" } : { kind: "invite", houseId: opts.home.id, houseName: opts.home.name } };
   }
-  const invite = null;
-  // Logged out: logging in is a way in only where there's a room to knock on.
-  if (!s.viewer) return { reach: !s.demo && !s.tutorial && s.freeRooms.length ? { kind: "login" } : null, github, example, wave, invite };
-  if (s.viewer?.member) return { reach: s.making ? null : { kind: "chat" }, github, example, wave, invite };
-  const foot = footFor(s);
-  const reach: ReachOut = foot.kind === "knock" || foot.kind === "pick" || foot.kind === "thread" || foot.kind === "login" ? foot : null;
-  return { reach, github, example, wave, invite };
+  return { github, example, invite: null };
 }
 
-// How many room rows the house panel shows before folding the rest behind a "+N" row, so the panel fits without
+/** The rooms a viewer rents in this house: someone may have several. */
+export function myRooms(v: Pick<Viewer, "room" | "rooms"> | null | undefined): string[] {
+  return v?.rooms ?? (v?.room ? [v.room] : []);
+}
+
+// How many squares the floor plan shows before folding the rest behind a "+N" square, so the panel fits without
 // scrolling (Jib, 10 10).
-export const ROWS_SHOWN = 5;
+export const ROWS_SHOWN = 8;
 
 /**
- * The rooms the list shows while it's folded, in the house's order: your own room first in priority, then the free
+ * The rooms the list shows while it's folded, in the house's order: your own rooms first in priority, then the free
  * ones (what a visitor came for), then the rest, up to `max` rows. When only one would be left over, it shows too:
  * a "+1" row takes the same space as the room itself. `hidden` is how many wait behind the "+N" row.
  */
-export function foldedRooms<R extends Pick<Room, "name" | "occupant">>(rooms: R[], mine: string | null, max = ROWS_SHOWN): { shown: R[]; hidden: number } {
+export function foldedRooms<R extends Pick<Room, "name" | "occupant">>(rooms: R[], mine: readonly string[], max = ROWS_SHOWN): { shown: R[]; hidden: number } {
   if (rooms.length <= max + 1) return { shown: rooms, hidden: 0 };
-  const rank = (r: R) => (r.name === mine ? 0 : !r.occupant ? 1 : 2);
+  const rank = (r: R) => (mine.includes(r.name) ? 0 : !r.occupant ? 1 : 2);
   const keep = new Set([...rooms].sort((a, b) => rank(a) - rank(b)).slice(0, Math.max(0, max)));
   return { shown: rooms.filter((r) => keep.has(r)), hidden: rooms.length - keep.size };
 }

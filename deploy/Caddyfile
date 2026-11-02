@@ -1,0 +1,44 @@
+# The public door, ports 80 and 443. COLOC_SITE is filled in by deploy/setup.sh.
+{
+	# Certificates for rooms are made the first time someone visits, and only for addresses under the city's domain.
+	on_demand_tls {
+		ask http://127.0.0.1:5555/
+	}
+}
+
+# Answers Caddy's own question above. Only reachable from this machine.
+http://127.0.0.1:5555 {
+	@ours expression `{http.request.uri.query.domain}.endsWith(".COLOC_SITE")`
+	respond @ours 200
+	respond 404
+}
+
+# The city: the built site, with /api and the two live lines going to the API.
+COLOC_SITE {
+	handle /api/* {
+		reverse_proxy 127.0.0.1:4100
+	}
+	handle /lobby-ws* {
+		reverse_proxy 127.0.0.1:4100
+	}
+	handle /agent* {
+		reverse_proxy 127.0.0.1:4100
+	}
+	handle {
+		# Only the build output: no data, no settings and no .git can ever be served from here.
+		root * /opt/coloc/src/apps/web/dist
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		encode zstd gzip
+		# The site is one page: every other address is the app's own route.
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# Every room: <room>.<house>.COLOC_SITE goes to Traefik, which knows the rooms.
+https:// {
+	tls {
+		on_demand
+	}
+	reverse_proxy 127.0.0.1:8000
+}

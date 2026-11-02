@@ -5,13 +5,14 @@ import type { HouseView, Room, Viewer } from "../../types";
 import type { IconName } from "../lobby/house/icons";
 import { evenSplit, fcfa } from "../lobby/house/server";
 import { explain, roomLine } from "../lobby/panel/words";
+import { myRooms } from "../lobby/house/crew";
 import { cpuShare, memoryUse } from "../room/room";
 import { listWords } from "./words";
 
 
 /** The chef can open any lived-in room of a live house to manage it; their own room is already the foot's button. */
 export function chefCanManage(room: Pick<Room, "name" | "occupant" | "demo">, viewer: Viewer | null, status: HouseView["status"]): boolean {
-  return !!room.occupant && !room.demo && status === "live" && viewer?.role === "chef" && viewer.room !== room.name;
+  return !!room.occupant && !room.demo && status === "live" && viewer?.role === "chef" && !myRooms(viewer).includes(room.name);
 }
 
 export interface WorkRow {

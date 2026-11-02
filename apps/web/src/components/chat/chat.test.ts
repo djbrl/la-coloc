@@ -14,17 +14,20 @@ describe("the chat sheet's tabs", () => {
   });
 });
 
-describe("Message on a person card", () => {
+describe("Chat on someone you see", () => {
   const viewer = { login: "fatou" };
   it("opens a conversation with a real person", () => {
     expect(messageAction({ isMe: false, example: false }, viewer)).toEqual({ kind: "open" });
   });
-  it("is shown disabled for an example person", () => {
+  it("is shown disabled for an example person, logged in or not", () => {
     expect(messageAction({ isMe: false, example: true }, viewer)).toEqual({ kind: "example" });
+    expect(messageAction({ isMe: false, example: true }, null)).toEqual({ kind: "example" });
   });
-  it("isn't there for yourself, or when you're logged out", () => {
+  it("takes you to log in when you're logged out", () => {
+    expect(messageAction({ isMe: false, example: false }, null)).toEqual({ kind: "login" });
+  });
+  it("is only missing on yourself", () => {
     expect(messageAction({ isMe: true, example: false }, viewer)).toBeNull();
-    expect(messageAction({ isMe: false, example: false }, null)).toBeNull();
   });
 });
 

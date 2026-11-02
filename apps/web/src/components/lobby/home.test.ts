@@ -30,7 +30,7 @@ const workshop = (myRoom: string | null) =>
 
 describe("the way home", () => {
   it("goes to your room in your house first", () => {
-    const me = { houses: [{ id: "sacre-coeur", name: "Sacré-Cœur", role: "flatmate" as const, room: "ndaje" }] };
+    const me = { houses: [{ id: "sacre-coeur", name: "Sacré-Cœur", role: "flatmate" as const, room: "ndaje", rooms: ["ndaje"] }] };
     expect(homePlace(me, workshop("nadia-dev"))).toEqual({ kind: "room", houseId: "sacre-coeur", room: "ndaje" });
   });
 
@@ -39,7 +39,7 @@ describe("the way home", () => {
   });
 
   it("has nowhere to go without a room, or logged out", () => {
-    expect(homePlace({ houses: [{ id: "x", name: "X", role: "chef", room: null }] }, workshop(null))).toBeNull();
+    expect(homePlace({ houses: [{ id: "x", name: "X", role: "chef", room: null, rooms: [] }] }, workshop(null))).toBeNull();
     expect(homePlace(null, null)).toBeNull();
   });
 });
@@ -55,8 +55,10 @@ describe("finding a house", () => {
   });
 
   it("matches a house by its name, city, project, and its people by login or name", () => {
-    for (const q of ["sacré", "DAKAR", "sunu", "awa", "diop"]) expect(findHouses(houses, q).map((h) => h.name)).toEqual(["Sacré-Cœur"]);
+    for (const q of ["sacré", "sunu", "awa", "diop"]) expect(findHouses(houses, q).map((h) => h.name)).toEqual(["Sacré-Cœur"]);
     expect(findHouses(houses, "nobody")).toEqual([]);
+    // A city has its own row in Find: its name doesn't list all its houses.
+    expect(findHouses(houses, "DAKAR")).toEqual([]);
   });
 
   it("adds the workshop for someone who lives there, so they find it and its people", () => {

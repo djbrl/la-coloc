@@ -55,7 +55,18 @@ async function dockerignore(dir: string): Promise<string[]> {
 }
 
 // Builds an image from a folder. Builds are capped too, so a heavy build can't starve the rooms.
-export async function buildImage(contextDir: string, tag: string, onLine: (line: string) => void, offline = false): Promise<void> {
+// Docker's colours arrive as escape codes: a person reading the log only wants the words. A very long line is cut.
+export function cleanLines(chunk: string): string[] {
+  return chunk
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, "")
+    .split("\n")
+    .map((l) => l.trimEnd().slice(0, 2000))
+    .filter((l) => l.trim());
+}
+
+// With a signal, aborting it hangs up on Docker, which stops the build when its client goes away.
+export async function buildImage(contextDir: string, tag: string, onLine: (line: string) => void, offline = false, signal?: AbortSignal): Promise<void> {
   const ignored = new Set([".git", ...(await dockerignore(contextDir))]);
   const context = tar.pack(contextDir, {
     ignore: (name) => {
@@ -73,9 +84,11 @@ export async function buildImage(contextDir: string, tag: string, onLine: (line:
     memory: 2 * 1024 * 1024 * 1024,
     cpuperiod: 100_000,
     cpuquota: 100_000,
+    ...(signal ? { abortSignal: signal } : {}),
   } as Docker.ImageBuildOptions);
 
   await new Promise<void>((resolve, reject) => {
+    signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
     docker.modem.followProgress(
       stream,
       (err, output: Array<{ error?: string }>) => {
@@ -83,11 +96,32 @@ export async function buildImage(contextDir: string, tag: string, onLine: (line:
         failed ? reject(new Error(String(failed))) : resolve();
       },
       (event: { stream?: string; error?: string }) => {
-        const line = (event.stream ?? event.error ?? "").trim();
-        if (line) onLine(line);
+        for (const line of cleanLines(event.stream ?? event.error ?? "")) onLine(line);
       },
     );
   });
+}
+
+// Someone's own image. Docker can't be told a size limit before pulling, so a too-big one is thrown away right after.
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024 * 1024;
+export async function pullImage(ref: string, onLine: (line: string) => void, signal?: AbortSignal): Promise<void> {
+  const stream = (await docker.pull(ref, signal ? { abortSignal: signal } : {})) as NodeJS.ReadableStream;
+  await new Promise<void>((resolve, reject) => {
+    signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+    docker.modem.followProgress(
+      stream,
+      (err) => (err ? reject(err) : resolve()),
+      // Layer-by-layer progress is noise: only the lines that say something.
+      (event: { status?: string; id?: string; progress?: string }) => {
+        if (event.status && !event.id && !event.progress) onLine(event.status);
+      },
+    );
+  });
+  const info = await docker.getImage(ref).inspect();
+  if (info.Size > MAX_IMAGE_BYTES) {
+    await docker.getImage(ref).remove().catch(() => undefined);
+    throw new Error(`this image is too big: ${Math.round(info.Size / 1024 / 1024)} MB, and a room takes 2 GB at most.`);
+  }
 }
 
 export async function imageConfig(tag: string): Promise<{ exposedPorts?: Record<string, unknown>; user?: string }> {
@@ -117,9 +151,10 @@ export async function lastLogs(container: Docker.Container, lines = 40): Promise
  * A new version counts as healthy if it stays up for `stableMs` without restarting, and,
  * when the image defines a HEALTHCHECK, once Docker reports it healthy.
  */
-export async function waitHealthy(container: Docker.Container, stableMs = 5000, timeoutMs = 60_000): Promise<void> {
+export async function waitHealthy(container: Docker.Container, stableMs = 5000, timeoutMs = 60_000, signal?: AbortSignal): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    signal?.throwIfAborted();
     const info = await container.inspect();
     const s = info.State;
     if (s.OOMKilled) throw new Error("ran out of memory while starting");

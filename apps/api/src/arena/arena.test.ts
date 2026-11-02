@@ -309,6 +309,9 @@ describe("the podium", () => {
     expect(results[0].length + results[1].length).toBe(3);
     expect(await arena.closeAndAward(c.id)).toEqual([]);
     expect(await db.select().from(arenaAwards)).toHaveLength(3);
+    // 1st place's prize came to their credit, once; the rest of the podium keeps their badge.
+    expect((await user("fatou")).credit).toBe(15_000 + c.prizeFcfa);
+    expect((await user("sam")).credit).toBe(15_000);
   });
 
   it("gives nothing when nobody scored", async () => {

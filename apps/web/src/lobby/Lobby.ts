@@ -269,6 +269,11 @@ const rotate = (x: number, z: number, a: number) => new THREE.Vector3(x * Math.c
 // How far apart two points are on the ground, ignoring height.
 const apart = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
 
+// Who stands outside a house: everyone who rents a room there, once each (someone may rent several).
+function flatmatesOf(house: CityHouse) {
+  return [...new Map(house.rooms.flatMap((r) => (r.occupant ? [[r.occupant.login, r.occupant] as const] : []))).values()];
+}
+
 export class Lobby {
   private renderer: THREE.WebGLRenderer;
   // Speech bubbles and other rare words in the city stay page elements. Name tags and flags are drawn: see `tags`.
@@ -973,6 +978,15 @@ export class Lobby {
     if (p) this.walkToward(p);
   }
 
+  /** Who's around in this lobby, for Find: people really online, flatmates out front, passers-by. */
+  peopleHere(): { login: string; name: string }[] {
+    const people = new Map<string, string>();
+    for (const thing of [...this.remotes.values(), ...this.npcs.filter((n) => n.avatar.visible)]) {
+      if (thing.target.kind === "person") people.set(thing.target.login, thing.target.name);
+    }
+    return [...people].map(([login, name]) => ({ login, name }));
+  }
+
   /** Walks to just beside someone (really online, or a flatmate out front), then selects them. */
   goToPerson(login: string) {
     const who = this.remotes.get(login) ?? this.npcs.find((n) => n.login === login && n.avatar.visible);
@@ -1048,29 +1062,6 @@ export class Lobby {
     this.highlighted = null;
     this.near = this.reach();
     this.events.onNear(this.near?.target ?? null);
-  }
-
-  emote(name: Emote) {
-    this.playerPerson?.play(`emote-${name}`, true);
-    this.bubble(this.player, name);
-    play("emote");
-  }
-
-  /**
-   * Someone made up (a flatmate out front, a passer-by) you just said hi to waves back a moment later: they turn to
-   * you, and a hand shows over their head. Someone really online waves back themselves, if they want to.
-   */
-  waveBack(login: string) {
-    const n = this.npcs.find((x) => x.login === login && x.avatar.visible);
-    if (!n) return;
-    const gen = this.generation;
-    window.setTimeout(() => {
-      if (gen !== this.generation || !n.avatar.visible) return;
-      const at = n.avatar.position;
-      n.avatar.rotation.y = Math.atan2(this.player.position.x - at.x, this.player.position.z - at.z);
-      n.person?.play("emote-yes", true);
-      this.bubble(n.avatar, "yes");
-    }, 550);
   }
 
   // ---- Everyone else who's online here ----
@@ -1544,11 +1535,10 @@ export class Lobby {
    */
   private addFlatmates(placed: Placed, house: CityHouse) {
     const facing = placed.group.userData.facing as Facing;
-    house.rooms
-      .filter((r) => r.occupant)
-      .forEach((r, k) => {
-        const login = r.occupant!.login;
-        const name = r.occupant!.name ?? login;
+    flatmatesOf(house)
+      .forEach((person, k) => {
+        const login = person.login;
+        const name = person.name ?? login;
         const { avatar, tag } = this.makePerson(login, name, "small");
         avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
         this.town.add(avatar);
@@ -1566,7 +1556,7 @@ export class Lobby {
   private refreshFlatmates(house: CityHouse) {
     const placed = this.placed.find((p) => p.house.id === house.id);
     if (!placed) return;
-    const logins = house.rooms.flatMap((r) => (r.occupant ? [r.occupant.login] : []));
+    const logins = flatmatesOf(house).map((p) => p.login);
     if (logins.join() === placed.npcs.map((n) => n.login).join()) return;
     for (const n of placed.npcs) {
       this.npcs.splice(this.npcs.indexOf(n), 1);
@@ -2230,8 +2220,8 @@ export class Lobby {
 
   /**
    * Whether a key press is for the city (R6): when the stage has focus, or when nothing has focus (the page itself)
-   * after you've clicked the stage at least once. Before that, the keys belong to the page: a letter is just a
-   * letter. Tab is never the city's (see `keydown`).
+   * once you've arrived with nothing over the city, or clicked the stage. Before that (the loading screen, the
+   * welcome), the keys belong to the page. Tab is never the city's (see `keydown`).
    */
   private ownsKeys(): boolean {
     return cityOwnsKeys(document.activeElement, document.body, this.host, this.stageTouched);
@@ -2242,8 +2232,13 @@ export class Lobby {
    * calls it when a welcome, a card, a sheet or a dialog closes, so the keys on screen (E, M, W A S D) work at once.
    */
   takeKeys() {
-    this.stageTouched = true;
+    this.keysOnArrival();
     if (!this.host.contains(document.activeElement)) this.host.focus({ preventScroll: true });
+  }
+
+  /** You've arrived: keys pressed with nothing focused are the city's, with no click. The focus stays where it is. */
+  keysOnArrival() {
+    this.stageTouched = true;
   }
 
   // The window lost the focus (Alt-Tab, another app) or the tab was hidden: no key-up will come for the keys held
@@ -2674,6 +2669,7 @@ export class Lobby {
     spot.w = this.tags.widthOf(tag);
     spot.d = d;
     spot.keep = keep;
+    spot.crowded = tag.crowded;
     spot.tag = tag;
     return i + 1;
   }

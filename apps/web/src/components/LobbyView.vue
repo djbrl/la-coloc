@@ -2,7 +2,7 @@
 // The full-screen lobby, one neighbourhood (city) at a time, and everything that sits on top of it: loading, the
 // welcome, the prompt for whatever is in reach, the city's live activity, a card for the house, person,
 // empty plot or chores board you picked, the inside of a house (its page, an application, a room) opened over the
-// city so you never leave it, a minimap (and a big map, from which you can travel to a house's door), the keys in the corner, short news and tips at the
+// city so you never leave it, a minimap (and a big map, from which you can travel to a house's door), the keys in the corner, short news at the
 // top, and sheets to find a house or travel to another city on a map of Africa. The first time someone logged in
 // arrives, the quest "Your first home" takes the city's place: one street with a house at the end, a beacon at its
 // door, a tracker of eight chapters at the top, a coach at the bottom, and the screen empty but for what the step
@@ -11,7 +11,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch,
 import { useRoute, useRouter } from "vue-router";
 import { loading } from "../lobby/assets";
 import { styleFor } from "../lobby/cityStyle";
-import { type Emote, Lobby, type LobbyEvents, type Target } from "../lobby/Lobby";
+import { Lobby, type LobbyEvents, type Target } from "../lobby/Lobby";
 import { checkCore, core } from "../core";
 import { language } from "../i18n";
 import { caps, cityOwnsKeys } from "../lobby/keys";
@@ -19,7 +19,7 @@ import { type LobbyCount, LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
-import { chatPinged, chatSheet, openChat } from "../conversations";
+import { chatPinged, chatSheet, lastSent, openChat } from "../conversations";
 import { loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
@@ -36,33 +36,38 @@ import { cityAlert, cityStats } from "./lobby/cityStats";
 import Icon from "./lobby/house/Icon.vue";
 import AfricaMap from "./lobby/AfricaMap.vue";
 import BoardCard from "./lobby/BoardCard.vue";
+import CityMissions from "./lobby/CityMissions.vue";
 import { type CityRoom, freeRooms, type Home, type MapState, nearestEmptyPlot, parsePlace, placeParam } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
 import HouseCard from "./lobby/HouseCard.vue";
-import { findHouses, homePlace, workshopRow } from "./lobby/home";
+import { findHouses, findPeople, workshopRow } from "./lobby/home";
 import Inside from "./lobby/Inside.vue";
-import KeyLegend from "./lobby/KeyLegend.vue";
 import KeysSheet from "./lobby/KeysSheet.vue";
 import { houseStatsWords } from "./lobby/houseStats";
 import Minimap from "./lobby/Minimap.vue";
+import { type MissionId, missionOfMessage, tick } from "./lobby/missions";
 import TouchDash from "./lobby/TouchDash.vue";
 import PersonCard from "./lobby/PersonCard.vue";
 import { type Place, placeKey } from "./lobby/place";
 import RentSteps from "./lobby/RentSteps.vue";
-import { fcfa } from "./lobby/house/server";
+import { evenSplit, fcfa, houseCost, OPERATORS, plans } from "./lobby/house/server";
 import Coach from "./lobby/tutorial/Coach.vue";
 import HomeCard from "./lobby/tutorial/HomeCard.vue";
 import KeysCard from "./lobby/tutorial/KeysCard.vue";
 import QuestTracker from "./lobby/tutorial/QuestTracker.vue";
-import { nextTip, type Tip, TIP_TEXT, type TipCue, tipParts } from "./lobby/tutorial/tips";
+import { keyParts } from "./lobby/tutorial/tour";
+import TourCard from "./lobby/tutorial/TourCard.vue";
 import { CHAPTERS, FREE, HOUSE_CARDS, type Piece, PIECES, SETUP, STEPS, TUTORIAL_HOUSE } from "./lobby/tutorial/tutorial";
 import { useTutorial } from "./lobby/tutorial/useTutorial";
 import Welcome from "./lobby/tutorial/Welcome.vue";
 import { tutorialWords as qw } from "./lobby/tutorial/words";
 import LoadingScreen from "./LoadingScreen.vue";
+import CharacterCreation from "./CharacterCreation.vue";
+import { digits, needsCharacter } from "./credit";
+import CreditCard from "./CreditCard.vue";
 import Onboarding from "./Onboarding.vue";
-import { houseWords as hw } from "./lobby/house/words";
-import { lobbyWords as w } from "./words";
+import { missionWords } from "./lobby/words";
+import { creditWords as cw, lobbyWords as w } from "./words";
 
 const props = defineProps<{ houses: CityHouse[] }>();
 
@@ -105,9 +110,12 @@ const nextLobby = computed(() => {
   return null;
 });
 const sheet = ref<"" | "find" | "travel">("");
+// The card your credit opens.
+const creditOpen = ref(false);
 const query = ref("");
+// Who's in this lobby when Find opened, for its rows.
+const peopleHere = ref<{ login: string; name: string }[]>([]);
 // The strip of keys, bottom left: folded or not. The full list and the big map are overlays.
-const legend = ref(true);
 const keysOpen = ref(false);
 const bigMap = ref(false);
 // The neighbourhood on screen, as generated, for the minimap; and the engine's latest word on who stands where.
@@ -151,7 +159,8 @@ const residents = computed(() => {
   const map = new Map<string, Home>();
   for (const h of props.houses)
     for (const r of h.rooms)
-      if (r.occupant) map.set(r.occupant.login, { houseId: h.id, houseName: h.name, city: h.city, room: r.name, project: r.project, badge: r.occupant.badge ?? null });
+      // Someone with several rooms is shown in their first.
+      if (r.occupant && !map.has(r.occupant.login)) map.set(r.occupant.login, { houseId: h.id, houseName: h.name, city: h.city, room: r.name, project: r.project, badge: r.occupant.badge ?? null });
   return map;
 });
 
@@ -185,6 +194,7 @@ function travel(to: string) {
   build();
   link?.enter(to);
   greet(to);
+  missionDone("city");
 }
 
 /** The one fast travel: a house picked on the big map (on the map or in its list) puts you at its door. */
@@ -198,6 +208,10 @@ function travelToHouse(id: string) {
 // The find and travel sheets, unless the tutorial is on: then just a word, and you stay in the workshop.
 function openSheet(which: "find" | "travel") {
   if (!inWorkshop.value) {
+    if (which === "find") {
+      query.value = "";
+      peopleHere.value = lobby?.peopleHere() ?? [];
+    }
     sheet.value = which;
     return;
   }
@@ -225,7 +239,7 @@ function arriveFor(p: Place | null) {
 const tutorial = useTutorial();
 const t = tutorial.machine;
 // In the workshop: the quest is on and the city hasn't come back yet (its last step is in the real city).
-const inWorkshop = computed(() => t.active && t.step !== "city");
+const inWorkshop = computed(() => t.active && t.step !== "city" && t.step !== "tour");
 // The houses on screen: the workshop during the quest, else this city's.
 const shown = computed(() => (inWorkshop.value ? [tutorial.house.value] : here.value));
 // What the place button says: the workshop's name, or the city's.
@@ -235,18 +249,22 @@ const picking = computed(() => !inWorkshop.value || STEPS.indexOf(t.step) >= STE
 // Opened on a shared link by someone the quest is for: it didn't start, and this corner button offers it.
 const tutorialChip = ref(false);
 // The steps shown as a card in the middle of the screen, which hold the keyboard themselves.
-const centred = computed(() => t.active && ["welcome", "keys", "home", "city"].includes(t.step));
+const centred = computed(() => t.active && ["welcome", "intro", "keys", "home", "city", "tour"].includes(t.step));
 
 // The visitors' welcome (Onboarding.vue), for visitors and anyone the quest isn't for (an API without it leaves
 // `tutorialDone` out). Someone logged in who hasn't done the quest gets the quest instead. A place opened
 // from a link comes first: the welcome waits until it's closed.
-const welcoming = computed(() => meLoaded.value && !settings.welcomed && !t.active && me.value?.tutorialDone !== false && !place.value);
+// Who you are comes before any of it: at first login, and after the demo restarts, you pick a look and get your credit.
+// A place opened from a link comes first here too.
+const creating = computed(() => needsCharacter(meLoaded.value, me.value) && !place.value);
+const welcoming = computed(() => meLoaded.value && !creating.value && !settings.welcomed && !t.active && me.value?.tutorialDone !== false && !place.value);
 
 // What's on screen besides the city itself. In the quest, only what the step has unlocked, starting from
-// nothing; outside it, everything (the keys, the map and the prompt wait for the welcome to end).
+// nothing; outside it, everything, once the welcome has been read or skipped.
 const reveal = computed<Set<Piece>>(() => {
+  if (creating.value) return new Set();
   if (t.active) return new Set(SETUP[t.step].reveal);
-  if (welcoming.value) return new Set(PIECES.filter((p) => p !== "keys" && p !== "map" && p !== "prompt" && p !== "quest"));
+  if (!meLoaded.value || welcoming.value) return new Set();
   return new Set(PIECES.filter((p) => p !== "quest"));
 });
 const shows = (piece: Piece) => reveal.value.has(piece);
@@ -257,9 +275,14 @@ watchEffect(() => (lobbyUi.inside = !!place.value));
 
 // The engine lets you do what the step allows; outside the quest, everything.
 function applyControls() {
-  lobby?.setControls(t.active ? SETUP[t.step].controls : FREE);
+  lobby?.setControls(creating.value ? SETUP.welcome.controls : t.active ? SETUP[t.step].controls : FREE);
 }
-watch(() => [t.active, t.step], applyControls);
+watch(() => [t.active, t.step, creating.value], applyControls);
+// The camera stays on you while you pick your look.
+watch(
+  () => creating.value && ready.value,
+  (on) => lobby?.focusOnPlayer(on),
+);
 
 // Chapter 2's goal: a beacon at the workshop's door, and its pin on the map, while you're looking for it.
 const goal = computed(() => (inWorkshop.value && SETUP[t.step].beacon ? TUTORIAL_HOUSE : null));
@@ -322,11 +345,9 @@ watch(inWorkshop, (now, before) => {
   if (before && !now) leaveWorkshop();
 });
 
-// The city's welcome card said "Let's go": the quest is over, and the keyboard goes back to the city. Walking
-// was its first lesson, so that tip is never needed.
+// The city's welcome card said "Let's go": its short walkthrough, then the keyboard goes back to the city.
 function endTutorial() {
   t.send({ type: "end" });
-  seeTip("walk");
   focusStage();
 }
 
@@ -369,23 +390,30 @@ watch(
   (n, before) => {
     if (!t.active || n <= (before ?? 0) || t.step === "welcome") return;
     play("stamp");
-    // "Welcome home" is its own celebration, in the middle of the screen: no line of news over it.
+    // "Well done" is its own celebration, in the middle of the screen: no line of news over it.
     if (t.step !== "home") say(qw.stamped(n), { ms: 2600 });
   },
 );
 
-// Chapter 3: the room is yours. The window closes so you see the house, and the keys jingle on their card.
-// Chapter 8: the house's window opens again, on the tab each card talks about; "Welcome home" closes it.
+// Chapter 3: the room is yours. The window closes so you see the house, and the keys come after the first rent: your
+// share of the workshop's server, shown as what it would really cost.
+const firstRent = computed(() => {
+  const view = tutorial.view.value;
+  const total = (view && houseCost(view)) ?? plans[1].fcfa;
+  const lived = Math.max(1, view?.rooms.filter((r) => r.occupant).length ?? 1);
+  return { share: evenSplit(total, lived), total, operators: view?.operators?.length ? view.operators : OPERATORS };
+});
+// Chapter 8: the house's window opens again, on the tab each card talks about; "Well done" closes it.
 const questTab = computed(() => {
   if (!inWorkshop.value || t.step !== "house") return undefined;
-  return ({ flatmates: "rooms", reviews: "chores", news: "fridge" } as const)[HOUSE_CARDS[t.card]];
+  return ({ flatmates: "people", reviews: "chores", news: "fridge" } as const)[HOUSE_CARDS[t.card]];
 });
 watch(
   () => (t.active ? t.step : null),
   (step) => {
     if (step === "keys") {
+      // The keys jingle on their card, once the first rent is paid (KeysCard.vue).
       if (place.value) closeInside();
-      window.setTimeout(() => play("keys"), 250);
     } else if (step === "house" && place.value?.kind !== "house") {
       goInside({ kind: "house", id: TUTORIAL_HOUSE });
     } else if (step === "home" && place.value) closeInside();
@@ -414,7 +442,7 @@ function run(from: "starter" | "github") {
 }
 // Chapter 8: what a review takes off the rent, from the workshop's bill (500 FCFA when it has none).
 const credit = computed(() => fcfa(tutorial.view.value?.bill?.reviewCredit ?? 500));
-// "Welcome home": your first name.
+// "Well done": your first name.
 const myFirstName = computed(() => me.value?.name?.trim().split(/\s+/)[0] || me.value?.login || null);
 
 // An outside link was clicked inside a house's window: if it's your live room, chapter 6 counts it as opened.
@@ -424,9 +452,9 @@ function insideLink(url: string) {
   if (mine && bare(url) === bare(mine)) t.send({ type: "opened" });
 }
 
-// ---- News and tips: one short line at a time, under the city's activity ----
+// ---- News: one short line at a time, under the city's activity ----
 
-// A toast: plain words and key caps (tipParts), and how long it stays.
+// A toast: plain words and key caps (keyParts), and how long it stays.
 interface Toast {
   id: number;
   parts: { key: boolean; text: string }[];
@@ -440,7 +468,7 @@ let toastId = 0;
 let toastTimer = 0;
 
 function say(text: string, opts: { soft?: string; ms?: number } = {}) {
-  toastQueue.push({ id: ++toastId, parts: tipParts(text), soft: opts.soft, ms: opts.ms ?? 4200 });
+  toastQueue.push({ id: ++toastId, parts: keyParts(text), soft: opts.soft, ms: opts.ms ?? 4200 });
   if (!toast.value) nextToast();
 }
 function nextToast() {
@@ -457,62 +485,10 @@ function greet(to: string) {
   say(g.text, { soft: fr ? w.greeting(g.fr.meaning, g.fr.language) : w.greeting(g.meaning, g.language), ms: 5500 });
 }
 
-// The tips seen in this browser. Each one shows once (tutorial/tips.ts).
-const TIPS_KEY = "coloc.tips";
-const touch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
-function seenTips(): Tip[] {
-  try {
-    return JSON.parse(localStorage.getItem(TIPS_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
+// The visitors' welcome is over.
+function welcomeDone() {
+  settings.welcomed = true;
 }
-function seeTip(tip: Tip) {
-  const seen = seenTips();
-  if (seen.includes(tip)) return;
-  try {
-    localStorage.setItem(TIPS_KEY, JSON.stringify([...seen, tip]));
-  } catch {
-    // Private mode: the tips come back next time.
-  }
-}
-// When the last tip showed: a quiet moment brings the next one only after a while.
-let lastTipAt = 0;
-const TIP_GAP_MS = 25_000;
-function cue(c: TipCue) {
-  // Tips wait while the tutorial, a welcome, a card or anything else is up.
-  const busy = t.active || welcoming.value || !!place.value || !!sheet.value || bigMap.value || keysOpen.value || !!knock.value || !!rent.value || !!card.value;
-  if (!ready.value || failed.value || busy || toast.value) return;
-  if (c === "idle" && performance.now() - lastTipAt < TIP_GAP_MS) return;
-  const tip = nextTip(c, seenTips(), touch);
-  if (!tip) return;
-  const text = touch ? TIP_TEXT[tip].touch : TIP_TEXT[tip].keys;
-  if (!text) return;
-  seeTip(tip);
-  lastTipAt = performance.now();
-  say(text, { ms: 6500 });
-}
-// Using a control counts as knowing it: its tip never shows.
-function used(action: string) {
-  if (action === "dash") seeTip("dash");
-  if (action === "turn-left" || action === "turn-right") seeTip("turn");
-}
-// How long you've been walking without a stop: a long walk brings the dash tip.
-let walkingSince = 0;
-function walking(moving: boolean) {
-  if (!moving) walkingSince = 0;
-  else if (!walkingSince) walkingSince = performance.now();
-  else if (performance.now() - walkingSince > 3500) cue("walking");
-}
-let idleTimer = 0;
-// The city on screen without the tutorial or the welcome: how to walk, once.
-watch(
-  () => ready.value && !failed.value && !t.active && !welcoming.value,
-  (on) => {
-    if (on) setTimeout(() => cue("arrived"), 1200);
-  },
-  { immediate: true },
-);
 
 // ---- A slow device: low quality is already the default (settings.ts); the list view is offered once ----
 
@@ -572,7 +548,6 @@ onMounted(() => {
   window.addEventListener("pointerdown", unlock, { once: true });
   window.addEventListener("keydown", unlock, { once: true });
   host.value?.addEventListener("pointerdown", touchStage);
-  idleTimer = window.setInterval(() => cue("idle"), 5000);
 
   try {
     const events: LobbyEvents & ArenaEvents = {
@@ -582,15 +557,11 @@ onMounted(() => {
         onHover: () => undefined,
         onMove: (s) => {
           link?.move(s);
-          walking(s.moving);
           // A click or a tap on the ground walks too: the tutorial's walk step counts it.
           if (s.moving) t.send({ type: "moved" });
         },
-        // Each control you use (a walk direction, a dash, a turn): the tutorial's steps and the tips listen.
-        onAction: (name) => {
-          used(name);
-          t.send({ type: "action", name });
-        },
+        // Each control you use (a walk direction, a dash, a turn): the tutorial's steps listen.
+        onAction: (name) => t.send({ type: "action", name }),
         onMap: (s) => (mapState.value = s),
         onArenaCrowd: (n) => (crowd.value = n),
     };
@@ -737,7 +708,6 @@ onBeforeUnmount(() => {
   lobbyUi.inside = false;
   document.title = "La Coloc";
   clearTimeout(toastTimer);
-  clearInterval(idleTimer);
   loading.onProgress = () => undefined;
   loading.onLoad = () => undefined;
   leaveArena();
@@ -782,6 +752,11 @@ function goToArena() {
   focusStage();
 }
 const arenaOpen = computed(() => card.value?.kind === "arena");
+// The arena opened right here: you're put at its gate, with its panel open.
+function openArena() {
+  goToArena();
+  card.value = { kind: "arena", city: city.value };
+}
 // The panel docks on the right like a house's window: the camera puts you on the left half meanwhile.
 watch(arenaOpen, (open) => {
   if (!place.value) lobby?.frame(open ? "left" : "follow");
@@ -789,6 +764,37 @@ watch(arenaOpen, (open) => {
 
 // The title someone wears, as the live line says it (its `join` carries it for someone logged in).
 const badgeOf = (p: object): Badge | null => (p as { badge?: Badge | null }).badge ?? null;
+
+// ---- The city's missions: four things to try once you've arrived (lobby/missions.ts, CityMissions.vue) ----
+
+// They begin when the welcomes are over, for someone logged in, and stay until all four are done.
+const missionsOn = computed(() => !!me.value && settings.welcomed && !settings.missions.finished && !t.active && !creating.value);
+// Like the other corner pieces, they step aside for whatever's open over the city.
+const missionsShown = computed(() => missionsOn.value && !blocking.value && !place.value && !sheet.value && !bigMap.value && !keysOpen.value && !arenaOpen.value);
+function missionDone(id: MissionId) {
+  if (!missionsOn.value) return;
+  const next = tick(settings.missions, id);
+  if (next === settings.missions) return;
+  settings.missions = next;
+  play("stamp");
+}
+// Each is noticed from what already happens: a message gone (conversations.ts), the arena's panel open; travel() ticks
+// the last one.
+watch(lastSent, (sent) => {
+  const id = sent && missionOfMessage(sent.url);
+  if (id) missionDone(id);
+});
+watch(arenaOpen, (open) => {
+  if (open) missionDone("arena");
+});
+// A row pressed: where that mission happens.
+function missionGo(id: MissionId) {
+  if (id === "talk") openChat("city");
+  else if (id === "arena") openArena();
+  else if (id === "city") openSheet("travel");
+  else if (me.value?.houses.length) openChat("house");
+  else say(missionWords.houseHint);
+}
 
 // ---- Cards: a house, a person, an empty plot or the chores board, floating over the city ----
 
@@ -806,15 +812,10 @@ const keyOf = (t: AnyTarget | null) =>
 const cardKey = computed(() => keyOf(card.value));
 const nearKey = computed(() => keyOf(near.value));
 
-// You used something. A house you're standing at opens straight away; a person you used with E or the prompt
-// ("Say hi") gets a wave, and clicking them opens their card; anything else gets a card first. Early in the
-// tutorial nothing opens: those steps are about walking.
+// You used something. A house you're standing at opens straight away; anything else, a person too, gets a card
+// first. Early in the tutorial nothing opens: those steps are about walking.
 function open(target: AnyTarget, how: "use" | "click" = "click") {
   if (!picking.value) return;
-  if (target.kind === "person" && how === "use") {
-    waveAt(target.login, target.name);
-    return;
-  }
   if (target.kind === "house" && nearKey.value === keyOf(target)) {
     goInside({ kind: "house", id: target.house.id });
     return;
@@ -984,12 +985,23 @@ function movedInDone() {
 
 // The visitors' welcome, a tutorial card in the middle, the keys to a new room, a knock or a rent dialog: when the
 // last of them closes, the keys go back to the city (M10).
-const blocking = computed(() => welcoming.value || centred.value || !!keysFor.value || !!knock.value || !!rent.value);
+const blocking = computed(() => creating.value || creditOpen.value || welcoming.value || centred.value || !!keysFor.value || !!knock.value || !!rent.value);
 watch(blocking, async (now, before) => {
   if (now || !before) return;
   await nextTick();
   if (!blocking.value && !place.value && !sheet.value && !card.value) focusStage();
 });
+// You arrive with nothing over the city: the keys work at once, no click needed. The focus isn't moved, so there's no
+// ring around the screen and Tab still starts at the top of the page.
+watch(
+  () => ready.value && !failed.value && meLoaded.value && !blocking.value && !place.value,
+  (arrived) => {
+    if (!arrived) return;
+    stageTouched = true;
+    lobby?.keysOnArrival();
+  },
+  { immediate: true },
+);
 
 function rentHere() {
   if (card.value?.kind !== "empty") return;
@@ -1041,6 +1053,8 @@ watch(
 );
 // The tutorial hears when a house's window opens on the workshop, and when it closes.
 watch(place, (now, before) => {
+  // Whatever you did in there may have cost credit (a project's first time online, the rent).
+  if (before && !now) void loadMe();
   if (now?.kind === "house") t.send({ type: "inside", houseId: now.id });
   else if (!now && before) t.send({ type: "inside", houseId: null });
 });
@@ -1094,7 +1108,7 @@ watchEffect(() => {
   document.title = `${where} · La Coloc`;
 });
 
-// ---- Sheets, keys, the wave ----
+// ---- Sheets and keys ----
 
 // A sheet takes focus on its first control; closing it puts focus back on the stage.
 watch(sheet, async (now) => {
@@ -1102,11 +1116,8 @@ watch(sheet, async (now) => {
   if (now) sheetEl.value?.querySelector<HTMLElement>("input, .entry")?.focus();
   else focusStage();
 });
-// The big map and the key list take focus themselves; when they close, it goes back to the stage. Opening one
-// counts as knowing it: its tip never shows.
+// The big map and the key list take focus themselves; when they close, it goes back to the stage.
 watch([bigMap, keysOpen], ([map, keys], [mapBefore, keysBefore]) => {
-  if (map) seeTip("map");
-  if (keys) seeTip("keys");
   if ((!map && mapBefore) || (!keys && keysBefore)) focusStage();
 });
 
@@ -1118,7 +1129,7 @@ function onKey(e: KeyboardEvent) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   // A knock or rent dialog, or the Inside sheet, handles its own keys (Escape closes it), and the welcomes (the
   // visitors' one, and the tutorial's cards at either end) have their own too.
-  if (knock.value || rent.value || place.value || keysFor.value || !ready.value || failed.value || welcoming.value) return;
+  if (knock.value || rent.value || place.value || keysFor.value || !ready.value || failed.value || welcoming.value || creating.value || creditOpen.value) return;
   if (centred.value) return;
   if (e.key === "Escape") {
     if (bigMap.value) bigMap.value = false;
@@ -1141,24 +1152,6 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === "t" || e.key === "T") openSheet("travel");
 }
 
-function emote(name: Emote) {
-  lobby?.emote(name);
-  link?.emote(name);
-}
-
-// Saying hi to someone (E or the prompt near them, or their card's tile): your character waves, with a hand over
-// your head and the emote's sound, a made-up person waves back, and one line of news says so. Pressing again right
-// away does nothing (the live line takes two emotes every two seconds).
-let lastWave = 0;
-function waveAt(login: string, name: string) {
-  const now = performance.now();
-  if (now - lastWave < 1200) return;
-  lastWave = now;
-  emote("yes");
-  lobby?.waveBack(login);
-  say(hw.person.waved(name.split(" ")[0]), { ms: 2200 });
-}
-
 // The workshop as its house view, for someone logged in: it isn't on the city's list, so this says whether you have
 // a room there (for the home button) and gives Find its row. Asked once you're out of the quest; a failure (the core
 // down, an API without it) just leaves it out.
@@ -1172,15 +1165,6 @@ watch(
   },
   { immediate: true },
 );
-// The HUD's home button: your room (home.ts), opened over the city, at your house's door when it's in the city.
-const home = computed(() => homePlace(me.value, workshop.value));
-function goHome() {
-  const p = home.value;
-  if (!p) return;
-  arriveFor(p);
-  goInside(p);
-}
-
 // A house from Find: its city, then its door, and its card. The workshop isn't in any city: its window opens.
 function findHouse(h: CityHouse) {
   if (h.id === TUTORIAL_HOUSE) {
@@ -1195,11 +1179,24 @@ function findHouse(h: CityHouse) {
 
 // An example house says so in its row.
 const sampleWord = computed(() => houseStatsWords.sampleTag);
-// Find's rows: the city's houses, and the workshop if you live there; matched by house, project or person (home.ts).
+// Find's rows, once you've typed something: the cities, the people in this lobby, and the houses (with the workshop,
+// if you live there), matched by house, project or person (home.ts).
+const typed = computed(() => query.value.trim().toLowerCase());
+const foundCities = computed(() => (typed.value ? cities.value.map((c) => c.name).filter((c) => c.toLowerCase().includes(typed.value)) : []));
+const foundPeople = computed(() => (typed.value ? findPeople(peopleHere.value, typed.value) : []));
 const found = computed(() => {
+  if (!typed.value) return [];
   const row = workshopRow(workshop.value);
-  return findHouses(row ? [...props.houses, row] : props.houses, query.value);
+  return findHouses(row ? [...props.houses, row] : props.houses, typed.value);
 });
+function findPerson(login: string) {
+  sheet.value = "";
+  lobby?.goToPerson(login);
+}
+// Enter takes the first row.
+function findFirst() {
+  sheetEl.value?.querySelector<HTMLElement>(".entry")?.click();
+}
 
 // The top chip: only when something in this city needs attention (a real house's server down, a failed build;
 // cityStats.ts), said in one line: "Dakar: Sacré-Cœur's server is down." While all is well it says nothing (Jib,
@@ -1208,10 +1205,10 @@ const activity = computed(() => {
   if (inWorkshop.value) return null;
   // The city couldn't be loaded (the core is down): the core's own banner says so.
   if (core.state === "down" && !props.houses.length) return null;
-  const alert = cityAlert(here.value);
+  const alert = cityAlert(here.value, me.value?.houses.map((h) => h.id) ?? []);
   if (!alert) return null;
-  const line = alert.kind === "down" ? w.alertDown(alert.houses) : w.alertFailed(alert.rooms);
-  return { wide: w.cityLine(city.value, line), short: line, tone: alert.kind === "down" ? "danger" : "warn" };
+  const line = w.alertDown(alert.houses);
+  return { wide: w.cityLine(city.value, line), short: line, tone: "danger" };
 });
 
 // The travel menu's rows: each city's houses, who's walking around there right now, and its local time (the clock
@@ -1256,14 +1253,16 @@ function statsOf(name: string) {
         <span class="city">{{ crumb }}</span>
       </button>
 
-      <!-- Top left: the search, drawn as the field it opens (the find sheet's input lands exactly here). -->
-      <button v-if="shows('tools')" class="hud find-key" :aria-label="w.find" @click="openSheet('find')">
+      <!-- Top left: the search, one key until you press it (or F). The field opens in the same place. -->
+      <!-- Next to it: your credit, the coin and what's left. -->
+      <button v-if="shows('tools') && me?.credit !== undefined" class="hud coin-key" :aria-label="cw.chip(fcfa(me.credit))" :title="cw.chip(fcfa(me.credit))" @click="creditOpen = true">
+        <Icon name="coin" :size="24" /><span>{{ digits(me.credit) }}</span>
+      </button>
+      <button v-if="shows('tools')" class="hud find-key" :aria-label="w.find" :title="w.find" @click="openSheet('find')">
         <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="3" /><path d="M16 16l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
-        <span class="find-word">{{ w.searchHint }}</span>
-        <kbd aria-hidden="true">F</kbd>
       </button>
 
-      <!-- Top centre, during the quest: its tracker, eight stamps and the chapter you're in. -->
+      <!-- Top centre, during the quest: its tracker, a slim pill with the chapter you're in. -->
       <div v-if="inWorkshop && shows('quest') && t.step !== 'home'" class="hud quest">
         <QuestTracker :stamps="t.stamps" :current="t.chapter" />
       </div>
@@ -1286,9 +1285,9 @@ function statsOf(name: string) {
         </Transition>
       </div>
 
-      <!-- Top left, under the place: what's offered once (the tutorial, after a shared link; the list view, on a
-           slow device). -->
-      <div v-if="tutorialChip || offerList" class="hud corner">
+      <!-- Top left, under the search: what's offered once (the tutorial, after a shared link; the list view, on a
+           slow device), and the city's missions until they're done. -->
+      <div v-if="tutorialChip || offerList || missionsShown" class="hud corner" :class="{ 'under-chip': !!activity, covered: !!card }">
         <div v-if="tutorialChip" class="chip">
           <button class="chip-go" @click="enterTutorial">{{ w.takeTour }}</button>
           <button class="chip-x" :aria-label="w.noThanks" @click="tutorialChip = false"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button>
@@ -1297,20 +1296,11 @@ function statsOf(name: string) {
           <button class="chip-go" @click="seeAsList">{{ w.slowHere }}</button>
           <button class="chip-x" :aria-label="w.keep3d" @click="settings.listOffered = true"><svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg></button>
         </div>
+        <CityMissions v-if="missionsShown" @go="missionGo" />
       </div>
 
+      <!-- A touch screen has no Q and R: two red keys turn the view. -->
       <div v-if="shows('tools')" class="hud tools" :class="{ questing: inWorkshop }">
-        <!-- Home: your room, in one press, for someone who has one (never during the quest). -->
-        <button v-if="home && !inWorkshop" :aria-label="w.home" :title="w.home" @click="goHome">
-          <Icon name="house" :size="20" />
-        </button>
-        <button :aria-label="w.cityBoard(city)" :title="w.cityBoard(city)" @click="openChat('board', {})">
-          <Icon name="board" :size="22" />
-        </button>
-        <!-- The arena: you walk to the stadium's entrance (never during the quest: the workshop has none). -->
-        <button v-if="!inWorkshop" :aria-label="aw.goTo" :title="aw.goTo" @click="goToArena">
-          <Icon name="trophy" :size="22" />
-        </button>
         <button :aria-label="w.turnLeft" @click="lobby?.rotate(-1)">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
@@ -1346,7 +1336,6 @@ function statsOf(name: string) {
             :github="cardPlayer?.github"
             :badge="cardBadge"
             @see="boardHouse"
-            @wave="waveAt(card.login, card.name)"
             @close="closeCard"
           />
           <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />
@@ -1354,15 +1343,15 @@ function statsOf(name: string) {
         </Transition>
       </div>
 
-      <!-- Along the bottom: the keys. -->
-      <div v-if="shows('keys')" class="hud keys-row"><KeyLegend :open="legend" @toggle="legend = !legend" @keys="keysOpen = true" /></div>
+      <!-- Bottom right: "?" opens the list of keys, whichever way you ask. No keys on a touch screen. -->
+      <button v-if="shows('keys')" class="hud help" :aria-label="w.everyKey" :title="w.everyKey" @click="keysOpen = true">?</button>
 
       <!-- Bottom centre: the quest's coach, what's in reach (or highlighted with [ and ]) while no card is open. The
            HUD's thumbs up and down are gone (Jib, 15 10); waving still happens from a person's card. The coach must stay usable over a house's window, so the column lifts above it; on a wide
            screen, where the window docks on the right, the column moves out of its way. -->
       <div class="hud centre" :class="{ lifted: inWorkshop, aside: inWorkshop && !!place }">
         <Coach
-          v-if="inWorkshop && !centred"
+          v-if="inWorkshop && !centred && !creating"
           :key="t.step"
           :machine="t"
           :missing="tutorial.missing.value"
@@ -1401,7 +1390,7 @@ function statsOf(name: string) {
                 <strong>{{ near.name }}</strong>
                 <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : w.visiting }}</span>
               </span>
-              <button class="pill" @click="lobby?.interact()">{{ w.sayHi }} <kbd>{{ caps.e }}</kbd></button>
+              <button class="pill" @click="lobby?.interact()">{{ w.seePerson }} <kbd>{{ caps.e }}</kbd></button>
             </template>
             <template v-else-if="near.kind === 'arena'">
               <span>
@@ -1426,9 +1415,9 @@ function statsOf(name: string) {
       <TouchDash v-if="shows('tools') && !place && !card" @dash="lobby?.dash()" />
 
       <!-- The quest's cards in the middle of the screen: the welcome (or "welcome back"), the keys to your room,
-           "Welcome home", and the city's own welcome after it. -->
+           "Well done", and the city's own welcome after it. -->
       <Welcome
-        v-if="t.active && ((t.step === 'welcome' && welcomeReady) || t.step === 'city')"
+        v-if="!creating && t.active && ((t.step === 'welcome' && welcomeReady) || t.step === 'city')"
         :key="t.step"
         :step="t.step === 'city' ? 'city' : 'welcome'"
         :busy="tutorial.busy.value"
@@ -1439,10 +1428,22 @@ function statsOf(name: string) {
         @skip="tutorial.finish"
         @end="endTutorial"
       />
+      <!-- The walkthrough, one card at a time while nothing moves: the controls before the first steps, what's new
+           on the city's screen after its welcome. -->
+      <TourCard
+        v-if="!creating && t.active && (t.step === 'intro' || t.step === 'tour') && t.tourCards[t.card]"
+        :card="t.tourCards[t.card]"
+        :n="t.card + 1"
+        :total="t.tourCards.length"
+        :touch="t.touch"
+        @next="t.send({ type: 'next' })"
+        @skip="t.send({ type: 'skip' })"
+      />
       <KeysCard
         v-if="inWorkshop && t.step === 'keys' && t.state?.room"
         :room="t.state.room.name"
         :house="t.state.house.name"
+        :rent="firstRent"
         @next="t.send({ type: 'next' })"
       />
       <KeysCard v-if="keysFor" :room="keysFor.room" :house="keysFor.house" @next="movedInDone" />
@@ -1456,7 +1457,9 @@ function statsOf(name: string) {
         @finish="tutorial.finish"
       />
 
-      <Onboarding v-if="welcoming" @focus="(on) => lobby?.focusOnPlayer(on)" @character="(c) => lobby?.setCharacter(c)" @done="settings.welcomed = true" />
+      <CharacterCreation v-if="creating && (ready || failed)" @character="(c) => lobby?.setCharacter(c)" />
+      <CreditCard v-if="creditOpen" @close="creditOpen = false" />
+      <Onboarding v-if="welcoming" @done="welcomeDone" />
 
       <KnockSteps
         v-if="knock"
@@ -1477,8 +1480,8 @@ function statsOf(name: string) {
       </Transition>
     </template>
 
-    <!-- The city itself, after the HUD in the page so Tab reaches the buttons first. It takes the keys only while it
-         has the focus (a click on it, or Tab to it). Under the HUD on screen all the same (z-index). -->
+    <!-- The city itself, after the HUD in the page so Tab reaches the buttons first. It takes the keys when nothing else
+         has the focus. Under the HUD on screen all the same (z-index). -->
     <div
       ref="host"
       class="stage"
@@ -1500,7 +1503,6 @@ function statsOf(name: string) {
       @change="insideChanged"
       @close="closeInside"
       @link="insideLink"
-      @wave="emote('yes')"
     />
 
     <!-- The arena, opened at the stadium's entrance: a floating card on the right, like a house's window. -->
@@ -1516,10 +1518,22 @@ function statsOf(name: string) {
       <section v-if="sheet === 'find'" ref="sheetEl" class="find" role="dialog" aria-modal="true" :aria-label="w.findTitle" @keydown.esc="sheet = ''">
         <div class="field">
           <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="3" /><path d="M16 16l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
-          <input v-model="query" type="search" :placeholder="w.searchHint" :aria-label="w.searchName" autofocus />
+          <input v-model="query" type="search" :placeholder="w.searchHint" :aria-label="w.searchName" autofocus @keydown.enter="findFirst" />
           <button class="x" :aria-label="w.close" @click="sheet = ''"><span aria-hidden="true">X</span></button>
         </div>
-        <ul v-if="found.length" class="entries">
+        <ul v-if="foundCities.length || foundPeople.length || found.length" class="entries">
+          <li v-for="c in foundCities" :key="`city-${c}`">
+            <button class="entry" @click="travel(c)">
+              <Icon name="pin" :size="22" class="mark" />
+              <span class="title">{{ c }}</span>
+            </button>
+          </li>
+          <li v-for="p in foundPeople" :key="`person-${p.login}`">
+            <button class="entry" @click="findPerson(p.login)">
+              <Icon name="people" :size="22" class="mark" />
+              <span class="title">{{ p.name }}</span>
+            </button>
+          </li>
           <li v-for="h in found" :key="h.id">
             <button class="entry" @click="findHouse(h)">
               <Icon name="house" :size="22" class="mark" />
@@ -1529,7 +1543,7 @@ function statsOf(name: string) {
             </button>
           </li>
         </ul>
-        <p v-else class="none">{{ w.noMatch }}</p>
+        <p v-else-if="typed" class="none">{{ w.noMatch }}</p>
       </section>
       <!-- Where to: Africa with a dot per city, and the cities as rows beside it (under it on a phone). -->
       <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet travel sign" role="dialog" aria-modal="true" :aria-label="w.travelName" @keydown.esc="sheet = ''">
@@ -1587,18 +1601,24 @@ function statsOf(name: string) {
 /* No WebGL: one flat card in the middle says so. */
 .failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
 /* Everything on top of the city is flat, with a hard shadow: no glass, no blur. */
-.hud { position: absolute; z-index: 10; color: var(--text); transition: opacity var(--dur) var(--ease); }
+.hud { position: absolute; z-index: 10; color: var(--text); transition: opacity var(--dur) var(--ease); animation: hud-in 0.4s var(--ease); }
+@keyframes hud-in {
+  from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud { animation: none; }
+}
 /* A house, a room or a knock is open: like a game's pause menu, the HUD around it steps back (the search, the tools, the
    minimap and the key hints, which the panel would half cover), leaving the place and the site's keys. */
-.paused .hud.top, .paused .hud.tools, .paused .hud.map, .paused .hud.find-key, .paused .hud.keys-row { opacity: 0; pointer-events: none; }
-/* The search, top left: a white field with a red edge. Pressed, it opens the real one in the same place. */
+.paused .hud.top, .paused .hud.tools, .paused .hud.map, .paused .hud.find-key, .paused .hud.coin-key, .paused .hud.help { opacity: 0; pointer-events: none; }
+/* The search, top left: a white key with a red edge. Pressed, the field opens in the same place. */
 .find-key, .field { display: flex; align-items: center; gap: 10px; height: 62px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel-red), var(--lift); }
-.find-key { top: 24px; left: 24px; width: min(420px, 30vw); min-width: 240px; font: 800 19px/1 var(--font); text-align: left; }
+.find-key { top: 24px; left: 24px; width: 62px; min-height: 0; justify-content: center; padding: 0; }
+.coin-key { top: 24px; left: calc(24px + 62px + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); font: 800 18px/1 var(--num); font-variant-numeric: tabular-nums; }
+.coin-key:hover:not(:disabled) { background: var(--tile); }
+.coin-key svg { flex: none; color: var(--panel-red); }
 .find-key:hover:not(:disabled) { background: var(--tile); }
 .find-key svg, .field svg { flex: none; color: var(--panel-red); }
-.find-word { flex: 1; min-width: 0; color: var(--muted); font-weight: 600; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.find-key kbd { flex: none; }
-/* Where you are, a red key just left of the site's own keys (App.vue says how wide they are in --keys-width). */
 .place { top: 24px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 16px; border: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
 .place .city { font: 800 20px/1.1 var(--font); white-space: nowrap; }
 .lobby-number { top: 94px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 6px; height: 46px; min-height: 0; padding: 0 12px; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 800 16px/1 var(--font); box-shadow: 0 3px 0 var(--hairline); cursor: pointer; }
@@ -1612,7 +1632,7 @@ function statsOf(name: string) {
 .top .narrow { display: none; }
 /* The quest's tracker takes the chip's place, at the top centre. */
 .quest { top: calc(24px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); }
-/* News and tips: one line under the chip, popping in and out; never in the way of a click. */
+/* News: one line under the chip, popping in and out; never in the way of a click. */
 .news { top: calc(146px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
 /* The toast's look is shared (style.css); here only its place. */
 .toast kbd { margin: 0 1px; }
@@ -1623,19 +1643,28 @@ function statsOf(name: string) {
 .chip-go:hover:not(:disabled) { background: var(--tile); }
 .chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-sm); display: grid; place-items: center; background: none; color: var(--text); cursor: pointer; }
 .chip-x:hover:not(:disabled) { background: var(--fill); }
-/* The tools, in the bottom right corner: red keys, a size down from the top ones. */
-.tools { right: 24px; bottom: max(28px, env(safe-area-inset-bottom)); display: flex; gap: 8px; }
+/* A short window: the corner stands beside the minimap rather than running into it. */
+@media (min-width: 521px) and (max-height: 580px) {
+  .corner { left: calc(24px + 196px + 12px); top: calc(24px + var(--core-offset, 0px)); }
+  .corner.covered { display: none; }
+}
+/* The turning keys, bottom right, on a touch screen only: a keyboard has Q and R. */
+.tools { right: 24px; bottom: max(28px, env(safe-area-inset-bottom)); display: none; gap: 8px; }
+@media (hover: none) {
+  .tools { display: flex; }
+  .help { display: none; }
+}
 .tools button { width: 50px; height: 50px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; display: grid; place-items: center; background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
 .tools button:hover:not(:disabled) { background: var(--accent-fill-hover); }
 .tools button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 /* The open card, under the keys on the right; its empty space lets clicks through to the city. */
 .dock { top: 112px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; pointer-events: none; }
 .dock > * { pointer-events: auto; }
-/* The keys along the bottom. Their empty space lets clicks through too. */
-.keys-row { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); pointer-events: none; }
-.keys-row > * { pointer-events: auto; }
-/* The middle column, over the keys: the coach or the prompt; the gaps let clicks through. */
-.centre { left: 50%; bottom: calc(max(28px, env(safe-area-inset-bottom)) + 62px); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+/* "?", bottom right: the list of keys. */
+.help { right: 24px; bottom: max(28px, env(safe-area-inset-bottom)); width: 50px; height: 50px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 800 22px/1 var(--font); cursor: pointer; }
+.help:hover:not(:disabled) { background: var(--tile); }
+/* The middle column along the bottom: the coach or the prompt; the gaps let clicks through. */
+.centre { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .centre > * { pointer-events: auto; }
 /* During the tutorial the column sits above a house's inside (60), so the coach's buttons stay in reach. */
 .centre.lifted { z-index: 70; }
@@ -1667,7 +1696,6 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .field input::-webkit-search-cancel-button { display: none; }
 .field .x { flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); font: 400 20px/1 var(--display); }
 .find .entries { flex: 0 1 auto; min-height: 0; list-style: none; margin: 0; padding: 6px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); overflow-y: auto; overscroll-behavior: contain; }
-.find .entries li + li { border-top: 2px solid var(--row-line); }
 .find .entry { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; cursor: pointer; }
 .find .entry:hover:not(:disabled) { background: var(--tile); }
 .find .entry:focus-visible { outline: none; background: var(--accent-soft); }
@@ -1682,7 +1710,6 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .sheet .sign-body { display: flex; flex-direction: column; min-height: 0; }
 /* The rows: lines between them, each one whole button, lit under the pointer and when it holds the focus. */
 .sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 0 6px; display: grid; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
-.sheet .entries li + li { border-top: 2px solid var(--row-line); }
 .sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 50px; padding: 6px 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 16px/1.2 var(--font); text-align: left; cursor: pointer; }
 .sheet .entry:hover:not(:disabled) { background: var(--tile); }
 .sheet .entry:focus-visible { outline: none; background: var(--accent-soft); }
@@ -1717,25 +1744,18 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .centre { bottom: max(28px, env(safe-area-inset-bottom)); }
 }
 /* Not much width: the search shrinks to its icon, the place to its name. */
-@media (max-width: 1000px) {
-  .find-key { width: 62px; min-width: 0; justify-content: center; padding: 0; }
-  .find-word, .find-key kbd { display: none; }
-}
-@media (max-width: 899px) {
-  .find-key, .place { top: calc(24px + var(--core-offset, 0px)); }
-  .lobby-number { top: calc(94px + var(--core-offset, 0px)); }
-}
 @media (max-width: 520px) {
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
-  .find-key { top: calc(12px + var(--core-offset, 0px)); left: 12px; width: 46px; height: 46px; box-shadow: inset 0 0 0 3px var(--panel-red), 0 3px 0 rgba(20, 12, 18, 0.45); }
+  .coin-key { top: 12px; left: calc(12px + 46px + 6px); height: 46px; padding: 0 10px; gap: 5px; font-size: 15px; }
+  .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: inset 0 0 0 3px var(--panel-red), 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
-  .lobby-number { top: calc(66px + var(--core-offset, 0px)); right: calc(12px + var(--keys-width, 0px) + 6px); }
-  .place { top: calc(12px + var(--core-offset, 0px)); right: calc(12px + var(--keys-width, 0px) + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
+  .lobby-number { top: 66px; right: calc(12px + var(--keys-width, 0px) + 6px); }
+  .place { top: 12px; right: calc(12px + var(--keys-width, 0px) + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
   .place svg { display: none; }
   .place .city { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
   .prompt { gap: 10px; padding-left: 14px; font-size: 15px; max-width: 100%; }
   .prompt strong { font-size: 16px; }
-  .prompt .soft { display: none; }
+  .prompt .soft, .prompt kbd { display: none; }
   .prompt > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   /* The prompt moves to the left, beside the minimap rather than under it. The coach (lifted)
      keeps the middle. */
@@ -1753,6 +1773,9 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .quest { top: calc(68px + var(--core-offset, 0px)); }
   .toast { font-size: 14px; }
   .corner { top: calc(68px + var(--core-offset, 0px)); left: 12px; }
+  /* Under the one-line chip when there's one, and out of the way of a card's sheet along the bottom. */
+  .corner.under-chip { top: calc(112px + var(--core-offset, 0px)); }
+  .corner.covered { display: none; }
   /* The minimap stays on the thumb's side on a phone. */
   .map { left: auto; right: 12px; }
   /* In the quest the coach takes the bottom of a phone's screen: the map moves to the top right, under the
@@ -1765,7 +1788,6 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .map.covered { display: none; }
   /* Cards become a sheet along the bottom edge. */
   .dock { top: auto; left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
-  .keys-row { display: none; }
   /* Find keeps the top of the screen, clear of the on-screen keyboard. */
   .find { top: 12px; left: 12px; width: calc(100vw - 24px); }
   /* Travel becomes a sheet along the bottom edge. */

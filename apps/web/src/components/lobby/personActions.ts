@@ -1,33 +1,31 @@
-// What you can do about someone you met in the street (PersonCard.vue). Pure, so the rules are tested: it depends on
-// who they are and who you are.
+// What you can do about someone you met in the street (PersonCard.vue), after the Chat key every person has
+// (messageAction in chat/chat.ts). Pure, so the rules are tested: it depends on who they are and who you are.
 //
-// - They live in a house: see it (its window opens, wherever it is).
-// - They have no house, and you live in one with a free room: invite them to it (once; then "Invited", which you
-//   can take back), to the room you pick when there are several. Your house is full: no invitation, and the card
-//   says why.
-// - Neither of you has a house: ask them to rent a server together.
-// - You're logged out: log in first.
-// - An example person (made up so the city isn't empty): the action shows, disabled, with why. Nothing real happens.
-// Then always their GitHub profile, for a real account only, and a wave from the city.
+// At most two more keys:
+// - `see`: they live in a house: see it (its window opens, wherever it is).
+// - `offer`, one of:
+//   - You live in a house with a free room: invite them to it, even if they live somewhere already (once; then
+//     "Invited", which you can take back), to the room you pick when there are several.
+//   - You have no house, or yours is full: ask them to share a house, even if one or both of you live somewhere
+//     already (once; then "Asked", which you can take back).
+//   - Nothing when they live with you already (the card offers to team up instead), or when you're logged out.
+// An example person (made up so the city isn't empty): the offer shows, disabled, with why. Nothing real happens.
+// And their GitHub profile, for a real account only.
 import type { CityHouse, Notices } from "../../types";
 
-export type StreetMain =
-  | { kind: "see"; houseId: string; houseName: string }
+export type StreetOffer =
   // `rooms`: its free rooms, the first offered unless you pick another.
   | { kind: "invite"; houseId: string; houseName: string; rooms: string[]; example: boolean }
   | { kind: "invited"; inviteId: string }
-  | { kind: "full"; houseName: string }
-  | { kind: "rent"; example: boolean }
-  | { kind: "asked"; inviteId: string }
-  | { kind: "login" }
-  | null;
+  | { kind: "share"; example: boolean }
+  | { kind: "asked"; inviteId: string };
 
 export interface StreetActions {
-  main: StreetMain;
+  see: { houseId: string; houseName: string } | null;
+  offer: StreetOffer | null;
   // Their GitHub profile, for a real account only: a made-up person's login may be a stranger's handle.
   github: string | null;
   example: boolean;
-  wave: boolean;
 }
 
 export interface StreetPerson {
@@ -49,30 +47,26 @@ export interface StreetViewer {
 export function streetActions(
   person: StreetPerson,
   viewer: StreetViewer | null,
-  // Your house as the city lists it (for its free rooms), or null when you have none or it isn't loaded yet.
+  // Your house as the city lists it (for its free rooms), or null when you have none or it isn't listed.
   myHouse: Pick<CityHouse, "id" | "name" | "demo" | "rooms"> | null,
   sent: Notices["sent"],
 ): StreetActions {
   const example = person.example;
   const github = person.github === true && !example ? `https://github.com/${encodeURIComponent(person.login)}` : null;
-  const wave = !!viewer && !person.isMe;
-  return { main: main(), github, example, wave };
+  return { see: person.isMe ? null : person.home, offer: offer(), github, example };
 
-  function main(): StreetMain {
-    if (person.isMe) return null;
-    if (person.home) return { kind: "see", houseId: person.home.houseId, houseName: person.home.houseName };
-    if (!viewer) return { kind: "login" };
-    if (viewer.houses.length) {
+  function offer(): StreetOffer | null {
+    if (person.isMe || !viewer) return null;
+    if (person.home && viewer.houses.some((h) => h.id === person.home!.houseId)) return null;
+    if (!example) {
       const invited = sent.find((s) => s.kind === "house_invite" && s.to === person.login);
-      if (invited && !example) return { kind: "invited", inviteId: invited.id };
-      const house = myHouse && viewer.houses.some((h) => h.id === myHouse.id) ? myHouse : null;
-      if (!house || house.demo) return null;
-      const rooms = house.rooms.filter((r) => !r.occupant).map((r) => r.name);
-      if (!rooms.length) return { kind: "full", houseName: house.name };
-      return { kind: "invite", houseId: house.id, houseName: house.name, rooms, example };
+      if (invited) return { kind: "invited", inviteId: invited.id };
+      const asked = sent.find((s) => s.kind === "rent_together" && s.to === person.login);
+      if (asked) return { kind: "asked", inviteId: asked.id };
     }
-    const asked = sent.find((s) => s.kind === "rent_together" && s.to === person.login);
-    if (asked && !example) return { kind: "asked", inviteId: asked.id };
-    return { kind: "rent", example };
+    const house = myHouse && !myHouse.demo && viewer.houses.some((h) => h.id === myHouse.id) ? myHouse : null;
+    const rooms = house ? house.rooms.filter((r) => !r.occupant).map((r) => r.name) : [];
+    if (house && rooms.length) return { kind: "invite", houseId: house.id, houseName: house.name, rooms, example };
+    return { kind: "share", example };
   }
 }

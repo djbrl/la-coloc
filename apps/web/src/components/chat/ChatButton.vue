@@ -11,7 +11,7 @@ const count = computed(() => badge(conversations.unread));
 </script>
 
 <template>
-  <button type="button" class="ring" :aria-label="w.buttonName(conversations.unread)" :aria-expanded="chatSheet.open" aria-haspopup="dialog" @click="chatSheet.open = !chatSheet.open">
+  <button type="button" class="ring" data-tour="chat" :aria-label="w.buttonName(conversations.unread)" :aria-expanded="chatSheet.open" aria-haspopup="dialog" @click="chatSheet.open = !chatSheet.open">
     <Icon name="chat" />
     <span v-if="count" class="badge" aria-hidden="true">{{ count }}</span>
   </button>

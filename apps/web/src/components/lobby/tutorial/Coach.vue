@@ -3,13 +3,13 @@
 // top names the chapter (the tracker does; the card says it to screen readers): one or two sentences, the step's
 // own piece (the two ways to bring a project, the launch's track, your address, the postcard to share, a card about the house), and at most one main action.
 // A small × leaves the quest (settings bring it back). The steps themselves live in tutorial.ts; this only shows
-// them. The big moments in the middle of the screen (the keys, "Welcome home") are KeysCard.vue and HomeCard.vue.
+// them. The big moments in the middle of the screen (the keys, "Well done") are KeysCard.vue and HomeCard.vue.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { caps } from "../../../lobby/keys";
 import { bare, explain } from "../panel/words";
 import LaunchCard from "./LaunchCard.vue";
 import QuestIcon, { type QuestIconName } from "./QuestIcon.vue";
-import RepoPicker from "./RepoPicker.vue";
+import RepoPicker from "../../RepoPicker.vue";
 import ShareCard from "./ShareCard.vue";
 import { opensAnywhere } from "./share";
 import { CHAPTERS, HOUSE_CARDS, isLive, type TutorialMachine } from "./tutorial";
@@ -64,10 +64,18 @@ const repo = computed(() => state.value?.github.repo ?? null);
 const url = computed(() => room.value?.url ?? null);
 // Chapter 4 with GitHub: the picker shows once GitHub has answered with repos, or when "Change" is pressed.
 const repos = computed(() => props.choices?.repos ?? []);
-const changing = ref(false);
+const changing = ref(props.machine.repick);
 const picking = computed(() => step.value === "project" && repos.value.length > 0 && (props.machine.github === "waiting" || changing.value));
 const needsLogin = computed(() => props.choices?.reason === "no-github");
 watch(repo, () => (changing.value = false));
+function pickRepo(id: number) {
+  changing.value = false;
+  emit("pick", id);
+}
+// A failed or cancelled launch: back to the list of repos, to bring another one (the machine remembers: `repick`).
+function otherProject() {
+  emit("back");
+}
 
 // Chapter 8's cards: an icon and a title each, and one sentence.
 const houseCard = computed(() => HOUSE_CARDS[props.machine.card]);
@@ -114,7 +122,7 @@ onBeforeUnmount(() => clearTimeout(timer));
         <p v-if="touch" class="text">{{ w.walkTouch }}</p>
         <template v-else>
           <p class="text">{{ w.walkKeys(walkCaps.join(" ")) }}</p>
-          <p class="caps"><kbd v-for="c in walkCaps" :key="c">{{ c }}</kbd></p>
+          <p class="caps"><kbd v-for="c in walkCaps" :key="c">{{ c }}</kbd><kbd class="help">?</kbd></p>
         </template>
       </template>
 
@@ -132,7 +140,8 @@ onBeforeUnmount(() => clearTimeout(timer));
       <!-- 4 · Bring a project: two big tiles, or the GitHub path one step at a time. -->
       <template v-else-if="picking">
         <p class="text">{{ w.pickTitle }}</p>
-        <RepoPicker :repos="repos" :chosen="choices?.chosen ?? null" :busy="busy" @pick="(id) => emit('pick', id)" />
+        <p class="sub">{{ w.pickWhy }}</p>
+        <RepoPicker :selected="repo ?? undefined" :busy="busy" focus @pick="(r) => pickRepo(r.id)" />
       </template>
       <template v-else-if="step === 'project' && machine.github === 'waiting' && needsLogin">
         <p class="text">{{ w.pickLogin }}</p>
@@ -169,6 +178,8 @@ onBeforeUnmount(() => clearTimeout(timer));
         v-else-if="step === 'launch'"
         :status="room?.status"
         :why="room?.why"
+        :log="room?.log"
+        :room="room?.name"
         :launched="machine.launched"
         :error="error"
         :busy="busy"
@@ -176,6 +187,7 @@ onBeforeUnmount(() => clearTimeout(timer));
         :from-github="source === 'github'"
         @retry="emit('run', source)"
         @starter="emit('run', 'starter')"
+        @other="otherProject"
       />
 
       <!-- 6 · Open it: the address, big, and one press. -->
@@ -191,6 +203,8 @@ onBeforeUnmount(() => clearTimeout(timer));
         :url="url"
         :room="room.name"
         :house="house.name"
+        :house-id="house.id"
+        :project="repo?.split('/').pop() ?? room.name"
         :city="house.city"
         :touch="touch"
         @shared="emit('shared')"
@@ -211,7 +225,6 @@ onBeforeUnmount(() => clearTimeout(timer));
       <template v-else-if="picking">
         <button v-if="changing" type="button" class="quiet" @click="changing = false"><QuestIcon name="back" :size="16" />{{ w.back }}</button>
         <button v-else type="button" class="quiet" @click="emit('back')"><QuestIcon name="back" :size="16" />{{ w.back }}</button>
-        <a v-if="installUrl" class="button quiet" :href="installUrl" target="_blank" rel="noopener">{{ w.pickAllow }} <QuestIcon name="open" :size="16" /><span class="sr-only">{{ w.opensInTab }}</span></a>
       </template>
       <template v-else-if="step === 'project' && machine.github === 'waiting'">
         <button type="button" class="quiet" @click="emit('back')"><QuestIcon name="back" :size="16" />{{ w.back }}</button>
@@ -235,7 +248,7 @@ onBeforeUnmount(() => clearTimeout(timer));
       >
         {{ w.openIt }} <QuestIcon name="open" :size="18" /><span class="sr-only">{{ w.opensInTab }}</span>
       </a>
-      <button v-else-if="step === 'share'" ref="go" type="button" class="quiet" @click="emit('later')">{{ w.later }}</button>
+      <button v-else-if="step === 'share'" type="button" class="quiet" @click="emit('later')">{{ w.later }}</button>
       <template v-else-if="step === 'house'">
         <span class="count" aria-hidden="true">{{ w.houseCardOf(machine.card + 1, HOUSE_CARDS.length) }}</span>
         <button ref="go" type="button" class="primary go" @click="emit('next')">{{ lastCard ? w.gotIt : w.next }}</button>
@@ -259,12 +272,15 @@ onBeforeUnmount(() => clearTimeout(timer));
   animation: coach-pop var(--dur-slow) var(--ease-pop);
 }
 .coach.at-share, .coach.at-launch { width: min(540px, calc(100vw - 32px)); }
+.coach.at-share { width: min(640px, calc(100vw - 32px)); padding: 18px 22px 18px; }
 @keyframes coach-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
 /* The close key sits in the corner; the step's first line leaves room for it. */
 .coach { position: relative; padding-top: 14px; }
 .body > :first-child { padding-right: 46px; }
+/* The share card keeps that room itself, on its heading only: the card below it has the coach's whole width. */
+.at-share .body > :first-child { padding-right: 0; }
 .x { position: absolute; top: 6px; right: 6px; flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); font: 400 18px/1 var(--display); }
 .x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .body { display: grid; gap: 6px; }
@@ -276,6 +292,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 .url { margin: 4px 0; padding: 10px 12px; border-radius: var(--r-md); background: var(--tile); font: 600 20px/1.25 var(--num); color: var(--accent); overflow-wrap: anywhere; }
 /* The keys of the step, as big raised caps. */
 .caps { margin: 4px 0 0; display: flex; gap: 6px; }
+.caps .help { margin-left: 12px; }
 .caps kbd { min-width: 36px; height: 36px; padding: 0 8px; border-radius: var(--r-sm); border-bottom-width: 3px; font-size: 14px; }
 /* Chapter 4's two ways in: big tiles, the ready-made page first and in the red. */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
@@ -319,6 +336,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-
 }
 @media (max-width: 520px) {
   .coach { padding: 10px 12px 12px 14px; }
+  .coach.at-share { padding: 12px 14px 14px; }
   .text { font-size: 17px; }
   .tiles { grid-template-columns: 1fr; }
   .url { font-size: 16px; }

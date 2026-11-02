@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { type Db, houses, rooms as roomRows } from "@coloc/db";
+import { type Db, deployments, houses, rooms as roomRows } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { eq } from "drizzle-orm";
 import { take } from "rxjs";
@@ -66,11 +66,18 @@ describe("HousesService", () => {
     expect(rooms).toEqual({
       aissatou: ["live", null, true],
       babacar: ["live", null, true],
-      coumba: ["live", null, true],
-      lamine: ["live", null, true],
       ndeye: ["live", null, true],
       fatou: ["empty", null, false],
     });
+  });
+
+  it("fails the builds a caretaker no longer has, and leaves the ones it's still on", async () => {
+    const lost = await svc.createDeployment("sacre-coeur", "awa", "prod", "https://github.com/awa/ndaje.git", "main");
+    const going = await svc.createDeployment("sacre-coeur", "jib", "prod", "https://github.com/jib/ker-bot.git", "main");
+    await svc.failLostBuilds("sacre-coeur", [going.id]);
+    const statusOf = async (id: string) => (await db.select().from(deployments).where(eq(deployments.id, id)))[0];
+    expect(await statusOf(lost.id)).toMatchObject({ status: "failed", detail: expect.stringMatching(/restarted during/) });
+    expect((await statusOf(going.id)).status).toBe("queued");
   });
 
   it("follows a deploy to live and remembers the room's address", async () => {
@@ -112,11 +119,11 @@ describe("the house profile", () => {
     expect(visitor.viewer).toBeNull();
 
     const stranger = (await svc.view("sacre-coeur", await userId("koffi")))!;
-    expect(stranger.viewer).toEqual({ login: "koffi", member: false, role: null, room: null, application: null });
+    expect(stranger.viewer).toEqual({ login: "koffi", member: false, role: null, room: null, rooms: [], leavingUntil: null, application: null, guest: null });
     expect(stranger.notes).toBeNull();
 
     const awa = (await svc.view("sacre-coeur", await userId("awa")))!;
-    expect(awa.viewer).toEqual({ login: "awa", member: true, role: "flatmate", room: "awa", application: null });
+    expect(awa.viewer).toEqual({ login: "awa", member: true, role: "flatmate", room: "awa", rooms: ["awa"], leavingUntil: null, application: null, guest: null });
     expect(awa.notes).toHaveLength(1);
   });
 
@@ -150,10 +157,8 @@ describe("the seed", () => {
       ["ndeye", "chef"],
       ["aissatou", "flatmate"],
       ["babacar", "flatmate"],
-      ["coumba", "flatmate"],
-      ["lamine", "flatmate"],
     ]);
-    expect(v.rooms).toHaveLength(5);
+    expect(v.rooms).toHaveLength(3);
     for (const r of v.rooms) {
       expect(r).toMatchObject({ demo: true, status: "live", url: null, ad: null });
       expect(r.project).toBeTruthy();

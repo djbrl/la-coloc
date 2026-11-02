@@ -1,69 +1,43 @@
 <script setup lang="ts">
 // The welcome, one idea per step, over the live lobby: what the city is, how the rent works, what a room does, and
-// how you get one. Ends with picking your look (or, for a visitor, an invitation to log in on the last step).
+// how you get one, with an invitation to log in for a visitor. Picking your look comes first, in CharacterCreation.vue.
 // It floats at the bottom like a game's dialogue box: a flat card, a bold line, chunky buttons, one main one.
-// How to walk comes after, as a one-time tip over the city (lobby/tutorial/tips.ts).
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { CHARACTERS } from "../lobby/assets";
-import { me, sendJSON } from "../session";
+import { caps } from "../lobby/keys";
+import { me } from "../session";
 import Icon from "./lobby/house/Icon.vue";
 import { welcomeWords as w } from "./words";
 
 const emit = defineEmits<{
-  // Zoom on your character while you pick a look.
-  focus: [on: boolean];
-  // Preview a look in the lobby.
-  character: [name: string];
+  // Whether it got as far as the keys.
   done: [];
 }>();
 
 const loggedIn = computed(() => !!me.value);
-const steps = computed(() => (loggedIn.value ? ["city", "rent", "push", "knock", "look"] : ["city", "rent", "push", "knock"]));
+// A touch screen has no keys to show.
+const keyboard = !window.matchMedia("(hover: none)").matches;
+const steps = computed(() => ["city", "rent", "push", "knock", ...(keyboard ? ["keys"] : [])]);
 const step = ref(0);
 const current = computed(() => steps.value[step.value]);
-const look = ref(Math.max(0, CHARACTERS.indexOf(me.value?.avatar ?? "")));
-const error = ref("");
 const title = ref<HTMLElement | null>(null);
 
 function go(to: number) {
-  error.value = "";
   step.value = to;
-  emit("focus", steps.value[to] === "look");
-  if (steps.value[to] === "look") emit("character", CHARACTERS[look.value]);
   // Screen readers and keyboards land on the new step's title.
   requestAnimationFrame(() => title.value?.focus());
 }
 
-function turn(by: number) {
-  look.value = (look.value + by + CHARACTERS.length) % CHARACTERS.length;
-  emit("character", CHARACTERS[look.value]);
-}
-
-async function next() {
-  if (current.value === "look") {
-    const res = await sendJSON("PATCH", "/api/me", { avatar: CHARACTERS[look.value] });
-    if (!res.ok) {
-      error.value = res.message;
-      return;
-    }
-    if (me.value) me.value.avatar = CHARACTERS[look.value];
-  }
+function next() {
   if (step.value === steps.value.length - 1) finish();
   else go(step.value + 1);
 }
 
 function finish() {
-  emit("focus", false);
   emit("done");
 }
 
 function key(e: KeyboardEvent) {
   if (e.key === "Escape") finish();
-  if (current.value === "look" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
-    e.preventDefault();
-    e.stopPropagation();
-    turn(e.key === "ArrowLeft" ? -1 : 1);
-  }
 }
 
 onMounted(() => {
@@ -94,21 +68,14 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
           <p>{{ w.knockBefore }} <span class="glow free" aria-hidden="true" />{{ w.knockAfter }}</p>
           <RouterLink v-if="!loggedIn" class="button login" to="/login"><Icon name="login" :size="20" />{{ w.logIn }}</RouterLink>
         </template>
-        <template v-else-if="current === 'look'">
-          <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.lookTitle }}</h2>
-          <p>{{ w.look }}</p>
-          <!-- Like a game's character select: arrows either side of the count (the arrow keys work too). -->
-          <div class="picker">
-            <button class="turn" :aria-label="w.previousLook" @click="turn(-1)">
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            </button>
-            <span class="count" aria-live="polite">{{ w.count(look + 1, CHARACTERS.length) }}</span>
-            <button class="turn" :aria-label="w.nextLook" @click="turn(1)">
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            </button>
-          </div>
+        <template v-else-if="current === 'keys'">
+          <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.keysTitle }}</h2>
+          <ul class="keys">
+            <li><span class="caps"><kbd v-for="k in [caps.w, caps.a, caps.s, caps.d]" :key="k">{{ k }}</kbd></span>{{ w.keysWalk }}</li>
+            <li><span class="caps"><kbd>{{ caps.e }}</kbd></span>{{ w.keysUse }}</li>
+            <li><span class="caps"><kbd>?</kbd></span>{{ w.keysAll }}</li>
+          </ul>
         </template>
-        <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
     </Transition>
 
@@ -118,7 +85,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
       </div>
       <button v-if="step > 0" class="second" @click="go(step - 1)">{{ w.back }}</button>
       <button v-else class="second" @click="finish">{{ w.skip }}</button>
-      <button class="primary go" @click="next">{{ step === steps.length - 1 ? w.explore : current === "look" ? w.thisIsMe : w.next }}</button>
+      <button class="primary go" @click="next">{{ step === steps.length - 1 ? w.explore : w.next }}</button>
     </div>
   </div>
 </template>
@@ -146,18 +113,15 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
 .body { display: grid; gap: 10px; }
 h2 { margin: 0; font-size: 28px; line-height: 1.12; font-weight: 700; outline: none; }
 p { margin: 0; font-size: 17px; line-height: 1.5; }
+.keys { display: grid; gap: 8px; margin: 2px 0 0; padding: 0; list-style: none; font-size: 17px; font-weight: 600; }
+.keys li { display: flex; align-items: center; gap: 12px; }
+.caps { display: flex; gap: 4px; }
 /* A free room's window, in the colour the city draws it (the same in day and night). */
 .glow { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px 1px 2px; vertical-align: middle; }
 .glow.free { background: var(--free); box-shadow: 0 0 10px var(--free); }
-.picker { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; padding: 6px; border-radius: var(--r-lg); background: var(--tile); }
-.turn { width: 52px; height: 52px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); }
-.turn:hover:not(:disabled) { background: var(--surface); color: var(--accent); }
-.turn:active:not(:disabled) { transform: translateY(2px); }
-.count { flex: 1; font-size: 17px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
 /* Logging in sits in the sentence's step as a soft accent button: "Start exploring" stays the one main action. */
 .login { justify-self: start; gap: 8px; min-height: 50px; border-radius: var(--r-md); font-weight: 700; background: var(--accent-soft); color: var(--accent); }
 .login:hover { background: var(--accent-soft); text-decoration: none; box-shadow: inset 0 0 0 2px var(--accent-fill); }
-.error { color: var(--danger); font-size: 15px; }
 .foot { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
 /* How far along: dots, the current one a longer pill, as in every step flow. */
 .dots { display: flex; gap: 6px; margin-right: auto; }

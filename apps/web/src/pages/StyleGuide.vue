@@ -7,7 +7,6 @@ import { reactive, ref } from "vue";
 import HouseCard from "../components/lobby/HouseCard.vue";
 import Icon from "../components/lobby/house/Icon.vue";
 import { icons, type IconName } from "../components/lobby/house/icons";
-import KeyLegend from "../components/lobby/KeyLegend.vue";
 import ListRow from "../components/lobby/panel/ListRow.vue";
 import Panel from "../components/lobby/panel/Panel.vue";
 import PanelHead from "../components/lobby/panel/PanelHead.vue";
@@ -42,7 +41,6 @@ const states: State[] = [
 const switches = reactive({ day: [true, false], night: [true, false] });
 const segments = reactive({ day: "day", night: "night" });
 const tab = reactive({ day: "rooms", night: "rooms" });
-const legend = reactive({ day: true, night: false });
 
 const awa: Person = { login: "awa", name: "Awa Ndiaye", avatarUrl: null };
 const kofi: Person = { login: "kofi", name: "Kofi Mensah", avatarUrl: null };
@@ -142,8 +140,7 @@ const pressed = ref("");
           <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>E</kbd><kbd>Shift</kbd><kbd>?</kbd><kbd>Esc</kbd>
         </div>
         <div class="row">
-          <KeyLegend :open="legend[t]" @toggle="legend[t] = !legend[t]" @keys="noop" />
-        </div>
+                  </div>
 
         <h2 class="sec">Switches and choices</h2>
         <div class="row">
@@ -267,4 +264,5 @@ const pressed = ref("");
 .stage { position: relative; overflow: hidden; border-radius: var(--r-lg); background: linear-gradient(180deg, #2a2148 0%, #4b3a74 45%, #8a6aa0 100%); }
 .welcome-box { height: 440px; }
 .loading-box { height: 420px; }
+.loading-box :deep(.loading) { position: absolute; }
 </style>

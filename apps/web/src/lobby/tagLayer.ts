@@ -26,6 +26,8 @@ export class Tag {
   alpha = 1;
   picture: Picture | null = null;
   pictureOf = -1;
+  clearWidth = 0;
+  clearWidthOf = -1;
 
   constructor(
     readonly owner: THREE.Object3D,
@@ -37,6 +39,7 @@ export class Tag {
   say(words: Partial<TagWords>) {
     this.words = { ...this.words, ...words };
     this.pictureOf = -1;
+    this.clearWidthOf = -1;
   }
 
   /** Faded back or not. Its crowded look is another picture. */
@@ -153,9 +156,16 @@ export class TagLayer {
     this.forget();
   }
 
-  /** How wide a tag is on screen, in CSS pixels. */
+  /**
+   * How wide a tag is on screen when it isn't faded back, in CSS pixels. Always that width: a faded tag is narrower
+   * (no house chip), so measuring it as drawn would make it stop overlapping, come back, overlap again, and blink.
+   */
   widthOf(tag: Tag): number {
-    return this.pictureFor(tag)?.width ?? 80;
+    if (tag.clearWidthOf === this.generation) return tag.clearWidth;
+    if (!this.scratch) return 80;
+    tag.clearWidth = tagLayout(tag.words, false, this.measure).width;
+    tag.clearWidthOf = this.generation;
+    return tag.clearWidth;
   }
 
   /** One frame: the flags at the back, then people's tags, the nearest last (`spots` comes nearest first). */
@@ -185,6 +195,12 @@ export class TagLayer {
     this.names.remove();
     this.pictures.clear();
   }
+
+  private measure = (text: string, size: number): number => {
+    const measurer = this.scratch!;
+    measurer.font = `800 ${size}px ${this.colours.font}`;
+    return measurer.measureText(text).width;
+  };
 
   private forget() {
     this.pictures.clear();
@@ -225,14 +241,10 @@ export class TagLayer {
   }
 
   private paint(words: TagWords, crowded: boolean): Picture | null {
-    const measurer = this.scratch;
-    if (!measurer) return null;
+    if (!this.scratch) return null;
     const c = this.colours;
     const font = (size: number) => `800 ${size}px ${c.font}`;
-    const layout = tagLayout(words, crowded, (text, size) => {
-      measurer.font = font(size);
-      return measurer.measureText(text).width;
-    });
+    const layout = tagLayout(words, crowded, this.measure);
     const { look, width, height } = layout;
     const below = Math.max(LIP, look.arrow / 2 + LIP);
     const image = document.createElement("canvas");

@@ -57,7 +57,7 @@ onBeforeUnmount(() => stream?.close());
       @message="(login) => openChat('dm', { with: login })"
     />
     <p v-if="!me" class="visitor soft small">
-      {{ w.logInToTalk }} <RouterLink to="/login" @click="chatSheet.open = false">{{ w.logIn }}</RouterLink>
+      <RouterLink to="/login" @click="chatSheet.open = false">{{ w.logIn }}</RouterLink>
     </p>
   </div>
 </template>

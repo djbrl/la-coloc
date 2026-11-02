@@ -9,6 +9,13 @@ const jib = { login: "jib" };
 const awa = { login: "awa", example: false };
 
 describe("teaming up on a flatmate's card", () => {
+  it("looks at all the rooms either of you rents", () => {
+    const withProject = { ...room("b", "jib"), project: "Ndaje" };
+    expect(teamUp(awa, jib, house(room("a", "jib"), withProject, room("c", "awa")), "a", [])).toEqual({ kind: "offer", join: "c", bring: "b" });
+    expect(teamUp(awa, jib, house(room("a", "jib"), room("b", "jib", ["awa"]), room("c", "awa")), "a", [])).toEqual({ kind: "together" });
+    expect(teamUp(awa, jib, house(room("a", "jib"), room("c", "awa"), room("d", "awa", ["jib"])), "a", [])).toEqual({ kind: "together" });
+  });
+
   it("offers both ways round between two flatmates", () => {
     expect(teamUp(awa, jib, house(room("jib", "jib"), room("ndaje", "awa")), "jib", [])).toEqual({ kind: "offer", join: "ndaje", bring: "jib" });
   });

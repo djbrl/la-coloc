@@ -1,7 +1,9 @@
 import type { ApiToAgent } from "@coloc/protocol";
 import { mkdir } from "node:fs/promises";
+import { batched } from "./batch";
+import { Builds } from "./builds";
 import { loadConfig } from "./config";
-import { deploy, removePreview, removeRoom, restartRoom, roomLogs, snapshot } from "./deploy";
+import { deploy, inspect, removePreview, removeRoom, restartRoom, roomLogs, snapshot } from "./deploy";
 import { watchRoomEvents } from "./events";
 import { connect } from "./link";
 import { sampleRooms } from "./meter";
@@ -22,6 +24,9 @@ async function main() {
     queues.set(room, next.catch(() => undefined));
   };
 
+  // Being built or waiting its turn: told to the API whenever the link opens, and what cancel_build stops.
+  const builds = new Builds();
+
   const sendSnapshot = async () => {
     try {
       link.send({ type: "rooms_snapshot", rooms: await snapshot(cfg) });
@@ -32,14 +37,29 @@ async function main() {
 
   const link = connect(cfg, VERSION, (cmd: ApiToAgent) => {
     switch (cmd.type) {
-      case "deploy":
-        console.log(`[deploy] ${cmd.room} ${cmd.kind} ${cmd.ref}`);
-        enqueue(cmd.room, () =>
-          deploy(cfg, cmd, (s) => {
-            console.log(`[deploy] ${cmd.room}: ${s.status}${s.detail ? ` (${s.detail.split("\n")[0]})` : ""}`);
-            link.send({ type: "deploy_status", deployId: cmd.deployId, room: cmd.room, ...s });
-          }),
-        );
+      case "deploy": {
+        console.log(`[deploy] ${cmd.room} ${cmd.kind} ${cmd.ref ?? "default branch"}`);
+        const signal = builds.add(cmd.deployId, cmd.room, cmd.kind);
+        enqueue(cmd.room, () => {
+          const log = batched((lines) => link.send({ type: "deploy_log", deployId: cmd.deployId, room: cmd.room, lines }));
+          return deploy(
+            cfg,
+            cmd,
+            (s) => {
+              console.log(`[deploy] ${cmd.room}: ${s.status}${s.detail ? ` (${s.detail.split("\n")[0]})` : ""}`);
+              // The log's last lines first: the window stops asking once a build is over.
+              log.flush();
+              link.send({ type: "deploy_status", deployId: cmd.deployId, room: cmd.room, ...s });
+            },
+            log.add,
+            signal,
+          ).finally(() => builds.done(cmd.deployId));
+        });
+        break;
+      }
+      case "cancel_build":
+        // Not queued: the queue is what it has to get past.
+        console.log(`[deploy] ${cmd.room}: cancelling ${builds.cancel(cmd.room)} build(s)`);
         break;
       case "remove_room":
         enqueue(cmd.room, () => removeRoom(cfg, cmd.room));
@@ -51,6 +71,14 @@ async function main() {
         console.log(`[restart] ${cmd.room}`);
         enqueue(cmd.room, () => restartRoom(cfg, cmd.room).catch((e) => console.error(`[restart] ${cmd.room}: ${e.message}`)));
         break;
+      case "inspect":
+        // In the room's queue, so it never races a build of the same room for the disk.
+        enqueue(cmd.room, () =>
+          inspect(cfg, cmd.repo, cmd.ref, cmd.path)
+            .then((findings) => link.send({ type: "inspected", requestId: cmd.requestId, findings }))
+            .catch((e) => link.send({ type: "inspected", requestId: cmd.requestId, error: (e as Error).message })),
+        );
+        break;
       case "get_logs":
         // Not queued: reading logs never waits behind a build.
         roomLogs(cfg, cmd.room, cmd.kind, cmd.lines)
@@ -58,7 +86,7 @@ async function main() {
           .catch((e) => link.send({ type: "logs", requestId: cmd.requestId, room: cmd.room, text: "", error: (e as Error).message }));
         break;
     }
-  }, () => void sendSnapshot());
+  }, () => void sendSnapshot(), () => builds.ids());
 
   await watchRoomEvents(cfg.houseId, (e) => {
     console.log(`[event] ${e.room}: ${e.event}`);

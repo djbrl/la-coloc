@@ -1082,6 +1082,8 @@ Then Jib's review, the same day:
 - **A city up late.** Lots of lit windows in a few colours and a soft yellow gradient rising from the street in front of
   each row of buildings, so each row stands out from the one behind. A few windows on the picture go on and off, by
   opacity only.
+- **English first, a plain door.** The site starts in English unless this browser chose French (it no longer follows the
+  browser's language). The sign's button says "Sign in with GitHub", and the yellow sticker is gone.
 - **What they talk about.** Four short exchanges on building things together and tech news, not on life in the flat.
   All three lines come from the same exchange, so it reads as a conversation.
 - **A softer lamp.** We tried lighting the room only from the computers' blue; the warm lamp was better. It stays, dimmer
@@ -1092,4 +1094,133 @@ Then Jib's review, the same day:
 - **Dark-skinned flatmates, with no new art.** Kenney's people all paint themselves from one atlas with three columns of
   skin side by side. The flatmates get a copy of it with all three painted one deep brown (`deepSkinAtlas`); the city's
   people keep the original. The render script paints the same numbers.
+
+### Fewer words, and a calmer first minute (31 October, branch `landing-polish`)
+
+Jib's review before deploying: too much on screen, too many sentences.
+
+- **Name tags that blinked.** A tag behind a nearer one fades back and drops its house chip, so it gets narrower. Measured
+  as drawn, that made it stop overlapping, come back, overlap again, and loop. Now a tag is always measured at its full
+  width (`TagLayer.widthOf`), a faded tag needs 14 px clear around it to come back, and it counts as 2 m further away when
+  deciding who's nearest (`tags.ts`). Standing in Dakar for 40 s, counted in the browser: 136 flips before, 4 after.
+- **Nothing until the welcome ends.** While the visitors' welcome is up the city is alone on screen, the top bar included.
+  It got shorter, and its new last step shows the basic keys and `?`. The quest says the same in its walking step, and
+  `?` is there from that step on. `?` is the first of the idle tips for anyone who skipped.
+- **The keys work on arrival.** Someone who had already read the welcome had to click before the keys did anything: the
+  city only counted as touched by a click or a closing card. Now arriving counts too (`Lobby.keysOnArrival`), without
+  moving the focus, so no ring appears and Tab still starts at the top of the page.
+- **Search is one key.** It opens the field on press, or with F; results come once you type: cities, people in this lobby
+  (`Lobby.peopleHere`), houses. A city's name no longer lists all its houses, since it has its own row.
+- **The keys are behind `?`.** The legend along the bottom is gone (`KeyLegend.vue` too), and so are the red buttons
+  bottom right: the chat has the board, the big map has the arena, the top bar has your house. Touch screens keep the two
+  turning keys, having no Q and R.
+- **Offline is one small key** in the top bar's row, at the same top and height as the bar's keys: a dot, the word, Retry.
+- **Windows have no square behind them.** The red line is the window's edge now, with its corners, and the board colour
+  behind it is gone (`.sign`, `.sign-frame`, `dialog.step-sign`).
+- **A scroll area's focus ring goes inside it**, because whatever holds it clips anything outside.
+- **The loading screen is plain red** with one white window in the middle: the name, the greeting, the row of lit windows.
+  The four city pictures it used are deleted. It covers the top bar too.
+- **Words.** Sentences that explained became short lines or nothing, in English and French together, across the HUD,
+  cards, arena, welcome, quest, settings and the house's panels.
+
+
+## 31 Oct 2026: end to end, the house and the failed build (branch `landing-polish`)
+
+Jib went through the whole thing on the live site and came back with nine screens.
+
+- **No Dockerfile needed.** Builds used to stop with "Cannot locate specified Dockerfile". `apps/agent/src/recipe.ts`
+  looks at the folder and writes a small Dockerfile for Node (npm, yarn, pnpm, with or without a build step), a site built
+  to `dist`, `build` or `out`, Python (Django, FastAPI, Flask, a plain script), Go, PHP or a plain `index.html`. A repo's
+  own Dockerfile always wins. It's still Docker underneath, so the room's walls don't change. We chose this over Nixpacks
+  (maintenance mode) and Railpack (its successor, a Go program with BuildKit) because it adds no dependency and fits in one
+  file anyone can read; Railpack is the swap if stacks pile up. All six stacks were really built and run with the room's
+  limits (read-only disk, nobody, no capabilities, 256 MB).
+- **People are told** in three places: a line over the repo list, the hint on the Code tab, and the failure itself, which
+  names what we can read.
+- **A failed build has a way out.** `buildTrouble` (`room/room.ts`) reads what the caretaker said and picks one plain
+  sentence on what to do. The quest's card and the room's Overview both offer the whole log, another project and another
+  try. The API now hands the tutorial's room its `log` as well as its first line.
+- **A house opens on its floor plan** (`house/FloorPlan.vue`): one square per room with who's there, what they're making
+  and what they pay, and along the top the rooms, the free ones and the month's total. People have their own tab, and
+  pressing someone gives Chat, GitHub and Project. The foot stays out of the way on the chat tab, so the chat gets the full
+  height. `Crew.vue` is gone. The workshop has no real bill, so it shows what a medium server costs (`houseCost`).
+- **The first rent is simulated** in the quest, just before the keys (`KeysCard.vue`), and says so: nothing is sent.
+- **A room says one thing.** Three numbers, then the next step: choose your code, put it online, or update. A house whose
+  server isn't connected says only that, with the way forward for its chef. The manage view tells the web `house.chef`,
+  because a chef who lives in the room comes back as `as: "flatmate"`.
+- **Renting a server is the whole flow, with a fake payment.** Jib's call: "a complete fake payment, just to have the true
+  flow in place". Pick a size, pay the first month, and the server comes by itself; nobody sees a command. Two small files
+  stand in for what comes later. `houses/payment.ts` is the one door money goes through: it always succeeds and moves
+  nothing, and the screens say so. `houses/landlord.ts` stands in for a hosting provider: it starts the house's caretaker
+  on this machine, at most three (`COLOC_LANDLORD_MAX`), only when the launcher turns it on, and with none of the API's own
+  secrets in its environment. Each house's key is worked out from its id and never stored, so the caretakers come back
+  after a restart. When there's no machine to give, no money is taken and the dialog says so. A real provider replaces the
+  inside of `takePayment` and `start`. "I have my own server" keeps the one-command path. A house the landlord hosts moves
+  to `<id>.coloc.localhost`, since `<id>.coloc.dev` means nothing on a laptop.
+- **Tried for real** on a throwaway database with the real API and caretaker: pay, house goes live by itself, the bill shows
+  the month paid, a second house is refused without paying, a plain site and a Node app with no Dockerfile build and answer
+  through the proxy, an empty repo fails saying why, and the caretaker returns after an API restart.
+- **Fewer lines.** No side stripe on the picked repo, no rule between rows anywhere (`--row-line` is gone). Log out is the
+  last thing in Settings, on its own tile. The trail of stamps left the welcome-home card.
+
+## 1 Nov 2026: the rehearsal on a real server
+
+Everything so far had only run on one laptop. `deploy/` puts the whole city on a fresh Ubuntu server with one command, and
+the rehearsal ran on a separate 4 GB DigitalOcean droplet, not the 1 GB one already running other projects. The contest
+needs Datacloud in the end, so nothing in `deploy/` knows about DigitalOcean.
+
+- **Why Caddy as well as Traefik.** Traefik stays what it is, the rooms' router, reading the caretakers' files. Caddy
+  serves the site and makes certificates, which took about ten lines. The room code didn't change.
+- **Tried for real, through the public address:** a room built from the starter and opened over HTTPS, a fake payment
+  brought a house online with its caretaker, and everything came back after a reboot. Inside a room: read-only disk, root
+  remapped (uid 1000 inside is 101000 outside), no internet, no database, no metadata service. A second install left the
+  data alone.
+- **A bug only a real server could show.** To keep builds away from other machines on the cloud's private network, the
+  firewall blocks `10.0.0.0/8`. DigitalOcean's DNS lives there, so builds lost DNS: anything running `npm install` would
+  have failed, while the starter, which installs nothing, built fine. Containers now use public DNS. A check that should
+  have passed failed, which also showed the other "blocked" results in that check proved nothing yet; they were redone
+  with addresses that must work beside the ones that mustn't.
+- **Not tried yet, that first day:** GitHub sign-in and a real repo on the server. Jib did both in the test below.
+
+## 1 Nov 2026: after the first real test
+
+Jib used the rehearsal server as a stranger would, with a real GitHub login and their own portfolio, then listed what was wrong.
+
+- **Fake credit.** Everyone starts with 15 000 FCFA of credit. A server's first month, rent and a project's first time online (1 000) spend it; a review (+500) and first place in the Arena (the challenge's prize) earn it. One server and three projects a person, so nobody takes too much space. `credit_entries` holds the history, and its unique `key` stops anything being paid twice. Amounts are ours to change.
+- **Character creation** comes at first login and after a demo reset, followed by the award.
+- **The log window.** A build's lines travel caretaker → API → window as they're printed, in small batches, and the window asks about once a second while it's open (`BuildLog.vue`). They're kept in the API's memory, within limits; the end of a failed build is also in the database.
+- **Reading a project first.** Before building, the caretaker clones the repo and reports how it would run it, its port and where that came from, the settings its env example names, and what would get in its way (`inspect.ts`). It reads plain small files only: a file in a stranger's repo can be a link to something on our machine. Any Git host works, because it's the caretaker that clones.
+- **Docker images.** A room's source can be `docker://name:tag`: pulled and run inside the same walls as any room, thrown away if over 2 GB.
+- **Nuxt.** Its own server now runs. A config built for someone's cloud makes something only that cloud can run, so those go online as plain pages (`nuxt generate`). Jib's portfolio was the case that showed this.
+- **A demo reset left caretakers behind.** A deleted house's caretaker kept phoning in, refused, about once a second, and held its place on the machine. The landlord now stops it after a moment, and a caretaker refused at once keeps slowing down instead of resetting its wait.
+- **The house window.** Room tiles say whose room, their GitHub name, the project, its description. Pressing one opens a full page (`RoomDetails`). Waving is gone: it's Chat if you live there, Knock or a chat request if not. A full house lets outsiders ask to join its chat (`house_guests`, migration 0019).
+- **The quest.** The tracker is a slim pill. L'Atelier is the host, two learners and you, and your first message gets a scripted answer. The quest's last card says well done and only the city's says welcome. Tips no longer pop up on their own: a locked walkthrough shows the controls at the start and the new screen on reaching the city (`tour.ts`).
+- **A failed build never reaches the screen.** The banner told the whole city. Flatmates get `build_failed` under the bell, except whoever ran it.
+- **Checked on the server afterwards, and what that found.** A throwaway user on the droplet rented a house, paid from credit, built Jib's portfolio (88 s, live over HTTPS) and a Docker image, and hit the credit stop at 0. Then a throwaway copy of the city with its own database, deleted after, let us press through the screens. It found five things the tests hadn't:
+  - A repo whose default branch isn't `main` failed to clone unless you pressed Check first. A room with no branch now clones the repo's own default.
+  - "Save and build" didn't open the log window, and "Put online" stayed the main button during a build. Both fixed.
+  - Every full house in the seeded city is an example house, and those refused chat requests, so nobody in the demo could see the button Jib asked for. An example house's host now lets you straight in with a line.
+  - The API restarting takes the landlord's caretakers with it, and a build they were on said "starting" until a 15-minute timeout. A caretaker now says what it's still building when it reconnects (`hello.building`), and the API fails the rest with a plain reason and Try again.
+  - A live room with no name said "No project yet". It now goes by its repo or image until named.
+- **The landlord key.** A check printed `COLOC_LANDLORD_KEY` into a Claude session's output. It was replaced on the server the same hour, before any real paid house depended on it. Lesson: on a server, list setting names with `sed 's/=.*//'`, never a grep of the values.
+- **Known overlap:** a review takes 500 off the rent and also earns 500 credit; an Arena prize does the same. The bill's sums were left alone.
+
+## 2 Nov 2026: after the second real test
+
+Jib tested the droplet again and sent a long list. Four agents built it in parallel on separate files, then the lead read the risky code and checked the screens on a throwaway copy on the server.
+
+- **First minutes:** a "Welcome to La Coloc" door before the character, a counted-up credit award, a share card with room to breathe and a "Tell the house" key, and four city missions in a collapsible checklist. Jib wrote "3 missions" and listed four: all four are in. "Talk to a stranger" also counts the city chat, because most people in an empty demo city are seeded and can't be messaged, and the mission could never be finished alone.
+- **Upload a project:** the Check button is gone. See "Uploading a project" in architecture.md.
+- **People:** Chat is the first key on every person, greyed out for seeded ones. Invitations work on someone who already has a house. GitHub names are links, for real accounts only.
+- **Rooms:** several rooms, ending a lease, and "Connect your server" removed from the rent window. The API route stays for laptop development.
+- **Share pages:** a real page saying "Join X on La Coloc", no longer a redirect.
+
+**Checked on the server:** the welcome, the award, the log opening by itself in the quest, a repo read and built, a Docker Hub image read, a real Cancel (no build process left on the machine), take, leave and claim with the bill unchanged at each step, a half-set-up house opening on Pay, a seeded person's card, the missions ticking, the share page, the knock window's picker. GitHub's list itself was faked in the browser for the screens, since the throwaway copy has no App; its code is covered by tests.
+
+**Found and fixed while checking:**
+- A build still running when someone left could start in the room after the next person had claimed it: leaving now cancels the build first. If the caretaker was offline, its first report clears the last tenant's container.
+- `FROM --platform=$BUILDPLATFORM` failed with an unreadable error, since Docker's classic builder has no such variable: the flag is removed before building (`onePlatform`).
+- The build log's "Another project" on a room led to the same project: it now says "Fix the setup".
+
+**Known limits:** a pnpm lockfile older than pnpm's current format fails at install, with pnpm's own message. A freed room keeps its name, even when that's the last tenant's login, because it's the room's address. Missions are saved per browser.
 

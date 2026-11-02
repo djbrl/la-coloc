@@ -32,6 +32,9 @@ const NOTES = {
   reviewLate: "{name} hasn't reviewed {ref} yet. It was due {hours}h after it opened.",
   paidBill: "{name} paid their part of this month's bill.",
   firstProject: "{name} put their first project online. Welcome!",
+  tookRoom: "{name} took another room.",
+  endedLease: "{name} ended their lease. A room is free.",
+  newChef: "{name} is the house's chef now.",
 } as const;
 
 const KNOCK = {

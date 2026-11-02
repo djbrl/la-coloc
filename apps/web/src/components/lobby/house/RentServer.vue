@@ -1,12 +1,16 @@
 <script setup lang="ts">
-// Renting the house's server, one step at a time: pick a size, run one command on the server, then wait for it
-// to call home. A native <dialog>, like the knock and rent-a-plot steps: it traps focus and closes on Escape.
+// Renting the house's server, one step at a time: pick a size, pay the first month from your credit (fake money), and
+// the server comes by itself (apps/api/src/houses/landlord.ts). A native <dialog>, like the knock and rent-a-plot steps: it traps focus and closes on Escape.
 // It reads like a game's menu: a short bold title per step, big tiles to pick from, chunky buttons with one main one.
-import { onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { downWords, wentDown } from "../../../core";
+import { refusalText } from "../../../refusals";
+import { loadMe, me } from "../../../session";
+import { shortBy } from "../../credit";
 import { joinWords, rentWords as w } from "../../joinWords";
 import UiSteps from "../../UiSteps.vue";
 import { explain } from "../panel/words";
+import CreditAfter from "./CreditAfter.vue";
 import Icon from "./Icon.vue";
 import { fcfa, type PlanId, plans } from "./server";
 
@@ -14,36 +18,45 @@ const props = defineProps<{
   houseId: string;
   // The house stream says the server is up: the parent passes it down so step 3 can finish itself.
   live: boolean;
-  // The key was already made (the command was shown before): start at the waiting step.
+  // Paid for already, and on its way: start at the last step.
   resume?: boolean;
+  // A key was made but nothing paid: a house left half-way by the old way in, where a command with the key in it was
+  // shown on screen. It opens on the pay step, and paying replaces that key, so the one that was shown stops working.
+  keyMade?: boolean;
+  // The size picked back then.
+  plan?: PlanId | null;
 }>();
 const emit = defineEmits<{ close: [] }>();
 
 const dialog = ref<HTMLDialogElement | null>(null);
-const step = ref(props.resume ? 3 : 1);
-const plan = ref<PlanId>("medium");
-const command = ref("");
+const step = ref(props.resume ? 3 : props.keyMade ? 2 : 1);
+const plan = ref<PlanId>(props.plan ?? "medium");
 const error = ref("");
-// A key exists already (409): offer to make a new one, which replaces the old.
-const keyExists = ref(false);
+const renew = ref(!!props.keyMade);
 const sending = ref(false);
-const copied = ref(false);
+// What it costs, whether you can pay, whether a server is coming by itself, and whether you've one already.
+const price = computed(() => plans.find((p) => p.id === plan.value)!.fcfa);
+const short = computed(() => shortBy(me.value?.credit, price.value));
+const paid = ref(false);
+const noneFree = ref(false);
+// One server a person: the house you already run it in, as the API names it.
+const runs = ref<{ id: string; name: string } | null>(null);
+// Long enough to read "Paying…": a real payment takes longer than this one.
+const PAYING_MS = 1100;
 
-onMounted(() => dialog.value?.showModal());
-
-// Mirrors session.ts's postJSON, but keeps the status code: a 409 means "a key exists" and gets its own button.
-async function rent(renew: boolean) {
-  if (sending.value) return;
-  error.value = "";
-  keyExists.value = false;
+async function pay() {
+  if (sending.value || short.value) return;
+  clearRefusal();
   sending.value = true;
-  const res = await fetch(`/api/houses/${encodeURIComponent(props.houseId)}/server`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(renew ? { plan: plan.value, renew: true } : { plan: plan.value }),
-  }).catch(() => null);
+  const [res] = await Promise.all([
+    fetch(`/api/houses/${encodeURIComponent(props.houseId)}/server/pay`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan: plan.value, ...(renew.value ? { renew: true } : {}) }),
+    }).catch(() => null),
+    new Promise((done) => setTimeout(done, PAYING_MS)),
+  ]);
   sending.value = false;
-  // The core isn't answering: nothing was made, and the size you picked is still picked.
   const down = await wentDown(res);
   if (down) {
     error.value = downWords.write;
@@ -51,24 +64,37 @@ async function rent(renew: boolean) {
   }
   const data = await res?.json().catch(() => ({}));
   if (!res?.ok) {
-    keyExists.value = res?.status === 409;
-    error.value =
-      typeof data?.message === "string" ? data.message : res?.status === 404 ? w.notOpen : joinWords.didntWork;
+    // A key turned up since this window opened (another tab): nothing was taken, and paying replaces it.
+    if (res?.status === 409 && !data?.code && !renew.value) {
+      renew.value = true;
+      return pay();
+    }
+    noneFree.value = data?.code === "no_server";
+    runs.value = data?.code === "server_limit" ? (data.house ?? null) : null;
+    error.value = noneFree.value ? w.noneFree : runs.value ? w.atLimit(runs.value.name) : typeof data?.message === "string" ? refusalText(data) : joinWords.didntWork;
+    // Short after all (spent in another tab): this step shows it from the balance.
+    if (data?.code === "no_credit") void loadMe();
+    // The pay button has made way for the way out: the focus goes there.
+    await nextTick();
+    dialog.value?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     return;
   }
-  command.value = data.command;
-  step.value = 2;
+  void loadMe();
+  paid.value = true;
+  step.value = 3;
 }
 
-async function copy() {
-  try {
-    await navigator.clipboard.writeText(command.value);
-    copied.value = true;
-    setTimeout(() => (copied.value = false), 2000);
-  } catch {
-    error.value = w.copyByHand;
-  }
+function clearRefusal() {
+  error.value = "";
+  noneFree.value = false;
+  runs.value = null;
 }
+
+// It may open on any step: the focus starts where that step wants it.
+onMounted(() => {
+  dialog.value?.showModal();
+  dialog.value?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+});
 
 // The sizes are one radio group: the arrow keys move the choice, as in any radio group, and the focus follows it.
 const planButtons: HTMLButtonElement[] = [];
@@ -86,13 +112,6 @@ function onClick(e: MouseEvent) {
   if (e.target === dialog.value) dialog.value?.close();
 }
 
-// Lost the command? Back to the start, where "Make a new key" replaces the old one.
-function startOver() {
-  step.value = 1;
-  keyExists.value = true;
-  error.value = "";
-}
-
 // The server called home while we were waiting: move focus to "Server up" so readers hear it too. `post`: the
 // heading only exists once Vue has drawn the new state.
 watch(
@@ -108,7 +127,7 @@ watch(
       <button type="button" class="x" :aria-label="step === 3 ? w.laterEsc : joinWords.cancel" @click="dialog?.close()"><span aria-hidden="true">X</span></button>
 
       <UiSteps :step="step" :total="3">
-        <form v-if="step === 1" class="form" novalidate @submit.prevent="rent(keyExists)">
+        <form v-if="step === 1" class="form" novalidate @submit.prevent="step = 2">
           <h2>{{ w.pickTitle }}</h2>
           <p class="muted">{{ explain.bill }}</p>
           <div class="plans" role="radiogroup" :aria-label="w.sizeLabel">
@@ -129,46 +148,50 @@ watch(
               <span class="plan-ic"><Icon name="server" :size="20" /></span>
               <span class="size">{{ w.plans[p.id] }}</span>
               <span class="spec">{{ w.spec(p.vcpu, p.gb) }}</span>
-              <span class="price">{{ fcfa(p.fcfa) }}<span class="per">{{ w.aMonth }}</span></span>
+              <span class="price" :class="{ dear: shortBy(me?.credit, p.fcfa) > 0 }">{{ fcfa(p.fcfa) }}<span class="per">{{ w.aMonth }}</span></span>
               <span v-if="plan === p.id" class="picked" aria-hidden="true"><Icon name="tick" :size="14" /></span>
             </button>
           </div>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <button class="primary" :disabled="sending">
-              <Icon :name="keyExists ? 'key' : 'server'" :size="20" />{{ sending ? w.renting : keyExists ? w.newKeyLong : w.rentIt }}
-            </button>
+            <button class="primary"><Icon name="next" :size="20" />{{ w.rentIt }}</button>
           </div>
         </form>
 
-        <div v-else-if="step === 2" class="form">
-          <h2>{{ w.runTitle }}</h2>
-          <p class="muted">{{ w.runWhy }}</p>
-          <pre class="code" tabindex="0" data-autofocus :aria-label="w.commandLabel"><code>{{ command }}</code></pre>
+        <form v-else-if="step === 2" class="form pay" novalidate @submit.prevent="pay">
+          <h2>{{ w.payTitle }}</h2>
+          <p class="amount"><strong>{{ fcfa(price) }}</strong></p>
+          <p class="muted">{{ w.spec(plans.find((p) => p.id === plan)!.vcpu, plans.find((p) => p.id === plan)!.gb) }}. {{ w.payWhy }}</p>
+          <CreditAfter :price="price" />
           <p v-if="error" class="error" role="alert">{{ error }}</p>
-          <div class="nav">
-            <button type="button" class="second" @click="copy">
-              <Icon :name="copied ? 'tick' : 'copy'" :size="20" />{{ copied ? w.copied : w.copy }}
-            </button>
-            <button type="button" class="primary" @click="step = 3"><Icon name="next" :size="20" />{{ w.running }}</button>
+          <!-- No way to pay here: the one way out instead. -->
+          <div v-if="runs" class="nav">
+            <RouterLink :to="`/houses/${runs.id}`" class="button primary" data-autofocus>{{ w.goThere(runs.name) }}</RouterLink>
           </div>
-        </div>
+          <div v-else-if="noneFree" class="nav">
+            <button type="button" class="primary" data-autofocus @click="dialog?.close()">{{ w.close }}</button>
+          </div>
+          <div v-else class="nav">
+            <button type="button" class="second" :disabled="sending" @click="clearRefusal(); step = 1">{{ joinWords.back }}</button>
+            <button class="primary" data-autofocus :disabled="sending || short > 0">{{ sending ? w.paying : w.payIt(fcfa(price)) }}</button>
+          </div>
+        </form>
 
         <div v-else class="form wait" aria-live="polite">
           <template v-if="live">
-            <span class="ring on" aria-hidden="true"><Icon name="tick" :size="28" /></span>
             <h2 autofocus data-autofocus tabindex="-1">{{ w.upTitle }}</h2>
+            <span class="ring on" aria-hidden="true"><Icon name="tick" :size="28" /></span>
             <p class="muted">{{ w.upWhy }}</p>
             <div class="nav">
               <button type="button" class="primary" @click="dialog?.close()"><Icon name="tick" :size="20" />{{ w.done }}</button>
             </div>
           </template>
           <template v-else>
+            <h2 autofocus data-autofocus tabindex="-1">{{ w.settingUpTitle }}</h2>
             <span class="ring spin" aria-hidden="true" />
-            <h2 autofocus data-autofocus tabindex="-1">{{ w.waitTitle }}</h2>
-            <p class="muted">{{ w.waitWhy }}</p>
+            <p class="muted">{{ w.settingUpWhy }}</p>
+            <p v-if="paid" class="muted small">{{ w.paidLine(fcfa(price)) }}</p>
             <div class="nav">
-              <button type="button" class="second" @click="startOver"><Icon name="key" :size="20" />{{ w.newKey }}</button>
               <button type="button" class="primary" @click="dialog?.close()">{{ w.later }}</button>
             </div>
           </template>
@@ -222,32 +245,28 @@ watch(
 /* The machine's numbers and its price: the monospace, like a cloud provider's plan table. */
 .spec { font: 600 14px/1.25 var(--num); color: var(--muted); }
 .price { display: grid; font: 800 15px/1.25 var(--num); font-variant-numeric: tabular-nums; }
+/* More than you have: it's still there to pick, and the next step says what to do. */
+.price.dear { color: var(--danger); }
 .per { display: block; font-size: 14px; font-weight: 600; color: var(--muted); }
 .picked { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); }
 
-.code {
-  margin: 0;
-  max-height: 30vh;
-  overflow-y: auto;
-  padding: 16px 18px;
-  border-radius: var(--r-md);
-  background: var(--code-bg);
-  color: var(--code-text);
-  font-family: var(--code);
-  font-size: 14px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  user-select: all;
-}
+/* The first month: the amount, what it does to your credit, one button. */
+.pay { justify-items: stretch; }
+.amount strong { font: 400 44px/1.05 var(--display); color: var(--panel-red); white-space: nowrap; }
+/* The amount on the button is long: it keeps to the card, however narrow, and Back stays its size. */
+.pay .nav .second { flex: none; }
+.pay .nav .primary { flex: 1 1 0; min-width: 0; padding: 0 10px; font-size: clamp(16px, 4.6vw, 20px); white-space: nowrap; }
+
+.small { font-size: 14px !important; }
 
 /* Chunky buttons, as in a game's menu: the main one in the accent and as wide as it can be, the other in grey. */
 .nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.nav button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; white-space: nowrap; }
-.nav .primary { flex: 1 1 auto; min-height: 60px; font-size: 22px; }
+.nav button, .nav a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; white-space: nowrap; }
+.nav .primary { flex: 1 1 auto; min-height: 60px; font-size: 22px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .wait { justify-items: center; text-align: center; }
-.wait h2 { padding: 0; }
+/* The title stays the card's red band, as on the steps before it. */
+.wait h2 { justify-self: stretch; text-align: left; }
 .wait .nav { justify-self: stretch; }
 .ring { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; }
 .ring.on { background: var(--live-soft); color: var(--live); }
@@ -271,7 +290,6 @@ watch(
 /* A short window (a landscape phone, a small laptop): tighter, so every step fits without scrolling. */
 @media (max-height: 640px) {
     .form { gap: 10px; }
-  .code { max-height: 22vh; }
   .nav { margin-top: 0; }
 }
 @media (prefers-reduced-motion: reduce) {

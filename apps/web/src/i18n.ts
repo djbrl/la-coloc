@@ -5,19 +5,13 @@
 // `defineWords` gives back one object that answers in the language chosen now; Vue tracks that choice, so every
 // template and computed that reads a word redraws when the language changes.
 //
-// The language: what this browser chose in settings, else the browser's own language (any "fr…" is French,
-// everything else English). `<html lang>` follows it, for screen readers and the browser's hyphenation.
+// The language: what this browser chose, else English. `<html lang>` follows it, for screen readers and the browser's hyphenation.
 import { reactive, watchEffect } from "vue";
 
 export type Lang = "en" | "fr";
 export const LANGS: readonly Lang[] = ["en", "fr"];
 
 const KEY = "coloc.lang";
-
-/** The language a browser's language tag asks for: "fr", "fr-SN", "fr-CI"… are French; anything else is English. */
-export function langFrom(tag: string | null | undefined): Lang {
-  return /^fr\b/i.test(tag ?? "") ? "fr" : "en";
-}
 
 // The choice saved in this browser, or null when there's none (or no storage: private mode, a sandbox).
 function saved(): Lang | null {
@@ -29,9 +23,9 @@ function saved(): Lang | null {
   }
 }
 
-/** The language at start: the saved choice, else the browser's language. */
-export function startingLang(nav: Pick<Navigator, "language"> | undefined = typeof navigator === "undefined" ? undefined : navigator): Lang {
-  return saved() ?? langFrom(nav?.language);
+/** The language at start: the saved choice, else English. */
+export function startingLang(): Lang {
+  return saved() ?? "en";
 }
 
 export const language = reactive<{ lang: Lang }>({ lang: startingLang() });

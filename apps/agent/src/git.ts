@@ -32,9 +32,10 @@ export function resolveInside(root: string, sub: string): string {
   return resolved;
 }
 
-function run(cmd: string, args: string[], cwd?: string): Promise<string> {
+// With a signal, aborting it kills the child, and the promise rejects.
+export function run(cmd: string, args: string[], cwd?: string, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+    const child = spawn(cmd, args, { cwd, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
     let out = "";
     let err = "";
     child.stdout.on("data", (d) => (out += d));
@@ -47,17 +48,20 @@ function run(cmd: string, args: string[], cwd?: string): Promise<string> {
 export interface Checkout {
   dir: string;
   sha: string;
+  branch: string;
   cleanup: () => Promise<void>;
 }
 
-export async function shallowClone(workDir: string, repo: string, ref: string, allowLocal: LocalRepos = false): Promise<Checkout> {
+// No ref: the repo's default branch.
+export async function shallowClone(workDir: string, repo: string, ref: string | undefined, allowLocal: LocalRepos = false, signal?: AbortSignal): Promise<Checkout> {
   assertSafeRepo(repo, allowLocal);
-  assertSafeRef(ref);
+  if (ref) assertSafeRef(ref);
   const dir = await mkdtemp(path.join(workDir, "checkout-"));
   try {
-    await run("git", ["clone", "--quiet", "--depth", "1", "--branch", ref, "--", repo, dir]);
+    await run("git", ["clone", "--quiet", "--depth", "1", ...(ref ? ["--branch", ref] : []), "--", repo, dir], undefined, signal);
     const sha = await run("git", ["rev-parse", "HEAD"], dir);
-    return { dir, sha, cleanup: () => rm(dir, { recursive: true, force: true }) };
+    const branch = ref ?? (await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], dir));
+    return { dir, sha, branch, cleanup: () => rm(dir, { recursive: true, force: true }) };
   } catch (e) {
     await rm(dir, { recursive: true, force: true });
     // Never echo the URL back: it may carry a GitHub token.

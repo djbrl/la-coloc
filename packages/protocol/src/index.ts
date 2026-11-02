@@ -25,7 +25,8 @@ export const DeployCommand = z.object({
   kind: DeployKind,
   // Any URL git can clone. For private GitHub repos the API embeds a short-lived token.
   repo: z.string().min(1),
-  ref: z.string().min(1).default("main"),
+  // No ref: the repo's default branch.
+  ref: z.string().min(1).optional(),
   // Sub-folder holding the Dockerfile, for monorepos.
   path: z.string().default("."),
   // Port the app listens on inside its container. Falls back to the image's EXPOSE, then 3000.
@@ -65,7 +66,29 @@ export const GetLogsCommand = z.object({
 });
 export type GetLogsCommand = z.infer<typeof GetLogsCommand>;
 
-export const ApiToAgent = z.discriminatedUnion("type", [DeployCommand, RemoveRoomCommand, RestartRoomCommand, RemovePreviewCommand, GetLogsCommand]);
+// Asks what a project is, before anything is built. The agent answers with an `inspected` message.
+export const InspectCommand = z.object({
+  type: z.literal("inspect"),
+  requestId: z.string().min(1).max(64),
+  room: RoomName,
+  repo: z.string().min(1),
+  // Left out: the repo's default branch.
+  ref: z.string().min(1).optional(),
+  path: z.string().default("."),
+});
+export type InspectCommand = z.infer<typeof InspectCommand>;
+
+// Stops the build running (or waiting) in a room. The deployment then ends as failed, with BUILD_CANCELLED as its detail.
+export const CancelBuildCommand = z.object({
+  type: z.literal("cancel_build"),
+  room: RoomName,
+});
+export type CancelBuildCommand = z.infer<typeof CancelBuildCommand>;
+
+// What a cancelled deployment says, so the API and the room page can tell it from a real failure.
+export const BUILD_CANCELLED = "Build cancelled.";
+
+export const ApiToAgent = z.discriminatedUnion("type", [DeployCommand, RemoveRoomCommand, RestartRoomCommand, RemovePreviewCommand, GetLogsCommand, InspectCommand, CancelBuildCommand]);
 export type ApiToAgent = z.infer<typeof ApiToAgent>;
 
 // ---- agent → API ----
@@ -75,6 +98,8 @@ export const Hello = z.object({
   houseId: z.string().min(1),
   secret: z.string().min(1),
   agentVersion: z.string(),
+  // The builds it's on or has waiting, so the API can give up on any others: they died with an earlier caretaker.
+  building: z.array(z.string()).optional(),
 });
 export type Hello = z.infer<typeof Hello>;
 
@@ -87,6 +112,15 @@ export const DeployStatus = z.object({
   url: z.string().optional(),
 });
 export type DeployStatus = z.infer<typeof DeployStatus>;
+
+// What a build prints, as it prints it, for the log window.
+export const DeployLog = z.object({
+  type: z.literal("deploy_log"),
+  deployId: z.string(),
+  room: RoomName,
+  lines: z.array(z.string().max(4000)).max(500),
+});
+export type DeployLog = z.infer<typeof DeployLog>;
 
 export const UsageSample = z.object({
   room: RoomName,
@@ -137,7 +171,29 @@ export const Logs = z.object({
 });
 export type Logs = z.infer<typeof Logs>;
 
-export const AgentToApi = z.discriminatedUnion("type", [Hello, DeployStatus, Usage, RoomEvent, RoomsSnapshot, Logs]);
+// What reading a project found: how we'd run it (null: no idea), its port and where that came from, the settings it
+// expects, what might get in its way, and where a runnable project is when it isn't in the folder asked.
+export const Findings = z.object({
+  branch: z.string(),
+  sha: z.string(),
+  stack: z.enum(["dockerfile", "node", "python", "go", "php", "static"]).nullable(),
+  port: z.number().int().nullable(),
+  portFrom: z.enum(["dockerfile", "env", "package", "compose", "readme"]).nullable(),
+  env: z.array(z.string()),
+  flags: z.array(z.enum(["noRunner", "noFolder", "forCloud", "wantsDatabase", "wantsInternet"])),
+  folders: z.array(z.string()),
+});
+export type Findings = z.infer<typeof Findings>;
+
+export const Inspected = z.object({
+  type: z.literal("inspected"),
+  requestId: z.string().min(1).max(64),
+  findings: Findings.optional(),
+  error: z.string().optional(),
+});
+export type Inspected = z.infer<typeof Inspected>;
+
+export const AgentToApi = z.discriminatedUnion("type", [Hello, DeployStatus, DeployLog, Inspected, Usage, RoomEvent, RoomsSnapshot, Logs]);
 export type AgentToApi = z.infer<typeof AgentToApi>;
 
 export function parseApiToAgent(raw: string): ApiToAgent {

@@ -10,6 +10,7 @@ import { loadAuthConfig } from "../auth/auth.config";
 import { AuthController } from "../auth/auth.controller";
 import { AuthService, SESSION_COOKIE } from "../auth/auth.service";
 import type { GithubAppClient } from "../github/github.client";
+import { GithubRepos } from "../github/repos.service";
 import { MembershipsService } from "../auth/memberships.service";
 import { CityController } from "../houses/houses.controller";
 import { HousesService } from "../houses/houses.service";
@@ -106,7 +107,7 @@ describe("taking a room in the workshop", () => {
     const ms = await db.select().from(memberships).where(and(eq(memberships.houseId, "atelier"), eq(memberships.userId, fatou.id)));
     expect(ms.map((m) => m.role)).toEqual(["flatmate"]);
 
-    expect((await tutorial.state(req)).room).toEqual({ name: "fatou", status: "empty", url: null, why: null });
+    expect((await tutorial.state(req)).room).toEqual({ name: "fatou", status: "empty", url: null, why: null, log: null });
   });
 
   it("doesn't take an example room for the newcomer's, even when they log in as one of the learners", async () => {
@@ -268,7 +269,7 @@ describe("putting the sample online", () => {
       expect((await tutorial.state(req)).room!.status).toBe(step);
     }
     await houses.recordDeployStatus("atelier", { type: "deploy_status", deployId: id, room: "fatou", status: "live", url: "http://fatou.atelier.coloc.localhost" });
-    expect((await tutorial.state(req)).room).toEqual({ name: "fatou", status: "live", url: "http://fatou.atelier.coloc.localhost", why: null });
+    expect((await tutorial.state(req)).room).toEqual({ name: "fatou", status: "live", url: "http://fatou.atelier.coloc.localhost", why: null, log: null });
   });
 
   it("answers 409 when the workshop's server is offline", async () => {
@@ -330,13 +331,11 @@ describe("taking the tutorial again", () => {
     expect(left.map((r) => [r.name, r.demo, r.status]).sort()).toEqual([
       ["aissatou", true, "live"],
       ["babacar", true, "live"],
-      ["coumba", true, "live"],
-      ["lamine", true, "live"],
       ["ndeye", true, "live"],
     ]);
     const fatou = await user("fatou");
     const ms = await db.select().from(memberships).where(eq(memberships.houseId, "atelier"));
-    expect(ms).toHaveLength(5);
+    expect(ms).toHaveLength(3);
     expect(ms.some((m) => m.userId === fatou.id)).toBe(false);
     const state = await tutorial.state(req);
     expect(state.room).toBeNull();
@@ -409,7 +408,7 @@ describe("picking which GitHub repo to bring", () => {
       agents,
       { appId: "1", privateKey: "k", webhookSecret: "w", slug: "la-coloc-dev" },
       sample,
-      client,
+      new GithubRepos(db, houses, client, { appId: "1", privateKey: "k", webhookSecret: "w", slug: "la-coloc-dev" }),
     );
     picker = new TutorialController(service, auth);
     await db.update(users).set({ githubId: 77 }).where(eq(users.login, "fatou"));
@@ -454,6 +453,16 @@ describe("picking which GitHub repo to bring", () => {
     const inRoom = await db.select().from(repos).where(and(eq(repos.houseId, "atelier"), eq(repos.room, "fatou")));
     expect(inRoom.map((r) => [r.fullName, r.installationId])).toEqual([["fatou/api", 9]]);
     expect((await picker.repos(req)).chosen).toBe(303);
+  });
+
+  it("moves a repo out of another room of hers instead of refusing", async () => {
+    await picker.room(req, response());
+    const fatou = await user("fatou");
+    await db.insert(rooms).values({ houseId: "sacre-coeur", name: "fatou-real", occupantId: fatou.id, memoryMb: 256, cpus: 0.5, status: "empty" });
+    await db.insert(repos).values({ githubId: 301, fullName: "fatou/old", houseId: "sacre-coeur", room: "fatou-real", installationId: 9 });
+    expect(await picker.repo(req, { id: 301 })).toEqual({ repo: "fatou/old" });
+    const links = await db.select().from(repos).where(eq(repos.githubId, 301));
+    expect(links.map((r) => [r.houseId, r.room])).toEqual([["atelier", "fatou"]]);
   });
 
   it("refuses a repo she didn't allow, one in someone else's room, or a pick before taking a room", async () => {

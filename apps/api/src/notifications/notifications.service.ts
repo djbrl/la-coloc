@@ -5,28 +5,37 @@
 // conversations). An invitation is a structured action, and every notification is drawn by the web in its own words.
 //
 // Two invitations:
-// - house_invite: a flatmate offers their house's free room to someone with no house. Saying yes moves them in,
-//   through the same moveInto the doorbell uses, so the rules match a knock that the house voted for.
-// - rent_together: someone with no house asks another to rent a server together. Saying yes only tells the sender;
-//   renting is the existing flow (an empty plot, "Rent a flat"), nothing new.
+// - house_invite: a flatmate offers their house's free room to someone, housed or not. Saying yes moves them in,
+//   through the same moveInto the doorbell uses, so the rules match a knock that the house voted for. Someone who
+//   already lives elsewhere gains a room here and keeps the old one, up to MAX_ROOMS_PER_PERSON.
+// - rent_together: someone asks another to share a house, whether or not either lives somewhere already. Saying yes
+//   only tells the sender; renting is the existing flow (an empty plot, "Rent a flat"), nothing new.
 //
 // And two that team flatmates up on one room's project (teams.ts), between people of the same house:
 // - team_invite: a room's occupant asks a flatmate to join their project. Saying yes puts them on the room's team.
 // - team_ask: a flatmate asks a room's occupant to let them join it. Saying yes does the same.
 //
+// And one for a full house's group chat (askToChat), since there's no room to knock on:
+// - guest_ask: someone from outside asks to join it. Every flatmate gets one; the first answer counts for all of them.
+//
 // And news from the doorbell, through its listener: a knock on your house, and the answer to your knock.
-import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { type Db, houses, type InviteState, memberships, type NotificationKind, notifications, roomTeammates, rooms, users } from "@coloc/db";
+//
+// And a flatmate's failed build (build_failed), so you can offer a hand. Only your own house hears about it, only
+// here, and never the person who ran it: they're already looking at it.
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, notifications, roomTeammates, rooms, users } from "@coloc/db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or } from "drizzle-orm";
-import { Subject } from "rxjs";
+import { Subject, type Subscription } from "rxjs";
 import type { AuthConfig } from "../auth/auth.config";
 import { AUTH_CONFIG } from "../auth/auth.service";
 import { DB } from "../db/db.module";
 import { DoorbellService, type KnockEvent } from "../doorbell/doorbell.service";
 import { blockBetween, blockersOf } from "../doorbell/queries";
 import type { PersonView } from "../houses/house.types";
+import { guestStanding, isChatGuest } from "../houses/guests";
 import { HousesService } from "../houses/houses.service";
-import { moveInto } from "../houses/move-in";
+import { MAX_ROOMS_PER_PERSON } from "../houses/money";
+import { moveInto, roomsRented } from "../houses/move-in";
 import { joinTeam, onTeam, TEAM_MAX, teamSize } from "./teams";
 
 // An invitation nobody answered for a week is stale: the room may have changed, the person moved on.
@@ -38,7 +47,6 @@ const RECENT = 30;
 const DAY_MS = 24 * 3600 * 1000;
 // Why an invitation lapsed, as the code the web says in French (see `expire`).
 const LAPSED: Record<string, string> = {
-  "You already live in a house now.": "youHaveHouseNow",
   "That house is gone.": "houseGone",
   "They don't live there any more, so the invitation lapsed.": "senderMovedOut",
   "Someone else took that room first.": "roomTakenFirst",
@@ -47,10 +55,11 @@ const LAPSED: Record<string, string> = {
   "They're already on that team.": "alreadyTeammate",
   "That room has changed hands, so the request lapsed.": "teamRoomChanged",
   "One of you doesn't live in that house any more, so the request lapsed.": "teamLeftHouse",
+  "You don't live in that house any more, so the request lapsed.": "guestLeftHouse",
 };
 
 // The kinds that are invitations (they have a state, and are answered), and the ones the day's brake counts.
-const INVITES: NotificationKind[] = ["house_invite", "rent_together", "team_invite", "team_ask"];
+const INVITES: NotificationKind[] = ["house_invite", "rent_together", "team_invite", "team_ask", "guest_ask"];
 type InviteKind = "house_invite" | "rent_together" | "team_invite" | "team_ask";
 
 type UserRow = typeof users.$inferSelect;
@@ -89,9 +98,10 @@ const person = (u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "
 });
 
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   // The login of someone who just got a notification: the lobby's live line tells them, if they're online.
   readonly pushes = new Subject<string>();
+  private deploys?: Subscription;
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -102,12 +112,22 @@ export class NotificationsService {
     doorbell.listen((e) => this.fromDoorbell(e));
   }
 
+  onModuleInit() {
+    this.deploys = this.houses.deployFinished.subscribe((e) => {
+      this.fromDeploy(e.houseId, e.deployment).catch(() => undefined);
+    });
+  }
+
+  onModuleDestroy() {
+    this.deploys?.unsubscribe();
+  }
+
   // ---- Invitations ----
 
   /**
-   * A flatmate (or the chef) of `houseId` invites `toLogin`, who has no house, to take a free room: `room` if given,
-   * else the first free one. Refused for yourself, an example person, someone housed, an example house or the
-   * workshop, a full house, a second open invitation to the same person, and past the day's limit.
+   * A flatmate (or the chef) of `houseId` invites `toLogin` to take a free room: `room` if given, else the first free
+   * one. They may live somewhere else already. Refused for yourself, an example person, a flatmate of this house, an
+   * example house or the workshop, a full house, a second open invitation to the same person, and past the day's limit.
    */
   async inviteToHouse(senderId: string, toLogin: string, houseId: string, room?: string | null): Promise<{ id: string }> {
     const to = await this.recipient(senderId, toLogin);
@@ -116,7 +136,7 @@ export class NotificationsService {
     if (!(await this.houses.membership(houseId, senderId))) throw new ForbiddenException({ message: "Only the people who live in a house can invite someone to it.", code: "inviteMembersOnly" });
     if (house.demo) throw new ConflictException({ message: "This is an example house: nobody can move in.", code: "exampleHouseInvite" });
     if (house.tutorial) throw new ConflictException({ message: "The workshop is for practice. Invite them to a real house.", code: "workshopInvite" });
-    if (await this.housed(to.id)) throw new ConflictException({ message: "They already live in a house.", code: "theyHaveHouse" });
+    if (await this.houses.membership(houseId, to.id)) throw new ConflictException({ message: "They already live in this house.", code: "alreadyFlatmate" });
     const free = await this.db
       .select({ name: rooms.name })
       .from(rooms)
@@ -131,28 +151,26 @@ export class NotificationsService {
     return this.create({ userId: to.id, kind: "house_invite", fromId: senderId, houseId, room: free[0].name, state: "open" });
   }
 
-  /** Someone with no house asks `toLogin`, who has none either, to rent a server together. */
+  /** Someone asks `toLogin` to share a house. Either of them may live somewhere already. */
   async rentTogether(senderId: string, toLogin: string): Promise<{ id: string }> {
     const to = await this.recipient(senderId, toLogin);
-    if (await this.housed(senderId)) throw new ConflictException({ message: "You already live in a house. Invite them to it instead.", code: "youHaveHouseInvite" });
-    if (await this.housed(to.id)) throw new ConflictException({ message: "They already live in a house. Knock on theirs instead.", code: "theyHaveHouseKnock" });
     await this.brake(senderId, to.id, "rent_together");
     return this.create({ userId: to.id, kind: "rent_together", fromId: senderId, state: "open" });
   }
 
   /**
-   * The recipient says yes. A house invitation moves them into its room, if it's still free and they still have no
-   * house; otherwise it expires, and the refusal says why. Renting together tells the sender. Returns where they
-   * moved in, for the web's keys.
+   * The recipient says yes. A house invitation moves them into its room, if it's still free; otherwise it expires,
+   * and the refusal says why. Someone at the room limit is refused and the invitation stays open, so they can end a
+   * lease and say yes after all. Renting together tells the sender. Returns where they moved in, for the web's keys.
    */
   async accept(userId: string, id: string): Promise<{ kind: NotificationKind; house: { id: string; name: string; city: string } | null; room: string | null }> {
     const n = await this.openInvite(userId, id);
     if (n.kind === "team_invite" || n.kind === "team_ask") return this.acceptTeam(userId, n);
+    if (n.kind === "guest_ask") return this.answerGuest(userId, n, "accepted");
     const [me] = await this.db.select().from(users).where(eq(users.id, userId));
     const name = me.name ?? me.login;
 
     if (n.kind === "rent_together") {
-      if (await this.housed(userId)) return this.expire(n, "You already live in a house now.");
       if (!(await this.decide(n, "accepted"))) throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
       if (n.fromId) await this.create({ userId: n.fromId, kind: "rent_together_yes", fromId: userId });
       return { kind: n.kind, house: null, room: null };
@@ -164,8 +182,9 @@ export class NotificationsService {
     if (!n.fromId || !(await this.houses.membership(house.id, n.fromId))) return this.expire(n, "They don't live there any more, so the invitation lapsed.");
     const outcome = await this.db.transaction(async (tx) => {
       // Lock the person's own row, so two of their accepts (two houses, or a double click) take turns: the second
-      // one then sees the first one's house.
+      // one then counts the first one's room.
       await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for("update");
+      if ((await roomsRented(tx, userId)) >= MAX_ROOMS_PER_PERSON) return "limit";
       // Claim the invitation first: a second click finds it answered and stops without touching it.
       const claimed = await tx
         .update(notifications)
@@ -177,18 +196,14 @@ export class NotificationsService {
         await tx.update(notifications).set({ state: "expired" }).where(eq(notifications.id, n.id));
         return why;
       };
-      if (await this.housed(userId, tx)) return lapse("You already live in a house now.");
       if (!(await moveInto(tx, house.id, n.room!, userId))) return lapse("Someone else took that room first.");
       return "moved";
     });
     if (outcome === "answered") throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
+    if (outcome === "limit") throw new ConflictException({ message: `${MAX_ROOMS_PER_PERSON} rooms a person. End a lease to take another.`, code: "room_limit", max: MAX_ROOMS_PER_PERSON });
     if (outcome !== "moved") throw new ConflictException({ message: outcome, code: LAPSED[outcome] ?? "inviteLapsed" });
 
-    // Their other house invitations can't be taken now (one house each), and their own knock here is answered.
-    await this.db
-      .update(notifications)
-      .set({ state: "expired", decidedAt: new Date() })
-      .where(and(eq(notifications.userId, userId), eq(notifications.kind, "house_invite"), eq(notifications.state, "open")));
+    // Their own knock here is answered. Their other invitations stay open: they can still say yes, up to the limit.
     await this.doorbell.closeOwnKnock(house.id, userId);
     await this.doorbell.movedIn(house.id, n.room, name);
     await this.create({ userId: n.fromId, kind: "invite_accepted", fromId: userId, houseId: house.id, room: n.room });
@@ -199,6 +214,10 @@ export class NotificationsService {
   /** The recipient says no, and the sender is told, so they can ask someone else. */
   async decline(userId: string, id: string) {
     const n = await this.openInvite(userId, id);
+    if (n.kind === "guest_ask") {
+      await this.answerGuest(userId, n, "declined");
+      return;
+    }
     if (!(await this.decide(n, "declined"))) throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
     if (n.fromId) {
       const kind = n.kind === "rent_together" ? "rent_together_no" : n.kind === "team_invite" || n.kind === "team_ask" ? "team_declined" : "invite_declined";
@@ -314,6 +333,80 @@ export class NotificationsService {
     return { kind: n.kind, house: { id: house.id, name: house.name, city: house.city }, room: room.name };
   }
 
+  // ---- A full house's group chat ----
+
+  /**
+   * Asks to join a house's group chat, when no room is free to knock on. Every flatmate hears of it under their bell,
+   * except anyone who blocked you. An example house has nobody to answer, so its host lets you in with a word. Not at
+   * the workshop, not if you live here or a room is free, and not again while you wait or the day they said no.
+   */
+  async askToChat(userId: string, houseId: string): Promise<{ status: "open" | "accepted" }> {
+    const [house] = await this.db.select().from(houses).where(eq(houses.id, houseId));
+    if (!house) throw new NotFoundException({ message: "No such house.", code: "noHouse" });
+    if (house.tutorial) throw new ConflictException({ message: "This is an example house: nobody would answer.", code: "guestExampleHouse" });
+    if (await this.houses.membership(houseId, userId)) throw new ConflictException({ message: "You live here: the chat is yours already.", code: "guestLivesHere" });
+    const free = await this.db.select({ id: rooms.id }).from(rooms).where(and(eq(rooms.houseId, houseId), isNull(rooms.occupantId))).limit(1);
+    if (free.length) throw new ConflictException({ message: "A room is free here. Knock on it instead.", code: "guestRoomFree" });
+    const [row] = await this.db.select().from(houseGuests).where(and(eq(houseGuests.houseId, houseId), eq(houseGuests.userId, userId)));
+    const standing = guestStanding(row);
+    if (standing === "accepted") throw new ConflictException({ message: "You're already in this house's chat.", code: "guestAlreadyIn" });
+    if (standing === "open") throw new ConflictException({ message: "You've already asked. A flatmate will answer.", code: "guestAlreadyAsked" });
+    if (standing === "declined") throw new ConflictException({ message: "They said no today. Try again another day.", code: "saidNoToday" });
+    const [{ asked }] = await this.db.select({ asked: count() }).from(houseGuests).where(and(eq(houseGuests.userId, userId), gte(houseGuests.askedAt, new Date(Date.now() - DAY_MS))));
+    if (asked >= INVITES_PER_DAY) throw new HttpException({ message: "That's a lot of houses for one day. Try again tomorrow.", code: "tooManyGuestAsks" }, HttpStatus.TOO_MANY_REQUESTS);
+
+    if (house.demo) {
+      const accepted = { status: "accepted" as const, askedAt: new Date(), decidedAt: new Date() };
+      await this.db.insert(houseGuests).values({ houseId, userId, ...accepted }).onConflictDoUpdate({ target: [houseGuests.houseId, houseGuests.userId], set: accepted });
+      await this.doorbell.welcomeGuest(houseId, userId);
+      this.houses.changes.next(houseId);
+      return { status: "accepted" };
+    }
+    await this.db
+      .insert(houseGuests)
+      .values({ houseId, userId })
+      .onConflictDoUpdate({ target: [houseGuests.houseId, houseGuests.userId], set: { status: "open", askedAt: new Date(), decidedAt: null } });
+    const blockers = await blockersOf(this.db, userId);
+    const flatmates = await this.db.select({ id: memberships.userId }).from(memberships).where(eq(memberships.houseId, houseId));
+    for (const f of flatmates) if (!blockers.includes(f.id)) await this.create({ userId: f.id, kind: "guest_ask", fromId: userId, houseId, state: "open" });
+    this.houses.changes.next(houseId);
+    return { status: "open" };
+  }
+
+  /** A guest leaves the chat, or a flatmate takes them out of it (they can't ask again today). */
+  async removeGuest(userId: string, houseId: string, login: string) {
+    const [them] = await this.db.select().from(users).where(eq(users.login, login));
+    if (!them || !(await isChatGuest(this.db, houseId, them.id))) throw new NotFoundException({ message: "They aren't a guest in this chat.", code: "notGuest" });
+    const where = and(eq(houseGuests.houseId, houseId), eq(houseGuests.userId, them.id));
+    if (userId === them.id) await this.db.delete(houseGuests).where(where);
+    else if (await this.houses.membership(houseId, userId)) await this.db.update(houseGuests).set({ status: "declined", decidedAt: new Date() }).where(where);
+    else throw new ForbiddenException({ message: "Only flatmates can take a guest out of the chat.", code: "guestFlatmatesOnly" });
+    this.houses.changes.next(houseId);
+  }
+
+  // A flatmate answers. The guest row moves only once, so the first answer counts, and every flatmate's copy of the ask
+  // is closed with it. The one who asked is told.
+  private async answerGuest(userId: string, n: Row, answer: "accepted" | "declined"): Promise<{ kind: NotificationKind; house: { id: string; name: string; city: string } | null; room: string | null }> {
+    const [house] = n.houseId ? await this.db.select().from(houses).where(eq(houses.id, n.houseId)) : [];
+    if (!house || !n.fromId) return this.expire(n, "That house is gone.");
+    if (!(await this.houses.membership(house.id, userId))) return this.expire(n, "You don't live in that house any more, so the request lapsed.");
+    const moved = await this.db
+      .update(houseGuests)
+      .set({ status: answer, decidedAt: new Date() })
+      .where(and(eq(houseGuests.houseId, house.id), eq(houseGuests.userId, n.fromId), eq(houseGuests.status, "open")))
+      .returning({ userId: houseGuests.userId });
+    const copies = await this.db
+      .update(notifications)
+      .set({ state: moved.length ? answer : "expired", decidedAt: new Date(), readAt: new Date() })
+      .where(and(eq(notifications.kind, "guest_ask"), eq(notifications.houseId, house.id), eq(notifications.fromId, n.fromId), eq(notifications.state, "open")))
+      .returning({ userId: notifications.userId });
+    for (const c of copies) if (c.userId !== userId) this.pushes.next(await this.loginOf(c.userId));
+    if (!moved.length) throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
+    await this.create({ userId: n.fromId, kind: answer === "accepted" ? "guest_accepted" : "guest_declined", fromId: userId, houseId: house.id });
+    this.houses.changes.next(house.id);
+    return { kind: n.kind, house: { id: house.id, name: house.name, city: house.city }, room: null };
+  }
+
   // ---- The bell ----
 
   async list(userId: string): Promise<NotificationsView> {
@@ -329,7 +422,7 @@ export class NotificationsService {
       .select({ id: notifications.id, kind: notifications.kind, to: users.login, houseId: notifications.houseId, room: notifications.room })
       .from(notifications)
       .innerJoin(users, eq(users.id, notifications.userId))
-      .where(and(eq(notifications.fromId, userId), eq(notifications.state, "open")));
+      .where(and(eq(notifications.fromId, userId), eq(notifications.state, "open"), ne(notifications.kind, "guest_ask")));
 
     const people = await this.usersById(rows.map((r) => r.fromId).filter((x): x is string => !!x));
     const houseIds = [...new Set(rows.map((r) => r.houseId).filter((x): x is string => !!x))];
@@ -378,17 +471,6 @@ export class NotificationsService {
     const [demoRoom] = await this.db.select({ id: rooms.id }).from(rooms).where(and(eq(rooms.occupantId, user.id), eq(rooms.demo, true))).limit(1);
     if (demoRoom) return true;
     return user.githubId === null && !this.config.devLogin;
-  }
-
-  /** Lives in a house: belongs to one that isn't the workshop (practice doesn't count, as in /api/me). */
-  private async housed(userId: string, runner: Pick<Db, "select"> = this.db): Promise<boolean> {
-    const [row] = await runner
-      .select({ id: memberships.houseId })
-      .from(memberships)
-      .innerJoin(houses, eq(houses.id, memberships.houseId))
-      .where(and(eq(memberships.userId, userId), eq(houses.tutorial, false)))
-      .limit(1);
-    return !!row;
   }
 
   // The person an invitation goes to: someone real who isn't you, and nobody either of you blocked (as for messages).
@@ -441,6 +523,28 @@ export class NotificationsService {
   }
 
   // ---- Helpers ----
+
+  // A build that failed in a real house: the flatmates hear, not whoever ran it (a merge has nobody behind it: then
+  // it counts as the room's occupant's). One unread line per room, however many times it fails again.
+  private async fromDeploy(houseId: string, d: typeof deployments.$inferSelect) {
+    if (d.status !== "failed" || d.kind !== "prod") return;
+    const [house] = await this.db.select({ demo: houses.demo, tutorial: houses.tutorial }).from(houses).where(eq(houses.id, houseId));
+    if (!house || house.demo || house.tutorial) return;
+    const [room] = await this.db.select({ occupantId: rooms.occupantId }).from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.name, d.room)));
+    const who = d.requestedBy ?? room?.occupantId ?? null;
+    const blockers = who ? await blockersOf(this.db, who) : [];
+    const flatmates = await this.db
+      .select({ id: memberships.userId })
+      .from(memberships)
+      .where(and(eq(memberships.houseId, houseId), who ? ne(memberships.userId, who) : undefined, blockers.length ? notInArray(memberships.userId, blockers) : undefined));
+    for (const f of flatmates) {
+      const [told] = await this.db
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(and(eq(notifications.userId, f.id), eq(notifications.kind, "build_failed"), eq(notifications.houseId, houseId), eq(notifications.room, d.room), isNull(notifications.readAt)));
+      if (!told) await this.create({ userId: f.id, kind: "build_failed", fromId: who, houseId, room: d.room });
+    }
+  }
 
   private async create(values: typeof notifications.$inferInsert): Promise<{ id: string }> {
     const [row] = await this.db.insert(notifications).values(values).returning({ id: notifications.id });

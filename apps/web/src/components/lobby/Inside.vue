@@ -19,7 +19,7 @@ const props = defineProps<{
   // For the house the panel opened on (`start`), handed to its HouseInside: the tab to show (a quest pointing at a
   // part of the house), and `quiet` to keep its first-visit rundown from starting by itself. A house opened on top
   // later (from a link) gets neither, so a quest's ask never leaks into another house.
-  tab?: "rooms" | "channel" | "chores" | "fridge" | "bill";
+  tab?: "rooms" | "people" | "channel" | "chores" | "fridge" | "bill";
   quiet?: boolean;
 }>();
 
@@ -32,8 +32,6 @@ const emit = defineEmits<{
   link: [url: string];
   // The rundown ended (Got it, or Escape).
   rundownDone: [];
-  // Someone picked in a house's crew was waved at: the lobby plays your avatar's wave.
-  wave: [];
 }>();
 
 const sheet = ref<HTMLElement | null>(null);
@@ -58,6 +56,13 @@ function back() {
 
 function closeAll() {
   stack.value = [];
+}
+
+// You ended your lease on the room on top: it isn't yours any more, so you're back at the house.
+function leftRoom(houseId: string) {
+  const house: Place = { kind: "house", id: houseId };
+  const under = stack.value.slice(0, -1);
+  stack.value = under.length && placeKey(under[under.length - 1]) === placeKey(house) ? under : [...under, house];
 }
 
 // The rundown runs once per panel: going to a room and back to the house doesn't start it over.
@@ -199,14 +204,12 @@ function trapTab(e: KeyboardEvent) {
           :tab="atStart ? tab : undefined"
           :quiet="atStart && quiet"
           :coached="coached"
-          in-city
           @open="go"
           @label="(l) => (label = l)"
           @rundown-done="rundownEnded"
-          @wave="emit('wave')"
         />
         <ApplicationPage v-else-if="top.kind === 'application'" :key="topKey" :id="top.id" embedded @label="(l) => (label = l)" />
-        <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded :coached="coached" @label="(l) => (label = l)" />
+        <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded :coached="coached" @label="(l) => (label = l)" @left="leftRoom" />
         </div>
       </div>
     </section>
@@ -237,11 +240,11 @@ function trapTab(e: KeyboardEvent) {
 .sign-frame { position: relative; }
 /* The band's two keys, 44px and centred in its 88px. They're placed from inside the frame's border, and the band
    starts 3px further in, after the frame's padding. */
-.sign-x { z-index: 2; top: calc(3px + 44px); }
+.sign-x { z-index: 2; top: 44px; }
 .back-btn { right: auto; left: 16px; }
 .deep { --band-lead: 52px; }
 /* The page fills what's left, on the white. If a window is too short for it, it scrolls here rather than spilling out. */
-.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: var(--r-md); background: var(--surface); }
+.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--surface); }
 .page-host > * { flex: 1 1 auto; min-height: 0; }
 /* The pause menu's entrance: a quick scale up from just under full size. */
 @keyframes pop-in {

@@ -29,7 +29,7 @@ describe("the News tab", () => {
     expect(notesSummary([{ at: at(15) }, { at: at(14) }, { at: at(12) }], NOW.getTime())).toBe("3 notes this week.");
     expect(notesSummary([{ at: at(15) }], NOW.getTime())).toBe("1 note this week.");
     expect(notesSummary([{ at: at(1) }], NOW.getTime())).toBe("Nothing new this week.");
-    expect(notesSummary([], NOW.getTime())).toMatch(/^Nothing pinned yet\. The house pins a note when something happens/);
+    expect(notesSummary([], NOW.getTime())).toBe("Nothing pinned yet.");
     language.lang = "fr";
     expect(notesSummary([{ at: at(15) }, { at: at(14) }], NOW.getTime())).toBe("2 mots cette semaine.");
   });

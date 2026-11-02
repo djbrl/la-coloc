@@ -28,6 +28,8 @@ export interface Room {
   url: string | null;
   project: string | null;
   projectDescription: string | null;
+  // The project's repository: for flatmates only, since a linked repo may be private. Older API: missing.
+  repo?: string | null;
   ad: string | null;
   occupant: Person | null;
   usage: RoomUsage | null;
@@ -70,9 +72,15 @@ export interface Viewer {
   login: string;
   member: boolean;
   role: MemberRole | null;
+  // The first room they rent here, and all of them (crew.ts: myRooms). Older API: no `rooms`.
   room: string | null;
+  rooms?: string[];
+  // Their last lease here has ended: when they stop being a flatmate (the end of the month).
+  leavingUntil?: string | null;
   // Their open knock on this house, if any.
   application: string | null;
+  // From outside a full house, their standing with its chat: asked, let in, or told no today. Older API: missing.
+  guest?: "open" | "accepted" | "declined" | null;
 }
 
 export interface Message {
@@ -141,10 +149,14 @@ export interface HouseView {
   notes: FridgeNote[] | null;
   doorbell: DoorbellItem[] | null;
   channel: Message[] | null;
+  // Who was let into the chat from outside. Null for anyone who can't read it. Older API: missing.
+  guests?: Person[] | null;
   // Flatmates only: reviews waiting to be done.
   chores: Chore[] | null;
   // The chef only: the server size they rented (null: none yet) and whether its agent key has been made.
   server: { plan: "small" | "medium" | "large" | null; keyMade: boolean } | null;
+  // How people pay where the house is (an older API leaves it out).
+  operators?: string[];
   // The tutorial's workshop (L'Atelier): a newcomer without a room there takes one from the house view.
   tutorial?: boolean;
   // Public: reviews given and received per flatmate.
@@ -260,9 +272,12 @@ export interface Me {
   avatarUrl: string | null;
   // Their lobby character ("female-a" … "male-f"), or null if they haven't picked one.
   avatar: string | null;
-  houses: { id: string; name: string; role: MemberRole; room: string | null }[];
+  // `room`: their first room in that house; `rooms`: all of them.
+  houses: { id: string; name: string; role: MemberRole; room: string | null; rooms: string[] }[];
   // Finished (or skipped) the tutorial? Missing on an API that doesn't have the tutorial yet.
   tutorialDone?: boolean;
+  // What you have left of the city's fake money, in FCFA. An older API leaves it out.
+  credit?: number;
   // Your knocks still waiting for a vote, one per house at most: the lobby offers "Your knock" instead of "Knock".
   knocks?: { id: string; houseId: string; room: string }[];
   // The title you wear, and every one you've won (pick which to wear: PUT /api/me/badge). An older API leaves both out.
@@ -276,8 +291,8 @@ export interface TutorialState {
   house: { id: string; name: string; city: string; agentOnline: boolean };
   // The room's status is a RoomStatus, plus whatever finer steps the API reports while a deploy runs
   // ("building", "starting").
-  // `why`: when its last build failed, the first line of the reason (an older API leaves it out).
-  room: { name: string; status: RoomStatus | string; url: string | null; why?: string | null } | null;
+  // `why`: when its last build failed, the first line of the reason; `log`: all of it (an older API leaves them out).
+  room: { name: string; status: RoomStatus | string; url: string | null; why?: string | null; log?: string | null } | null;
   sample: { repo: string | null; path: string };
   // `repo`: the GitHub repo linked to the workshop room ("awa/portfolio"), if any.
   github: { installUrl: string | null; linked: boolean; repo?: string | null };
@@ -304,6 +319,13 @@ export interface RepoChoices {
   reason: "off" | "no-github" | "not-installed" | null;
 }
 
+// GET /api/github/repos: the same list, not tied to any room, and where to let the App see more (`installUrl`).
+export interface ConnectedRepos {
+  repos: RepoChoice[];
+  reason: RepoChoices["reason"];
+  installUrl: string | null;
+}
+
 // What the server offers: GET /api/auth/config. Only the part the settings pane needs.
 export interface ServerConfig {
   // Whether "Reset the demo city" is allowed on this server.
@@ -312,10 +334,14 @@ export interface ServerConfig {
 
 // The room page: GET /api/houses/:id/rooms/:room/manage (the room's flatmate, or the chef).
 export interface RoomManage {
-  house: { id: string; name: string; domain: string; agentOnline: boolean; strictReviews: boolean };
+  // `chef`: you run the house, even when this is your own room and `as` says flatmate (an older API leaves it out).
+  house: { id: string; name: string; domain: string; agentOnline: boolean; strictReviews: boolean; chef?: boolean };
   // flatmate: you live in this room. teammate: you teamed up on it (same rights as its flatmate). chef: you run the
   // house (update and restart only).
   as: "flatmate" | "chef" | "teammate";
+  // The Lease tab, for the occupant of a room that has a lease to end: their part of this month's bill (null: the house
+  // has no bill yet), how many rooms they rent in this house, and when rent stops if they end it now.
+  lease?: { share: number | null; rooms: number; until: string } | null;
   room: {
     name: string;
     status: RoomStatus;
@@ -361,13 +387,19 @@ export type NotificationKind =
   | "rent_together_no"
   | "knock"
   | "knock_answer"
+  // A flatmate's build failed: only your own house hears about it, and not the person who ran it.
+  | "build_failed"
   // Teaming up (flatmates of one house, on one room's project). team_invite: the room's occupant asks you to join
   // their project (`room`). team_ask: a flatmate asks to join yours (`room` is yours). Both are answered like
   // invitations; team_accepted / team_declined tell the sender how it went.
   | "team_invite"
   | "team_ask"
   | "team_accepted"
-  | "team_declined";
+  | "team_declined"
+  // Someone asks to join a full house's group chat (each flatmate gets one, the first answer counts), then how it went.
+  | "guest_ask"
+  | "guest_accepted"
+  | "guest_declined";
 export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
 
 export interface Notice {

@@ -8,6 +8,7 @@ import { isCoreDown } from "../core/core";
 import { DB } from "../db/db.module";
 import { HousesService } from "../houses/houses.service";
 import { noteText } from "../houses/lines";
+import { REVIEW_CREDIT_FCFA } from "../houses/money";
 import type { GithubAppClient } from "./github.client";
 
 export const GITHUB_CLIENT = Symbol("GITHUB_CLIENT");
@@ -177,7 +178,8 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       .select({ id: users.id, login: users.login, githubId: users.githubId, order: memberships.tontinePosition })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))
-      .where(eq(memberships.houseId, repo.houseId))
+      // Someone on their way out, with no room left, gets no new reviews.
+      .where(and(eq(memberships.houseId, repo.houseId), isNull(memberships.leavingMonth)))
       .orderBy(memberships.tontinePosition);
     const author = flatmates.find((f) => f.githubId === pr.user.id);
     // The workshop's example learners (people living in a `demo` room) are scenery: they never review anything.
@@ -249,6 +251,7 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       .update(chores)
       .set({ status: "done", outcome: p.review.state.toLowerCase(), doneAt: new Date() })
       .where(eq(chores.id, chore.chore.id));
+    await this.houses.credit.earn(chore.assignee.id, REVIEW_CREDIT_FCFA, "review", `review:${chore.chore.id}`);
     const late = chore.chore.dueAt.getTime() < Date.now();
     await this.houses.note(chore.chore.houseId, {
       tone: "thanks",

@@ -27,23 +27,23 @@ describe("the panels' words", () => {
 
   it("says a house's state in a sentence, and an example house once", () => {
     const h = { city: "Dakar", status: "live" as const, agentOnline: true, demo: false };
-    expect(houseLine(h)).toBe("Dakar. Its server is running.");
-    expect(houseLine({ ...h, agentOnline: false })).toBe("Dakar. Its server is down for now.");
-    expect(houseLine({ ...h, demo: true })).toBe("Dakar. An example house, to show how one looks.");
-    expect(houseLine({ ...h, status: "making" })).toBe("Dakar. Still being set up.");
+    expect(houseLine(h)).toBe("Dakar. Server running.");
+    expect(houseLine({ ...h, agentOnline: false })).toBe("Dakar. Server down.");
+    expect(houseLine({ ...h, demo: true })).toBe("Dakar. Example house.");
+    expect(houseLine({ ...h, status: "making" })).toBe("Dakar. Setting up.");
   });
 
   it("says nothing about a house that's fine, and what's wrong otherwise", () => {
     const h = { status: "live" as const, agentOnline: true, demo: false };
     expect(houseTrouble(h)).toBeNull();
-    expect(houseTrouble({ ...h, agentOnline: false })).toBe("Its server is down for now.");
-    expect(houseTrouble({ ...h, status: "making" })).toBe("Still being set up.");
-    expect(houseTrouble({ ...h, demo: true })).toBe("An example house, to show how one looks.");
+    expect(houseTrouble({ ...h, agentOnline: false })).toBe("Server down.");
+    expect(houseTrouble({ ...h, status: "making" })).toBe("Setting up.");
+    expect(houseTrouble({ ...h, demo: true })).toBe("Example house.");
   });
 
   it("explains the Reviews tab with what a review takes off the rent, in plain words", () => {
-    expect(explain.chores("500 FCFA")).toMatch(/^Your flatmates review your code; you review theirs\./);
-    expect(explain.chores("500 FCFA")).toMatch(/Each review you do takes 500 FCFA off your rent\.$/);
+    expect(explain.chores("500 FCFA")).toMatch(/^Flatmates review your code, you review theirs\./);
+    expect(explain.chores("500 FCFA")).toMatch(/Each review takes 500 FCFA off your rent\.$/);
     // The house's notice board, never "the fridge": a newcomer has no reason to know the joke.
     expect(explain.fridge).not.toMatch(/fridge/i);
   });

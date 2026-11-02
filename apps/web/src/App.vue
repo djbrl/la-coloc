@@ -67,7 +67,7 @@ const gear = (() => {
             <span class="word">{{ w.logIn }}</span>
           </RouterLink>
         </template>
-        <button class="item icon" :aria-label="w.settings" :aria-expanded="settingsPane.open" @click="settingsPane.open = true">
+        <button class="item icon" data-tour="settings" :aria-label="w.settings" :aria-expanded="settingsPane.open" @click="settingsPane.open = true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="gear" fill="currentColor" fill-rule="evenodd" /></svg>
         </button>
       </div>
@@ -87,8 +87,8 @@ const gear = (() => {
   <SettingsPane />
   <!-- The chat sheet (components/chat), over whatever page is open: talking never leaves the city. -->
   <ChatSheet />
-  <!-- "The city can't be reached", over everything while the core is down (components/CoreStatus.vue). -->
-  <CoreStatus />
+  <!-- "Offline", in the bar's row while the core is down (components/CoreStatus.vue). -->
+  <CoreStatus :float="fullscreen" />
 </template>
 
 <style scoped>
@@ -141,17 +141,12 @@ const gear = (() => {
 .bar.float :is(.item, :deep(.ring)):active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 .bar.float .word-key { padding: 0 18px; font-size: 20px; }
 
-/* While the core is down, the card under the bar (CoreStatus.vue) takes its place in the page instead of covering it. */
-.flow { min-height: calc(100vh - 56px); padding-top: var(--core-offset, 0px); outline: none; }
+.flow { min-height: calc(100vh - 56px); outline: none; }
 .full { outline: none; }
-/* The "can't reach the city" card sits at the top centre; on a screen too narrow to leave it room, the keys step down. */
-@media (max-width: 899px) {
-  .bar.float .side { top: calc(24px + var(--core-offset, 0px)); }
-}
 @media (max-width: 520px) {
   /* A phone: smaller keys in a tighter corner, and the login's word becomes its icon (the word stays for a screen reader). */
   .bar.float { --key: 44px; --key-icon: 22px; }
-  .bar.float .side { top: calc(12px + var(--core-offset, 0px)); right: 12px; gap: 6px; }
+  .bar.float .side { top: 12px; right: 12px; gap: 6px; }
   .bar.float :is(.item, :deep(.ring)) { box-shadow: 0 3px 0 var(--accent-lip); }
   .word-key .narrow { display: block; }
   .word-key .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

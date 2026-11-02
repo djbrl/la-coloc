@@ -1,11 +1,12 @@
-// Invitations answered by two requests at the same moment (found by the 16 Oct review): one house each, one answer.
+// Invitations answered by two requests at the same moment (found by the 16 Oct review): the room limit holds, one answer.
 import "reflect-metadata";
-import { type Db, memberships, notifications, users } from "@coloc/db";
+import { type Db, notifications, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { DoorbellService } from "../doorbell/doorbell.service";
 import { HousesService } from "../houses/houses.service";
+import { MAX_ROOMS_PER_PERSON } from "../houses/money";
 import { seedCity } from "../seed/city";
 import { NotificationsService } from "./notifications.service";
 
@@ -33,14 +34,15 @@ beforeEach(async () => {
 });
 
 describe("accepting two house invitations at once", () => {
-  it("moves the person into one house, and the other invitation lapses", async () => {
+  it("stops at the room limit: one room left to rent, one of them gets it", async () => {
     await houses.rent(ids.lea, { city: "Dakar", plot: "9.9.0.1", name: "Chez Lea", tagline: null });
     const a = await service.inviteToHouse(ids.jib, "fatou", "sacre-coeur");
     const b = await service.inviteToHouse(ids.lea, "fatou", "chez-lea");
+    for (let i = 0; i < MAX_ROOMS_PER_PERSON - 1; i++) await db.insert(rooms).values({ houseId: "be-kpota", name: `fatou-${i}`, memoryMb: 128, cpus: 0.5, occupantId: ids.fatou });
     const results = await Promise.allSettled([service.accept(ids.fatou, a.id), service.accept(ids.fatou, b.id)]);
     expect(results.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
-    const mine = await db.select().from(memberships).where(eq(memberships.userId, ids.fatou));
-    expect(mine).toHaveLength(1);
+    const mine = await db.select().from(rooms).where(eq(rooms.occupantId, ids.fatou));
+    expect(mine).toHaveLength(MAX_ROOMS_PER_PERSON);
   });
 });
 

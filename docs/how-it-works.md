@@ -156,7 +156,7 @@ nudge on the lobby's live connection updates it without reloading.
 
 ## Languages
 
-The site speaks English and French. It starts in your browser's language, and the switch is the first row of
+The site speaks English and French. It starts in English, and the switch is the first row of
 settings. The French says "vous" and still needs a native speaker's read. House news, the house's lines in a knock's
 thread, the example city's texts (taglines, project lines, free rooms' ads) and the refusals people meet (chat, board,
 knocks, invitations, deploys, the quest) read in French too: the API sends a kind or a `code`, and the site picks the
@@ -164,7 +164,7 @@ words. Other API error messages and the comments on GitHub are still in English.
 
 ## When the database is down
 
-The site doesn't break. You stay in the city, a card says it can't be reached and retries by itself, and everything
+The site doesn't break. You stay in the city, a small key in the top row says Offline and retries by itself, and everything
 comes back without a reload when the database returns.
 
 ## Not built yet

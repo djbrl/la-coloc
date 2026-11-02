@@ -24,6 +24,8 @@ export interface Badge {
 }
 
 // Everyone who has logged in with GitHub. Demo flatmates (seeded) have no GitHub id.
+export type CreditReason = "server" | "rent" | "project" | "review" | "arena";
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   githubId: bigint("github_id", { mode: "number" }).unique(),
@@ -46,8 +48,27 @@ export const users = pgTable("users", {
   // without asking the database again. Kept in step by apps/api/src/arena/badges.ts. Both null: none.
   wornAwardId: uuid("worn_award_id").references((): AnyPgColumn => arenaAwards.id, { onDelete: "set null" }),
   badge: jsonb("badge").$type<Badge>(),
+  // What they have left to settle in the city, in FCFA: fake money, spent on servers, rent and projects, earned by
+  // reviewing and in the Arena (apps/api/src/credit). Everyone starts with WELCOME_CREDIT_FCFA (houses/money.ts).
+  credit: integer("credit").notNull().default(15_000),
   createdAt: createdAt(),
 });
+
+// Every movement of someone's credit, for their history. Its `key` says what it was for ("review:<chore>"), so the same
+// thing can't be paid or earned twice. Null: nothing to tell apart.
+export const creditEntries = pgTable(
+  "credit_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    // Signed: what they earned is positive, what they spent negative.
+    amount: integer("amount").notNull(),
+    reason: text("reason").$type<CreditReason>().notNull(),
+    key: text("key").unique(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("credit_entries_user").on(t.userId, t.at)],
+);
 
 // A login session. The browser holds a random token; we only keep its SHA-256, so a database leak
 // doesn't hand out sessions.
@@ -141,6 +162,24 @@ export const roomTeammates = pgTable(
   (t) => [primaryKey({ columns: [t.roomId, t.userId] }), index("room_teammates_user").on(t.userId)],
 );
 
+// Someone from outside a full house who asked to join its group chat. "open": waiting for a flatmate to answer.
+// "accepted": they read and write the house's channel, and nothing else of the house. "declined": not today.
+// Goes with the house (a demo reset, a house pulled down) or with the person.
+export type HouseGuestStatus = "open" | "accepted" | "declined";
+
+export const houseGuests = pgTable(
+  "house_guests",
+  {
+    houseId: text("house_id").notNull().references(() => houses.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").$type<HouseGuestStatus>().notNull().default("open"),
+    // When they last asked, and when it was last answered.
+    askedAt: timestamp("asked_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.houseId, t.userId] }), index("house_guests_user").on(t.userId)],
+);
+
 export type MemberRole = "chef" | "flatmate";
 
 // Who belongs to which house. A flatmate usually has a room; someone signed up to a house in the making may not yet.
@@ -153,8 +192,29 @@ export const memberships = pgTable(
     // Place in the tontine line (lower goes first).
     tontinePosition: integer("tontine_position").notNull().default(0),
     joinedAt: createdAt(),
+    // Their last room here has gone: they stay on the bill and in the chat until this month ("2026-10") is over, when
+    // they stop being a flatmate (apps/api/src/houses/leases.service.ts). Null: they live here. Taking a room clears it.
+    leavingMonth: text("leaving_month"),
   },
   (t) => [primaryKey({ columns: [t.houseId, t.userId] })],
+);
+
+// A lease ended during a month. The room is free at once, but the rent doesn't move until the month is over: that
+// month, the room still counts for whoever left it and for nobody who moves in (see the bill in houses.service.ts).
+// One row per room per month: if a newcomer also leaves, the first person is still the one paying for it.
+export const leaseEnds = pgTable(
+  "lease_ends",
+  {
+    houseId: text("house_id").notNull().references(() => houses.id, { onDelete: "cascade" }),
+    room: text("room").notNull(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    // The calendar month it ended in ("2026-10"), and the room's size then.
+    month: text("month").notNull(),
+    memoryMb: integer("memory_mb").notNull(),
+    // CPU measured in the room after this isn't theirs, so it isn't on their line.
+    endedAt: timestamp("ended_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.houseId, t.room, t.month] })],
 );
 
 export type DeploymentStatus = "queued" | "cloning" | "building" | "starting" | "live" | "failed";
@@ -356,13 +416,20 @@ export type NotificationKind =
   // The doorbell: someone knocked on your house, or the house answered your knock.
   | "knock"
   | "knock_answer"
+  // A flatmate's build failed, so you can offer a hand.
+  | "build_failed"
   // Teaming up on a room's project, between flatmates of one house. team_invite: the room's occupant asks a flatmate
   // to join their project. team_ask: a flatmate asks the occupant to let them join. Both are answered like
   // invitations, and the sender is told: team_accepted or team_declined.
   | "team_invite"
   | "team_ask"
   | "team_accepted"
-  | "team_declined";
+  | "team_declined"
+  // Someone asks to join a full house's group chat: one guest_ask per flatmate, answered like an invitation (the first
+  // answer counts for all of them). guest_accepted / guest_declined tell the one who asked.
+  | "guest_ask"
+  | "guest_accepted"
+  | "guest_declined";
 
 // Only invitations (house_invite, rent_together, team_invite, team_ask) have a state; the other kinds are news, and
 // leave it null.

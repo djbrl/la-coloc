@@ -4,7 +4,8 @@
 // `HouseView` from the API side; until then the house inside reads it through this type.
 export interface ServerInfo {
   plan: string | null;
-  // The agent's key was made: the install command has been shown once, and we're waiting for the agent to call.
+  // The server's key was made. Paid for too: the server is on its way. Not paid for: a house left half-way by the old
+  // way in, pasting a command. It pays like any other, and that replaces the key (RentServer.vue).
   keyMade: boolean;
 }
 
@@ -35,4 +36,37 @@ export function fcfa(amount: number): string {
 // measured usage at month end; this is the estimate shown until then.
 export function evenSplit(monthlyCost: number, people: number): number {
   return Math.round(monthlyCost / Math.max(1, people) / 100) * 100;
+}
+
+// How people pay when the API doesn't say.
+export const OPERATORS = ["Wave", "Orange Money", "Free Money"];
+
+// What the house's server costs a month. The workshop has no real bill, so it shows what a medium server costs: even
+// the first house you walk into should remind you this is money.
+export function houseCost(house: { monthlyCostFcfa: number | null; tutorial?: boolean }): number | null {
+  return house.monthlyCostFcfa ?? (house.tutorial ? plans[1].fcfa : null);
+}
+
+type RentHouse = { monthlyCostFcfa: number | null; tutorial?: boolean; rooms: { occupant: { login: string } | null }[]; bill?: { lines: { login: string; due: number }[] } | null };
+
+// What a room pays a month. Its occupant's line on this month's bill if the viewer can see the bill (reviews already
+// taken off), shared between the rooms they rent, otherwise the server's cost split evenly. A free room says what
+// someone moving in would pay. Null with no cost yet.
+export function rentOf(house: RentHouse, room: { occupant: { login: string } | null }): number | null {
+  const billed = room.occupant && house.bill?.lines.find((l) => l.login === room.occupant!.login);
+  if (billed) return Math.round(billed.due / Math.max(1, house.rooms.filter((r) => r.occupant?.login === room.occupant!.login).length));
+  const cost = houseCost(house);
+  if (!cost) return null;
+  const lived = house.rooms.filter((r) => r.occupant).length;
+  return evenSplit(cost, room.occupant ? lived : lived + 1);
+}
+
+// What someone pays a month, whichever rooms they rent: their line on the bill, or the estimate for their rooms. It
+// also holds for someone whose last lease has ended: no room, still on the bill. Null with nothing to say.
+export function rentOfPerson(house: RentHouse, login: string): number | null {
+  const billed = house.bill?.lines.find((l) => l.login === login);
+  if (billed) return billed.due;
+  const theirs = house.rooms.filter((r) => r.occupant?.login === login);
+  const each = theirs.length ? rentOf(house, theirs[0]) : null;
+  return each === null ? null : each * theirs.length;
 }

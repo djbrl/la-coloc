@@ -9,8 +9,8 @@ export const arenaWords = defineWords(
   {
     label: (city: string) => `The arena of ${city}`,
     opening: "Opening the arena…",
-    closed: "The arena is closed for now.",
-    closedLine: "It opens with this week's challenge. Come back in a moment.",
+    closed: "Closed for now.",
+    closedLine: "Back soon.",
     failed: "The arena didn't open.",
     close: "Close the arena (Esc)",
     tabsLabel: "The arena",
@@ -42,20 +42,20 @@ export const arenaWords = defineWords(
     rules: "Rules",
     points: (n: number) => `${n} pts`,
     // Under the points table: who decides, and until when.
-    scoring: (deadline: string) => `The repo's maintainers merge and label pull requests. Only merges before ${deadline} count.`,
-    notOpen: "This challenge's repo isn't public yet: nobody can clone it or send a pull request. Come back soon.",
+    scoring: (deadline: string) => `Merged before ${deadline} only.`,
+    notOpen: "The repo isn't public yet.",
     notOpenTitle: "Opening soon",
 
     // Taking part.
     join: "Join",
-    logIn: "Log in to join",
-    submit: "Submit my PR",
+    logIn: "Log in",
+    submit: "Submit",
     prPlaceholder: "https://github.com/…/pull/12",
     prName: "Your pull request's address",
     empty: "Paste your pull request's address first.",
-    notPull: "That isn't a pull request on GitHub. It looks like https://github.com/owner/repo/pull/12.",
+    notPull: "Not a GitHub pull request link.",
     wrongRepo: (repo: string) => `Open it on ${repo}: that's where the challenge lives.`,
-    sent: "Sent. It counts once it's merged.",
+    sent: "Sent.",
     mineName: "Your pull requests",
     states: { open: "Waiting", merged: "Merged", closed: "Closed" },
     takeBack: "Take back",
@@ -65,7 +65,7 @@ export const arenaWords = defineWords(
     // The leaderboard.
     boardName: "This week's top ten",
     championName: (name: string) => `Last week's winner: ${name}`,
-    nobody: "Nobody has scored yet. The first merged pull request takes the lead.",
+    nobody: "No scores yet.",
     placeName: (n: number) => `Place ${n}`,
     prs: (n: number) => `${n} PR`,
     prsName: (n: number) => plural(n, "pull request", "pull requests"),
@@ -74,7 +74,6 @@ export const arenaWords = defineWords(
     // The room.
     roomTitle: (city: string) => `The arena's room, ${city}`,
     sayRoom: "Say something to the arena",
-    logInToTalk: "Log in to talk.",
     logInWord: "Log in",
 
     // The HUD, and the prompt at the entrance.
@@ -94,8 +93,8 @@ export const arenaWords = defineWords(
   {
     label: (city) => `L'arène de ${city}`,
     opening: "Ouverture de l'arène…",
-    closed: "L'arène est fermée pour l'instant.",
-    closedLine: "Elle ouvre avec le défi de la semaine. Revenez dans un instant.",
+    closed: "Fermée pour l'instant.",
+    closedLine: "Bientôt de retour.",
     failed: "L'arène ne s'est pas ouverte.",
     close: "Fermer l'arène (Échap)",
     tabsLabel: "L'arène",
@@ -123,19 +122,19 @@ export const arenaWords = defineWords(
     githubName: "Ouvrir le dossier sur GitHub",
     rules: "Règles",
     points: (n) => `${n} pts`,
-    scoring: (deadline) => `Les mainteneurs du dépôt mergent et étiquettent les pull requests. Seules comptent les merges avant le ${deadline}.`,
-    notOpen: "Le dépôt de ce défi n'est pas encore public : personne ne peut le cloner ni y envoyer de pull request. Revenez bientôt.",
+    scoring: (deadline) => `Mergées avant le ${deadline} uniquement.`,
+    notOpen: "Le dépôt n'est pas encore public.",
     notOpenTitle: "Bientôt ouvert",
 
     join: "Participer",
-    logIn: "Se connecter pour participer",
-    submit: "Envoyer ma PR",
+    logIn: "Se connecter",
+    submit: "Envoyer",
     prPlaceholder: "https://github.com/…/pull/12",
     prName: "L'adresse de votre pull request",
     empty: "Collez d'abord l'adresse de votre pull request.",
-    notPull: "Ce n'est pas une pull request GitHub. Elle ressemble à https://github.com/owner/repo/pull/12.",
+    notPull: "Pas un lien de pull request GitHub.",
     wrongRepo: (repo) => `Ouvrez-la sur ${repo} : c'est là que se trouve le défi.`,
-    sent: "Envoyée. Elle compte dès qu'elle est mergée.",
+    sent: "Envoyée.",
     mineName: "Vos pull requests",
     states: { open: "En attente", merged: "Mergée", closed: "Fermée" },
     takeBack: "Retirer",
@@ -144,7 +143,7 @@ export const arenaWords = defineWords(
 
     boardName: "Le top 10 de la semaine",
     championName: (name) => `Vainqueur de la semaine dernière : ${name}`,
-    nobody: "Personne n'a encore marqué. La première pull request mergée prend la tête.",
+    nobody: "Pas encore de score.",
     placeName: (n) => (n === 1 ? "1re place" : `${n}e place`),
     prs: (n) => `${n} PR`,
     prsName: (n) => pluriel(n, "pull request", "pull requests"),
@@ -152,7 +151,6 @@ export const arenaWords = defineWords(
 
     roomTitle: (city) => `Le salon de l'arène, ${city}`,
     sayRoom: "Dites quelque chose à l'arène",
-    logInToTalk: "Connectez-vous pour parler.",
     logInWord: "Se connecter",
 
     goTo: "Aller à l'arène",

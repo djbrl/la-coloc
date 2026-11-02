@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { arenaAwards, arenaChallenges, type Db, houses as houseRows, messages, roomTeammates, rooms, sessions, users } from "@coloc/db";
+import { arenaAwards, arenaChallenges, creditEntries, type Db, houses as houseRows, messages, roomTeammates, rooms, sessions, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import type { ApiToAgent } from "@coloc/protocol";
 import { HttpException } from "@nestjs/common";
@@ -72,6 +72,9 @@ describe("the demo reset", () => {
     await tutorial.room(req, response());
     await me.updateMe(req, { tutorialDone: true });
     await db.insert(messages).values({ channel: "house:sacre-coeur", authorId: fatou!.id, body: "salut" });
+    await me.updateMe(req, { avatar: "female-a" });
+    await db.update(users).set({ tutorialChapter: "share", credit: 2_000 }).where(eq(users.id, fatou!.id));
+    await db.insert(creditEntries).values({ userId: fatou!.id, amount: -13_000, reason: "server", key: "server:x" });
     // And in Dakar's public room: that belongs to her, not to a house.
     await db.insert(messages).values({ channel: "city:Dakar", authorId: fatou!.id, body: "bonjour Dakar" });
     // Someone renamed a seeded room's project: the reset puts it back. The room is running, and stays so.
@@ -83,7 +86,7 @@ describe("the demo reset", () => {
     expect(left.map((h) => h.id)).toEqual(CITY.map((h) => h.id).sort());
     // The workshop is back to its host and learners, in their example rooms; Fatou's tutorial room is gone.
     const workshop = await db.select().from(rooms).where(eq(rooms.houseId, "atelier"));
-    expect(workshop.map((r) => r.name).sort()).toEqual(["aissatou", "babacar", "coumba", "lamine", "ndeye"]);
+    expect(workshop.map((r) => r.name).sort()).toEqual(["aissatou", "babacar", "ndeye"]);
     expect(workshop.every((r) => r.demo && r.status === "live" && r.url === null)).toBe(true);
     // Fatou's message went with the old city; the seeded chat is back.
     const said = await db.select().from(messages);
@@ -105,6 +108,10 @@ describe("the demo reset", () => {
     expect((await auth.userFromRequest(req))!.id).toBe(fatou!.id);
     expect(await db.select().from(sessions).where(eq(sessions.userId, fatou!.id))).toHaveLength(1);
     expect((await me.me(req)).user).toMatchObject({ login: "fatou", tutorialDone: false, houses: [] });
+    // Everyone starts over: their look to pick again, the quest from its start, the credit they were first given.
+    const after = (await auth.userFromRequest(req))!;
+    expect(after).toMatchObject({ avatar: null, tutorialChapter: null, credit: 15_000 });
+    expect(await db.select().from(creditEntries)).toHaveLength(0);
     // The seeded people are the same rows as before, not new ones.
     expect(await db.select().from(users).where(eq(users.login, "jib"))).toHaveLength(1);
   });

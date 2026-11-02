@@ -12,6 +12,7 @@ interface TeamRoom {
   name: string;
   occupant: Person | null;
   team?: Person[];
+  project?: string | null;
 }
 
 export type TeamUp =
@@ -34,21 +35,23 @@ const hasSpace = (room: TeamRoom | undefined) => !!room && (room.team?.length ??
 export function teamUp(
   person: { login: string; example: boolean },
   viewer: { login: string } | null,
-  // The house you share, as the city or the house view lists it, and your own room in it.
+  // The house you share, as the city or the house view lists it, and your own (first) room in it. Either of you may
+  // rent several rooms: you're together if you're on any of them, and an offer is for the first one with a project.
   house: { demo: boolean; rooms: TeamRoom[] } | null,
   myRoom: string | null,
   sent: Notices["sent"],
 ): TeamUp {
   if (!viewer || !house || house.demo || person.example || person.login === viewer.login) return null;
-  const theirs = house.rooms.find((r) => r.occupant?.login === person.login);
-  const mine = myRoom ? house.rooms.find((r) => r.name === myRoom && r.occupant?.login === viewer.login) : undefined;
+  const theirs = house.rooms.filter((r) => r.occupant?.login === person.login);
+  const mine = myRoom ? house.rooms.filter((r) => r.occupant?.login === viewer.login) : [];
   // Both must live here: you in a room of this house, they in another one.
-  if (!theirs || !mine) return null;
-  if (onTeam(theirs, viewer.login) || onTeam(mine, person.login)) return { kind: "together" };
+  if (!theirs.length || !mine.length) return null;
+  if (theirs.some((r) => onTeam(r, viewer.login)) || mine.some((r) => onTeam(r, person.login))) return { kind: "together" };
   const waiting = sent.find((s) => (s.kind === "team_invite" || s.kind === "team_ask") && s.to === person.login);
   if (waiting) return { kind: "waiting", requestId: waiting.id };
-  const join = hasSpace(theirs) ? theirs.name : null;
-  const bring = hasSpace(mine) ? mine.name : null;
+  const offer = (rooms: TeamRoom[]) => (rooms.find((r) => hasSpace(r) && r.project) ?? rooms.find(hasSpace))?.name ?? null;
+  const join = offer(theirs);
+  const bring = offer(mine);
   return join || bring ? { kind: "offer", join, bring } : null;
 }
 

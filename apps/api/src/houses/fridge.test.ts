@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { BUILD_CANCELLED } from "@coloc/protocol";
 import { noteForDeploy, noteForRoomEvent } from "./fridge";
 import { redactToken } from "./houses.service";
 import { plainNote } from "./lines";
 
 describe("fridge notes", () => {
+  it("says nothing about a build someone cancelled", () => {
+    expect(noteForDeploy({ type: "deploy_status", deployId: "d", room: "awa", status: "failed", detail: BUILD_CANCELLED }, "Awa")).toBeNull();
+  });
+
   it("tells the house when a room ran out of memory", () => {
     const n = noteForRoomEvent({ type: "room_event", room: "moussa", event: "oom", at: "" }, "Moussa");
     expect(n.tone).toBe("warning");

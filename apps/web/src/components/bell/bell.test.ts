@@ -17,7 +17,7 @@ const base: Notice = {
 
 describe("a notification under the bell", () => {
   it("offers to move in or say no to an open house invitation", () => {
-    expect(noticeRow(base)).toEqual({ title: "Jib invites you to Sacré-Cœur", sub: "Room room-4 is free for you.", actions: ["accept", "decline"], acceptWord: "Move in" });
+    expect(noticeRow(base)).toEqual({ title: "Jib invites you to Sacré-Cœur", sub: "Room room-4 for you.", actions: ["accept", "decline"], acceptWord: "Move in" });
   });
 
   it("has nothing left to answer once it's decided", () => {
@@ -29,9 +29,14 @@ describe("a notification under the bell", () => {
 
   it("points both people who'll rent together to an empty plot", () => {
     const ask = { ...base, kind: "rent_together" as const, house: null, room: null };
-    expect(noticeRow(ask)).toMatchObject({ title: "Jib wants to rent a server with you", actions: ["accept", "decline"], acceptWord: "I'm in" });
+    expect(noticeRow(ask)).toMatchObject({ title: "Jib wants to share a house with you", actions: ["accept", "decline"], acceptWord: "I'm in" });
     expect(noticeRow({ ...ask, state: "accepted" }).actions).toEqual(["plot"]);
-    expect(noticeRow({ ...ask, kind: "rent_together_yes", state: null })).toMatchObject({ title: "Jib wants to rent with you", actions: ["plot"] });
+    expect(noticeRow({ ...ask, kind: "rent_together_yes", state: null })).toMatchObject({ title: "Jib wants to share a house with you", actions: ["plot"] });
+  });
+
+  it("tells you a flatmate's build failed, with a way to their house", () => {
+    const failed = { ...base, kind: "build_failed" as const, state: null, room: "room-2" };
+    expect(noticeRow(failed)).toEqual({ title: "Jib's build failed", sub: "Room room-2, Sacré-Cœur.", actions: ["house"], acceptWord: "Move in" });
   });
 
   it("opens the knock or the house for the doorbell's news", () => {
@@ -64,5 +69,16 @@ describe("teaming up under the bell", () => {
   it("tells the sender how it went", () => {
     expect(noticeRow({ ...invite, kind: "team_accepted", state: null })).toMatchObject({ title: "You teamed up with Awa", sub: "Room ndaje, Sacré-Cœur.", actions: ["house"] });
     expect(noticeRow({ ...invite, kind: "team_declined", state: null })).toMatchObject({ title: "Awa won't team up this time", actions: [] });
+  });
+
+  it("lets a flatmate answer an ask to join the house's chat, and tells the one who asked", () => {
+    const ask = noticeRow({ ...base, kind: "guest_ask", room: null });
+    expect(ask.actions).toEqual(["accept", "decline"]);
+    expect(ask.acceptWord).toBe("Let in");
+    expect(ask.title).toBe("Jib asks to join Sacré-Cœur's chat");
+    expect(noticeRow({ ...base, kind: "guest_ask", room: null, state: "accepted" }).actions).toEqual([]);
+    expect(noticeRow({ ...base, kind: "guest_ask", room: null, state: "declined" }).sub).toBe("You said no.");
+    expect(noticeRow({ ...base, kind: "guest_accepted", state: null, room: null }).actions).toEqual(["house"]);
+    expect(noticeRow({ ...base, kind: "guest_declined", state: null, room: null }).actions).toEqual([]);
   });
 });

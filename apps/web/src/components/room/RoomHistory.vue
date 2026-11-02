@@ -4,7 +4,7 @@
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
 import type { RoomManage } from "../../types";
-import { deploymentStep, deploymentTitle, firstLine } from "./room";
+import { buildFailed, deploymentStep, deploymentTitle, firstLine } from "./room";
 import { roomWords as w } from "./words";
 
 defineProps<{ deployments: RoomManage["deployments"]; github: RoomManage["github"]; when: (iso: string) => string }>();
@@ -14,15 +14,15 @@ defineProps<{ deployments: RoomManage["deployments"]; github: RoomManage["github
   <ul v-if="deployments.length" class="row-list">
     <ListRow v-for="d in deployments" :key="d.id" :title="deploymentTitle(d)">
       <template #lead>
-        <span class="mark" :class="deploymentStep(d.status).tone"><Icon :name="deploymentStep(d.status).icon" :size="18" /></span>
+        <span class="mark" :class="deploymentStep(d.status, d.detail).tone"><Icon :name="deploymentStep(d.status, d.detail).icon" :size="18" /></span>
       </template>
       <span class="sub">
-        <span :class="`word-${deploymentStep(d.status).tone}`">{{ deploymentStep(d.status).word }}</span>
+        <span :class="`word-${deploymentStep(d.status, d.detail).tone}`">{{ deploymentStep(d.status, d.detail).word }}</span>
         <template v-if="d.prNumber && github">
           · {{ w.fromPr }}
           <a :href="`${github.url}/pull/${d.prNumber}`" target="_blank" rel="noopener">#{{ d.prNumber }}<span class="sr-only">{{ w.newTab }}</span></a>
         </template>
-        <template v-if="d.status === 'failed' && firstLine(d.detail)"> · {{ firstLine(d.detail) }}</template>
+        <template v-if="buildFailed(d) && firstLine(d.detail)"> · {{ firstLine(d.detail) }}</template>
       </span>
       <template #meta><time :datetime="d.createdAt">{{ when(d.createdAt) }}</time></template>
     </ListRow>

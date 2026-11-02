@@ -6,6 +6,7 @@ import { core, useWhenBack } from "../../../core";
 import { loadMe, postJSON, sendJSON } from "../../../session";
 import { settings } from "../../../settings";
 import type { CityHouse, HouseView, RepoChoices, TutorialState } from "../../../types";
+import { markTourSeen, toursSeen } from "../house/tours";
 import { BUILDING, CHAPTER_OF, chapterIndex, isLive, SETUP, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
 import { tutorialWords } from "./words";
 
@@ -16,7 +17,7 @@ export function useTutorial() {
   // Phones and tablets: the cards talk about tapping, not keys.
   const touch = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
   // Reactive, so the cards and the lobby follow every step the machine takes.
-  const machine = reactive(new TutorialMachine({ touch })) as TutorialMachine;
+  const machine = reactive(new TutorialMachine({ touch, tours: { seen: (name) => toursSeen().includes(name), see: markTourSeen } })) as TutorialMachine;
   // The workshop as a house view, for its rooms on the map and the "meet the house" cards.
   const view = ref<HouseView | null>(null);
   // The API answered 404: this server doesn't have the quest yet.

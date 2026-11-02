@@ -83,6 +83,19 @@ export class NotificationsController {
     return this.notifications.teamUp(user.id, id, room, "login" in b ? b.login : null);
   }
 
+  // A full house's group chat: ask to join it from outside. A flatmate answers under the bell (accept and decline above).
+  @Post("houses/:id/guests")
+  async askToChat(@Param("id") id: string, @Req() req: HttpRequest) {
+    return this.notifications.askToChat((await this.user(req)).id, id);
+  }
+
+  // A guest leaves the house's chat, or a flatmate takes them out of it.
+  @Delete("houses/:id/guests/:login")
+  async removeGuest(@Param("id") id: string, @Param("login") login: string, @Req() req: HttpRequest) {
+    await this.notifications.removeGuest((await this.user(req)).id, id, login);
+    return { ok: true };
+  }
+
   // The room's occupant takes a teammate off the team, or a teammate leaves it.
   @Delete("houses/:id/rooms/:room/team/:login")
   async leaveTeam(@Param("id") id: string, @Param("room") room: string, @Param("login") login: string, @Req() req: HttpRequest) {

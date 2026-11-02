@@ -42,6 +42,8 @@ export function noticeRow(n: Notice): NoticeRow {
       return row(w.knock(who, house), n.room ? w.knockRoom(n.room) : null, n.applicationId ? ["knock"] : []);
     case "knock_answer":
       return n.verdict === "admitted" ? row(w.knockYes(house), null, n.house ? ["house"] : []) : row(w.knockNo(house), w.knockNoWhy, n.applicationId ? ["knock"] : []);
+    case "build_failed":
+      return row(w.buildFailed(who), n.room ? w.teamRoom(n.room, house) : null, n.house ? ["house"] : []);
     // Teaming up on one room's project, between flatmates. An invitation onto their project, or an ask to join yours,
     // is answered like an invitation; then the sender hears how it went.
     case "team_invite":
@@ -56,6 +58,15 @@ export function noticeRow(n: Notice): NoticeRow {
       return row(w.teamedWith(who), n.room ? w.teamRoom(n.room, house) : null, n.house ? ["house"] : []);
     case "team_declined":
       return row(w.teamNo(who), w.teamNoWhy);
+    // A full house's group chat: a flatmate lets someone from outside in, and they hear how it went.
+    case "guest_ask":
+      if (n.state === "open") return row(w.guestAsk(who, house), null, ["accept", "decline"], w.letIn);
+      if (n.state === "accepted") return row(w.guestAsk(who, house), w.guestIn);
+      return row(w.guestAsk(who, house), n.state === "declined" ? w.youSaidNo : w.lapsed);
+    case "guest_accepted":
+      return row(w.guestYes(house), null, n.house ? ["house"] : []);
+    case "guest_declined":
+      return row(w.guestNo(house), null);
     default:
       // A kind this page doesn't know yet (a newer API): who it's from, and nothing to do.
       return row(who, null);

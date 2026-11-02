@@ -15,7 +15,7 @@ describe("protocol", () => {
     );
     expect(msg.type).toBe("deploy");
     if (msg.type !== "deploy") return;
-    expect(msg.ref).toBe("main");
+    expect(msg.ref).toBeUndefined(); // the repo's default branch
     expect(msg.path).toBe(".");
     expect(msg.env).toEqual({});
   });
@@ -25,6 +25,11 @@ describe("protocol", () => {
     for (const room of bad) {
       expect(() => parseApiToAgent(JSON.stringify({ type: "remove_room", room }))).toThrow();
     }
+  });
+
+  it("cancels a build by its room, and the room's name is checked like any other", () => {
+    expect(parseApiToAgent(JSON.stringify({ type: "cancel_build", room: "jib" }))).toEqual({ type: "cancel_build", room: "jib" });
+    expect(() => parseApiToAgent(JSON.stringify({ type: "cancel_build", room: "../etc" }))).toThrow();
   });
 
   it("bounds log requests and replies", () => {

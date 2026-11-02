@@ -184,6 +184,11 @@ Each says `[link] connected to ws://localhost:4100/agent`, and the API logs `age
   or `1` for any folder. **Development only.** The API never takes a `file://` address from a person anyway: only the
   quest's starter page uses one.
 
+A house that pays for its server gets its caretaker on this machine (`apps/api/src/houses/landlord.ts`). `npm run up` turns
+this on with `COLOC_LANDLORD_AGENT`, `COLOC_LANDLORD_API_URL` and `COLOC_LANDLORD_KEY`; `COLOC_LANDLORD_MAX` (3) caps the
+houses and `COLOC_LANDLORD_DOMAIN` (`coloc.localhost`) names where their rooms live. The payment is simulated
+(`apps/api/src/houses/payment.ts`).
+
 ## 7. Terminal 5: the website
 
 ```bash
@@ -267,6 +272,30 @@ laptop its own keys first (step 3): the tunnel puts your API on the internet. Th
 anyone who comes through the tunnel.
 
 The site and the API change together: deploy the site again whenever you restart a newer API (`npm run up` does).
+
+## Putting the city on a real server
+
+`deploy/` turns a fresh Ubuntu 24.04 server into the whole of La Coloc: the built site, the API, Postgres, the seeded city
+and the rooms. It copies this checkout as it is on disk, so nothing needs to be committed first.
+
+```bash
+COLOC_SSH="ssh -i ~/.ssh/coloc_droplet" deploy/push.sh <server ip>
+```
+
+Run it again to update: data and keys stay, and only an empty city gets seeded. Without a domain the city is at
+`coloc.<ip with dashes>.sslip.io`, which needs no DNS; pass a domain as the second argument once it has a wildcard record.
+
+- **Caddy is the only public door.** It serves `apps/web/dist`, sends `/api`, `/lobby-ws` and `/agent` to the API, and sends
+  every other address under the domain to Traefik. A room gets its certificate the first time someone visits it.
+- **Docker publishes nothing past 127.0.0.1**, because its published ports walk straight past `ufw`.
+- **`coloc-firewall.service`** keeps builds and rooms away from the cloud's metadata service and private network. That
+  private network also holds the cloud's DNS, which is why `daemon.json` names public resolvers.
+- **Settings** are in `/etc/coloc`: `secrets.env` is made once and never again, `github.env` comes from your laptop's
+  `dev/.env.github`, and each seeded caretaker has its own short file with no database password or GitHub keys.
+- **Logs:** `journalctl -u coloc-api -f`, and `journalctl -u coloc-caretaker@atelier -f`.
+
+The GitHub App has one webhook address. Pointing it at a server means pushes stop reaching a laptop's smee relay until
+it's pointed back.
 
 ## The everyday loop
 

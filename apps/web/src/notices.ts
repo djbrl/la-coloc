@@ -57,14 +57,17 @@ export const acceptNotice = (id: string) => answer<Accepted>(id, "accept");
 export const declineNotice = (id: string) => answer(id, "decline");
 export const withdrawInvite = (id: string) => answer(id, "withdraw");
 
-/** Invites someone with no house to your house's free room. */
+/** Asks to join a full house's group chat. The house's stream brings the answer. */
+export const askToChat = (house: string) => postJSON<{ status: "open" | "accepted" }>(`/api/houses/${encodeURIComponent(house)}/guests`, {});
+
+/** Invites someone to your house's free room, whether or not they live somewhere already. */
 export async function inviteToHouse(to: string, house: string, room?: string): Promise<Sent<{ id: string }>> {
   const sent = await postJSON<{ id: string }>("/api/invites/house", room ? { to, house, room } : { to, house });
   await loadNotices();
   return sent;
 }
 
-/** Asks someone with no house, while you have none either, to rent a server together. */
+/** Asks someone to share a house (rent a server together), whether or not either of you lives somewhere already. */
 export async function rentTogether(to: string): Promise<Sent<{ id: string }>> {
   const sent = await postJSON<{ id: string }>("/api/invites/rent-together", { to });
   await loadNotices();

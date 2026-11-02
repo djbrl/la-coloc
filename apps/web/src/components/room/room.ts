@@ -116,6 +116,8 @@ export function codeRows(settings: Pick<Settings, "source" | "branch" | "buildPa
     ? { term: "GitHub", value: github.fullName, href: github.url }
     : settings.source?.startsWith("file:")
       ? { term: w.repo, value: w.starterPage }
+      : settings.source?.startsWith("docker://")
+        ? { term: w.image, value: settings.source.slice("docker://".length) }
       : settings.source
         ? { term: w.repo, value: bare(settings.source).replace(/\.git$/, ""), href: settings.source }
         : { term: w.repo, value: w.notSetYet, unset: true };
@@ -148,11 +150,9 @@ export function parsePort(text: string): { ok: true; port: number | null } | { o
   return Number.isInteger(port) && port >= 1 && port <= 65535 ? { ok: true, port } : { ok: false };
 }
 
-/** The PATCH {base}/settings body. With GitHub linked the repo comes from the app, so `source` isn't sent. */
-export function settingsBody(form: SettingsForm, githubLinked: boolean, port: number | null) {
+/** Where the code comes from, as PATCH {base}/settings takes it. With GitHub linked the repo comes from the app, so `source` isn't sent. */
+export function codeBody(form: SettingsForm, githubLinked: boolean, port: number | null) {
   return {
-    project: form.project,
-    projectDescription: form.projectDescription,
     // "file://" stands for the quest's starter page, whose folder the server keeps to itself: leave it as it is.
     source: githubLinked || form.source.trim() === "file://" ? undefined : form.source.trim() || null,
     branch: form.branch.trim() || null,
@@ -161,17 +161,32 @@ export function settingsBody(form: SettingsForm, githubLinked: boolean, port: nu
   };
 }
 
+/** The whole PATCH {base}/settings body: the project's name and line too. */
+export function settingsBody(form: SettingsForm, githubLinked: boolean, port: number | null) {
+  return { project: form.project, projectDescription: form.projectDescription, ...codeBody(form, githubLinked, port) };
+}
+
+/** Where the code comes from is the flatmate's and their teammates' to say; a chef only for a room nobody lives in. */
+export const canChangeCode = (data: Pick<RoomManage, "as"> & { room: Pick<RoomManage["room"], "occupant"> }) => data.as !== "chef" || !data.room.occupant;
+
+/** A Docker image's name, the way the API takes it: `nginx:alpine`, `you/app:1.0`. */
+export const imageNameOk = (name: string) => /^[a-z0-9][a-z0-9._\-/:@]{0,250}$/.test(name);
+
 /** A secret's name the way the app reads it: trimmed and in capitals. */
 export const secretName = (typed: string) => typed.trim().toUpperCase();
 /** Capitals, digits and underscores, not starting with a digit, at most 64 long. */
 export const secretNameOk = (name: string) => /^[A-Z_][A-Z0-9_]{0,63}$/.test(name);
 
+/** A build's branch; "default" is how the API records a room that didn't name one. */
+export const refWord = (ref: string) => (ref === "default" ? w.defaultBranchShort.toLowerCase() : ref);
+
 /** A build in the history: "Update of main", "Preview of fix-login". */
-export const deploymentTitle = (d: Pick<Deployment, "kind" | "ref">) => (d.kind === "preview" ? w.previewOf(d.ref) : w.updateOf(d.ref));
+export const deploymentTitle = (d: Pick<Deployment, "kind" | "ref">) => (d.kind === "preview" ? w.previewOf(refWord(d.ref)) : w.updateOf(refWord(d.ref)));
 
 // Each step's colour and icon; its word is read from the dictionary when asked, so it follows the language.
 type Step = keyof typeof w.steps;
 const STEP: Record<Step, { tone: "live" | "warn" | "danger"; icon: IconName }> = {
+  cancelled: { tone: "warn", icon: "back" },
   queued: { tone: "warn", icon: "clock" },
   cloning: { tone: "warn", icon: "spin" },
   building: { tone: "warn", icon: "spin" },
@@ -180,11 +195,43 @@ const STEP: Record<Step, { tone: "live" | "warn" | "danger"; icon: IconName }> =
   failed: { tone: "danger", icon: "warn" },
 };
 
-/** How a build's status reads in the history, with its colour and icon. Unknown steps read as building. */
-export const deploymentStep = (status: string): { word: string; tone: "live" | "warn" | "danger"; icon: IconName } =>
-  Object.hasOwn(STEP, status)
-    ? { word: w.steps[status as Step], ...STEP[status as Step] }
-    : { word: status || w.steps.building, tone: "warn", icon: "spin" };
+/** How a build's status reads in the history, with its colour and icon. Unknown steps read as building, and a build
+ *  someone cancelled doesn't read as a failure. */
+export function deploymentStep(status: string, detail?: string | null): { word: string; tone: "live" | "warn" | "danger"; icon: IconName } {
+  const step = status === "failed" && buildTrouble(detail) === "cancelled" ? "cancelled" : status;
+  return Object.hasOwn(STEP, step)
+    ? { word: w.steps[step as Step], ...STEP[step as Step] }
+    : { word: step || w.steps.building, tone: "warn", icon: "spin" };
+}
 
 /** The first line of a failure's detail: the part that says what went wrong. */
 export const firstLine = (detail: string | null) => detail?.split("\n").find((l) => l.trim())?.trim() ?? "";
+
+export type BuildTrouble = keyof typeof w.trouble;
+
+/** What went wrong with a build, read from what the caretaker said (deploy.ts, recipe.ts), so the room can say what to do. */
+export function buildTrouble(detail: string | null | undefined): BuildTrouble {
+  const d = detail ?? "";
+  if (/^build cancelled/i.test(d)) return "cancelled";
+  if (/restarted during this build/i.test(d)) return "lost";
+  if (/made no website/i.test(d)) return "noSite";
+  if (/couldn't tell how to run|Cannot locate specified Dockerfile/i.test(d)) return "noRecipe";
+  if (/git clone failed|Repository not found|could not read/i.test(d)) return "fetch";
+  if (/out of memory|OOM|code:? 137/i.test(d)) return "memory";
+  if (/crashed and restarted|exited with code|did not become healthy|health check failed/i.test(d)) return "crash";
+  if (/build failed/i.test(d)) return "build";
+  return "other";
+}
+
+/** A build that ended badly and needs saying so. Someone cancelling it isn't that: the room just goes back to where it was. */
+export const buildFailed = (d: Pick<Deployment, "status" | "detail"> | undefined) => d?.status === "failed" && buildTrouble(d.detail) !== "cancelled";
+
+export type ReadTrouble = keyof typeof w.readTrouble;
+
+/** Why a project couldn't be read, in plain words, from what the caretaker said (git's own sentences). Null: the API's sentence already says it. */
+export function readTrouble(message: string): ReadTrouble | null {
+  if (/remote branch .* not found/i.test(message)) return "branch";
+  if (/git clone failed|repository not found|could not read/i.test(message)) return "repo";
+  if (/didn't answer in time|still reading/i.test(message)) return "slow";
+  return null;
+}

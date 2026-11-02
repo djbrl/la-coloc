@@ -1,13 +1,14 @@
 import "reflect-metadata";
-import { type Db, memberships, notifications, rooms, users } from "@coloc/db";
+import { type Db, deployments, memberships, notifications, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { HttpException } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthService } from "../auth/auth.service";
 import { MembershipsService } from "../auth/memberships.service";
 import { DoorbellService } from "../doorbell/doorbell.service";
 import { HousesService } from "../houses/houses.service";
+import { MAX_ROOMS_PER_PERSON } from "../houses/money";
 import { seedCity } from "../seed/city";
 import { NotificationsController } from "./notifications.controller";
 import { INVITES_PER_DAY, NotificationsService } from "./notifications.service";
@@ -83,13 +84,41 @@ describe("inviting someone to your house", () => {
     expect(await status(invite("sam", "fatou"))).toBe(403);
   });
 
-  it("refuses yourself, a stranger's name, an example person and someone who already has a house", async () => {
+  it("refuses yourself, a stranger's name, an example person and a flatmate of that house", async () => {
     expect(await status(invite("jib", "jib"))).toBe(400);
     expect(await status(invite("jib", "nobody-here"))).toBe(404);
     // Koffi is a seeded flatmate of an example house; Ndeye lives in an example room of the workshop.
     expect(await status(invite("jib", "koffi"))).toBe(409);
     expect(await status(invite("jib", "ndeye"))).toBe(409);
-    await expect(invite("jib", "awa")).rejects.toThrow(/already live in a house/);
+    await expect(invite("jib", "awa")).rejects.toThrow(/already live in this house/);
+  });
+
+  it("invites someone who lives somewhere else: they gain a room here and keep the old one", async () => {
+    // Sam rents a room in another real house already.
+    await houses.rent(ids.sam, { city: "Dakar", plot: "9.9.0.1", name: "Chez Sam", tagline: null });
+    const [old] = await db.select().from(rooms).where(eq(rooms.occupantId, ids.sam));
+    const { id } = await invite("jib", "sam");
+    expect(await service.accept(ids.sam, id)).toMatchObject({ house: { id: "sacre-coeur" }, room: "room-4" });
+    expect(await houses.membership("sacre-coeur", ids.sam)).toBeTruthy();
+    expect(await houses.membership("chez-sam", ids.sam)).toBeTruthy();
+    const [kept] = await db.select().from(rooms).where(eq(rooms.id, old.id));
+    expect(kept.occupantId).toBe(ids.sam);
+  });
+
+  it("refuses at the room limit, and keeps the invitation open for after a lease ends", async () => {
+    for (let i = 0; i < MAX_ROOMS_PER_PERSON; i++) await db.insert(rooms).values({ houseId: "be-kpota", name: `sam-${i}`, memoryMb: 128, cpus: 0.5, occupantId: ids.sam });
+    const { id } = await invite("jib", "sam");
+    await expect(service.accept(ids.sam, id)).rejects.toThrow(/End a lease/);
+    expect((await service.list(ids.sam)).items[0]).toMatchObject({ id, state: "open" });
+    await db.update(rooms).set({ occupantId: null }).where(and(eq(rooms.houseId, "be-kpota"), eq(rooms.name, "sam-0")));
+    expect(await service.accept(ids.sam, id)).toMatchObject({ room: "room-4" });
+  });
+
+  it("doesn't count the workshop's practice room towards the limit", async () => {
+    await db.insert(memberships).values({ houseId: "atelier", userId: ids.sam, role: "flatmate" });
+    for (let i = 0; i < MAX_ROOMS_PER_PERSON; i++) await db.insert(rooms).values({ houseId: "atelier", name: `sam-${i}`, memoryMb: 128, cpus: 0.5, occupantId: ids.sam });
+    const { id } = await invite("jib", "sam");
+    expect(await service.accept(ids.sam, id)).toMatchObject({ room: "room-4" });
   });
 
   it("treats someone without GitHub as an example person, unless the dev login is on", async () => {
@@ -136,7 +165,7 @@ describe("answering a house invitation", () => {
     const fatou = line.find((m) => m.userId === ids.fatou)!;
     expect(fatou.role).toBe("flatmate");
     expect(fatou.tontinePosition).toBe(Math.max(...line.filter((m) => m.userId !== ids.fatou).map((m) => m.tontinePosition)) + 1);
-    expect(await new MembershipsService(db).housesOf(ids.fatou)).toEqual([{ id: "sacre-coeur", name: "Sacré-Cœur", role: "flatmate", room: "room-4" }]);
+    expect(await new MembershipsService(db).housesOf(ids.fatou)).toEqual([{ id: "sacre-coeur", name: "Sacré-Cœur", role: "flatmate", room: "room-4", rooms: ["room-4"] }]);
     const notes = (await houses.view("sacre-coeur", ids.jib))!.notes!.map((n) => n.text);
     expect(notes).toContain("Fatou moved in. Welcome home!");
     expect((await service.list(ids.fatou)).items[0].state).toBe("accepted");
@@ -152,9 +181,9 @@ describe("answering a house invitation", () => {
     const { id } = await invite();
     const moved = await service.accept(ids.fatou, id);
     expect(moved).toMatchObject({ house: { id: "sacre-coeur" }, room: "room-4" });
-    // Now she has a house: nobody can invite her to another.
+    // She lives here now, so no second invitation to this house.
     await db.insert(rooms).values({ houseId: "sacre-coeur", name: "room-5", memoryMb: 128, cpus: 0.5 });
-    await expect(invite("awa", "fatou", "sacre-coeur", "room-5")).rejects.toThrow(/already live in a house/);
+    await expect(invite("awa", "fatou", "sacre-coeur", "room-5")).rejects.toThrow(/already live in this house/);
   });
 
   it("offers the room the sender picked, when the house has several free", async () => {
@@ -164,7 +193,7 @@ describe("answering a house invitation", () => {
     expect(await service.accept(ids.fatou, id)).toMatchObject({ room: "room-5" });
   });
 
-  it("closes other knocks on that room and their own knock, and lapses their other invitations", async () => {
+  it("closes other knocks on that room and their own knock, and leaves their other invitations open", async () => {
     await doorbell.knock("sacre-coeur", "room-4", ids.sam, { message: "I'd host a bot." });
     // A second free room, so Fatou can knock on one and be invited to the other.
     await db.insert(rooms).values({ houseId: "sacre-coeur", name: "room-5", memoryMb: 128, cpus: 0.5 });
@@ -177,8 +206,8 @@ describe("answering a house invitation", () => {
     await service.accept(ids.fatou, id);
     const view = await houses.view("sacre-coeur", ids.jib);
     expect(view!.doorbell).toEqual([]);
-    const [lapsed] = await db.select().from(notifications).where(eq(notifications.id, other[0].id));
-    expect(lapsed.state).toBe("expired");
+    const [still] = await db.select().from(notifications).where(eq(notifications.id, other[0].id));
+    expect(still.state).toBe("open");
     // Sam hears that someone else moved in.
     expect((await service.list(ids.sam)).items[0]).toMatchObject({ kind: "knock_answer", verdict: "declined" });
   });
@@ -191,13 +220,22 @@ describe("answering a house invitation", () => {
     await expect(service.accept(ids.fatou, id)).rejects.toThrow(/already been answered/);
   });
 
-  it("expires when they found a house meanwhile, or when the sender moved out", async () => {
-    const a = await invite("jib");
-    const b = await invite("awa");
+  it("expires when the sender moved out", async () => {
+    const { id } = await invite("awa");
     await db.delete(memberships).where(and(eq(memberships.houseId, "sacre-coeur"), eq(memberships.userId, ids.awa)));
-    await expect(service.accept(ids.fatou, b.id)).rejects.toThrow(/don't live there/);
+    await expect(service.accept(ids.fatou, id)).rejects.toThrow(/don't live there/);
+  });
+
+  it("gives them the room even if they moved in here another way meanwhile", async () => {
+    const { id } = await invite("jib");
+    await db.insert(memberships).values({ houseId: "sacre-coeur", userId: ids.fatou });
+    expect(await service.accept(ids.fatou, id)).toMatchObject({ room: "room-4" });
+  });
+
+  it("takes an invitation even when they found another house meanwhile", async () => {
+    const { id } = await invite("jib");
     await db.insert(memberships).values({ houseId: "be-kpota", userId: ids.fatou });
-    await expect(service.accept(ids.fatou, a.id)).rejects.toThrow(/already live in a house/);
+    expect(await service.accept(ids.fatou, id)).toMatchObject({ house: { id: "sacre-coeur" } });
   });
 
   it("lets only the recipient answer, and only the sender take it back", async () => {
@@ -228,9 +266,16 @@ describe("renting together", () => {
     expect((await service.list(ids.fatou)).items[0]).toMatchObject({ kind: "rent_together_yes", from: { login: "sam" }, state: null });
   });
 
-  it("refuses when either of them already has a house, and double asks", async () => {
-    await expect(service.rentTogether(ids.jib, "fatou")).rejects.toThrow(/Invite them to it/);
-    await expect(service.rentTogether(ids.fatou, "awa")).rejects.toThrow(/Knock on theirs/);
+  it("works when one or both already have a house, and an answer still counts after moving in", async () => {
+    const mine = await service.rentTogether(ids.jib, "fatou");
+    const theirs = await service.rentTogether(ids.fatou, "awa");
+    const both = await service.rentTogether(ids.jib, "awa");
+    expect(await service.accept(ids.fatou, mine.id)).toEqual({ kind: "rent_together", house: null, room: null });
+    expect(await service.accept(ids.awa, theirs.id)).toEqual({ kind: "rent_together", house: null, room: null });
+    expect(await service.accept(ids.awa, both.id)).toEqual({ kind: "rent_together", house: null, room: null });
+  });
+
+  it("refuses an example person and double asks", async () => {
     await expect(service.rentTogether(ids.fatou, "koffi")).rejects.toThrow(/example person/);
     await service.rentTogether(ids.fatou, "sam");
     await expect(service.rentTogether(ids.fatou, "sam")).rejects.toThrow(/already invited/);
@@ -279,5 +324,45 @@ describe("the routes", () => {
     expect((await controller.list(req)).unread).toBe(1);
     expect(await status(controller.accept("not-an-id", req))).toBe(404);
     expect(await controller.accept(id, req)).toMatchObject({ room: "room-4" });
+  });
+});
+
+describe("a flatmate's failed build", () => {
+  const kinds = async (login: string) => (await service.list(ids[login])).items.filter((n) => n.kind === "build_failed");
+  // A build as the agent reports it finished.
+  const finished = (houseId: string, over: Partial<typeof deployments.$inferSelect> = {}) => {
+    const deployment = { id: "d1", houseId, room: "awa", kind: "prod", repo: "r", ref: "main", status: "failed", detail: null, requestedBy: ids.awa, githubRepoId: null, prNumber: null, createdAt: new Date(), ...over };
+    houses.deployFinished.next({ houseId, url: null, deployment: deployment as typeof deployments.$inferSelect });
+  };
+
+  beforeEach(() => {
+    service.onModuleInit();
+  });
+
+  it("reaches the house under the bell, not the person who ran it, and nobody else", async () => {
+    finished("sacre-coeur");
+    await vi.waitFor(async () => expect(await kinds("moussa")).toHaveLength(1));
+    const [n] = await kinds("moussa");
+    expect(n).toMatchObject({ from: { login: "awa" }, house: { id: "sacre-coeur" }, room: "awa", read: false });
+    expect(await kinds("awa")).toEqual([]);
+    expect(await kinds("fatou")).toEqual([]);
+    expect(await kinds("aminata")).toEqual([]);
+  });
+
+  it("adds no second line while the first is unread", async () => {
+    finished("sacre-coeur");
+    await vi.waitFor(async () => expect(await kinds("moussa")).toHaveLength(1));
+    finished("sacre-coeur");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(await kinds("moussa")).toHaveLength(1);
+  });
+
+  it("says nothing of a build that worked, a preview, or the workshop", async () => {
+    finished("sacre-coeur", { status: "live" });
+    finished("sacre-coeur", { kind: "preview" });
+    finished("atelier", { room: "babacar", requestedBy: ids.babacar });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(await kinds("moussa")).toEqual([]);
+    expect(await kinds("ndeye")).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HouseView, Person, Room, Viewer } from "../../../types";
-import { canKnock, crewOf, foldedRooms, footFor, personActions, rowAction, type Situation } from "./crew";
+import { canKnock, chatKey, crewOf, foldedRooms, footFor, liveAddress, myRooms, personActions, roomKeys, type Situation } from "./crew";
 import { houseWords } from "./words";
 
 const person = (login: string): Person => ({ login, name: login[0].toUpperCase() + login.slice(1), avatarUrl: null });
@@ -34,9 +34,9 @@ describe("the crew row", () => {
     doorbell: [{ id: "k1", room: "three", applicant: fatou, tally: { flatmates: 2, yes: 0, no: 0, needed: 2 }, createdAt: "" }],
   };
 
-  it("puts the chef first, then the rooms' order, then knocks, then free rooms", () => {
+  it("puts the chef first, then the rooms' order, then knocks", () => {
     const seats = crewOf(house, "awa");
-    expect(seats.map((s) => s.key)).toEqual(["p:moussa", "p:awa", "p:ibou", "k:k1", "f:three"]);
+    expect(seats.map((s) => s.key)).toEqual(["p:moussa", "p:awa", "p:ibou", "k:k1"]);
   });
 
   it("knows each person's room, the chef, and you", () => {
@@ -63,8 +63,19 @@ describe("the foot's one next step", () => {
     expect(footFor(situation({ viewer: viewer({ member: true, role: "flatmate", room: "two" }), making: true }))).toEqual({ kind: "say", text: houseWords.foot.waitChef });
   });
 
-  it("opens a flatmate's room", () => {
-    expect(footFor(situation({ viewer: viewer({ member: true, role: "flatmate", room: "two" }) }))).toEqual({ kind: "room", room: "two" });
+  it("says when someone with no room left stops being on the bill", () => {
+    const left = viewer({ member: true, role: "flatmate", room: null, rooms: [], leavingUntil: "2026-11-30T23:59:59.999Z" });
+    expect(footFor(situation({ viewer: left }))).toEqual({ kind: "say", text: houseWords.foot.leaving("30 November") });
+  });
+
+  it("knows all the rooms someone rents, from an older API too", () => {
+    expect(myRooms(viewer({ room: "a", rooms: ["a", "b"] }))).toEqual(["a", "b"]);
+    expect(myRooms(viewer({ room: "a" }))).toEqual(["a"]);
+    expect(myRooms(null)).toEqual([]);
+  });
+
+  it("adds nothing for a flatmate: their room's square on the floor plan is the way in", () => {
+    expect(footFor(situation({ viewer: viewer({ member: true, role: "flatmate", room: "two" }) }))).toEqual({ kind: "none" });
   });
 
   it("knocks on the only free room, or points at the rows when there are several", () => {
@@ -80,7 +91,14 @@ describe("the foot's one next step", () => {
 
   it("says why there's nothing to press", () => {
     expect(footFor(situation({ demo: true, freeRooms: ["three"] }))).toEqual({ kind: "say", text: houseWords.foot.example });
-    expect(footFor(situation())).toEqual({ kind: "say", text: houseWords.foot.full });
+    expect(footFor(situation({ demo: true, freeRooms: [] }))).toEqual({ kind: "askChat" });
+  });
+
+  it("offers a full house's group chat instead, and says where the request stands", () => {
+    expect(footFor(situation())).toEqual({ kind: "askChat" });
+    expect(footFor(situation({ viewer: viewer({ guest: "open" }) }))).toEqual({ kind: "say", text: houseWords.foot.chatAsked });
+    expect(footFor(situation({ viewer: viewer({ guest: "accepted" }) }))).toEqual({ kind: "none" });
+    expect(footFor(situation({ viewer: viewer({ guest: "declined" }) }))).toEqual({ kind: "say", text: houseWords.foot.full });
   });
 
   it("leaves the foot empty in the workshop until you have a room: its row (or the quest) offers it once", () => {
@@ -88,87 +106,132 @@ describe("the foot's one next step", () => {
   });
 });
 
-describe("a room row's one button", () => {
-  const awa = person("awa");
-  const mine = room("one", person("jib"));
+describe("a room's page: its keys", () => {
+  const awa: Person = { ...person("awa"), github: true };
+  const seeded: Person = { ...person("ibou"), github: false };
+  const flatmate = viewer({ member: true, role: "flatmate", room: "one" });
 
-  it("never repeats the foot", () => {
-    const s = situation({ viewer: viewer({ member: true, role: "flatmate", room: "one" }) });
-    // The foot opens your room, so your row offers your project's address instead.
-    expect(rowAction(mine, s, footFor(s))).toBe("visit");
-    expect(rowAction({ ...mine, status: "empty", url: null }, s, footFor(s))).toBe(null);
-
-    const one = situation({ freeRooms: ["three"] });
-    expect(rowAction(room("three", null), one, footFor(one))).toBe(null);
-    const two = situation({ freeRooms: ["three", "four"] });
-    expect(rowAction(room("three", null), two, footFor(two))).toBe("knock");
+  it("manages your own room, online or not, even while the house is being made", () => {
+    const mine = room("one", person("jib"));
+    expect(roomKeys(mine, situation({ viewer: flatmate })).main).toEqual({ kind: "manage" });
+    expect(roomKeys(mine, situation({ viewer: viewer({ member: true, role: "chef", room: "one" }), making: true })).main).toEqual({ kind: "manage" });
   });
 
-  it("opens a flatmate's room for their teammate", () => {
-    const s = situation({ viewer: viewer({ member: true, role: "flatmate", room: "one" }) });
-    expect(rowAction(room("two", awa, { team: [person("jib")] }), s, footFor(s))).toBe("open");
-    expect(rowAction(room("two", awa, { team: [person("kofi")] }), s, footFor(s))).toBe("visit");
+  it("manages your room by who lives there, also when it isn't your first one", () => {
+    expect(roomKeys(room("nine", person("jib")), situation({ viewer: flatmate })).main).toEqual({ kind: "manage" });
   });
 
-  it("visits someone else's live room, but never an example one", () => {
-    const s = situation();
-    expect(rowAction(room("two", awa), s, footFor(s))).toBe("visit");
-    expect(rowAction(room("two", awa, { demo: true }), s, footFor(s))).toBe(null);
-    expect(rowAction(room("two", awa, { status: "down" }), s, footFor(s))).toBe(null);
+  it("manages a flatmate's room for their teammate, after the Chat key", () => {
+    expect(roomKeys(room("two", awa, { team: [person("jib")] }), situation({ viewer: flatmate }))).toEqual({ main: { kind: "chat", login: "awa" }, second: { kind: "manage" } });
+    expect(roomKeys(room("two", awa, { team: [person("kofi")] }), situation({ viewer: flatmate })).main).toEqual({ kind: "chat", login: "awa" });
   });
 
-  it("offers nothing while the house is being made", () => {
-    const s = situation({ viewer: viewer({ member: true, role: "chef", room: "one" }), making: true });
-    expect(rowAction(mine, s, footFor(s))).toBe(null);
+  it("chats with a flatmate, and shows the key off for a made-up one", () => {
+    expect(roomKeys(room("two", awa), situation({ viewer: flatmate }))).toEqual({ main: { kind: "chat", login: "awa" }, second: null });
+    expect(roomKeys(room("two", seeded), situation({ viewer: flatmate })).main).toEqual({ kind: "chatOff" });
+    expect(roomKeys(room("two", awa, { demo: true }), situation({ viewer: flatmate })).main).toEqual({ kind: "chatOff" });
+  });
+
+  it("puts Chat first from outside, with the knock beside it", () => {
+    const chat = { kind: "chat", login: "awa" };
+    expect(roomKeys(room("two", awa), situation({ freeRooms: ["four"] }))).toEqual({ main: chat, second: { kind: "knock", room: "four" } });
+    expect(roomKeys(room("two", awa), situation({ freeRooms: ["three", "four"] }))).toEqual({ main: chat, second: { kind: "pick" } });
+    expect(roomKeys(room("two", awa), situation({ viewer: viewer({ application: "k9" }) }))).toEqual({ main: chat, second: { kind: "thread", id: "k9" } });
+  });
+
+  it("is only a chat request at a full house", () => {
+    expect(roomKeys(room("two", awa), situation())).toEqual({ main: { kind: "chat", login: "awa" }, second: null });
+  });
+
+  it("knocks on a free room, or asks you to log in", () => {
+    const free = room("three", null);
+    expect(roomKeys(free, situation({ freeRooms: ["three"] })).main).toEqual({ kind: "knock", room: "three" });
+    expect(roomKeys(free, situation({ viewer: null, freeRooms: ["three"] })).main).toEqual({ kind: "login" });
+    expect(roomKeys(free, situation({ viewer: viewer({ application: "k9" }), freeRooms: ["three"] })).main).toEqual({ kind: "thread", id: "k9" });
+  });
+
+  it("lets someone who lives here take a free room, but not in an example house or the workshop", () => {
+    const free = room("three", null);
+    expect(roomKeys(free, situation({ viewer: flatmate, freeRooms: ["three"] }))).toEqual({ main: { kind: "take", room: "three" }, second: null });
+    expect(roomKeys(free, situation({ viewer: flatmate, demo: true, freeRooms: ["three"] })).main).toBeNull();
+    expect(roomKeys(free, situation({ viewer: flatmate, tutorial: true, freeRooms: ["three"] })).main).toBeNull();
+    expect(roomKeys({ ...free, demo: true }, situation({ viewer: flatmate, freeRooms: ["three"] })).main).toBeNull();
+  });
+
+  it("keeps Chat on an example house's people, off, and nothing to press on its free rooms", () => {
+    expect(roomKeys(room("two", seeded), situation({ demo: true, freeRooms: ["four"] }))).toEqual({ main: { kind: "chatOff" }, second: null });
+    expect(roomKeys(room("two", seeded), situation({ viewer: null, demo: true })).main).toEqual({ kind: "chatOff" });
+    expect(roomKeys(room("three", null), situation({ demo: true, freeRooms: ["three"] }))).toEqual({ main: null, second: null });
+  });
+
+  it("takes you to log in from Chat when you're logged out", () => {
+    expect(roomKeys(room("two", awa), situation({ viewer: null })).main).toEqual({ kind: "chatLogin" });
+    expect(roomKeys(room("two", awa), situation({ viewer: null, freeRooms: ["four"] })).main).toEqual({ kind: "chatLogin" });
+  });
+
+  it("shows a project's address only when something runs there", () => {
+    expect(liveAddress(room("two", awa))).toBe("http://two.coloc.localhost");
+    expect(liveAddress(room("two", awa, { demo: true }))).toBeNull();
+    expect(liveAddress(room("two", awa, { status: "down" }))).toBeNull();
   });
 });
 
-describe("a person picked in the crew row", () => {
+describe("a housemate's Chat key", () => {
+  const awa: Person = { ...person("awa"), github: true };
+  const flatmate = viewer({ member: true, role: "flatmate", room: "one" });
+
+  it("writes to real people, inside the house or out, never to yourself", () => {
+    expect(chatKey(awa, false, situation({ viewer: flatmate }))).toEqual({ kind: "chat", login: "awa" });
+    expect(chatKey(awa, false, situation())).toEqual({ kind: "chat", login: "awa" });
+    expect(chatKey({ ...awa, login: "jib" }, false, situation({ viewer: flatmate }))).toBeNull();
+  });
+
+  it("takes you to log in when you're logged out", () => {
+    expect(chatKey(awa, false, situation({ viewer: null }))).toEqual({ kind: "chatLogin" });
+  });
+
+  it("is off for a made-up person, whoever you are", () => {
+    const seeded: Person = { ...person("ibou"), github: false };
+    expect(chatKey(seeded, false, situation({ viewer: flatmate }))).toEqual({ kind: "chatOff" });
+    expect(chatKey(seeded, false, situation())).toEqual({ kind: "chatOff" });
+    expect(chatKey(seeded, false, situation({ viewer: null }))).toEqual({ kind: "chatOff" });
+    expect(chatKey(awa, false, situation({ demo: true }))).toEqual({ kind: "chatOff" });
+    expect(chatKey(awa, true, situation())).toEqual({ kind: "chatOff" });
+  });
+
+  it("is there on everyone but you: there's always a way to start talking", () => {
+    const viewers = [flatmate, viewer(), viewer({ application: "k9" }), null];
+    const people: Person[] = [awa, { ...person("ibou"), github: false }, person("moussa")];
+    for (const v of viewers) for (const p of people) expect(chatKey(p, false, situation({ viewer: v }))).not.toBeNull();
+  });
+});
+
+describe("a person on a room's page", () => {
   const real: Person = { ...person("awa"), github: true };
   const seeded: Person = { ...person("ibou"), github: false };
-  const city = { inCity: true };
-
-  it("lets a flatmate reach out in the house chat, and wave from the city", () => {
-    const a = personActions(real, false, situation({ viewer: viewer({ member: true, room: "jib" }) }), city);
-    expect(a.reach).toEqual({ kind: "chat" });
-    expect(a.wave).toBe(true);
-    expect(personActions(real, false, situation({ viewer: viewer({ member: true }) }), { inCity: false }).wave).toBe(false);
-  });
-
-  it("lets an outsider knock on their house, or open the knock they already have", () => {
-    expect(personActions(real, false, situation({ freeRooms: ["four"] }), city).reach).toEqual({ kind: "knock", room: "four" });
-    expect(personActions(real, false, situation({ freeRooms: ["three", "four"] }), city).reach).toEqual({ kind: "pick" });
-    expect(personActions(real, false, situation({ viewer: viewer({ application: "k9" }) }), city).reach).toEqual({ kind: "thread", id: "k9" });
-    expect(personActions(real, false, situation({ viewer: null, freeRooms: ["four"] }), city).reach).toEqual({ kind: "login" });
-  });
-
-  it("offers no way in at a full house or an example one, and nothing to yourself", () => {
-    expect(personActions(real, false, situation(), city).reach).toBeNull();
-    expect(personActions(seeded, false, situation({ demo: true, freeRooms: ["four"] }), city).reach).toBeNull();
-    expect(personActions(seeded, false, situation({ viewer: null, demo: true }), city).reach).toBeNull();
-    expect(personActions(real, false, situation({ viewer: null }), city).reach).toBeNull();
-    const you = personActions({ ...person("jib"), github: true }, false, situation(), city);
-    expect(you).toEqual({ reach: null, github: "https://github.com/jib", example: false, wave: false, invite: null });
-  });
+  const none = {};
 
   it("links a GitHub profile only for a real account, and marks made-up people as examples", () => {
-    expect(personActions(real, false, situation(), city)).toMatchObject({ github: "https://github.com/awa", example: false });
-    expect(personActions(seeded, false, situation(), city)).toMatchObject({ github: null, example: true });
+    expect(personActions(real, false, situation(), none)).toMatchObject({ github: "https://github.com/awa", example: false });
+    expect(personActions(seeded, false, situation(), none)).toMatchObject({ github: null, example: true });
     // An older API doesn't say: no link, and only the house's own flags make an example.
-    expect(personActions(person("moussa"), false, situation(), city)).toMatchObject({ github: null, example: false });
-    expect(personActions(person("ndeye"), true, situation(), city).example).toBe(true);
+    expect(personActions(person("moussa"), false, situation(), none)).toMatchObject({ github: null, example: false });
+    expect(personActions(person("ndeye"), true, situation(), none).example).toBe(true);
+    // Someone in an example room or house stays unlinked, whatever their record says.
+    expect(personActions(real, true, situation(), none).github).toBeNull();
+    expect(personActions(real, false, situation({ demo: true }), none).github).toBeNull();
   });
 
   it("lets someone with a real house invite a newcomer they meet in the workshop, once", () => {
     const workshop = situation({ tutorial: true, viewer: viewer({ member: true, room: "jib-home" }) });
     const home = { id: "sacre-coeur", name: "Sacré-Cœur" };
-    expect(personActions(real, false, workshop, { ...city, home }).invite).toEqual({ kind: "invite", houseId: "sacre-coeur", houseName: "Sacré-Cœur" });
-    expect(personActions(real, false, workshop, { ...city, home, invited: true }).invite).toEqual({ kind: "invited" });
+    expect(personActions(real, false, workshop, { home }).invite).toEqual({ kind: "invite", houseId: "sacre-coeur", houseName: "Sacré-Cœur" });
+    expect(personActions(real, false, workshop, { home, invited: true }).invite).toEqual({ kind: "invited" });
     // Not without a house of your own, not an example person, not outside the workshop, not yourself.
-    expect(personActions(real, false, workshop, city).invite).toBeNull();
-    expect(personActions(seeded, false, workshop, { ...city, home }).invite).toBeNull();
-    expect(personActions(real, false, situation({ viewer: viewer({ member: true }) }), { ...city, home }).invite).toBeNull();
-    expect(personActions({ ...person("jib"), github: true }, false, workshop, { ...city, home }).invite).toBeNull();
+    expect(personActions(real, false, workshop, none).invite).toBeNull();
+    expect(personActions(seeded, false, workshop, { home }).invite).toBeNull();
+    expect(personActions(real, false, situation({ viewer: viewer({ member: true }) }), { home }).invite).toBeNull();
+    expect(personActions({ ...person("jib"), github: true }, false, workshop, { home }).invite).toBeNull();
   });
 });
 
@@ -176,17 +239,17 @@ describe("a long room list, folded", () => {
   const rooms = ["a", "b", "c", "d", "e", "f", "g", "h"].map((n) => room(n, n === "g" ? null : person(`p${n}`)));
 
   it("shows every room when they fit, or when only one would be folded", () => {
-    expect(foldedRooms(rooms.slice(0, 5), null)).toEqual({ shown: rooms.slice(0, 5), hidden: 0 });
-    expect(foldedRooms(rooms.slice(0, 6), null).hidden).toBe(0);
+    expect(foldedRooms(rooms.slice(0, 5), [], 5)).toEqual({ shown: rooms.slice(0, 5), hidden: 0 });
+    expect(foldedRooms(rooms.slice(0, 6), [], 5).hidden).toBe(0);
   });
 
-  it("keeps five rows, yours and the free ones first, in the house's order, and counts the rest", () => {
-    const { shown, hidden } = foldedRooms(rooms, "h");
+  it("keeps what fits, yours and the free ones first, in the house's order, and counts the rest", () => {
+    const { shown, hidden } = foldedRooms(rooms, ["h"], 5);
     expect(hidden).toBe(3);
     expect(shown.map((r) => r.name)).toEqual(["a", "b", "c", "g", "h"]);
   });
 
   it("makes room for a row above the list", () => {
-    expect(foldedRooms(rooms, null, 4).shown).toHaveLength(4);
+    expect(foldedRooms(rooms, [], 4).shown).toHaveLength(4);
   });
 });

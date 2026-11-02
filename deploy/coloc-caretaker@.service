@@ -1,0 +1,16 @@
+[Unit]
+Description=La Coloc caretaker of the seeded house %i
+Requires=docker.service
+After=docker.service coloc-api.service
+
+[Service]
+User=coloc
+# Its own short file: a caretaker never sees the database password or the GitHub keys.
+EnvironmentFile=/etc/coloc/caretaker-%i.env
+WorkingDirectory=/opt/coloc/src/apps/agent
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

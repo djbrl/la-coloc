@@ -7,6 +7,7 @@ import { locale } from "../../i18n";
 import type { HouseView } from "../../types";
 import Avatar from "../Avatar.vue";
 import GithubLink from "../GithubLink.vue";
+import { myRooms } from "../lobby/house/crew";
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
 import RoomCard from "../RoomCard.vue";
@@ -49,7 +50,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 
   <ListCard v-if="work.length" :title="said.atWork" heading-id="work-title" :explain="said.work">
     <ul class="plain lines">
-      <RoomCard v-for="w in work" :key="w.room.name" :house-id="house.id" :row="w" :mine="viewer?.room === w.room.name" :member="member" />
+      <RoomCard v-for="w in work" :key="w.room.name" :house-id="house.id" :row="w" :mine="myRooms(viewer).includes(w.room.name)" :member="member" />
     </ul>
   </ListCard>
 

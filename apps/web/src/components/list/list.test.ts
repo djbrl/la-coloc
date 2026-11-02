@@ -68,14 +68,14 @@ describe("the city list", () => {
     expect(roomsLine(full)).toBe("1 room, all taken");
     expect(roomsLine(kpota)).toBe("3 rooms, 1 signed up");
     // An example house says so once, here, instead of a pill.
-    expect(roomsSaid(cityHouse("demo", { demo: true }))).toBe("An example house: 2 rooms, 1 free");
+    expect(roomsSaid(cityHouse("demo", { demo: true }))).toBe("Example house: 2 rooms, 1 free");
     expect(roomsSaid(almadies)).toBe("2 rooms, 1 free");
   });
 
   it("falls back from the tagline to a free room's ad", () => {
     expect(rowLine(almadies)).toBe("Four apps by the sea.");
     expect(rowLine(cityHouse("ad", { rooms: [room("r", null, { ad: "Looking for a mobile dev" })] }))).toBe("Looking for a mobile dev");
-    expect(rowLine(cityHouse("demo", { demo: true }))).toBe("An example house, to show how one looks.");
+    expect(rowLine(cityHouse("demo", { demo: true }))).toBe("Example house.");
   });
 
   it("shows a few faces and counts the rest", () => {
@@ -148,8 +148,8 @@ describe("a house's page in the list view", () => {
     expect(rows.map((r) => r.room.name)).toEqual(["awa", "moussa"]);
     expect(rows[0]).toMatchObject({ memory: { mb: 64, pct: 25 }, cpu: "1.2", given: 3, received: 1, manage: true });
     expect(rows[1]).toMatchObject({ memory: null, cpu: null, given: 0, manage: false });
-    expect(workLine(rows[0])).toBe("Online. Using 64 of its 256 MB and 1% of a CPU.");
-    expect(workLine(rows[1])).toBe("Online. It has 256 MB of memory and half a CPU. Nothing measured yet.");
+    expect(workLine(rows[0])).toBe("Online. 64 of 256 MB, 1% of a CPU.");
+    expect(workLine(rows[1])).toBe("Online. 256 MB of memory, half a CPU. Not measured yet.");
     expect(workRows(house({ status: "making" }), null)).toEqual([]);
     expect(workRows(house({ demo: true }), null)).toEqual([]);
     // Nothing measured, no reviews, nothing to manage: nothing worth a card.

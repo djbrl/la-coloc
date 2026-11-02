@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A little drawing of your first home, for the quest's big moments (the postcard you share, "Welcome home"): a
+// A little drawing of your first home, for the quest's big moments (the postcard you share, "Well done"): a
 // two-storey house with a flat roof, a palm, the sun by day or the moon by night, and one window that is yours,
 // lit once your project is online. Your room's name is on the plaque by the door. Drawn here in SVG with the
 // site's colour tokens, so it follows day and night and nothing is downloaded.

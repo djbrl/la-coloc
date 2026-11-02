@@ -1,0 +1,13 @@
+[Unit]
+Description=Keeps builds and rooms away from the cloud's metadata service and its private network
+Requires=docker.service
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'for to in 169.254.169.254 10.0.0.0/8; do iptables -C DOCKER-USER -d $to -j DROP 2>/dev/null || iptables -I DOCKER-USER -d $to -j DROP; done'
+
+[Install]
+WantedBy=multi-user.target

@@ -163,7 +163,7 @@ async function leave() {
 
 // ---- Reset the demo ----
 
-// After the inline question: the server resets the demo city, this browser forgets its settings, tips and tours,
+// After the inline question: the server resets the demo city, this browser forgets its settings and tours,
 // and the page reloads from the start.
 const resetBusy = ref(false);
 const resetError = ref("");
@@ -177,7 +177,7 @@ async function resetDemo() {
     return;
   }
   try {
-    for (const key of ["coloc.settings", "coloc.tips", "coloc.tours"]) localStorage.removeItem(key);
+    for (const key of ["coloc.settings", "coloc.tours"]) localStorage.removeItem(key);
   } catch {
     // No storage to clear: the reload is a fresh start all the same.
   }
@@ -286,16 +286,6 @@ async function resetDemo() {
           </template>
         </ListRow>
 
-        <!-- Your account, last: your face, who you're logged in as, and the key to log out. -->
-        <!-- Who you are: the name and the handle fit beside the key; the full sentence is for screen readers. -->
-        <ListRow v-if="me" :title="me.name ?? me.login">
-          <template #lead><Avatar :person="me" :size="46" decorative /></template>
-          <span class="handle">@{{ me.login }}</span>
-          <span class="sr-only">{{ w.signedIn(me.login) }}</span>
-          <template #end>
-            <button class="leave" :disabled="leaving" @click="leave"><Icon name="logout" :size="18" />{{ w.logOut }}</button>
-          </template>
-        </ListRow>
       </ul>
 
       <!-- Starting over: rows like the others, a word and an arrow. The demo's reset asks once more, in place. -->
@@ -312,6 +302,18 @@ async function resetDemo() {
           <button class="danger-fill" :disabled="resetBusy" @click="resetDemo">{{ w.reset }}</button>
         </div>
       </div>
+      <!-- Your account, last of all: your face, who you're logged in as, and the key to log out. The full sentence is for
+           screen readers. -->
+      <ul v-if="me" class="options account">
+        <ListRow :title="me.name ?? me.login">
+          <template #lead><Avatar :person="me" :size="46" decorative /></template>
+          <span class="handle">@{{ me.login }}</span>
+          <span class="sr-only">{{ w.signedIn(me.login) }}</span>
+          <template #end>
+            <button class="leave" :disabled="leaving" @click="leave"><Icon name="logout" :size="18" />{{ w.logOut }}</button>
+          </template>
+        </ListRow>
+      </ul>
       <p v-if="wearError" class="error" role="alert">{{ wearError }}</p>
       <p v-if="tutorialError" class="error" role="alert">{{ tutorialError }}</p>
       <p v-if="resetError" class="error" role="alert">{{ resetError }}</p>
@@ -340,23 +342,26 @@ async function resetDemo() {
 }
 .inner { display: grid; align-content: start; gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
 
-.options { list-style: none; margin: 0; padding: 0; display: grid; line-height: 1.3; }
+.options { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; line-height: 1.3; }
 .options :deep(.list-row) { min-height: 50px; padding: 0; }
+.options :deep(.list-row:hover), .options :deep(.list-row:focus-within) { background: none; box-shadow: none; }
 /* Rows here are a word and a control: plain text, not a name. */
 .options :deep(.title) { font-size: 17px; font-weight: 600; }
 .flip { cursor: pointer; }
-/* Logging out: a quiet key at the end of your account's row. */
+/* Your account, at the very end, on its own tile. Logging out is the quiet key in it. */
+.account { margin-top: 4px; padding: 6px 8px 6px 10px; border-radius: var(--r-md); background: var(--tile); }
+.account .leave:hover:not(:disabled) { background: var(--fill); }
 .handle { font-size: 14px; font-weight: 600; color: var(--handle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.leave { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; background: transparent; box-shadow: var(--quiet-edge); color: var(--text); font-size: 15px; }
+.leave { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; background: transparent; box-shadow: var(--quiet-edge); color: var(--text); font: 800 15px/1 var(--font); }
 .leave:hover:not(:disabled) { background: var(--tile); }
 /* The title to wear: a plain menu, the size of the row's other keys. */
 .pick { min-height: 46px; max-width: 13em; padding: 0 10px; border: 3px solid var(--text); border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 800 15px/1.2 var(--font); }
 
 /* The segmented controls (.segmented) and the tick boxes (.toggle) are the shared ones in style.css. */
 
-/* Starting over: rows with an arrow, a line between them and the options above. */
-.acts { display: grid; }
-.act { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; padding: 0; border-radius: 0; border-top: 2px solid var(--row-line); background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; }
+/* Starting over: rows with an arrow. */
+.acts { display: grid; gap: 2px; margin: 4px -8px 0; }
+.act { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; }
 .act:hover:not(:disabled) { background: var(--tile); }
 .act.danger { color: var(--danger); }
 .act.danger:hover:not(:disabled) { background: var(--danger-soft); }

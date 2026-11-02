@@ -180,7 +180,7 @@ function onKey(e: KeyboardEvent) {
 
         <Panel v-else :body-id="`tabpanel-${tab}`" :body-labelledby="`tab-${tab}`">
           <template #head>
-            <PanelHead :title="say(challenge.title)" :line="say(challenge.summary)">
+            <PanelHead :title="say(challenge.title)">
               <template #lead>
                 <span class="kind" :class="kind.tone" role="img" :aria-label="w.kinds[challenge.kind]" :title="w.kinds[challenge.kind]">
                   <Icon :name="kind.icon" :size="28" />
@@ -217,7 +217,6 @@ function onKey(e: KeyboardEvent) {
             <ul v-else class="lines">
               <ListRow :title="`${repoName(challenge.repo)}/${challenge.path}`" class="repo">
                 <template #lead><Icon name="code" :size="20" /></template>
-                <code class="sub cmd">{{ clone }}</code>
                 <template #end>
                   <a class="button key" :href="forkUrl(challenge.repo)" target="_blank" rel="noopener noreferrer" :aria-label="w.forkName" :title="w.forkName">
                     <Icon name="code" :size="16" />{{ w.fork }}
@@ -302,8 +301,8 @@ function onKey(e: KeyboardEvent) {
 }
 .sign-frame { position: relative; }
 /* The band's X, 44px and centred in its 88px: placed from inside the frame's border, the band starts 3px further in. */
-.sign-x { z-index: 2; top: calc(3px + 44px); }
-.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: var(--r-md); background: var(--surface); }
+.sign-x { z-index: 2; top: 44px; }
+.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--surface); }
 .page-host > :not(.sign-band) { flex: 1 1 auto; min-height: 0; }
 
 /* Opening, closed, failed: one calm message in the middle. */
@@ -333,8 +332,7 @@ function onKey(e: KeyboardEvent) {
 .key:hover:not(:disabled) { background: var(--tile); text-decoration: none; }
 
 /* The rules: folded behind one row, a line above it, like a menu entry that opens. */
-.rules { flex: none; border-top: 2px solid var(--row-line); }
-.rules + .lines { border-top: 2px solid var(--row-line); }
+.rules { flex: none; }
 .rules summary { display: flex; align-items: center; gap: 10px; min-height: 50px; font-size: 18px; font-weight: 800; cursor: pointer; list-style: none; }
 .rules summary::-webkit-details-marker { display: none; }
 .rules summary::after { content: "›"; margin-left: auto; padding: 0 6px; font-size: 22px; transition: transform var(--dur-fast) var(--ease); }

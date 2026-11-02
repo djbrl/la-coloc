@@ -28,6 +28,9 @@ const notesEn = {
   reviewLate: (p: P) => `${p.name} hasn't reviewed ${p.ref} yet. It was due ${p.hours}h after it opened.`,
   paidBill: (p: P) => `${p.name} paid their part of this month's bill.`,
   firstProject: (p: P) => `${p.name} put their first project online. Welcome!`,
+  tookRoom: (p: P) => `${p.name} took another room.`,
+  endedLease: (p: P) => `${p.name} ended their lease. A room is free.`,
+  newChef: (p: P) => `${p.name} is the house's chef now.`,
 };
 
 const knockEn = {
@@ -84,6 +87,9 @@ const noteWords = defineWords("said.notes", notesEn, {
   reviewLate: (p) => `${p.name} n'a pas encore relu ${p.ref}. C'était à faire dans les ${p.hours} h.`,
   paidBill: (p) => `${p.name} a payé sa part de la facture du mois.`,
   firstProject: (p) => `${p.name} a mis en ligne son premier projet. Bienvenue !`,
+  tookRoom: (p) => `${p.name} a pris une autre chambre.`,
+  endedLease: (p) => `${p.name} a rendu son bail. Une chambre est libre.`,
+  newChef: (p) => `${p.name} est maintenant chef de la maison.`,
 });
 
 const knockWords = defineWords("said.knock", knockEn, {

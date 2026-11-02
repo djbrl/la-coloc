@@ -35,8 +35,7 @@ project to be free of third-party rights (Art. 6).
 | Caveat Brush (weight 400; Latin and Latin Extended) by Impallari Type (© 2015 Google Inc.): only the marker writing on the landing's sign | `apps/web/src/fonts.css`, from `node_modules/@fontsource/caveat-brush` | https://fontsource.org/fonts/caveat-brush | SIL OFL 1.1 |
 | The landing's picture (a flat's window on a brick wall, at night), also behind the login page: 2400×1500 WebP | `apps/web/public/landing/street.webp` | Rendered by us (`scripts/render-landing.mjs`), with Kenney's CC0 characters and city, 31 10 2026 | Ours (made from CC0 assets) |
 | The login page's former background, no longer shown: a screenshot of our own 3D city (Lomé, by day), 1600×1000 WebP, about 100 KB | `apps/web/public/login-city.webp` | Rendered by the lobby from the Kenney kits above and our code, 15 10 2026 | Ours (made from CC0 assets) |
-| The share previews' pictures: the loading screens below, cropped to 1200×630 JPEG (Dakar, Kigali, Marrakech, Tunis; `city.jpg` is Dakar's) | `apps/web/public/og/*.jpg` | Made from our own renders, 19 10 2026 | Ours (made from CC0 assets) |
-| The loading screen's backgrounds: screenshots of our own 3D city by day (Dakar, Kigali, Marrakech, Tunis), 1600×1000 WebP, about 80 KB each | `apps/web/public/loading/*.webp` | Rendered by the lobby from the Kenney kits above and our code, 16 10 2026 | Ours (made from CC0 assets) |
+| The share previews' pictures: our own renders of the city by day, cropped to 1200×630 JPEG (Dakar, Kigali, Marrakech, Tunis; `city.jpg` is Dakar's) | `apps/web/public/og/*.jpg` | Made from our own renders, 19 10 2026 | Ours (made from CC0 assets) |
 
 All are development placeholders until Jib's art. Downloaded 09 and 10 10 2026; licence files kept next to the models.
 The models are packed with meshopt and quantization by `@gltf-transform/cli` (MIT, run once with `npx`, not a dependency;

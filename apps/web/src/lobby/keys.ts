@@ -62,8 +62,8 @@ export function focusOnPage(focused: Focused | null, body: unknown): boolean {
 
 /**
  * Whether a key press is for the city (R6, WCAG 2.1.4): the stage (or something in it) has the focus, or the page
- * itself has it (see `focusOnPage`) and the stage has been touched: clicked, tapped, or handed the keys after a card
- * or a welcome closed. The engine and the screen around it (LobbyView.vue) both follow this rule.
+ * itself has it (see `focusOnPage`) and the stage has been touched: clicked, tapped, or handed the keys on arrival or
+ * after a card or a welcome closed. The engine and the screen around it (LobbyView.vue) both follow this rule.
  */
 export function cityOwnsKeys(focused: (Focused & Node) | null, body: unknown, stage: Pick<Node, "contains">, touched: boolean): boolean {
   if (focusOnPage(focused, body)) return touched;

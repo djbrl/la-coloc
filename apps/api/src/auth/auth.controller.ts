@@ -98,6 +98,8 @@ export class AuthController {
         avatarUrl: user.avatarUrl,
         avatar: user.avatar,
         tutorialDone: !!user.tutorialDoneAt,
+        // What they have left of the city's fake money (see credit/).
+        credit: user.credit,
         houses: await this.memberships.housesOf(user.id),
         // Your knocks still waiting for a vote, so the lobby shows "Your knock" rather than offering another.
         knocks: await this.memberships.openKnocks(user.id),

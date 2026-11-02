@@ -1,6 +1,7 @@
 import "reflect-metadata";
-import { type Db, houses } from "@coloc/db";
+import { billPayments, type Db, houses } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
+import { ConflictException } from "@nestjs/common";
 import { HTTP_CODE_METADATA } from "@nestjs/common/constants";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -9,6 +10,7 @@ import type { AuthService } from "../auth/auth.service";
 import { seedCity } from "../seed/city";
 import { CityController, HousesController } from "./houses.controller";
 import { hashSecret, HousesService } from "./houses.service";
+import type { Landlord } from "./landlord";
 import { agentUrl, installCommand } from "./server";
 
 let db: Db;
@@ -18,6 +20,8 @@ let controller: HousesController;
 let city: CityController;
 let changed: string[];
 let hungUp: string[];
+let agents: AgentRegistry;
+let auth: AuthService;
 
 beforeAll(async () => {
   db = await testDb();
@@ -28,9 +32,9 @@ beforeEach(async () => {
   await seedCity(db, { agentSecret: "s", domain: (id) => id });
   as = null;
   hungUp = [];
-  const agents = { isOnline: () => true, send: () => undefined, hangUp: (id: string) => hungUp.push(id) } as unknown as AgentRegistry;
+  agents = { isOnline: () => true, send: () => undefined, hangUp: (id: string) => hungUp.push(id) } as unknown as AgentRegistry;
   // Logs the request in as whoever `as` names.
-  const auth = {
+  auth = {
     config: { publicUrl: "https://coloc.dev" },
     userFromRequest: async () => (as ? (await db.query.users.findFirst({ where: (u, { eq }) => eq(u.login, as!) })) ?? null : null),
   } as unknown as AuthService;
@@ -154,3 +158,104 @@ describe("the install command", () => {
 async function user(login: string) {
   return (await db.query.users.findFirst({ where: (u, { eq }) => eq(u.login, login) }))!;
 }
+
+describe("paying for a house's server", () => {
+  const landlord = (room: boolean) => ({ hasRoom: () => room, secretFor: (id: string) => `key-of-${id}`, domainFor: (id: string) => `${id}.here.localhost`, start: (id: string, domain: string) => started.push([id, domain]) }) as unknown as Landlord;
+  let started: string[][];
+  const pay = (id: string, body: unknown, room = true) => new HousesController(service, agents, auth, landlord(room)).payForServer(id, body, req);
+
+  const creditOf = async (login: string) => (await db.query.users.findFirst({ where: (u, { eq }) => eq(u.login, login) }))!.credit;
+
+  beforeEach(async () => {
+    started = [];
+    // jib is the chef of Sacré-Cœur, which has a server: here it's someone else's, so jib can rent one.
+    const awa = await db.query.users.findFirst({ where: (u, { eq }) => eq(u.login, "awa") });
+    await db.update(houses).set({ chefId: awa!.id }).where(eq(houses.id, "sacre-coeur"));
+  });
+
+  it("takes the first month from the chef's credit, marks it paid and gets the server going, with no command to paste", async () => {
+    const id = await newHouse();
+    const res = await pay(id, { plan: "medium" });
+    expect(await creditOf("jib")).toBe(3_000);
+
+    expect(res).toMatchObject({ plan: "medium", monthlyCostFcfa: 12_000, simulated: true });
+    expect(res).not.toHaveProperty("secret");
+    expect(res).not.toHaveProperty("command");
+    // Its rooms' addresses have to work on the machine that hosts them.
+    expect((await row(id)).domain).toBe(`${id}.here.localhost`);
+    expect(started).toEqual([[id, `${id}.here.localhost`]]);
+    expect(await service.verifyAgentSecret(id, `key-of-${id}`)).toBe(true);
+    const paid = await db.select().from(billPayments).where(eq(billPayments.houseId, id));
+    expect(paid).toHaveLength(1);
+    expect(paid[0].amount).toBe(12_000);
+  });
+
+  it("refuses a server you can't afford, and nothing happens", async () => {
+    const id = await newHouse();
+    const no = await pay(id, { plan: "large" }).catch((e) => e);
+    expect(no.getResponse()).toMatchObject({ code: "no_credit", need: 7_000 });
+    expect((await row(id)).agentSecretHash).toBeNull();
+    expect(started).toEqual([]);
+    expect(await creditOf("jib")).toBe(15_000);
+  });
+
+  it("gives the credit back when the rest fails", async () => {
+    const id = await newHouse();
+    // The house has a key already, and this isn't a renewal: refused after the payment.
+    await db.update(houses).set({ agentSecretHash: "x" }).where(eq(houses.id, id));
+    await expect(pay(id, { plan: "small" })).rejects.toThrow(ConflictException);
+    expect(await creditOf("jib")).toBe(15_000);
+    expect(started).toEqual([]);
+  });
+
+  it("charges nothing for a new key on a house already paid for", async () => {
+    const id = await newHouse();
+    await pay(id, { plan: "small" });
+    await pay(id, { plan: "small", renew: true });
+    expect(await creditOf("jib")).toBe(8_000);
+  });
+
+  it("lets a house left half-way with a pasted command pay, and the key it showed stops working", async () => {
+    const id = await newHouse();
+    // The old way in: a key made and shown on screen, nothing paid, and the server never called.
+    await rentServer(id, { plan: "small" });
+    const shown = (await service.verifyAgentSecret(id, "x")) === false;
+    expect(shown).toBe(true);
+    const old = (await row(id)).agentSecretHash;
+
+    await pay(id, { plan: "small", renew: true });
+    expect((await row(id)).agentSecretHash).not.toBe(old);
+    expect(await service.verifyAgentSecret(id, `key-of-${id}`)).toBe(true);
+    expect(hungUp).toContain(id);
+    expect(await creditOf("jib")).toBe(8_000);
+    expect(started).toHaveLength(1);
+    expect(await db.select().from(billPayments).where(eq(billPayments.houseId, id))).toHaveLength(1);
+  });
+
+  it("gives one server a person, and says so", async () => {
+    const first = await newHouse();
+    await pay(first, { plan: "small" });
+    await service.markLive(first);
+    const { id } = await city.rent({ city: "Dakar", plot: "2.1.0.0", name: "Second" }, req);
+    const no = await pay(id, { plan: "small" }).catch((e) => e);
+    // It names the house they already run, so the window can take them there.
+    expect(no.getResponse()).toMatchObject({ code: "server_limit", house: { id: first } });
+    expect(await creditOf("jib")).toBe(8_000);
+  });
+
+  it("takes no money when there's no machine to give", async () => {
+    const id = await newHouse();
+    await expect(pay(id, { plan: "small" }, false)).rejects.toThrow(ConflictException);
+    expect(await creditOf("jib")).toBe(15_000);
+    expect((await row(id)).agentSecretHash).toBeNull();
+    expect(await db.select().from(billPayments).where(eq(billPayments.houseId, id))).toHaveLength(0);
+    expect(started).toEqual([]);
+  });
+
+  it("only lets the chef pay", async () => {
+    const id = await newHouse();
+    as = "awa";
+    await expect(pay(id, { plan: "small" })).rejects.toThrow("Only the chef rents the server.");
+    expect(started).toEqual([]);
+  });
+});

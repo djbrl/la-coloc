@@ -1,11 +1,14 @@
 // The demo reset: one button that puts the whole city back to the seed, so every jury member or visitor starts
-// from the same city. People and their logins stay; everything about houses goes and is planted again.
+// from the same city. People and their logins stay; everything about houses goes and is planted again, and each person
+// picks their look and gets their credit afresh.
 import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
-import { type Db, houses, messages, rooms, users } from "@coloc/db";
+import { creditEntries, type Db, houses, messages, rooms, users } from "@coloc/db";
 import { and, eq, like, or } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
 import { DB } from "../db/db.module";
 import { HousesService } from "../houses/houses.service";
+import { WELCOME_CREDIT_FCFA } from "../houses/money";
+import { Landlord } from "../houses/landlord";
 import { CITY, plantCity, type SeedOptions } from "../seed/city";
 
 export const SEED_OPTIONS = Symbol("SEED_OPTIONS");
@@ -25,6 +28,7 @@ export class DemoService {
     private readonly houses: HousesService,
     private readonly agents: AgentRegistry,
     @Inject(SEED_OPTIONS) private readonly seed: SeedOptions,
+    private readonly landlord?: Landlord,
   ) {}
 
   async reset(): Promise<{ ok: true }> {
@@ -61,7 +65,11 @@ export class DemoService {
       if (!r.demo && !demoHouses.has(r.houseId) && !lived.has(`${r.houseId}/${r.name}`) && this.agents.isOnline(r.houseId)) this.agents.send(r.houseId, { type: "remove_room", room: r.name });
     }
     // A house the seed doesn't have loses its key with it: its agent is hung up.
-    for (const id of oldHouses) if (!seededHouses.has(id)) this.agents.hangUp(id, "the city was reset");
+    for (const id of oldHouses) {
+      if (seededHouses.has(id)) continue;
+      this.agents.hangUp(id, "the city was reset");
+      this.landlord?.retire(id);
+    }
 
     await this.db.transaction(async (tx) => {
       // Deleting the houses takes their rooms, flatmates, knocks and votes, chores, notes, deployments, secrets,
@@ -71,7 +79,10 @@ export class DemoService {
       // titles; the seeded people's are planted again with the city (seed/arena.ts).
       await tx.delete(messages).where(or(like(messages.channel, "house:%"), like(messages.channel, "application:%")));
       await tx.delete(houses);
-      await tx.update(users).set({ tutorialDoneAt: null });
+      // Everyone starts over: no look (the seed gives nobody one, so the seeded people's looks stay as they are), no
+      // quest, and the credit they were first given.
+      await tx.delete(creditEntries);
+      await tx.update(users).set({ tutorialDoneAt: null, tutorialChapter: null, avatar: null, credit: WELCOME_CREDIT_FCFA });
       await plantCity(tx, this.seed);
 
       // A seeded room an agent is still running keeps what the agent last said about it: it's still online.

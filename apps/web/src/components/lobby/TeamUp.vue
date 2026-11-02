@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Teaming up with a flatmate, on their card (in the street, PersonCard; or in the house window, PersonPeek): a short
+// Teaming up with a flatmate, on their card (in the street, PersonCard; or on a room's page in the house window, RoomDetails): a short
 // flow in two steps. "Team up", then which way round: join their project, or bring them into yours. Sent, it waits
 // for their answer under their bell (and can be taken back); once you're a team, it says so. What's offered comes
 // from teamUp() in team.ts; the API holds the same rules and answers in its own words when one is broken.
@@ -74,7 +74,7 @@ async function takeBack() {
       <button type="button" :class="big ? 'big quiet' : 'quiet'" :disabled="busy" :aria-label="w.withdrawName" @click="takeBack">{{ w.withdraw }}</button>
     </template>
 
-    <button v-else-if="step === 0" type="button" :class="big ? 'big primary' : 'go'" :disabled="busy" :aria-label="w.teamUpName(first)" @click="choose">
+    <button v-else-if="step === 0" type="button" :class="big ? 'big' : 'go'" :disabled="busy" :aria-label="w.teamUpName(first)" @click="choose">
       <Icon name="people" :size="big ? 20 : 16" /> {{ w.teamUp }}
     </button>
 
@@ -99,7 +99,8 @@ async function takeBack() {
 <style scoped>
 .team { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .is-big { width: 100%; }
-.is-big > .big.primary { flex: 1 1 auto; }
+/* Chat is the card's main key: this one steps back, the size of the keys beside it. */
+.is-big > .big { flex: 1 1 auto; padding: 6px 10px; font-size: 15px; }
 /* Done, or waiting: the green word for a team, the quiet one while it waits. */
 .done { display: inline-flex; align-items: center; gap: 8px; color: var(--live); font-weight: 800; white-space: nowrap; }
 .done.wait { color: var(--muted); }
@@ -109,7 +110,7 @@ async function takeBack() {
 .is-big .ways .way { flex: 1 1 140px; font-size: 15px; }
 .way:not(.big), .go, .quiet:not(.big) { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; background: var(--surface); box-shadow: var(--quiet-edge); color: var(--text); font-size: 15px; white-space: nowrap; }
 .way:not(.big):hover:not(:disabled), .quiet:not(.big):hover:not(:disabled) { background: var(--tile); }
-/* The house window's main key is on ink (its foot keeps the one red key), like PersonPeek's. */
+/* The house window's main key is on ink (its foot keeps the one red key). */
 .go, .go:hover:not(:disabled) { background: var(--text); color: var(--surface); box-shadow: none; }
 .way:disabled { opacity: 0.45; cursor: not-allowed; }
 .back { flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; background: none; box-shadow: none; color: var(--text); font: 400 24px/1 var(--display); }

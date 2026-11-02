@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertSafeRef, assertSafeRepo, resolveInside } from "./git";
+import { assertSafeRef, assertSafeRepo, resolveInside, run } from "./git";
 
 describe("checkout safety", () => {
   it("only clones https URLs, and local file:// repos only in development", () => {
@@ -30,5 +30,14 @@ describe("checkout safety", () => {
     expect(resolveInside("/tmp/c", "apps/web")).toBe("/tmp/c/apps/web");
     expect(resolveInside("/tmp/c", ".")).toBe("/tmp/c");
     expect(() => resolveInside("/tmp/c", "../../etc")).toThrow();
+  });
+
+  it("kills the child when its signal aborts", async () => {
+    const stop = new AbortController();
+    const started = Date.now();
+    const running = run("sleep", ["30"], undefined, stop.signal);
+    stop.abort();
+    await expect(running).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(5000);
   });
 });

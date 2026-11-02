@@ -91,6 +91,8 @@ export class AgentsGateway implements OnGatewayConnection {
         return;
       }
       authenticated(msg.houseId);
+      // Before anything new can be sent to it: what it doesn't know about now, it never will.
+      if (msg.building) await this.houses.failLostBuilds(msg.houseId, msg.building);
       this.registry.register(msg.houseId, socket);
       this.houses.setAgentOnline(msg.houseId, true);
       // The first time a new house's agent phones in, the house is no longer "in the making".
@@ -102,6 +104,12 @@ export class AgentsGateway implements OnGatewayConnection {
     switch (msg.type) {
       case "deploy_status":
         await this.houses.recordDeployStatus(houseId, msg);
+        break;
+      case "inspected":
+        this.logs.deliverFindings(houseId, msg);
+        break;
+      case "deploy_log":
+        this.logs.addBuildLines(houseId, msg);
         break;
       case "usage":
         await this.houses.recordUsage(houseId, msg);

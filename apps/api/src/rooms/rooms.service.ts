@@ -4,6 +4,7 @@ import { type Db, deployments, memberships, repos, roomSecrets, roomTeammates, r
 import { and, asc, desc, eq } from "drizzle-orm";
 import { DB } from "../db/db.module";
 import { HousesService } from "../houses/houses.service";
+import { monthEnd, monthOf } from "../houses/money";
 import { SECRETS } from "./room-deployer";
 import { checkSecret, MAX_SECRETS, type SecretBox } from "./secrets";
 
@@ -15,6 +16,16 @@ export interface RoomSettings {
   port?: number | null;
   source?: string | null;
 }
+
+/** "https://github.com/awa/ndaje.git" and "docker://ghcr.io/awa/ndaje:1.0" are both "ndaje". */
+export const projectFrom = (source: string): string | null =>
+  source
+    .replace(/[:@][^/]*$/, "")
+    .replace(/\.git$/, "")
+    .replace(/\/+$/, "")
+    .split("/")
+    .pop()
+    ?.slice(0, 60) || null;
 
 @Injectable()
 export class RoomsService {
@@ -28,6 +39,17 @@ export class RoomsService {
    * The room, if `userId` may manage it: its flatmate (who lives there), a teammate on its project (a flatmate of the
    * same house who teamed up on it: the same rights as its flatmate), or the house's chef (update and restart only).
    */
+  /** The room's latest real build (previews have their own addresses and aren't what the room is showing). */
+  async lastBuild(houseId: string, roomName: string) {
+    const [d] = await this.db
+      .select({ id: deployments.id, status: deployments.status, ref: deployments.ref, repo: deployments.repo, detail: deployments.detail, createdAt: deployments.createdAt, updatedAt: deployments.updatedAt })
+      .from(deployments)
+      .where(and(eq(deployments.houseId, houseId), eq(deployments.room, roomName), eq(deployments.kind, "prod")))
+      .orderBy(desc(deployments.createdAt))
+      .limit(1);
+    return d ?? null;
+  }
+
   async manageable(houseId: string, roomName: string, userId: string) {
     const [room] = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.name, roomName)));
     if (!room) throw new NotFoundException("No such room.");
@@ -63,8 +85,13 @@ export class RoomsService {
       .limit(15);
     const live = house!.rooms.find((r) => r.name === roomName)!;
     return {
-      house: { id: house!.id, name: house!.name, domain: house!.domain, agentOnline: house!.agentOnline, strictReviews: house!.rules.strictReviews },
+      house: { id: house!.id, name: house!.name, domain: house!.domain, agentOnline: house!.agentOnline, strictReviews: house!.rules.strictReviews, chef: house!.viewer?.role === "chef" },
       as,
+      // For the occupant, unless the room has no lease to end (the workshop, an example): the Lease tab's numbers.
+      lease:
+        as === "flatmate" && !room.demo && !house!.demo && !house!.tutorial
+          ? { share: house!.bill?.lines.find((l) => l.login === house!.viewer?.login)?.due ?? null, rooms: house!.viewer?.rooms.length ?? 1, until: monthEnd(monthOf(new Date())).toISOString() }
+          : null,
       room: {
         name: room.name,
         status: room.status,
@@ -109,10 +136,18 @@ export class RoomsService {
     if (as === "chef" && room.occupantId && (moves("source") || moves("branch") || moves("buildPath"))) {
       throw new ForbiddenException({ message: "Only the flatmate who lives here can change where the room's code comes from.", code: "flatmateOnlySource" });
     }
+    // A link or an image given by hand replaces the GitHub repo linked here, if any: a room has one source of code.
+    const replacing = !!s.source?.trim();
+    const [linked] = replacing ? await this.db.select().from(repos).where(and(eq(repos.houseId, houseId), eq(repos.room, roomName))) : [];
+    if (linked) await this.db.delete(repos).where(eq(repos.githubId, linked.githubId));
+    // Until someone names it, a room's project goes by its repo or image, so its tile says what's hosted. A name that
+    // only came from the old code goes with it.
+    const oldName = linked ? projectFrom(linked.fullName) : room.source ? projectFrom(room.source) : null;
+    const ownName = room.project && (!replacing || room.project !== oldName) ? room.project : null;
     await this.db
       .update(rooms)
       .set({
-        project: s.project === undefined ? room.project : s.project?.trim() || null,
+        project: s.project === undefined ? (ownName ?? (s.source ? projectFrom(s.source) : null)) : s.project?.trim() || null,
         projectDescription: s.projectDescription === undefined ? room.projectDescription : s.projectDescription?.trim() || null,
         branch: s.branch === undefined ? room.branch : s.branch?.trim() || null,
         buildPath: s.buildPath === undefined ? room.buildPath : s.buildPath.trim() || ".",

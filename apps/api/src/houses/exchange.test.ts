@@ -183,6 +183,8 @@ describe("the house page", () => {
     const awa = await loggedIn("awa");
     expect(await controller.billPaid("sacre-coeur", awa)).toMatchObject({ ok: true, month: monthOf(new Date()), amount: 4_800 });
     await controller.billPaid("sacre-coeur", awa);
+    // It came out of Awa's credit, once.
+    expect((await db.query.users.findFirst({ where: (u, { eq }) => eq(u.login, "awa") }))!.credit).toBe(15_000 - 4_800);
     expect(await db.select().from(billPayments)).toHaveLength(1);
     const bill = (await svc.view("sacre-coeur", await userId("awa")))!.bill!;
     expect(bill.lines.find((l) => l.login === "awa")!.paid).toBe(true);

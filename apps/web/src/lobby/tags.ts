@@ -13,7 +13,8 @@ export interface TagSpot {
   d: number;
   // Always shown and never faded: your own tag, and whoever you highlighted.
   keep: boolean;
-  // The answers: shown at all, and faded back (no house chip) because a nearer tag overlaps it.
+  // The answers: shown at all, and faded back (no house chip) because a nearer tag overlaps it. `crowded` comes in
+  // holding the last answer, which the next one leans towards.
   shown: boolean;
   crowded: boolean;
   // The tag it stands for: Lobby.ts's business.
@@ -21,8 +22,13 @@ export interface TagSpot {
 }
 
 export const TAG_HEIGHT = 18;
+// People keep moving, so a pile-up has to settle or the tags in it blink. A faded tag only comes back with this many
+// pixels clear around it, and counts as this many metres further away when deciding who's the nearest.
+const CLEAR_GAP = 14;
+const STICKY_METRES = 2;
 
-const before = (a: TagSpot, b: TagSpot) => (a.keep === b.keep ? a.d < b.d : a.keep);
+const distance = (s: TagSpot) => (s.crowded ? s.d + STICKY_METRES : s.d);
+const before = (a: TagSpot, b: TagSpot) => (a.keep === b.keep ? distance(a) < distance(b) : a.keep);
 
 /**
  * Works out the first `count` spots of `spots`, a pool reused from call to call: they're sorted in place, nearest
@@ -43,13 +49,14 @@ export function declutter(spots: TagSpot[], count: number, most: number): void {
   let others = 0;
   for (let i = 0; i < count; i++) {
     const s = spots[i];
+    const gap = s.crowded ? CLEAR_GAP : 0;
     s.shown = s.keep || others++ < most;
     s.crowded = false;
     if (!s.shown || s.keep) continue;
     for (let j = 0; j < i; j++) {
       const t = spots[j];
       if (!t.shown || t.crowded) continue;
-      if (Math.abs(s.x - t.x) < (s.w + t.w) / 2 && Math.abs(s.y - t.y) < TAG_HEIGHT) {
+      if (Math.abs(s.x - t.x) < (s.w + t.w) / 2 + gap && Math.abs(s.y - t.y) < TAG_HEIGHT + gap) {
         s.crowded = true;
         break;
       }

@@ -46,6 +46,16 @@ const fr: Record<string, (r: Refusal) => string> = {
   arenaNoAward: () => "Ce titre n'est pas à vous.",
   slowDownArena: () => "Ça fait beaucoup de pull requests pour une heure. Réessayez plus tard.",
 
+  // The city's credit, and the limits on what one person can take.
+  no_credit: (r) => `Il vous manque ${r.need} FCFA. Relisez le code d'un coloc ou gagnez l'arène pour en gagner.`,
+  server_limit: () => "Un serveur par personne : vous en avez déjà un. Vous pouvez prendre d'autres chambres dans cette maison.",
+  room_limit: (r) => `${r.max} chambres par personne. Rendez-en une pour en prendre une autre.`,
+  takeMembersOnly: () => "Seuls les gens qui habitent cette maison peuvent y prendre une autre chambre. Frappez plutôt à sa porte.",
+  takeNotHere: () => "Cette chambre n'est pas à prendre.",
+  leaseNotYours: () => "Ce n'est pas votre chambre.",
+  leaseNotHere: () => "Cette chambre n'a pas de bail à rendre.",
+  project_limit: (r) => `${r.max} projets par personne. Videz une de vos chambres pour en lancer un autre.`,
+
   // Knocking on a house.
   demoHouseKnock: () => "C'est une maison d'exemple : personne n'habite ici pour vous ouvrir.",
   roomTaken: () => "Quelqu'un habite déjà cette chambre.",
@@ -63,9 +73,7 @@ const fr: Record<string, (r: Refusal) => string> = {
   inviteMembersOnly: () => "Seuls les habitants d'une maison peuvent y inviter quelqu'un.",
   exampleHouseInvite: () => "C'est une maison d'exemple : personne ne peut y emménager.",
   workshopInvite: () => "L'atelier sert à s'entraîner. Invitez cette personne dans une vraie maison.",
-  theyHaveHouse: () => "Cette personne habite déjà une maison.",
-  youHaveHouseInvite: () => "Vous habitez déjà une maison. Invitez-la plutôt chez vous.",
-  theyHaveHouseKnock: () => "Cette personne habite déjà une maison. Frappez plutôt à la sienne.",
+  alreadyFlatmate: () => "Cette personne habite déjà cette maison.",
   roomNotFree: () => "Cette chambre n'est plus libre.",
   houseFull: () => "Votre maison est pleine : aucune chambre libre à proposer.",
   tooManyInvites: () => "Ça fait beaucoup d'invitations pour une journée. Réessayez demain.",
@@ -80,7 +88,6 @@ const fr: Record<string, (r: Refusal) => string> = {
   examplePersonInvite: () => "C'est une personne d'exemple : personne ne recevrait l'invitation.",
   alreadyInvited: () => "Invitation déjà envoyée. La personne la verra sous sa cloche.",
   saidNoToday: () => "Cette personne a dit non aujourd'hui. Réessayez un autre jour.",
-  youHaveHouseNow: () => "Entre-temps, vous avez emménagé dans une maison.",
   houseGone: () => "Cette maison n'existe plus.",
   senderMovedOut: () => "La personne n'y habite plus : l'invitation est tombée.",
   roomTakenFirst: () => "Quelqu'un d'autre a pris cette chambre avant vous.",
@@ -103,11 +110,24 @@ const fr: Record<string, (r: Refusal) => string> = {
   teamRoomChanged: () => "Cette chambre a changé de main : la demande a expiré.",
   teamLeftHouse: () => "L'un de vous n'habite plus cette maison : la demande a expiré.",
 
+  // A full house's group chat.
+  guestExampleHouse: () => "C'est une maison d'exemple : personne ne répondrait.",
+  guestLivesHere: () => "Vous habitez ici : la discussion est déjà la vôtre.",
+  guestRoomFree: () => "Une chambre est libre ici. Frappez plutôt.",
+  guestAlreadyIn: () => "Vous êtes déjà dans la discussion de cette maison.",
+  guestAlreadyAsked: () => "Vous avez déjà demandé. Un coloc répondra.",
+  tooManyGuestAsks: () => "Beaucoup de maisons pour une journée. Réessayez demain.",
+  notGuest: () => "Cette personne n'est pas invitée dans cette discussion.",
+  guestFlatmatesOnly: () => "Seuls les colocs peuvent retirer un invité de la discussion.",
+  guestLeftHouse: () => "Vous n'habitez plus cette maison : la demande a expiré.",
+
   // A room's code and deploys.
   alreadyDeploying: () => "Cette chambre est déjà en train d'être mise en ligne. Attendez la fin.",
   slowDownDeploys: () => "Ça fait beaucoup de mises en ligne en quelques minutes. Attendez un peu avant la suivante.",
   flatmateOnlySource: () => "Seul le coloc qui habite ici peut changer d'où vient le code de la chambre.",
   httpsRepo: () => "Le dépôt doit être une adresse https://.",
+  serverOffline: () => "Le serveur de la maison est éteint.",
+  nothingBuilding: () => "Rien n'est en construction dans cette chambre.",
 
   // The tutorial.
   takeRoomFirst: () => "Prenez d'abord une chambre.",

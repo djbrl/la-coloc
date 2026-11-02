@@ -8,8 +8,10 @@ import {
   type Db,
   deployments,
   fridgeNotes,
+  houseGuests,
   houses,
   type HousePlan,
+  leaseEnds,
   memberships,
   repos,
   roomTeammates,
@@ -18,18 +20,21 @@ import {
   usageSamples,
   users,
 } from "@coloc/db";
-import { type DeployKind, type DeployStatus, type RoomEvent, RoomName, type RoomsSnapshot, type Usage } from "@coloc/protocol";
+import { BUILD_CANCELLED, type DeployKind, type DeployStatus, type RoomEvent, RoomName, type RoomsSnapshot, type Usage } from "@coloc/protocol";
 import { creditReviews, splitBill, tontineTurn } from "@coloc/domain";
-import { and, asc, desc, eq, gt, gte, inArray, isNull, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lt, ne, or, sql } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { auditTime, concatMap, filter, Subject, tap } from "rxjs";
 import { isCoreDown } from "../core/core";
+import { CreditService, projectKey } from "../credit/credit.service";
 import { DB } from "../db/db.module";
 import { channelMessages, houseChannel, openDoorbell } from "../doorbell/queries";
+import { guestStanding } from "./guests";
 import { type Draft, noteForDeploy, noteForRoomEvent } from "./fridge";
 import { happenings } from "./happenings";
+import { billedRooms } from "./leases";
 import { plainNote, readNote } from "./lines";
-import { billReference, monthOf, monthStart, operatorsFor, REVIEW_CREDIT_FCFA, TONTINE_ANCHOR } from "./money";
+import { billReference, monthEnd, monthOf, monthStart, operatorsFor, PROJECT_COST_FCFA, REVIEW_CREDIT_FCFA, TONTINE_ANCHOR, WORKSHOP_ID } from "./money";
 import { PLAN_COST_FCFA } from "./server";
 import { alias } from "drizzle-orm/pg-core";
 import type {
@@ -101,6 +106,12 @@ export function slugify(text: string): string {
 
 // `github`: whether they logged in with GitHub, so the web may link their profile. Seeded and demo people never did.
 // `badge`: their worn Arena title, copied on the users row (arena/badges.ts).
+// A room's repository, as a link: the GitHub repo linked to it, or the https address it was set up from.
+function repoLink(fullName: string | undefined, source: string | null): string | null {
+  if (fullName) return `https://github.com/${fullName}`;
+  return source?.startsWith("https://") ? source : null;
+}
+
 function person(u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "badge"> | null | undefined): PersonView | null {
   return u ? { login: u.login, name: u.name, avatarUrl: u.avatarUrl, github: u.githubId !== null, badge: u.badge ?? null } : null;
 }
@@ -127,7 +138,11 @@ export class HousesService {
   private online = new Set<string>();
   private usage = new Map<string, Map<string, RoomUsage>>();
 
+  // People's fake money: a house's server, its rent and its projects are paid from it.
+  readonly credit: CreditService;
+
   constructor(@Inject(DB) private readonly db: Db) {
+    this.credit = new CreditService(db);
     this.changes
       .pipe(
         tap(() => this.cityAsked++),
@@ -158,8 +173,12 @@ export class HousesService {
    * A house that already has a key keeps it unless `renew` is true: then the new key replaces the old one,
    * and an agent still holding the old key can no longer get in.
    */
-  async rentServer(houseId: string, plan: HousePlan, renew: boolean): Promise<{ secret: string; plan: HousePlan; monthlyCostFcfa: number; domain: string }> {
-    const secret = randomBytes(32).toString("base64url");
+  async rentServer(
+    houseId: string,
+    plan: HousePlan,
+    renew: boolean,
+    secret = randomBytes(32).toString("base64url"),
+  ): Promise<{ secret: string; plan: HousePlan; monthlyCostFcfa: number; domain: string }> {
     const monthlyCostFcfa = PLAN_COST_FCFA[plan];
     // One statement, so two clicks at once can't both make a key: without `renew`, it only matches a house with none.
     const updated = await this.db
@@ -173,6 +192,36 @@ export class HousesService {
     }
     this.changes.next(houseId);
     return { secret, plan, monthlyCostFcfa, domain: updated[0].domain };
+  }
+
+  /** Where the house's rooms are served, once it's known which machine hosts them. */
+  async setDomain(houseId: string, domain: string): Promise<string> {
+    await this.db.update(houses).set({ domain }).where(eq(houses.id, houseId));
+    return domain;
+  }
+
+  /** How many servers this person runs: houses they're chef of with a key, besides this one. */
+  async serversOf(userId: string, besides: string): Promise<number> {
+    const [{ n }] = await this.db
+      .select({ n: count() })
+      .from(houses)
+      .where(and(eq(houses.chefId, userId), isNotNull(houses.agentSecretHash), ne(houses.id, besides)));
+    return n;
+  }
+
+  /** The house this person already runs a server in, besides this one: where to send them when they can't rent another. */
+  async serverOf(userId: string, besides: string): Promise<{ id: string; name: string } | null> {
+    const [h] = await this.db
+      .select({ id: houses.id, name: houses.name })
+      .from(houses)
+      .where(and(eq(houses.chefId, userId), isNotNull(houses.agentSecretHash), ne(houses.id, besides)))
+      .limit(1);
+    return h ?? null;
+  }
+
+  /** The houses with a key: the landlord looks through them after a restart (landlord.ts). */
+  keyedHouses(): Promise<{ id: string; domain: string; agentSecretHash: string | null }[]> {
+    return this.db.select({ id: houses.id, domain: houses.domain, agentSecretHash: houses.agentSecretHash }).from(houses).where(isNotNull(houses.agentSecretHash));
   }
 
   /**
@@ -278,25 +327,42 @@ export class HousesService {
     return h?.domain ?? "";
   }
 
+  // A caretaker that restarted forgets its builds, and they'd say "building" for ever. The API restarting takes the
+  // caretakers it started with it, so this happens. Anything it isn't on any more has failed, and can be tried again.
+  async failLostBuilds(houseId: string, building: string[]) {
+    const open = await this.db.select({ id: deployments.id, room: deployments.room }).from(deployments).where(and(eq(deployments.houseId, houseId), inArray(deployments.status, [...IN_FLIGHT])));
+    for (const d of open) {
+      if (building.includes(d.id)) continue;
+      await this.recordDeployStatus(houseId, { type: "deploy_status", deployId: d.id, room: d.room, status: "failed", detail: "The server restarted during this build. Your code is fine: try it again." });
+    }
+  }
+
   async recordDeployStatus(houseId: string, s: DeployStatus) {
     const [d] = await this.db
       .update(deployments)
       .set({ status: s.status, detail: s.detail ?? null, updatedAt: new Date() })
       .where(and(eq(deployments.id, s.deployId), eq(deployments.houseId, houseId)))
       .returning();
+    // Its record is gone: the lease on that room ended during the build. The caretaker is about to clear it out.
+    if (!d) return;
     const room = await this.room(houseId, s.room);
     const url = s.url ? roomAddress(s.url, s.room, await this.domainOf(houseId)) : null;
-    if (room && d?.kind === "prod") {
+    if (room && d.kind === "prod") {
       if (s.status === "live") {
         await this.db.update(rooms).set({ status: "live", url }).where(eq(rooms.id, room.id));
+        // The first time a project goes online in this room, it costs its occupant. A failed build costs nothing.
+        const payer = room.occupantId ?? d.requestedBy;
+        if (!room.url && payer && houseId !== WORKSHOP_ID) await this.credit.charge(payer, PROJECT_COST_FCFA, "project", projectKey(houseId, room.name, payer));
       } else if (s.status === "failed" && room.status !== "live") {
-        await this.db.update(rooms).set({ status: "failed" }).where(eq(rooms.id, room.id));
+        // Cancelled on purpose: nothing went wrong, so the room goes back to where it was (live rooms never left).
+        const status = s.detail !== BUILD_CANCELLED ? "failed" : room.url ? "down" : "empty";
+        await this.db.update(rooms).set({ status }).where(eq(rooms.id, room.id));
       }
     }
     const note = room ? noteForDeploy(s, await this.occupantName(room.occupantId)) : null;
     if (note) await this.addNote(houseId, note);
     this.changes.next(houseId);
-    if (d && (s.status === "live" || s.status === "failed")) this.deployFinished.next({ houseId, deployment: d, url });
+    if (s.status === "live" || s.status === "failed") this.deployFinished.next({ houseId, deployment: d, url });
   }
 
   async recordUsage(houseId: string, u: Usage) {
@@ -341,10 +407,13 @@ export class HousesService {
     const all = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.demo, false)));
     const domain = await this.domainOf(houseId);
     const leftovers: string[] = [];
+    const ended = new Set((await this.db.select({ room: leaseEnds.room }).from(leaseEnds).where(eq(leaseEnds.houseId, houseId))).map((l) => l.room));
     for (const room of all) {
       const prod = snap.rooms.find((r) => r.room === room.name && r.kind === "prod");
       let next: { status: RoomStatus; url: string | null };
-      if (!room.occupantId) {
+      // Nobody lives here, or someone moved in after a lease ended while the server was off and hasn't built yet, so
+      // what's running is the last tenant's. lastDeployId is set before any build starts: a new one can't be mistaken.
+      if (!room.occupantId || (ended.has(room.name) && !room.lastDeployId)) {
         if (snap.rooms.some((r) => r.room === room.name)) leftovers.push(room.name);
         next = { status: "empty", url: null };
       } else {
@@ -372,6 +441,8 @@ export class HousesService {
 
     const now = new Date();
     const mine = viewerId ? h.memberships.find((m) => m.userId === viewerId) : undefined;
+    // A flatmate may rent several rooms here: in the house's order, so the first is always the same one.
+    const myRooms = viewerId ? h.rooms.filter((r) => r.occupantId === viewerId).map((r) => r.name) : [];
     const viewerRow = viewerId ? (mine?.user ?? (await this.db.query.users.findFirst({ where: eq(users.id, viewerId) }))) : undefined;
     const live = this.usage.get(houseId);
     const team = await this.teams([houseId]);
@@ -382,6 +453,10 @@ export class HousesService {
     let channel: MessageView[] | null = null;
     let openChores: ChoreView[] | null = null;
     let myApplication: string | null = null;
+    // People let into the house's chat from outside, for those who can read it; and this viewer's own standing.
+    const guestRows = await this.db.select({ userId: houseGuests.userId, status: houseGuests.status, askedAt: houseGuests.askedAt, decidedAt: houseGuests.decidedAt, user: users }).from(houseGuests).innerJoin(users, eq(users.id, houseGuests.userId)).where(eq(houseGuests.houseId, houseId));
+    const myGuest = mine ? null : guestStanding(guestRows.find((g) => g.userId === viewerId));
+    const linked = mine ? await this.db.select({ room: repos.room, fullName: repos.fullName }).from(repos).where(eq(repos.houseId, houseId)) : [];
     if (mine) {
       const ds = await this.db.select().from(deployments).where(eq(deployments.houseId, houseId)).orderBy(desc(deployments.createdAt)).limit(RECENT);
       const ns = await this.db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, houseId)).orderBy(desc(fridgeNotes.at)).limit(RECENT);
@@ -396,6 +471,7 @@ export class HousesService {
         .from(applications)
         .where(and(eq(applications.houseId, houseId), eq(applications.applicantId, viewerId), eq(applications.status, "open")));
       myApplication = app?.id ?? null;
+      if (myGuest === "accepted") channel = await channelMessages(this.db, houseChannel(houseId), undefined, viewerId);
     }
 
     return {
@@ -408,6 +484,7 @@ export class HousesService {
       demo: h.demo,
       tutorial: h.tutorial,
       domain: h.domain,
+      operators: operatorsFor(h.country),
       agentOnline: this.online.has(h.id),
       monthlyCostFcfa: h.monthlyCostFcfa,
       rules: h.rules,
@@ -425,6 +502,7 @@ export class HousesService {
         occupant: person(r.occupant),
         usage: live?.get(r.name) ?? null,
         demo: r.demo,
+        repo: mine && r.occupantId ? repoLink(linked.find((l) => l.room === r.name)?.fullName, r.source) : null,
         team: r.occupantId ? (team.get(`${h.id}/${r.name}`) ?? []).map((u) => person(u)!) : [],
       })),
       viewer: viewerRow
@@ -432,10 +510,14 @@ export class HousesService {
             login: viewerRow.login,
             member: !!mine,
             role: mine?.role ?? null,
-            room: h.rooms.find((r) => r.occupantId === viewerId)?.name ?? null,
+            room: myRooms[0] ?? null,
+            rooms: myRooms,
+            leavingUntil: mine?.leavingMonth ? monthEnd(mine.leavingMonth).toISOString() : null,
             application: myApplication,
+            guest: myGuest,
           }
         : null,
+      guests: mine || myGuest === "accepted" ? guestRows.filter((g) => g.status === "accepted" && !h.memberships.some((m) => m.userId === g.userId)).map((g) => person(g.user)!) : null,
       deployments: recentDeployments,
       notes,
       doorbell,
@@ -692,12 +774,20 @@ export class HousesService {
     const cpu = await this.db
       .select({ room: usageSamples.room, total: sql<number>`coalesce(sum(${usageSamples.cpuPercent}), 0)::float` })
       .from(usageSamples)
-      .where(and(eq(usageSamples.houseId, h.id), gte(usageSamples.at, since)))
+      // In a room whose lease ended this month, only what ran before that counts: the next person's CPU is on nobody's line.
+      .leftJoin(leaseEnds, and(eq(leaseEnds.houseId, usageSamples.houseId), eq(leaseEnds.room, usageSamples.room), eq(leaseEnds.month, month)))
+      .where(and(eq(usageSamples.houseId, h.id), gte(usageSamples.at, since), or(isNull(leaseEnds.endedAt), lt(usageSamples.at, leaseEnds.endedAt))))
       .groupBy(usageSamples.room);
-    const roomOf = (userId: string) => h.rooms.find((r) => r.occupantId === userId);
+    // Who pays for which room this month, added up per person: someone may rent several (leases.ts).
+    const ended = await this.db.select().from(leaseEnds).where(and(eq(leaseEnds.houseId, h.id), eq(leaseEnds.month, month)));
+    const billed = billedRooms(h.rooms, ended);
     let usage = h.memberships.map((m) => {
-      const room = roomOf(m.userId);
-      return { memberId: m.userId, reservedMemoryMb: room?.memoryMb ?? 0, cpuSeconds: room ? (cpu.find((c) => c.room === room.name)?.total ?? 0) : 0 };
+      const theirs = billed.filter((r) => r.payer === m.userId);
+      return {
+        memberId: m.userId,
+        reservedMemoryMb: theirs.reduce((sum, r) => sum + r.memoryMb, 0),
+        cpuSeconds: theirs.reduce((sum, r) => sum + (cpu.find((c) => c.room === r.name)?.total ?? 0), 0),
+      };
     });
     // Nobody has a room yet (a house in the making): split evenly.
     if (usage.every((u) => u.reservedMemoryMb === 0)) usage = usage.map((u) => ({ ...u, reservedMemoryMb: 1 }));
@@ -770,10 +860,10 @@ export class HousesService {
   }
 
   /**
-   * A flatmate marks their own line of this month's bill as paid. A mock: no money moves; the bill tab says so.
-   * Paying twice changes nothing. Returns the month and what was due.
+   * A flatmate's line of this month's bill is paid. `charge`: out of their credit (the server's first month is already
+   * paid for when it comes here). Paying twice changes nothing. Returns the month and what was due.
    */
-  async markBillPaid(houseId: string, userId: string): Promise<{ month: string; amount: number }> {
+  async markBillPaid(houseId: string, userId: string, charge = false): Promise<{ month: string; amount: number }> {
     const h = await this.db.query.houses.findFirst({
       where: eq(houses.id, houseId),
       with: { rooms: true, memberships: { with: { user: true }, orderBy: [asc(memberships.tontinePosition), asc(memberships.joinedAt)] } },
@@ -784,6 +874,7 @@ export class HousesService {
     const bill = await this.bill(h, new Date());
     if (!bill) throw new ConflictException("This house has no bill to pay.");
     const line = bill.lines.find((l) => l.login === me.user.login)!;
+    if (charge && !line.paid && line.due > 0) await this.credit.spend(userId, line.due, "rent", `bill:${houseId}:${bill.month}:${userId}`);
     await this.db.insert(billPayments).values({ houseId, userId, month: bill.month, amount: line.due }).onConflictDoNothing();
     this.changes.next(houseId);
     return { month: bill.month, amount: line.due };
@@ -868,8 +959,9 @@ function tontineTurnOf(members: MemberRow[], now: Date) {
   return { current: byId(turn.current), line: turn.line.map(byId), until: new Date(turn.until) };
 }
 
+// What someone builds, for the tontine's line: the first of their rooms that has a project in it.
 function projectOf(rs: RoomRow[], userId: string): string | null {
-  return rs.find((r) => r.occupantId === userId)?.project ?? null;
+  return rs.find((r) => r.occupantId === userId && r.project)?.project ?? null;
 }
 
 function tontineView(members: MemberRow[], rs: RoomRow[], now: Date): TontineView | null {

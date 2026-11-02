@@ -5,7 +5,7 @@ import { billHead, dayName, lineWords, reviewsLine, tontineLine } from "./compon
 import { fcfa } from "./components/lobby/house/server";
 import { houseWords } from "./components/lobby/house/words";
 import { explain, houseLine, roomLine } from "./components/lobby/panel/words";
-import { TIP_TEXT } from "./components/lobby/tutorial/tips";
+import { TOUR_TEXT } from "./components/lobby/tutorial/tour";
 
 import { tutorialWords } from "./components/lobby/tutorial/words";
 import { cardWords, hudWords } from "./components/lobby/words";
@@ -13,10 +13,10 @@ import { joinWords, rentWords } from "./components/joinWords";
 import { listWords, loginWords } from "./components/list/words";
 import { roomWords } from "./components/room/words";
 import { downWords } from "./core";
-import { defineWords, dictionaries, langFrom, language, nbsp, startingLang, type Words } from "./i18n";
+import { defineWords, dictionaries, language, nbsp, startingLang, type Words } from "./i18n";
 
 // Every dictionary the site has. Importing the modules above registers them; a new one belongs in this list.
-const AREAS = ["landing", "explain", "states", "house", "tutorial", "tips", "welcome", "settings", "lobby", "common", "cards", "hud", "join", "rent", "list", "login", "room", "down", "arena"];
+const AREAS = ["landing", "explain", "states", "house", "tutorial", "tour", "welcome", "settings", "lobby", "common", "cards", "credit", "hud", "join", "rent", "list", "login", "room", "down", "arena", "missions"];
 
 // Every path to a leaf ("tour.next", "room.live"), with what's there.
 function leaves(words: object, path = ""): Map<string, unknown> {
@@ -34,23 +34,9 @@ afterEach(() => {
 });
 
 describe("the language", () => {
-  it("is French for any French browser, English for everything else", () => {
-    expect(langFrom("fr")).toBe("fr");
-    expect(langFrom("fr-SN")).toBe("fr");
-    expect(langFrom("fr-CI")).toBe("fr");
-    expect(langFrom("FR-fr")).toBe("fr");
-    expect(langFrom("en-GB")).toBe("en");
-    expect(langFrom("wo")).toBe("en");
-    expect(langFrom("fry")).toBe("en");
-    expect(langFrom("")).toBe("en");
-    expect(langFrom(undefined)).toBe("en");
-  });
-
-  it("starts from the browser's language when nothing was chosen in this browser", () => {
-    // No storage here (Node): nothing saved, so the browser decides.
-    expect(startingLang({ language: "fr-SN" })).toBe("fr");
-    expect(startingLang({ language: "en-US" })).toBe("en");
-    expect(startingLang(undefined)).toBe("en");
+  it("starts in English when nothing was chosen in this browser", () => {
+    // No storage here (Node): nothing saved.
+    expect(startingLang()).toBe("en");
   });
 });
 
@@ -114,20 +100,19 @@ describe("reading words", () => {
 
   it("says the first-visit path in French", () => {
     language.lang = "fr";
-    expect(tutorialWords.welcome).toBe("Bienvenue à La Coloc.");
+    expect(tutorialWords.quest).toBe("Votre premier chez-vous");
     expect(welcomeWords.count(2, 6)).toBe("2 sur 6");
     expect(settingsWords.title).toBe("Réglages");
     expect(commonWords.tryAgain).toBe("Réessayer");
-    expect(explain.room(256, 0.5)).toBe("Votre part du serveur de la maison\u00a0: 256 Mo de mémoire et 0,5 CPU, pour un projet.");
+    expect(explain.room(256, 0.5)).toBe("256 Mo de mémoire, 0,5 CPU. Un projet.");
     expect(roomLine({ status: "failed", occupant: { login: "awa", name: "Awa", avatarUrl: null } })).toBe("Sa dernière construction a échoué.");
-    expect(houseLine({ city: "Dakar", status: "live", agentOnline: true, demo: false })).toBe("Dakar. Son serveur tourne.");
+    expect(houseLine({ city: "Dakar", status: "live", agentOnline: true, demo: false })).toBe("Dakar. Serveur en marche.");
     expect(tutorialWords.stages.build).toBe("Construction");
     expect(tutorialWords.chapters.keys).toBe("Prendre les clés");
-    expect(TIP_TEXT.dash.keys).toBe("Appuyez sur {Maj} pour sprinter.");
+    expect(TOUR_TEXT.dash.keys).toBe("Appuyez sur {Maj}.");
     expect(lobbyWords.online(0)).toBe("0 projet en ligne");
     expect(lobbyWords.online(2)).toBe("2 projets en ligne");
     expect(cardWords.rooms(4, 1)).toBe("4 chambres, 1 libre");
-    expect(hudWords.loadingMeaning("bienvenue", "wolof")).toBe("« bienvenue », en wolof.");
     for (const words of [joinWords, rentWords, listWords, loginWords, roomWords, downWords, arenaWords]) expect(Object.keys(words).length).toBeGreaterThan(0);
   });
 
@@ -136,15 +121,15 @@ describe("reading words", () => {
     const awa = { login: "awa", name: "Awa", share: 3000, reviews: 4, credit: 2000, skipped: 0, surcharge: 0, due: 1000, paid: false };
     expect(lineWords(awa, "jib")).toEqual({ reviews: `Awa a relu 4 PR\u00a0: ${fcfa(2000)} en moins.`, owes: `Awa doit ${fcfa(1000)}.` });
     expect(lineWords(awa, "awa")).toEqual({ reviews: `Vous avez relu 4 PR\u00a0: ${fcfa(2000)} en moins.`, owes: `Vous devez ${fcfa(1000)}.` });
-    expect(lineWords({ ...awa, reviews: 0 }, "awa").reviews).toBe("Vous n'avez pas encore relu de PR ce mois-ci.");
+    expect(lineWords({ ...awa, reviews: 0 }, "awa").reviews).toBe("Vous n'avez pas encore relu de PR.");
     expect(reviewsLine(1)).toBe("1 revue échangée ce mois-ci.");
     expect(reviewsLine(23)).toBe("23 revues échangées ce mois-ci.");
     expect(billHead({ total: 12000, month: "2026-10", reviewCredit: 500 })).toBe(
-      `${fcfa(12000)} pour octobre, partagés selon ce qu'utilise chaque projet. Chaque revue en retire ${fcfa(500)}.`,
+      `${fcfa(12000)} pour octobre, partagés selon l'usage. Chaque revue en retire ${fcfa(500)}.`,
     );
     expect(dayName("2026-11-01T00:00:00.000Z")).toBe("1er novembre");
     const moussa = { login: "moussa", name: "Moussa Diop", avatarUrl: null };
     const t = { current: { ...moussa, project: "Prix Marché" }, line: [], until: "2026-10-24T00:00:00.000Z" };
-    expect(tontineLine(t, "jib")).toBe("Jusqu'au 24 octobre, la maison se mobilise pour Prix Marché, le projet de Moussa\u00a0: ses PR sont relues en premier.");
+    expect(tontineLine(t, "jib")).toBe("Jusqu'au 24 octobre, Prix Marché (de Moussa) est relu en premier.");
   });
 });

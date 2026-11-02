@@ -25,6 +25,11 @@ export const chatPing = ref(0);
 // Logins you blocked, so their messages' tools say "Unblock".
 export const blockedLogins = ref<string[]>([]);
 
+// The last message you sent (or knock you made), by the address it went to: ChatPanel.vue and KnockSteps.vue say so,
+// and the city's missions (LobbyView.vue) count it.
+export const lastSent = ref<{ url: string } | null>(null);
+export const messageSent = (url: string) => (lastSent.value = { url });
+
 /** Opens the chat sheet on a tab: a conversation with someone, a post, or the tab's list. */
 export function openChat(tab: ChatTab, opts: { with?: string; post?: string } = {}) {
   chatSheet.tab = tab;

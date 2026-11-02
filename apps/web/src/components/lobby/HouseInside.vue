@@ -1,15 +1,17 @@
 <script setup lang="ts">
 // Inside a house, built like a game's pause menu rather than a page, on the lobby's Panel: the house's name and
-// state, its people as a line-up of faces, the tabs (flatmates only), one tab's body, and the one next step in the
-// foot. Everything fits the sheet without scrolling; only the body scrolls, inside itself, when a list or the chat
-// is longer than the space. The house view arrives from the API and keeps arriving over its stream, as on HousePage.
+// state, the tabs, one tab's body, and in the foot the one next step. It opens on the floor plan (FloorPlan.vue);
+// a room pressed there, or a housemate's arrow, opens that room's page in its place (RoomDetails.vue). Everything fits the sheet without scrolling; only the body scrolls, inside itself, when a list
+// or the chat is longer than the space. The house view arrives from the API and keeps arriving over its stream, as on
+// HousePage.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useWhenBack, wentDown } from "../../core";
 import { openChat } from "../../conversations";
-import { notices } from "../../notices";
-import { me as session, postJSON, sendJSON } from "../../session";
+import { askToChat } from "../../notices";
+import { postJSON, sendJSON } from "../../session";
 import { openStream, type Stream } from "../../stream";
-import type { HouseView, Room } from "../../types";
+import type { HouseView, Person, Room } from "../../types";
 import Avatar from "../Avatar.vue";
 import ChatPanel from "../ChatPanel.vue";
 import FridgeDoor from "../FridgeDoor.vue";
@@ -17,20 +19,19 @@ import KnockSteps from "../KnockSteps.vue";
 import UiNote, { loud, type Note } from "../UiNote.vue";
 import Waiting from "../Waiting.vue";
 import { dueOf, dueWords, reviewSummary, reviewTitle, splitReviews } from "./house/chores";
-import { crewOf, foldedRooms, footFor, personActions, ROWS_SHOWN, rowAction, type Seat, type Situation } from "./house/crew";
-import Crew from "./house/Crew.vue";
+import { canKnock, chatKey, crewOf, foldedRooms, footFor, myRooms, personActions, type RoomKey, ROWS_SHOWN, type Seat, type Situation } from "./house/crew";
+import FloorPlan from "./house/FloorPlan.vue";
 import { billHead, type BillLine, lineWords, linesYoursFirst, reviewsLine, ruleLine, tontineLine, toPay } from "./house/exchange";
 import Icon from "./house/Icon.vue";
 import { notesSummary } from "./house/notes";
 import PayBill from "./house/PayBill.vue";
-import PersonPeek from "./house/PersonPeek.vue";
 import RentServer from "./house/RentServer.vue";
+import RoomDetails from "./house/RoomDetails.vue";
 import ShareHouse from "./house/ShareHouse.vue";
 import Rundown from "./house/Rundown.vue";
-import { evenSplit, fcfa, type ServerInfo } from "./house/server";
+import { evenSplit, fcfa, rentOfPerson, type ServerInfo } from "./house/server";
 import { linkedHouse, markTourSeen, toursSeen } from "./house/tours";
 import { houseWords as w } from "./house/words";
-import FreeSticker from "./FreeSticker.vue";
 import ListRow from "./panel/ListRow.vue";
 import Panel from "./panel/Panel.vue";
 import PanelHead from "./panel/PanelHead.vue";
@@ -40,10 +41,9 @@ import StatusDot from "./panel/StatusDot.vue";
 import { explain, houseState, houseTrouble, roomLine, roomState } from "./panel/words";
 import type { Place } from "./place";
 import { seeded } from "../seeded";
-import { teamNames, teamUp } from "./team";
 
 // The house's parts, one tab each. The keys are the API's names: "chores" shows as Reviews, "fridge" as News.
-type TabKey = "rooms" | "channel" | "chores" | "fridge" | "bill";
+type TabKey = "rooms" | "people" | "channel" | "chores" | "fridge" | "bill";
 
 const props = defineProps<{
   id: string;
@@ -55,15 +55,12 @@ const props = defineProps<{
   // Keep the first-visit rundown from starting by itself, when something else (a quest) is already guiding the
   // player. The rundown still runs when `rundown` asks for it.
   quiet?: boolean;
-  // Shown over the 3D city (the lobby), not on a page of its own: a picked person can be waved at from there.
-  inCity?: boolean;
   // The tutorial's coach is up with its own main action ("Take the room"): the workshop's room row then keeps
   // quiet, so there's one button for one action.
   coached?: boolean;
 }>();
-// `wave`: wave at someone picked in the crew (your avatar's emote in the city).
 // `view`: the house as it arrives (first fetch, then each push on its stream), for a page that shows more of it.
-const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: []; view: [house: HouseView | null]; wave: [login: string] }>();
+const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: []; view: [house: HouseView | null] }>();
 
 // The chef's server info is new on the API side; reading it through this type works whether or not the shared
 // HouseView type has caught up. The exchange (the bill, the tontine, the month's reviews) may be missing from an
@@ -132,12 +129,16 @@ const chef = computed(() => viewer.value?.role === "chef");
 const making = computed(() => house.value?.status === "making");
 const live = computed(() => !!house.value && house.value.status === "live" && house.value.agentOnline);
 const keyMade = computed(() => !!house.value?.server?.keyMade);
+// The key is made and paid for: the server is on its way. A key with nothing paid is a house left half-way by the old
+// way in, pasting a command: it goes to the pay step (RentServer.vue).
+const serverComing = computed(() => keyMade.value && !!house.value?.bill?.lines.find((l) => l.login === viewer.value?.login)?.paid);
+const mine = computed(() => myRooms(viewer.value));
 
 const situation = computed(
   (): Situation => ({
     viewer: viewer.value,
     making: making.value,
-    keyMade: keyMade.value,
+    keyMade: serverComing.value,
     demo: !!house.value?.demo,
     tutorial: !!house.value?.tutorial,
     freeRooms: house.value?.rooms.filter((r) => !r.occupant).map((r) => r.name) ?? [],
@@ -163,9 +164,9 @@ const line = computed(() => {
   return parts.filter(Boolean).join(" ");
 });
 
-// Under the faces, for flatmates only, the house's exchange: whose project the house rallies behind this fortnight
-// (the tontine), with its faces in turn order, and how many reviews were traded this month, with the house's review
-// rule. Someone outside doesn't need the house's inner workings (Jib, 15 10).
+// At the top of the Reviews tab (flatmates only), the house's exchange: whose project the house rallies behind this
+// fortnight (the tontine), with its faces in turn order, and how many reviews were traded this month, with the house's
+// review rule. Someone outside doesn't need the house's inner workings (Jib, 15 10).
 const me = computed(() => viewer.value?.login ?? null);
 const tontine = computed(() => house.value?.tontine ?? null);
 const tontineText = computed(() => tontineLine(tontine.value, me.value));
@@ -178,18 +179,28 @@ const reviewsText = computed(() => {
   return typeof n === "number" ? `${reviewsLine(n)} ${ruleLine(!!h.rules.strictReviews)}` : ruleLine(!!h.rules.strictReviews);
 });
 
-// The tabs: flatmates only. A visitor sees the rooms and nothing to switch between.
+// A guest let into the chat from outside a full house reads and writes the channel, and nothing else of the house.
+const chatGuest = computed(() => !member.value && viewer.value?.guest === "accepted");
+
+// The tabs: the floor plan and who lives here for anyone; the channel for a chat guest too; the rest for flatmates.
 const tab = ref<TabKey>("rooms");
 const tabs = computed((): Tab[] => [
   { key: "rooms", icon: "door", word: w.tabs.rooms },
-  { key: "channel", icon: "chat", word: w.tabs.channel },
-  { key: "chores", icon: "check", word: w.tabs.chores, badge: myChores.value.length || undefined, alert: myChores.value.some((c) => c.late) },
-  { key: "fridge", icon: "pin", word: w.tabs.fridge, badge: notes.value.length || undefined },
-  { key: "bill", icon: "bill", word: w.tabs.bill },
-]);
-// A house reloaded as someone else (logging out, say) shows only the rooms.
+  { key: "people", icon: "people", word: w.tabs.people },
+  ...(member.value
+    ? [
+        { key: "channel", icon: "chat", word: w.tabs.channel },
+        { key: "chores", icon: "check", word: w.tabs.chores, badge: myChores.value.length || undefined, alert: myChores.value.some((c) => c.late) },
+        { key: "fridge", icon: "pin", word: w.tabs.fridge, badge: notes.value.length || undefined },
+        { key: "bill", icon: "bill", word: w.tabs.bill },
+      ]
+    : chatGuest.value
+      ? [{ key: "channel", icon: "chat", word: w.tabs.channel }]
+      : []),
+] as Tab[]);
+// A house reloaded as someone else (logging out, say) goes back to what anyone can see.
 watch(member, (is) => {
-  if (!is) tab.value = "rooms";
+  if (!is && tab.value !== "people" && !chatGuest.value) tab.value = "rooms";
 });
 // A tab asked for from outside (a quest): taken as soon as the viewer is known to be a flatmate, and again each
 // time the ask changes. The player can still move to another tab afterwards.
@@ -200,21 +211,19 @@ watch(
   },
   { immediate: true },
 );
-const shownTab = computed((): TabKey => (member.value ? tab.value : "rooms"));
+const shownTab = computed((): TabKey => (member.value || tab.value === "people" || (chatGuest.value && tab.value === "channel") ? tab.value : "rooms"));
 
-// Each tab opens on one plain sentence about the viewer's situation, with the longer "what is this, why it
-// matters" behind the "?" (Panel shows them through Explain.vue). The chat needs no more than its one line.
+// Some tabs open on one plain sentence about the viewer's situation, with the longer "what is this, why it matters"
+// behind the "?" (Panel shows them through Explain.vue). The floor plan, the housemates and the chat speak for themselves.
 const credit = computed(() => fcfa(house.value?.bill?.reviewCredit ?? 500));
 const intro = computed((): { summary: string | null; explain: string | null } => {
   const h = house.value;
   if (!h) return { summary: null, explain: null };
   switch (shownTab.value) {
     case "rooms":
-      // In the workshop, a room is waiting for you at the top of the list: one line says what a room is. Elsewhere
-      // the list speaks for itself: the faces and the empty dashed seat above already say how many rooms are free.
-      return { summary: null, explain: takeRow.value ? explain.rooms : null };
+    case "people":
     case "channel":
-      return { summary: explain.channel, explain: null };
+      return { summary: null, explain: null };
     case "chores":
       return { summary: reviewSummary(reviews.value, credit.value), explain: explain.chores(credit.value) };
     case "fridge":
@@ -285,6 +294,7 @@ const lit = ref<string[]>([]);
 const list = ref<HTMLElement | null>(null);
 let litTimer = 0;
 async function light(names: string[], focusKnock = false) {
+  openRoom.value = null;
   tab.value = "rooms";
   // A room folded away behind "+N" is unfolded first, so its row can light up.
   if (names.some((n) => !roomRows.value.shown.some((r) => r.name === n))) roomsOpen.value = true;
@@ -293,50 +303,72 @@ async function light(names: string[], focusKnock = false) {
   if (!rows.length) return;
   const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   rows[0].scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
-  if (focusKnock) rows[0].querySelector<HTMLButtonElement>("button.knock")?.focus({ preventScroll: true });
+  if (focusKnock) rows[0].querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
   lit.value = names;
   clearTimeout(litTimer);
   litTimer = window.setTimeout(() => (lit.value = []), 1500);
 }
 
-// A face picked in the crew: someone knocking opens their knock; a flatmate opens their card under the faces
-// (PersonPeek: who they are, and reaching out), and their room's row lights up; a free seat lights its room.
-const peeked = ref<string | null>(null);
+// A room's page, in place of the tabs: by name, so the stream keeps it fresh, and it goes away if the room does.
+const openRoom = ref<string | null>(null);
+const shownRoom = computed(() => (openRoom.value ? (house.value?.rooms.find((r) => r.name === openRoom.value) ?? null) : null));
+watch(tab, () => (openRoom.value = null));
+// Back from a room's page: the focus goes to what opened it.
+async function closeRoom() {
+  const name = openRoom.value;
+  openRoom.value = null;
+  await nextTick();
+  if (name) list.value?.querySelector<HTMLElement>(`[data-room="${CSS.escape(name)}"] .see, [data-room="${CSS.escape(name)}"] .cell`)?.focus({ preventScroll: true });
+}
+// Someone on the housemates' list: someone knocking opens their knock; a flatmate opens their room's page.
 function pick(seat: Seat) {
   if (seat.kind === "knock") return emit("open", { kind: "application", id: seat.id });
-  if (seat.kind === "person") peeked.value = peeked.value === seat.person.login ? null : seat.person.login;
-  if (seat.room) light([seat.room]);
+  if (seat.room) openRoom.value = seat.room;
 }
-const peek = computed(() => {
-  const s = seats.value.find((x) => x.kind === "person" && x.person.login === peeked.value);
-  if (!s || s.kind !== "person") return null;
-  const room = s.room ? house.value?.rooms.find((r) => r.name === s.room) : undefined;
-  return {
-    person: s.person,
-    line: room?.project ?? (s.room ? w.person.room(s.room) : null),
-    // In the workshop, someone with a real house may invite a newcomer to it (your houses from /api/me leave the workshop out).
-    actions: personActions(s.person, !!room?.demo, situation.value, {
-      inCity: !!props.inCity,
-      home: session.value?.houses[0] ?? null,
-      invited: notices.sent.some((n) => n.kind === "house_invite" && n.to === s.person.login),
-    }),
-    // A flatmate of yours: teaming up on one of your two projects (team.ts).
-    team: member.value && house.value ? teamUp({ login: s.person.login, example: !!room?.demo || s.person.github === false }, viewer.value, house.value, viewer.value?.room ?? null, notices.sent) : null,
-  };
-});
-// The channel's composer, started with their first name when you reach out to a flatmate there.
-const chatStart = ref<{ text: string; n: number } | null>(null);
-function reachOut() {
-  const p = peek.value;
-  const r = p?.actions.reach;
-  if (!p || !r) return;
-  if (r.kind === "chat") {
-    tab.value = "channel";
-    chatStart.value = { text: w.person.chatStart((p.person.name ?? p.person.login).split(" ")[0]), n: (chatStart.value?.n ?? 0) + 1 };
-    peeked.value = null;
-  } else if (r.kind === "knock") knocking.value = house.value?.rooms.find((x) => x.name === r.room) ?? null;
-  else if (r.kind === "pick") light(situation.value.freeRooms, true);
-  else if (r.kind === "thread") emit("open", { kind: "application", id: r.id });
+// A key pressed on a room's page or a housemate's row.
+const router = useRouter();
+function press(key: RoomKey) {
+  switch (key.kind) {
+    case "manage":
+      if (openRoom.value) emit("open", { kind: "room", houseId: props.id, room: openRoom.value });
+      break;
+    case "chat":
+      void openChat("dm", { with: key.login });
+      break;
+    case "chatLogin":
+      void router.push("/login");
+      break;
+    case "knock":
+      knocking.value = house.value?.rooms.find((r) => r.name === key.room) ?? null;
+      break;
+    case "pick":
+      light(situation.value.freeRooms, true);
+      break;
+    case "thread":
+      emit("open", { kind: "application", id: key.id });
+      break;
+  }
+}
+// Someone on the housemates' list (a flatmate, someone knocking, a guest in the chat): their Chat key, on everyone but
+// you, and their GitHub, for a real account. `room`: the room they're listed with, whose flag says if they're made up.
+const inExampleRoom = (room: string | null) => !!(room && house.value?.rooms.find((r) => r.name === room)?.demo);
+const rowChat = (person: Person, room: string | null) => chatKey(person, inExampleRoom(room), situation.value);
+const rowGithub = (person: Person, room: string | null) => (person.login === me.value ? null : personActions(person, inExampleRoom(room), situation.value, {}).github);
+
+// A full house: asking to join its group chat. The house's stream brings the answer; a refusal says why in the foot.
+const chatError = ref("");
+async function askChat() {
+  chatError.value = "";
+  const sent = await askToChat(props.id);
+  if (!sent.ok) chatError.value = sent.message;
+  else if (sent.data.status === "accepted") tab.value = "channel";
+}
+// A guest leaves the chat, or a flatmate takes them out of it.
+const guestError = ref("");
+async function removeGuest(login: string) {
+  guestError.value = "";
+  const res = await sendJSON("DELETE", `/api/houses/${encodeURIComponent(props.id)}/guests/${encodeURIComponent(login)}`);
+  if (!res.ok) guestError.value = res.message;
 }
 
 function go() {
@@ -347,9 +379,6 @@ function go() {
     case "rent":
       renting.value = true;
       break;
-    case "room":
-      emit("open", { kind: "room", houseId: h.id, room: f.room });
-      break;
     case "knock":
       knocking.value = h.rooms.find((r) => r.name === f.room) ?? null;
       break;
@@ -358,6 +387,9 @@ function go() {
       break;
     case "thread":
       emit("open", { kind: "application", id: f.id });
+      break;
+    case "askChat":
+      void askChat();
       break;
   }
 }
@@ -368,19 +400,19 @@ const footButton = computed(() => {
   switch (f.kind) {
     case "rent":
       return f.waiting ? { icon: "key" as const, word: w.waitingForServer } : { icon: "server" as const, word: w.rentServer };
-    case "room":
-      return { icon: "door" as const, word: w.openMyRoom };
     case "knock":
     case "pick":
       return { icon: "knock" as const, word: w.knockFree };
     case "thread":
       return { icon: "thread" as const, word: w.seeKnock };
+    case "askChat":
+      return { icon: "chat" as const, word: w.askChat };
     default:
       return null;
   }
 });
 
-// The workshop: a newcomer without a room there takes one from its row at the top of the list. The house stream
+// The workshop: a newcomer without a room there takes one from its square at the start of the plan. The house stream
 // then brings the room, and the tutorial's coach, which polls, moves on by itself.
 const takeRow = computed(() => !!house.value?.tutorial && !!viewer.value && !viewer.value.room);
 const taking = ref(false);
@@ -393,26 +425,12 @@ async function takeRoom() {
   if (!res.ok) takeError.value = res.message;
 }
 
-// A room's row: who and what (the person and their project), then one line with what the project is. Its state
-// is the dot on the face; the line says it in words only when it isn't simply online ("Its last build failed.",
-// "An example project."). A free room says its size there, in the sentence.
-// A team's room names its people together, occupant first: "Awa + Moussa · Ndaje".
-function rowTitle(room: Room): string {
-  return room.occupant ? teamNames(room.occupant, room.team) : w.freeRow(room.limits.memoryMb);
-}
-function rowSub(room: Room): string {
-  const h = house.value!;
-  if (!room.occupant) return seeded(room.ad) ?? w.knockToAsk;
-  const what = seeded(room.projectDescription) ?? (room.project ? w.noDescription : w.noProject);
-  return roomState(room, h.status, h.demo).tone === "live" ? what : `${roomLine(room, h.status, h.demo)} ${what}`;
-}
-const actionOf = (room: Room) => rowAction(room, situation.value, foot.value);
-// The rows shown: all of them once opened, else up to five (four under the workshop's "A room for you" row), yours
-// and the free ones first (crew.ts).
+// The squares shown: all of them once opened, else up to eight (seven with the workshop's "A room for you"), yours and
+// the free ones first (crew.ts).
 const roomsOpen = ref(false);
 const roomRows = computed(() => {
   const rooms = house.value?.rooms ?? [];
-  return roomsOpen.value ? { shown: rooms, hidden: 0 } : foldedRooms(rooms, viewer.value?.room ?? null, ROWS_SHOWN - (takeRow.value ? 1 : 0));
+  return roomsOpen.value ? { shown: rooms, hidden: 0 } : foldedRooms(rooms, mine.value, ROWS_SHOWN - (takeRow.value ? 1 : 0));
 });
 
 // The bill (flatmates only): the month's total, then one line per flatmate, yours first, each said in two
@@ -421,6 +439,23 @@ const bill = computed(() => house.value?.bill ?? null);
 const billLines = computed(() => (bill.value ? linesYoursFirst(bill.value.lines, me.value) : []));
 const lived = computed(() => house.value?.rooms.filter((r) => r.occupant) ?? []);
 const share = computed(() => (house.value?.monthlyCostFcfa ? evenSplit(house.value.monthlyCostFcfa, lived.value.length) : null));
+// The foot: the bill's button on its tab, or the house's one next step. It only shows on the floor plan and the
+// housemates' list, so the channel and the rest keep the whole height.
+const footShown = computed(() => {
+  if (payButton.value) return true;
+  if (!["rooms", "people"].includes(shownTab.value)) return false;
+  return foot.value.kind !== "none";
+});
+// A housemate's row: what they make, and what they pay.
+function seatSub(seat: Seat): string {
+  // Someone may rent several rooms: the first with a project in it says what they make.
+  const room = house.value?.rooms.find((r) => r.occupant?.login === seat.person.login && r.project);
+  return room?.project ?? (seat.room ? w.person.room(seat.room) : "");
+}
+const seatRent = (seat: Seat) => {
+  const pays = seat.kind === "person" && house.value ? rentOfPerson(house.value, seat.person.login) : null;
+  return pays ? fcfa(pays) : "";
+};
 // A bill line's face: the flatmate as the house knows them.
 function personOf(l: Pick<BillLine, "login" | "name">) {
   return house.value?.members.find((m) => m.login === l.login) ?? { login: l.login, name: l.name, avatarUrl: null };
@@ -450,8 +485,6 @@ const tourLast = computed((): string | null => {
       return w.tour.login;
     case "rent":
       return w.tour.rent;
-    case "room":
-      return w.tour.room;
     case "knock":
     case "pick":
       return w.tour.knock;
@@ -469,6 +502,7 @@ const rundownOn = ref(false);
 let tutorialAsked = false;
 let owed = false;
 function startRundown() {
+  openRoom.value = null;
   tab.value = "rooms";
   rundownOn.value = true;
 }
@@ -501,7 +535,7 @@ function rundownEnded() {
 </script>
 
 <template>
-  <div class="inside-house">
+  <div ref="list" class="inside-house">
     <div v-if="error" class="empty">
       <h2>{{ w.missing }}</h2>
       <p class="muted">{{ w.missingWhy }}</p>
@@ -511,13 +545,14 @@ function rundownEnded() {
     <Waiting v-else-if="waiting" @retry="load(id)" />
     <Waiting v-else-if="failed" :title="w.failed" :line="w.failedWhy" @retry="load(id)" />
 
+    <RoomDetails v-else-if="house && shownRoom" :key="shownRoom.name" :house="house" :room="shownRoom" :situation="situation" @back="closeRoom" @press="press" />
+
     <Panel
       v-else-if="house"
       :summary="intro.summary"
       :explain="intro.explain"
-      :body-id="member ? `tabpanel-${shownTab}` : undefined"
-      :body-labelledby="member ? `tab-${shownTab}` : undefined"
-      :body-label="member ? undefined : w.rooms"
+      :body-id="`tabpanel-${shownTab}`"
+      :body-labelledby="`tab-${shownTab}`"
     >
       <template #head>
         <div class="head">
@@ -532,136 +567,99 @@ function rundownEnded() {
               </template>
             </PanelHead>
           </div>
-          <UiNote v-if="rulesNote" :note="rulesNote" />
-          <Crew data-tour="crew" :seats="seats" @pick="pick" />
-          <PersonPeek
-            v-if="peek"
-            :key="peek.person.login"
-            :person="peek.person"
-            :line="peek.line"
-            :actions="peek.actions"
-            :team="peek.team"
-            :house-id="house.id"
-            @reach="reachOut"
-            @wave="emit('wave', peek.person.login)"
-            @close="peeked = null"
-          />
-          <!-- Flatmates only: the tontine's turn (its faces in order, the one whose turn it is lit) and the month's
-               reviews with the house's review rule. -->
-          <div v-if="member" class="life" data-tour="life">
-            <p v-if="tontineText" class="tontine">
-              <span class="turns" aria-hidden="true">
-                <Avatar v-for="(p, i) in turnFaces" :key="p.login" :person="p" :size="i === 0 ? 26 : 20" decorative :class="{ now: i === 0 }" />
-              </span>
-              <span class="turn-said">{{ tontineText }}</span>
-            </p>
-            <p class="reviews">
-              {{ reviewsText }}
-              <!-- The chef switches the rule right where it's said: a toggle, pressed is strict. Its name stays "Strict
-                   reviews" so the pressed state reads true. -->
-              <button
-                v-if="chef && !house.demo"
-                type="button"
-                class="rule"
-                :aria-pressed="strict"
-                :aria-label="w.strictName"
-                :title="w.pressToSwitch(ruleSentence)"
-                :disabled="savingRules"
-                @click="switchRules"
-              >
-                <Icon name="rules" :size="14" />
-              </button>
-            </p>
-          </div>
         </div>
       </template>
 
-      <template v-if="member" #tabs>
+      <template #tabs>
         <div data-tour="tabs">
           <PanelTabs v-model="tab" :tabs="tabs" :label="w.parts" />
         </div>
       </template>
 
-      <!-- Rooms: one row each, with who lives there, what they build, and whether it's online. -->
-      <ul v-if="shownTab === 'rooms'" ref="list" class="plain lines" :class="{ many: house.rooms.length > 4 }" data-tour="rooms">
-        <ListRow v-if="takeRow" :title="w.roomForYou" open>
-          <span v-if="takeError" class="sub warn" role="alert">{{ takeError }}</span>
-          <span v-else class="sub">{{ explain.room(256, 0.5) }}</span>
-          <template #lead><span class="door"><Icon name="plus" :size="28" /></span></template>
-          <template v-if="!coached" #end>
-            <button type="button" class="primary" :disabled="taking" @click="takeRoom"><Icon name="door" :size="16" />{{ w.takeIt }}</button>
-          </template>
-        </ListRow>
-        <ListRow
-          v-for="room in roomRows.shown"
-          :key="room.name"
-          :data-room="room.name"
-          :title="rowTitle(room)"
-          :mine="viewer?.room === room.name"
-          :open="!room.occupant"
-          :lit="lit.includes(room.name)"
-        >
-          <!-- Their @handle, and what the project does (or the free room's size and the ad). -->
-          <span class="sub"><span v-if="room.occupant" class="handle">@{{ room.occupant.login }}</span> {{ rowSub(room) }}</span>
-          <!-- What they build, and the room's state only when it needs attention: the dot on the face says it's fine. -->
-          <template v-if="room.occupant" #meta>
-            <span v-if="room.project" class="project">{{ room.project }}</span>
-            <StatusPill v-if="['warn', 'danger'].includes(roomState(room, house.status, house.demo).tone)" :state="roomState(room, house.status, house.demo)" />
-          </template>
+      <!-- The floor plan: one tile per room. -->
+      <FloorPlan
+        v-if="shownTab === 'rooms'"
+        :house="house"
+        :rooms="roomRows.shown"
+        :hidden="roomRows.hidden"
+        :mine="mine"
+        :knockable="canKnock(situation)"
+        :lit="lit"
+        :take="takeRow"
+        :coached="coached"
+        :taking="taking"
+        :take-error="takeError"
+        @pick="(room) => (openRoom = room.name)"
+        @take="takeRoom"
+        @more="roomsOpen = true"
+      />
+
+      <!-- Who lives here, one row each: their project, their rent, a Chat key, and the arrow to their room's page. -->
+      <ul v-else-if="shownTab === 'people'" class="plain lines people">
+        <ListRow v-for="s in seats" :key="s.key" class="pickable" :data-room="s.room" :title="nameOf(s.person)" :sub="seatSub(s)" @click="pick(s)">
           <template #lead>
-            <!-- The room's state as a dot on the face. A free room: its open door and the yellow sticker. -->
-            <span v-if="room.occupant" class="face">
-              <Avatar :person="room.occupant" :size="56" decorative />
-              <!-- Teammates on its project: their small faces on the lower left, the first two. -->
-              <span v-if="room.team?.length" class="mates" aria-hidden="true">
-                <Avatar v-for="p in room.team.slice(0, 2)" :key="p.login" :person="p" :size="24" decorative />
-              </span>
-              <StatusDot class="on-face" :state="roomState(room, house.status, house.demo)" />
+            <span class="face">
+              <Avatar :person="s.person" :size="44" decorative />
+              <span v-if="s.kind === 'person' && s.chef" class="crown" :title="w.chefTag"><Icon name="crown" :size="12" /></span>
             </span>
-            <span v-else class="free-lead"><span class="door"><Icon name="door" :size="28" /></span><FreeSticker :n="1" /></span>
           </template>
-          <template v-if="actionOf(room)" #end>
-            <button
-              v-if="actionOf(room) === 'open'"
-              type="button"
-              class="primary"
-              :aria-label="w.openName(room.name)"
-              @click="emit('open', { kind: 'room', houseId: house.id, room: room.name })"
-            >
-              <Icon name="door" :size="16" />{{ w.open }}
-            </button>
-            <a
-              v-else-if="actionOf(room) === 'visit' && room.url"
-              class="button"
-              :href="room.url"
-              target="_blank"
-              rel="noopener"
-              :aria-label="w.visitName(room.occupant ? nameOf(room.occupant) : room.name)"
-            >
-              {{ w.visit }}<Icon name="external" :size="16" />
-            </a>
-            <button v-else-if="actionOf(room) === 'knock'" type="button" class="knock" :aria-label="w.knockName(room.name)" @click="knocking = room">
-              <Icon name="knock" :size="16" />{{ w.knock }}
-            </button>
+          <template #meta>
+            <span v-if="seatRent(s)" class="amount small">{{ seatRent(s) }}</span>
+          </template>
+          <template #end>
+            <button v-if="rowChat(s.person, s.room)" type="button" class="chat-key" :disabled="rowChat(s.person, s.room)!.kind === 'chatOff'" :aria-label="w.person.chatName(nameOf(s.person).split(' ')[0])" @click.stop="press(rowChat(s.person, s.room)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
+            <a v-if="rowGithub(s.person, s.room)" class="button git-key" :href="rowGithub(s.person, s.room)!" target="_blank" rel="noopener" :aria-label="w.person.githubName(s.person.login)" :title="w.person.githubName(s.person.login)" @click.stop><Icon name="external" :size="16" /></a>
+            <button v-if="s.kind === 'knock' || s.room" type="button" class="see" :aria-label="w.peopleName(nameOf(s.person))" @click.stop="pick(s)"><Icon name="next" :size="18" /></button>
           </template>
         </ListRow>
-        <!-- A long list folds after five rows, so the panel fits: "+3" brings the rest. -->
-        <li v-if="roomRows.hidden">
-          <button type="button" class="more" :aria-label="w.moreRooms(roomRows.hidden)" @click="roomsOpen = true">
-            <span class="door" aria-hidden="true"><Icon name="plus" :size="20" /></span>
-            <span class="more-count" aria-hidden="true">+{{ roomRows.hidden }}</span>
-          </button>
-        </li>
+        <!-- Guests in the chat, from outside a full house: flatmates can take them out, and a guest can leave. -->
+        <ListRow v-for="g in house.guests ?? []" :key="`g:${g.login}`" :title="nameOf(g)" :sub="w.guests.line">
+          <template #lead><Avatar :person="g" :size="44" decorative /></template>
+          <template #end>
+            <button v-if="rowChat(g, null)" type="button" class="chat-key" :disabled="rowChat(g, null)!.kind === 'chatOff'" :aria-label="w.person.chatName(nameOf(g).split(' ')[0])" @click="press(rowChat(g, null)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
+            <a v-if="rowGithub(g, null)" class="button git-key" :href="rowGithub(g, null)!" target="_blank" rel="noopener" :aria-label="w.person.githubName(g.login)" :title="w.person.githubName(g.login)"><Icon name="external" :size="16" /></a>
+            <button v-if="member || g.login === me" type="button" class="chat-key" :aria-label="g.login === me ? w.guests.leaveName : w.guests.removeName(nameOf(g))" @click="removeGuest(g.login)">{{ g.login === me ? w.guests.leave : w.guests.remove }}</button>
+          </template>
+        </ListRow>
+        <li v-if="guestError" class="error" role="alert">{{ guestError }}</li>
       </ul>
 
       <div v-else-if="shownTab === 'channel' && viewer" class="chat-host">
-        <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="viewer.login" :start="chatStart" tools @message="(login) => openChat('dm', { with: login })" />
+        <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="viewer.login" tools @message="(login) => openChat('dm', { with: login })" />
       </div>
 
       <!-- Reviews (the API's chores): yours first, each a sentence with when it's due and a link to the pull request
            on GitHub. The rest of the house's reviews wait behind a quiet button, unless you have none of your own.
            The summary sentence above the list (Panel) already says what to do, or that there's nothing. -->
       <template v-else-if="shownTab === 'chores'">
+        <UiNote v-if="rulesNote" :note="rulesNote" />
+        <!-- Whose turn it is (its faces in order, the one whose turn it is lit), and the month's reviews with the
+             house's review rule. -->
+        <div class="life" data-tour="life">
+          <p v-if="tontineText" class="tontine">
+            <span class="turns" aria-hidden="true">
+              <Avatar v-for="(p, i) in turnFaces" :key="p.login" :person="p" :size="i === 0 ? 26 : 20" decorative :class="{ now: i === 0 }" />
+            </span>
+            <span class="turn-said">{{ tontineText }}</span>
+          </p>
+          <p class="reviews-line">
+            {{ reviewsText }}
+            <!-- The chef switches the rule right where it's said: a toggle, pressed is strict. Its name stays "Strict
+                 reviews" so the pressed state reads true. -->
+            <button
+              v-if="chef && !house.demo"
+              type="button"
+              class="rule"
+              :aria-pressed="strict"
+              :aria-label="w.strictName"
+              :title="w.pressToSwitch(ruleSentence)"
+              :disabled="savingRules"
+              @click="switchRules"
+            >
+              <Icon name="rules" :size="14" />
+            </button>
+          </p>
+        </div>
         <ul v-if="reviews.mine.length" class="plain lines">
           <ListRow v-for="c in reviews.mine" :key="c.id" :title="reviewTitle(c, me)" mine>
             <span class="sub">
@@ -706,9 +704,6 @@ function rundownEnded() {
           v-if="paying && myDue && bill"
           :house-id="house.id"
           :line="myDue"
-          :operators="bill.operators"
-          :reference="bill.reference"
-          :chef="chef"
           @paid="paid"
           @back="paying = false"
         />
@@ -741,8 +736,8 @@ function rundownEnded() {
             <ListRow
               v-for="r in lived"
               :key="r.name"
-              :title="viewer?.room === r.name ? w.yourShare(fcfa(share)) : w.theirShare(nameOf(r.occupant!).split(' ')[0], fcfa(share))"
-              :mine="viewer?.room === r.name"
+              :title="mine.includes(r.name) ? w.yourShare(fcfa(share)) : w.theirShare(nameOf(r.occupant!).split(' ')[0], fcfa(share))"
+              :mine="mine.includes(r.name)"
             >
               <template #lead><Avatar :person="r.occupant!" :size="56" decorative /></template>
             </ListRow>
@@ -752,16 +747,14 @@ function rundownEnded() {
         <p class="sr-only" aria-live="polite">{{ paidSaid }}</p>
       </template>
 
-      <template #foot>
+      <template v-if="footShown" #foot>
         <div class="foot" data-tour="foot">
-          <!-- On the Bill tab, with your share still to pay, paying it is the next step. While the pay sheet is up,
-               its own button is the one to press, so the foot stays empty. -->
+          <!-- On the Bill tab, with your share still to pay, paying it is the next step. -->
           <button v-if="payButton" type="button" class="primary go" @click="paying = true"><Icon name="bill" :size="20" />{{ w.pay(fcfa(myDue!.due)) }}</button>
-          <template v-else-if="!paying || shownTab !== 'bill'">
-            <RouterLink v-if="foot.kind === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />{{ w.logInToKnock }}</RouterLink>
-            <button v-else-if="footButton" type="button" class="primary go" @click="go"><Icon :name="footButton.icon" :size="20" />{{ footButton.word }}</button>
-            <p v-else-if="foot.kind === 'say'" class="say">{{ foot.text }}</p>
-          </template>
+          <RouterLink v-else-if="foot.kind === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />{{ w.logInToKnock }}</RouterLink>
+          <button v-else-if="footButton" type="button" class="primary go" @click="go"><Icon :name="footButton.icon" :size="20" />{{ footButton.word }}</button>
+          <p v-else-if="foot.kind === 'say'" class="say">{{ foot.text }}</p>
+          <p v-if="chatError" class="error" role="alert">{{ chatError }}</p>
         </div>
       </template>
     </Panel>
@@ -771,7 +764,7 @@ function rundownEnded() {
     <template v-if="house">
       <!-- The parts it points at carry data-tour="header | crew | tabs | rooms | foot". -->
       <Rundown v-if="rundownOn" :name="house.name" :demo="house.demo" :next="tourLast" @done="rundownEnded" />
-      <RentServer v-if="renting" :house-id="house.id" :live="live" :resume="keyMade" @close="renting = false" />
+      <RentServer v-if="renting" :house-id="house.id" :live="live" :resume="serverComing" :key-made="keyMade" :plan="house.server?.plan" @close="renting = false" />
       <KnockSteps
         v-if="knocking"
         :house-id="house.id"
@@ -799,7 +792,7 @@ function rundownEnded() {
 .rule { display: inline-grid; place-items: center; width: 26px; height: 26px; min-height: 0; padding: 0; margin-left: 4px; vertical-align: middle; border-radius: var(--r-xs); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
 .rule:hover:not(:disabled) { background: var(--tile); }
 .rule[aria-pressed="true"] { background: var(--sticker); color: var(--ink); box-shadow: none; }
-/* The exchange under the faces: two sentences, each at most two lines. */
+/* The exchange above the reviews: two sentences, each at most two lines. */
 .life { display: grid; gap: 4px; font-size: 14px; line-height: 1.25; color: var(--muted); }
 .life p { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tontine { color: var(--text); }
@@ -815,33 +808,23 @@ function rundownEnded() {
 .lines { display: grid; align-content: start; line-height: 1.3; }
 .lines :deep(.list-row) { min-height: 76px; }
 .lines :deep(.lead) { color: var(--ink); }
-/* More than four rooms, or the bill: lower rows, so the panel still fits without scrolling. */
-.many :deep(.list-row) { min-height: 60px; }
-.many :deep(.avatar) { width: 46px !important; height: 46px !important; }
-.many .door { width: 46px; height: 46px; }
+/* A housemate's row is one big key: it lights under the pointer, never pink, and its arrow is the way in for the keyboard. */
+.people { gap: 2px; }
+.people :deep(.list-row) { min-height: 60px; }
+.people :deep(.list-row.pickable) { cursor: pointer; }
+.people :deep(.list-row:focus-within) { background: var(--tile); box-shadow: -6px 0 0 var(--tile), 6px 0 0 var(--tile); }
+.people :deep(.end) .chat-key { min-height: 40px; padding: 0 12px; background: var(--tile); box-shadow: none; color: var(--text); font: 800 15px/1 var(--font); }
+.people :deep(.end) .chat-key:hover:not(:disabled) { background: var(--fill); }
+/* An icon on a row, so the row stays dense: its name is for a screen reader and a hover. */
+.people :deep(.end) a.button.git-key { width: 46px; padding: 0; background: var(--tile); box-shadow: none; color: var(--text); }
+.people :deep(.end) a.button.git-key:hover { background: var(--fill); }
+.people .see { width: 40px; min-height: 40px; height: 40px; padding: 0; display: grid; place-items: center; background: none; box-shadow: none; color: var(--muted); }
+.crown { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--sticker); color: var(--ink); }
 .bill-lines :deep(.list-row) { min-height: 50px; }
 .paid { flex: none; color: var(--live); }
 .none { padding: 8px 0; }
-/* A free room's door, a dashed square where a face would be, and the sticker beside it. */
-.door { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-md); border: 3px dashed var(--text); color: var(--text); }
-.free-lead { display: flex; align-items: center; gap: 12px; }
-/* The "+N" row: as tall as a room's row, a dashed square and the count, lit like a menu entry. */
-.more { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 800 18px/1.2 var(--font); text-align: left; cursor: pointer; }
-.more:hover:not(:disabled) { background: var(--tile); }
-.more:focus-visible { outline: none; background: var(--accent-soft); }
-.more-count { font: 800 18px/1 var(--num); }
 .sub { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sub.warn { color: var(--danger); }
-/* One @handle size, in the handles' blue. */
-.handle { font-weight: 600; color: var(--handle); }
-/* What they build, in a column the same width on every row. */
-.project { width: 130px; font-size: 16px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A face with its state's dot on the lower right, like a presence dot in a game's friend list. */
 .face { position: relative; display: inline-grid; }
-/* A team's other faces, small and overlapping on the face's lower left, each ringed in white. */
-.face .mates { position: absolute; left: -6px; bottom: -4px; display: flex; }
-.face .mates > * { box-shadow: 0 0 0 2px var(--surface); }
-.face .mates > * + * { margin-left: -8px; }
 .face .on-face { position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; box-shadow: 0 0 0 2px var(--surface); animation: none; }
 /* Buttons and links in a row carry an icon beside their word. */
 .lines :deep(.end button), .lines :deep(.end a.button) { display: inline-flex; align-items: center; gap: 6px; }
@@ -850,6 +833,7 @@ function rundownEnded() {
 .when.late { color: var(--danger); }
 /* A bill's amount, and your part of it on red under the rows. The amounts line up, with or without a tick. */
 .amount { font-size: 18px; font-weight: 800; white-space: nowrap; }
+.amount.small { font: 700 14px/1 var(--num); color: var(--muted); }
 .your-part { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; padding: 6px 12px; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); }
 .part-word { font-size: 20px; font-weight: 800; }
 .part-sum { font-size: 20px; font-weight: 800; white-space: nowrap; }
@@ -884,15 +868,13 @@ function rundownEnded() {
 .chat-host > :deep(*) { flex: 1 1 auto; min-height: 0; }
 
 /* The foot: one big button across the width, or the one line that says why there's none. */
-.foot { flex: 1 1 auto; display: flex; align-items: center; min-width: 0; }
+.foot { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.foot .error { flex-basis: 100%; font-size: 14px; }
 .go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; font-size: 24px; }
 a.go:hover { text-decoration: none; }
 .say { min-height: 50px; display: flex; align-items: center; font-size: 15px; color: var(--muted); }
 @media (max-width: 560px) {
-  /* A phone: the sticker and the button take the free room's row, and a little less room for the faces. */
   .lines :deep(.list-row) { min-height: 64px; }
-  .door { width: 46px; height: 46px; }
-  .free-lead .door { display: none; }
   .part-n { font-size: 44px; }
   .go { font-size: 20px; }
 }

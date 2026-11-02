@@ -12,7 +12,7 @@ const drizzleDown = () => Object.assign(new Error("Failed query: select 1"), { c
 
 function setup({ ready = true, verify = async () => true as boolean } = {}) {
   const core = { ready, reportDown: vi.fn() };
-  const houses = { verifyAgentSecret: verify, setAgentOnline: vi.fn(), markLive: async () => false } as unknown as HousesService;
+  const houses = { verifyAgentSecret: verify, setAgentOnline: vi.fn(), markLive: async () => false, failLostBuilds: vi.fn() } as unknown as HousesService;
   const registry = { register: vi.fn(), unregister: vi.fn(), isOnline: () => false } as unknown as AgentRegistry;
   const gateway = new AgentsGateway(houses, registry, {} as LogsBroker, core as unknown as Core);
   const socket = Object.assign(new EventEmitter(), { close: vi.fn() });

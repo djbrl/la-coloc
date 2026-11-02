@@ -3,8 +3,9 @@ import { cityAlert, cityStats } from "./cityStats";
 
 const awa = { login: "awa", name: "Awa", avatarUrl: null };
 const room = (status: "live" | "failed" | "down", occupied = true) => ({ status, occupant: occupied ? awa : null });
-type House = Parameters<typeof cityAlert>[0][number] & { city: string };
+type House = Parameters<typeof cityAlert>[0][number] & Parameters<typeof cityStats>[0][number];
 const house = (over: Partial<House> = {}): House => ({
+  id: "sacre-coeur",
   name: "Sacré-Cœur",
   city: "Dakar",
   demo: false,
@@ -16,17 +17,22 @@ const house = (over: Partial<House> = {}): House => ({
 
 describe("the city's alert", () => {
   it("says nothing while every house is fine", () => {
-    expect(cityAlert([house(), house({ name: "Almadies" })])).toBeNull();
+    expect(cityAlert([house(), house({ id: "almadies", name: "Almadies" })], ["sacre-coeur"])).toBeNull();
   });
 
-  it("names the real houses whose server is down, before anything else", () => {
-    const alert = cityAlert([house({ agentOnline: false, rooms: [room("failed")] }), house({ name: "Almadies", demo: true, agentOnline: false })]);
-    expect(alert).toEqual({ kind: "down", houses: ["Sacré-Cœur"] });
+  it("names a house you live in whose server is down", () => {
+    expect(cityAlert([house({ agentOnline: false })], ["sacre-coeur"])).toEqual({ kind: "down", houses: ["Sacré-Cœur"] });
   });
 
-  it("counts failed builds in real houses only, and leaves a house being set up alone", () => {
-    expect(cityAlert([house({ rooms: [room("failed"), room("failed")] }), house({ demo: true, rooms: [room("failed")] })])).toEqual({ kind: "failed", rooms: 2 });
-    expect(cityAlert([house({ status: "making", agentOnline: false })])).toBeNull();
+  it("keeps a stranger's trouble off your screen: their server, and anyone's failed build", () => {
+    expect(cityAlert([house({ agentOnline: false })], ["almadies"])).toBeNull();
+    expect(cityAlert([house({ agentOnline: false })], [])).toBeNull();
+    expect(cityAlert([house({ rooms: [room("failed"), room("failed")] })], ["sacre-coeur"])).toBeNull();
+  });
+
+  it("leaves example houses and a house being set up alone", () => {
+    expect(cityAlert([house({ demo: true, agentOnline: false })], ["sacre-coeur"])).toBeNull();
+    expect(cityAlert([house({ status: "making", agentOnline: false })], ["sacre-coeur"])).toBeNull();
   });
 });
 

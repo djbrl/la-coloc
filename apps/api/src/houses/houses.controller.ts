@@ -8,6 +8,7 @@ import {
   HttpCode,
   MessageEvent,
   NotFoundException,
+  Optional,
   Param,
   Patch,
   Post,
@@ -22,7 +23,10 @@ import { AuthService } from "../auth/auth.service";
 import { skipWhileCoreDown } from "../core/streams";
 import type { HttpRequest } from "../auth/http";
 import { HousesService } from "./houses.service";
-import { installCommand } from "./server";
+import { Landlord } from "./landlord";
+import { billReference, MAX_SERVERS_PER_PERSON, monthOf } from "./money";
+import { takePayment } from "./payment";
+import { installCommand, PLAN_COST_FCFA } from "./server";
 
 // Starting a coloc on an empty lobby plot. The plot key comes from the lobby's neighbourhood generator:
 // block column, block row, plot column, plot row ("2.1.0.1").
@@ -45,6 +49,9 @@ const ServerBody = z.object({
   renew: z.boolean().optional(),
 });
 
+// Paying for it: the same choice. It comes out of the chef's credit.
+const PayBody = ServerBody;
+
 // The house's review rule. Strict: a merge only goes online once a flatmate approves it.
 const RulesBody = z.object({
   strictReviews: z.boolean({ errorMap: () => ({ message: "Say whether reviews are strict: true or false." }) }),
@@ -62,6 +69,7 @@ export class HousesController {
     private readonly houses: HousesService,
     private readonly agents: AgentRegistry,
     private readonly auth: AuthService,
+    @Optional() private readonly landlord?: Landlord,
   ) {}
 
   // The house profile. Public; flatmates also get deployments and fridge notes.
@@ -92,7 +100,8 @@ export class HousesController {
   /**
    * The chef rents the house's server and gets the command that installs the agent on it. The answer holds
    * the agent's secret in clear: it's shown once, here, and only its hash is kept. Once the agent phones in
-   * with it, the house goes live (see the agents gateway).
+   * with it, the house goes live (see the agents gateway). Tests and laptop dev use this; the rent window doesn't any
+   * more (paying for the server is the one way in there), and paying with `renew` replaces a key made here.
    */
   @Post(":id/server")
   @HttpCode(201)
@@ -108,6 +117,39 @@ export class HousesController {
     return { secret, command: installCommand(id, secret, this.auth.config.publicUrl, domain), plan, monthlyCostFcfa };
   }
 
+  // The chef pays the first month from their credit and the server comes by itself: the whole flow, with fake money and
+  // this machine in place of a hosting provider (landlord.ts). No machine to give, no credit taken. If anything after
+  // the payment fails, the credit goes back. A house already paid for pays nothing to get a new key.
+  @Post(":id/server/pay")
+  @HttpCode(201)
+  async payForServer(@Param("id") id: string, @Body() body: unknown, @Req() req: HttpRequest) {
+    const user = await this.auth.userFromRequest(req);
+    if (!user) throw new UnauthorizedException("Log in first.");
+    if (!(await this.houses.exists(id))) throw new NotFoundException();
+    if ((await this.houses.membership(id, user.id))?.role !== "chef") throw new ForbiddenException("Only the chef rents the server.");
+    const input = parse(PayBody, body);
+    if (!this.landlord?.hasRoom(id)) throw new ConflictException({ code: "no_server", message: "No server free right now." });
+    if ((await this.houses.serversOf(user.id, id)) >= MAX_SERVERS_PER_PERSON) {
+      // `house`: the one they run, so the window can take them there.
+      throw new ConflictException({ code: "server_limit", house: await this.houses.serverOf(user.id, id), message: "One server a person: you already run one. You can take more rooms in that house." });
+    }
+    const renew = input.renew === true;
+    const key = `server:${id}:${user.id}`;
+    const charged = await this.houses.credit.spend(user.id, PLAN_COST_FCFA[input.plan], "server", key);
+    try {
+      const { plan, monthlyCostFcfa } = await this.houses.rentServer(id, input.plan, renew, this.landlord.secretFor(id));
+      const domain = await this.houses.setDomain(id, this.landlord.domainFor(id));
+      if (renew) this.agents.hangUp(id, "the house's key was replaced");
+      const receipt = await takePayment({ amount: monthlyCostFcfa, operator: "credit", reference: billReference(id, monthOf(new Date())) });
+      await this.houses.markBillPaid(id, user.id);
+      this.landlord.start(id, domain);
+      return { plan, monthlyCostFcfa, ...receipt };
+    } catch (e) {
+      if (charged) await this.houses.credit.refund(user.id, key);
+      throw e;
+    }
+  }
+
   // The chef switches the house between strict and relaxed reviews. The flatmates hear of it on the fridge.
   @Patch(":id/rules")
   async setRules(@Param("id") id: string, @Body() body: unknown, @Req() req: HttpRequest) {
@@ -119,8 +161,8 @@ export class HousesController {
     return { rules: await this.houses.setRules(id, input.strictReviews, user.name ?? user.login) };
   }
 
-  // A flatmate marks their own line of this month's bill as paid. A mock payment for now: no money moves, and the
-  // bill tab says so. The next step is a mobile-money aggregator (PayDunya, CinetPay, FedaPay or Kkiapay).
+  // A flatmate pays their own line of this month's bill from their credit. Fake money for now; the next step is a
+  // mobile-money aggregator (PayDunya, CinetPay, FedaPay or Kkiapay).
   @Post(":id/bill/paid")
   @HttpCode(200)
   async billPaid(@Param("id") id: string, @Req() req: HttpRequest) {
@@ -128,7 +170,7 @@ export class HousesController {
     if (!user) throw new UnauthorizedException("Log in first.");
     if (!(await this.houses.exists(id))) throw new NotFoundException();
     if (!(await this.houses.membership(id, user.id))) throw new ForbiddenException("Only flatmates pay this house's bill.");
-    return { ok: true, ...(await this.houses.markBillPaid(id, user.id)) };
+    return { ok: true, ...(await this.houses.markBillPaid(id, user.id, true)) };
   }
 
   // Empties a room: every container in it is stopped and removed. The base for eviction, so chef only.

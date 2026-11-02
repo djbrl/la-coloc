@@ -19,6 +19,23 @@ describe("build slots", () => {
     expect(order).toEqual([1, 2, 3, 4]);
   });
 
+  it("lets a cancelled build leave the line without taking a slot", async () => {
+    const slots = new Slots(1);
+    let finish = () => {};
+    const first = slots.run(() => new Promise<void>((r) => (finish = r)));
+    const stop = new AbortController();
+    let ran = false;
+    const second = slots.run(async () => void (ran = true), stop.signal);
+    expect(slots.queued).toBe(1);
+    stop.abort();
+    await expect(second).rejects.toBeDefined();
+    expect(slots.queued).toBe(0);
+    finish();
+    await first;
+    expect(ran).toBe(false);
+    await expect(slots.run(async () => "next")).resolves.toBe("next");
+  });
+
   it("frees the slot when a build fails", async () => {
     const slots = new Slots(1);
     await expect(slots.run(async () => Promise.reject(new Error("boom")))).rejects.toThrow("boom");

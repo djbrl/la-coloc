@@ -1,16 +1,17 @@
 <script setup lang="ts">
-// The room's Overview tab: what the project is (and a short flow to name and describe it), how it's doing in one
-// sentence with its state's dot and a memory meter, and the two big things you can do with it: update it, or
-// restart it.
-import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+// The room's Overview tab: a line about the project (and a short flow to name and describe it), how it's doing in
+// three numbers, and the one thing to do next: upload a project, put it online or update it. A failed build says why
+// and what to do; a house whose server isn't connected says only that.
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import Icon from "../lobby/house/Icon.vue";
 import StatusDot from "../lobby/panel/StatusDot.vue";
-import { TUTORIAL_HOUSE } from "../lobby/tutorial/tutorial";
-import { explain, roomState } from "../lobby/panel/words";
+import { bare, explain, roomState } from "../lobby/panel/words";
 import UiNote, { type Note } from "../UiNote.vue";
 import UiSteps from "../UiSteps.vue";
 import type { RoomManage } from "../../types";
-import { canRestart, memoryUse, projectTitle, roomSentence, type SettingsForm, updateTile } from "./room";
+import BuildLog from "./BuildLog.vue";
+import RoomServerOff from "./RoomServerOff.vue";
+import { buildFailed, buildTrouble, canRestart, memoryUse, roomSentence, type SettingsForm, updateTile } from "./room";
 import { roomWords as w } from "./words";
 import { seeded } from "../seeded";
 
@@ -29,8 +30,10 @@ const props = defineProps<{
   when: (iso: string) => string;
   // The tutorial's coach is up and has its own "Put it online": this panel's tile steps back to a plain one.
   coached?: boolean;
+  // A build was just started, from here or from the Code tab: its log window opens.
+  showLog?: boolean;
 }>();
-const emit = defineEmits<{ run: [what: "redeploy" | "restart"] }>();
+const emit = defineEmits<{ run: [what: "redeploy" | "restart"]; tab: [to: "code"]; logShown: [] }>();
 
 const state = computed(() => roomState(props.data.room));
 const said = computed(() => roomSentence(props.data.room, props.data.deployments));
@@ -38,8 +41,23 @@ const memory = computed(() => memoryUse(props.data.room.usage));
 const tile = computed(() => updateTile(props.data.room.status, props.data.deployments));
 const restartable = computed(() => canRestart(props.data.room.status, props.data.deployments));
 const serverUp = computed(() => props.data.house.agentOnline);
-// The tutorial's workshop: its sample project is the Hello page.
-const workshop = computed(() => props.data.house.id === TUTORIAL_HOUSE);
+// No code to build yet: uploading a project is the next step.
+const noCode = computed(() => !props.data.settings.source && !props.data.github);
+// The last build failed, even with the version before it still online: why, and the whole log behind a button.
+const lastBuild = computed(() => props.data.deployments.find((d) => d.kind === "prod"));
+const failed = computed(() => buildFailed(lastBuild.value));
+const trouble = computed(() => w.trouble[buildTrouble(lastBuild.value?.detail)]);
+const logOpen = ref(false);
+const building = computed(() => ["queued", "cloning", "building", "starting"].includes(lastBuild.value?.status ?? ""));
+watch(
+  () => props.showLog,
+  (show) => {
+    if (!show) return;
+    logOpen.value = true;
+    emit("logShown");
+  },
+  { immediate: true },
+);
 
 // Naming the project: two questions in place of the block, then back to it.
 const step = ref(0);
@@ -72,14 +90,46 @@ async function finish() {
 
 <template>
   <div class="overview">
-    <!-- The project: its name and a line about it, as they show on the house page and in the city. -->
-    <div v-if="!step" class="project">
-      <div class="what">
-        <p class="name" :class="{ unset: !data.settings.project && !workshop }">{{ projectTitle(data.settings, workshop) }}</p>
-        <p class="about" :class="{ unset: !data.settings.projectDescription }">
-          {{ seeded(data.settings.projectDescription) || w.noLine }}
-        </p>
+    <p class="sr-only" aria-live="polite">{{ said }}</p>
+    <p v-if="!step && data.room.url && data.room.status !== 'empty'" class="address">
+      <a :href="data.room.url" target="_blank" rel="noopener">{{ bare(data.room.url) }}<span class="sr-only">{{ w.newTab }}</span></a>
+      <a v-if="data.room.previewUrl" :href="data.room.previewUrl" target="_blank" rel="noopener">{{ w.andPreview }} {{ bare(data.room.previewUrl) }}<span class="sr-only">{{ w.newTab }}</span></a>
+    </p>
+
+    <!-- The server isn't connected: nothing else can happen, so nothing else is offered. -->
+    <RoomServerOff v-if="!step && !serverUp" :data="data" />
+
+    <template v-else-if="!step">
+      <!-- The last build failed: what to do about it, the log, and a way to change the code. -->
+      <div v-if="failed" class="trouble" role="status">
+        <p><Icon name="warn" :size="18" /><span>{{ trouble }}</span></p>
+        <div class="trouble-keys">
+          <button type="button" class="chunk small" @click="logOpen = true">{{ w.seeLog }}</button>
+          <button type="button" class="chunk small" @click="emit('tab', 'code')">{{ w.fixSetup }}</button>
+        </div>
       </div>
+
+      <!-- The one thing to do next, and restarting beside it once there's something to restart. -->
+      <div class="acts">
+        <button v-if="noCode" type="button" class="primary go" :class="{ quiet: coached }" @click="emit('tab', 'code')"><Icon name="code" :size="20" />{{ w.uploadProject }}</button>
+        <button v-else-if="building" type="button" class="primary go" :class="{ quiet: coached }" @click="logOpen = true"><Icon name="code" :size="20" />{{ w.watchBuild }}</button>
+        <button v-else type="button" class="primary go" :class="{ quiet: coached }" :disabled="action !== ''" :title="tile.hint" @click="emit('run', 'redeploy')">
+          <Icon :name="tile.icon" :size="20" />{{ action === "redeploy" ? w.starting : failed ? w.buildAgain : tile.verb }}
+        </button>
+        <button v-if="restartable" type="button" class="chunk restart" :disabled="action !== ''" :title="explain.restart" @click="emit('run', 'restart')">
+          <Icon name="power" :size="18" />{{ action === "restart" ? w.restarting : w.restart }}
+        </button>
+      </div>
+    </template>
+    <!-- How it's doing, in numbers. The sentence is for screen readers. -->
+    <ul v-if="!step" class="stats">
+      <li><StatusDot :state="state" class="dot-here" /><strong>{{ state.word }}</strong></li>
+      <li><strong>{{ memory ? `${memory.mb} / ${data.room.limits.memoryMb}` : data.room.limits.memoryMb }} {{ w.mb }}</strong> {{ w.statMemory }}</li>
+      <li><strong>{{ data.room.limits.cpus }}</strong> {{ w.statCpu }}</li>
+    </ul>
+    <!-- A line about the project, as it shows on the house page and in the city. -->
+    <div v-if="!step" class="project">
+      <p class="about" :class="{ unset: !data.settings.projectDescription }">{{ seeded(data.settings.projectDescription) || w.noLine }}</p>
       <button ref="editButton" type="button" class="chunk small" :aria-label="w.editProject" @click="startEdit">
         <Icon name="edit" :size="16" /> {{ w.edit }}
       </button>
@@ -108,85 +158,49 @@ async function finish() {
       </UiSteps>
     </div>
 
-    <!-- How it's doing, in one sentence: the dot is its state's colour, the meter its memory. -->
-    <div class="doing">
-      <p aria-live="polite"><StatusDot :state="state" class="dot-here" />{{ said }}</p>
-      <div v-if="memory" class="meter" role="img" :aria-label="w.memoryUsed(memory.pct)">
-        <div class="fill" :class="{ high: memory.pct >= 80 }" :style="{ width: memory.pct + '%' }" />
-      </div>
-    </div>
-
-    <!-- The two things to do, each with the one line that says what it does. While the project is being named
-         they step aside, so the flow and the stats fit without scrolling. -->
-    <div v-if="!step" class="acts">
-      <button type="button" class="act" :class="{ go: !coached }" :disabled="action !== '' || !serverUp" @click="emit('run', 'redeploy')">
-        <span class="ic"><Icon :name="tile.icon" :size="22" /></span>
-        <span class="verb">{{ action === "redeploy" ? w.starting : tile.verb }}</span>
-        <span class="hint">{{ tile.hint }}</span>
-      </button>
-      <button type="button" class="act" :disabled="action !== '' || !serverUp || !restartable" @click="emit('run', 'restart')">
-        <span class="ic"><Icon name="power" :size="22" /></span>
-        <span class="verb">{{ action === "restart" ? w.restarting : w.restart }}</span>
-        <span class="hint">{{ restartable ? explain.restart : w.nothingToRestart }}</span>
-      </button>
-    </div>
-    <p v-if="!serverUp && !step" class="down"><Icon name="warn" :size="16" /> {{ w.serverDown }}</p>
+    <BuildLog
+      v-if="logOpen"
+      :house-id="data.house.id"
+      :room="data.room.name"
+      :url="data.room.url"
+      :other-word="w.fixSetup"
+      @close="logOpen = false"
+      @retry="emit('run', 'redeploy')"
+      @other="logOpen = false; emit('tab', 'code')"
+    />
     <UiNote :note="actionNote" />
     <UiNote v-if="!step" :note="formNote" />
   </div>
 </template>
 
 <style scoped>
-.overview { display: grid; gap: 10px; align-content: start; }
+.overview { display: grid; gap: 12px; align-content: start; }
 
-/* The project and its state: dashboard cards, the surface with a 1px edge. */
-.project { display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 14px 16px; border-radius: var(--r-lg); background: var(--surface); }
-.what { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
-.name { font: 700 19px/1.2 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.about { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.project { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.about { min-width: 0; font-size: 16px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .unset { color: var(--muted); }
-.name.unset { font-weight: 600; }
 
-.doing { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--r-lg); background: var(--surface); }
-.doing p { font-size: 15px; line-height: 1.4; }
-.dot-here { margin-right: 8px; vertical-align: 0.08em; }
+/* The numbers: three tiles side by side, the state first. */
+.stats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1.3fr 1fr 0.8fr; gap: 8px; }
+.stats li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-height: 58px; padding: 8px 12px; border-radius: var(--r-md); background: var(--tile); font-size: 14px; color: var(--muted); }
+.stats strong { font-size: 16px; font-weight: 800; color: var(--text); white-space: nowrap; }
+.dot-here { flex: none; }
+.address { display: grid; gap: 4px; font: 600 15px/1.3 var(--num); overflow-wrap: anywhere; }
+.address a { color: var(--accent); }
 
-/* The big action tiles: an icon, a verb, one line under it. Update is the accent one: it's the usual next step. */
-.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.act {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas: "ic verb" "hint hint";
-  align-items: center;
-  gap: 8px 10px;
-  min-height: 108px;
-  padding: 14px 16px;
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--quiet-edge);
-  color: var(--text);
-  text-align: left;
-  transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
-}
-.act:hover:not(:disabled) { background: var(--tile); }
-.act:active:not(:disabled) { transform: translateY(1px); }
-.act .ic { grid-area: ic; display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--fill); }
-.act .verb { grid-area: verb; font: 700 19px/1.15 var(--display); }
-.act .hint { grid-area: hint; align-self: start; font-size: 14px; line-height: 1.35; color: var(--muted); }
-/* The usual next step is the game's key: the red, white on it. */
-.act.go { background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 var(--lip) 0 var(--accent-lip); }
-.act.go:hover:not(:disabled) { background: var(--accent-fill-hover); }
-.act.go:active:not(:disabled) { transform: translateY(calc(var(--lip) - var(--lip-pressed))); box-shadow: 0 var(--lip-pressed) 0 var(--accent-lip); }
-.act.go .ic { background: color-mix(in srgb, var(--on-accent) 12%, transparent); }
-.act.go .hint { color: color-mix(in srgb, var(--on-accent) 88%, transparent); }
+/* A failed build: what to do, the log, another try. */
+.trouble { display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--danger-soft); }
+.trouble p { display: flex; gap: 8px; font-size: 15px; line-height: 1.35; }
+.trouble p :deep(svg) { flex: none; margin-top: 1px; color: var(--danger); }
+.trouble-keys { display: flex; flex-wrap: wrap; gap: 8px; }
 
-.down { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--danger); }
-
+.acts { display: flex; gap: 8px; }
+.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; font-size: 22px; }
+/* The quest's coach has its own button up: this one steps back. */
+.go.quiet { background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
+.restart { flex: none; min-height: 60px; }
 @media (max-width: 480px) {
-  .act { min-height: 96px; padding: 12px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .act { transition: none; }
-  .act:active:not(:disabled) { transform: none; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stats li:first-child { grid-column: 1 / -1; min-height: 44px; }
 }
 </style>

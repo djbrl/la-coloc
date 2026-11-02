@@ -112,7 +112,7 @@ function go(to: Parameters<typeof router.push>[0] | null) {
 
 <template>
   <div class="bell">
-    <button ref="button" class="ring" :aria-label="w.bellName(notices.unread)" :aria-expanded="open" aria-haspopup="dialog" @click="toggle">
+    <button ref="button" class="ring" data-tour="bell" :aria-label="w.bellName(notices.unread)" :aria-expanded="open" aria-haspopup="dialog" @click="toggle">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M12 2a6 6 0 0 0-6 6c0 6-3 8-3 9h18c0-1-3-3-3-9a6 6 0 0 0-6-6zM9.5 19a2.5 2.5 0 0 0 5 0z" />
       </svg>

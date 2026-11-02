@@ -7,6 +7,7 @@ import {
   arenaChallenges,
   billPayments,
   chores,
+  creditEntries,
   type Db,
   deployments,
   fridgeNotes,
@@ -22,6 +23,7 @@ import {
   users,
   votes,
 } from "@coloc/db";
+import { WELCOME_CREDIT_FCFA } from "../houses/money";
 import { and, eq } from "drizzle-orm";
 import { hashSecret } from "../houses/houses.service";
 import { plantArena } from "./arena";
@@ -101,7 +103,7 @@ export const CITY: SeedHouse[] = [
   },
   {
     // Newcomers take their first room here during the tutorial; each room is removed when its tutorial restarts.
-    // The host and four learners live here already so the house doesn't feel empty: their rooms are examples
+    // The host and two learners live here already, so with you it's a house of four: their rooms are examples
     // (`demo`), seeded online with no address, and nothing runs in them.
     id: "atelier",
     name: "L'Atelier",
@@ -117,8 +119,6 @@ export const CITY: SeedHouse[] = [
       { name: "ndeye", who: "ndeye", demo: true, project: "Hello", description: "The ready-made page every newcomer puts online first." },
       { name: "aissatou", who: "aissatou", demo: true, project: "Salut Gorée", description: "A hello page with her name and a photo of Gorée." },
       { name: "babacar", who: "babacar", demo: true, project: "Météo Bot", description: "A Telegram bot that sends Dakar's weather every morning." },
-      { name: "coumba", who: "coumba", demo: true, project: "Portfolio", description: "Her design work, on one page." },
-      { name: "lamine", who: "lamine", demo: true, project: "Tâches API", description: "A to-do API: add a task, tick it off, list what's left." },
     ],
   },
   {
@@ -301,6 +301,8 @@ export async function seedCity(db: Db, opts: SeedOptions) {
   await db.transaction(async (tx) => {
     for (const t of [arenaChallenges, notifications, messages, votes, applications, chores, repos, usageSamples, fridgeNotes, deployments, billPayments, sessions, memberships, roomTeammates, rooms, houses, users])
       await tx.delete(t);
+    await tx.delete(creditEntries);
+    await tx.update(users).set({ credit: WELCOME_CREDIT_FCFA });
     await plantCity(tx, opts);
   });
 }

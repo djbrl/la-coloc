@@ -4,6 +4,8 @@ import { parseApiToAgent, type AgentToApi, type ApiToAgent } from "@coloc/protoc
 import WebSocket from "ws";
 import type { AgentConfig } from "./config";
 
+const STEADY_MS = 10_000;
+
 export interface Link {
   send: (msg: AgentToApi) => void;
   close: () => void;
@@ -14,9 +16,11 @@ export function connect(
   version: string,
   onCommand: (cmd: ApiToAgent) => void,
   onConnected: () => void,
+  building: () => string[] = () => [],
 ): Link {
   let ws: WebSocket | undefined;
   let backoffMs = 1000;
+  let openedAt = 0;
   let closed = false;
   const outbox: AgentToApi[] = [];
 
@@ -27,8 +31,8 @@ export function connect(
   const open = () => {
     ws = new WebSocket(cfg.apiUrl);
     ws.on("open", () => {
-      backoffMs = 1000;
-      ws!.send(JSON.stringify({ type: "hello", houseId: cfg.houseId, secret: cfg.secret, agentVersion: version }));
+      openedAt = Date.now();
+      ws!.send(JSON.stringify({ type: "hello", houseId: cfg.houseId, secret: cfg.secret, agentVersion: version, building: building() }));
       console.log(`[link] connected to ${cfg.apiUrl}`);
       flush();
       onConnected();
@@ -42,6 +46,8 @@ export function connect(
     });
     ws.on("close", (code, reason) => {
       if (closed) return;
+      // Only a line that held counts as back: one hung up on at once (a key it no longer accepts) keeps slowing down.
+      if (Date.now() - openedAt > STEADY_MS) backoffMs = 1000;
       console.warn(`[link] disconnected (${code} ${reason}), retrying in ${backoffMs / 1000}s`);
       setTimeout(open, backoffMs);
       backoffMs = Math.min(backoffMs * 2, 30_000);
@@ -52,8 +58,8 @@ export function connect(
   open();
   return {
     send: (msg) => {
-      // Usage samples are only useful fresh: don't queue them while offline.
-      if (ws?.readyState !== WebSocket.OPEN && msg.type === "usage") return;
+      // Usage samples and build lines are only useful fresh: don't queue them while offline.
+      if (ws?.readyState !== WebSocket.OPEN && (msg.type === "usage" || msg.type === "deploy_log")) return;
       outbox.push(msg);
       flush();
     },

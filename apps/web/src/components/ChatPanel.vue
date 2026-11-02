@@ -12,7 +12,7 @@
 import { nextTick, ref, watch } from "vue";
 import { useWhenBack } from "../core";
 import { locale } from "../i18n";
-import { block, blockedLogins, report, unblock } from "../conversations";
+import { block, blockedLogins, messageSent, report, unblock } from "../conversations";
 import { postJSON } from "../session";
 import type { Message } from "../types";
 import Avatar from "./Avatar.vue";
@@ -94,6 +94,7 @@ async function send() {
   // What you typed stays until the city has it: a message that couldn't be sent is still in the box.
   if (res.ok) {
     draft.value = "";
+    messageSent(props.postUrl);
     emit("sent");
   } else error.value = res.message;
   errorDown.value = !res.ok && !!res.down;
@@ -150,7 +151,6 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
             <div class="bubble">
               <p class="who">
                 <span class="name">{{ nameOf(m) }}</span>
-                <span class="handle">@{{ m.author.login }}</span>
                 <BadgeChip v-if="m.author.badge" class="worn" :badge="m.author.badge" />
                 <span class="at">{{ time(m.at) }}</span>
               </p>
@@ -210,17 +210,16 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
 .msg.mine { margin-left: auto; justify-content: flex-end; }
 .body { display: grid; gap: 4px; min-width: 0; }
 .mine .body { justify-items: end; }
-/* A message: who (their name, then their @handle), then what they said. Yours on ink. */
+/* A message: who (their name, then the time), then what they said. Yours on ink. */
 .bubble { padding: 8px 11px 9px; border-radius: var(--r-md); background: var(--fill); }
 .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; line-height: 1.15; }
 .name { font-size: 16px; font-weight: 800; }
-.handle { font-size: 14px; font-weight: 600; color: var(--handle); }
 .who .worn { height: 22px; font-size: 14px; }
 .at { font-size: 14px; font-weight: 600; color: var(--muted); }
 .said { margin-top: 4px; font-size: 16px; line-height: 1.2; white-space: pre-wrap; overflow-wrap: anywhere; }
 .said a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .mine .bubble { background: var(--text); color: var(--surface); }
-.mine .handle, .mine .at { color: inherit; }
+.mine .at { color: inherit; }
 /* The "…" beside a message: quiet until the pointer is on the message or it holds the focus. */
 .msg-more { flex: none; align-self: center; width: 28px; height: 28px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-xs); background: none; color: var(--muted); box-shadow: none; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .mine .msg-more { order: -1; }

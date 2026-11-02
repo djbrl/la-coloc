@@ -3,17 +3,16 @@
 // and shares their address. The web side tells the story in chapters; this file keeps the facts (the room, its
 // deploys, the linked repo, the furthest chapter reached). Taking the tutorial again removes that room, so the next
 // run starts from nothing.
-import { ConflictException, Inject, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
-import { type Db, deployments, fridgeNotes, githubInstallations, houses, memberships, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
+import { ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { type Db, deployments, fridgeNotes, houses, memberships, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
 import { and, asc, eq } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
 import type { User } from "../auth/auth.service";
 import { isCoreDown } from "../core/core";
 import { DB } from "../db/db.module";
-import { GITHUB_CLIENT, repoList } from "../github/chores.service";
-import type { GithubAppClient, GhRepoInfo } from "../github/github.client";
 import type { GithubAppConfig } from "../github/github.config";
 import { GITHUB_CONFIG } from "../github/github.controller";
+import { GithubRepos } from "../github/repos.service";
 import { HousesService, slugify } from "../houses/houses.service";
 import { noteText } from "../houses/lines";
 import { RoomDeployer, type Source } from "../rooms/room-deployer";
@@ -78,32 +77,19 @@ export class TutorialService {
     private readonly agents: AgentRegistry,
     @Inject(GITHUB_CONFIG) private readonly github: GithubAppConfig | null,
     @Inject(TUTORIAL_SAMPLE) private readonly sample: TutorialSample,
-    // Talks to GitHub for the repo picker. Null when the App isn't configured; left out in tests that don't need it.
-    @Optional() @Inject(GITHUB_CLIENT) private readonly client?: GithubAppClient | null,
+    // The repo picker's list and link. Left out in tests that don't need it.
+    @Optional() private readonly repoLists?: GithubRepos,
   ) {}
 
-  private readonly log = new Logger("tutorial");
-  // What GitHub last said about each newcomer's repos, so the coach's 2-second poll asks it at most every 5 seconds.
-  // Each repo carries the installation that lets the App see it.
-  private readonly seen = new Map<string, { at: number; installation: number | null; repos: (GhRepoInfo & { installation: number })[] }>();
-
-  /**
-   * The repos the newcomer let the App see (its installation on their own account, and those they made on an
-   * organisation), the most recently pushed first, and the one in their workshop room. Asked straight from GitHub, so a lost install event doesn't matter.
-   * `reason` says why the list is empty: GitHub isn't set up here, they didn't log in with GitHub, or nothing is
-   * installed yet.
-   */
+  /** The repos they let the App see (github/repos.service.ts), and the one in their workshop room. */
   async repoChoices(user: User) {
-    if (!this.client) return { repos: [], chosen: null, reason: "off" as const };
-    if (!user.githubId) return { repos: [], chosen: null, reason: "no-github" as const };
-    const { installation, repos: list } = await this.installed(user);
+    if (!this.repoLists) return { repos: [], chosen: null, reason: "off" as const };
+    const { repos: list, reason } = await this.repoLists.list(user);
+    if (reason === "off" || reason === "no-github") return { repos: [], chosen: null, reason };
     const house = await this.workshop();
     const room = await this.roomOf(house.id, user.id);
     const chosen = room ? ((await this.repoOf(room))?.githubId ?? null) : null;
-    const repos = list
-      .map((r) => ({ id: r.id, fullName: r.full_name, description: r.description, language: r.language, private: r.private, pushedAt: r.pushed_at }))
-      .sort((a, b) => (b.pushedAt ?? "").localeCompare(a.pushedAt ?? ""));
-    return { repos, chosen, reason: installation ? null : ("not-installed" as const) };
+    return { repos: list, chosen, reason };
   }
 
   /** Puts the repo they picked in their workshop room: that one, and only that one. */
@@ -111,51 +97,8 @@ export class TutorialService {
     const house = await this.workshop();
     const room = await this.roomOf(house.id, user.id);
     if (!room) throw new NotFoundException({ message: "Take a room first.", code: "takeRoomFirst" });
-    if (!this.client || !user.githubId) throw new ConflictException({ message: "Log in with GitHub to bring your own project.", code: "githubLoginNeeded" });
-    const { repos: list } = await this.installed(user, true);
-    const repo = list.find((r) => r.id === githubId);
-    if (!repo) throw new NotFoundException({ message: "La Coloc can't see that repo. Allow it on GitHub first.", code: "repoNotVisible" });
-    const installation = repo.installation;
-    const [elsewhere] = await this.db.select().from(repos).where(eq(repos.githubId, githubId));
-    if (elsewhere && (elsewhere.houseId !== room.houseId || elsewhere.room !== room.name)) {
-      throw new ConflictException({ message: `${repo.full_name} already lives in another room.`, code: "repoTaken", repo: repo.full_name });
-    }
-    await this.db.transaction(async (tx) => {
-      await tx.delete(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name)));
-      await tx.insert(repos).values({ githubId, fullName: repo.full_name, houseId: room.houseId, room: room.name, installationId: installation });
-    });
-    await this.houses.note(room.houseId, { tone: "info", room: room.name, text: noteText("reposMoved", { name: user.name ?? user.login, repos: repoList([repo]) }) });
-    return { repo: repo.full_name };
-  }
-
-  // The App's installations this person may take repos from, and their repos, from GitHub at most every 5 seconds
-  // (always when `fresh`). Their own account's, which GitHub tells the App; and any on an organisation that they
-  // installed themselves, which only the install webhook tells (github_installations): GitHub won't say who belongs
-  // to an organisation without the person's own token, and an organisation's other members must not be able to
-  // move its repos into their room.
-  private async installed(user: User, fresh = false) {
-    const cached = this.seen.get(user.id);
-    if (!fresh && cached && Date.now() - cached.at < 5_000) return cached;
-    try {
-      // Asked by login (GitHub has no lookup by id), then checked against their id: a login someone gave up and a
-      // stranger took must not show them the stranger's repos.
-      const own = await this.client!.userInstallation(user.login, user.githubId ?? undefined);
-      const made = user.githubId
-        ? await this.db.select({ id: githubInstallations.id }).from(githubInstallations).where(eq(githubInstallations.installerGithubId, user.githubId))
-        : [];
-      const ids = [...new Set([...(own ? [own] : []), ...made.map((m) => m.id)])];
-      // An organisation's install that's gone (its removal missed) is skipped; their own account's must answer.
-      const reposOf = async (id: number) => (await this.client!.installationRepos(id)).map((r) => ({ ...r, installation: id }));
-      const lists = await Promise.all(ids.map((id) => (id === own ? reposOf(id) : reposOf(id).catch(() => []))));
-      // A repo seen through two installations is listed once.
-      const repos = [...new Map(lists.flat().map((r) => [r.id, r])).values()];
-      const got = { at: Date.now(), installation: ids[0] ?? null, repos };
-      this.seen.set(user.id, got);
-      return got;
-    } catch (e) {
-      this.log.warn(`couldn't ask GitHub about ${user.login}'s repos: ${(e as Error).message}`);
-      throw new ServiceUnavailableException({ message: "GitHub isn't answering. Try again in a minute.", code: "githubDown" });
-    }
+    if (!this.repoLists) throw new ConflictException({ message: "Log in with GitHub to bring your own project.", code: "githubLoginNeeded" });
+    return this.repoLists.link(user, room, githubId);
   }
 
   /** Where the newcomer is in the tutorial. */
@@ -166,7 +109,7 @@ export class TutorialService {
     const repo = room ? await this.repoOf(room) : undefined;
     return {
       house: { id: house.id, name: house.name, city: house.city, agentOnline: this.agents.isOnline(house.id) },
-      room: room ? { ...roomView(room), status: await this.finerStatus(room), why: await this.whyFailed(room) } : null,
+      room: room ? { ...roomView(room), status: await this.finerStatus(room), ...(await this.whyFailed(room)) } : null,
       // The starter page's folder, never its repo when that's a clone on this server's disk (file://…).
       sample: { repo: this.sample.repo.startsWith("file://") ? null : this.sample.repo, path: this.sample.path },
       github: {
@@ -332,14 +275,15 @@ export class TutorialService {
     return d && ["queued", "cloning", "building", "starting"].includes(d.status) ? d.status : room.status;
   }
 
-  // Why the room's last deploy failed, in one line (the agent's detail: "the build failed: …"). Null when it didn't.
-  private async whyFailed(room: Room): Promise<string | null> {
-    if (!room.lastDeployId) return null;
+  // Why the room's last deploy failed: in one line (the agent's detail: "the build failed: …"), and its whole log.
+  // Nulls when it didn't.
+  private async whyFailed(room: Room): Promise<{ why: string | null; log: string | null }> {
+    if (!room.lastDeployId) return { why: null, log: null };
     const [d] = await this.db
       .select({ status: deployments.status, detail: deployments.detail })
       .from(deployments)
       .where(and(eq(deployments.id, room.lastDeployId), eq(deployments.houseId, room.houseId)));
-    return d?.status === "failed" ? firstLine(d.detail) : null;
+    return d?.status === "failed" ? { why: firstLine(d.detail), log: d.detail } : { why: null, log: null };
   }
 
   // The GitHub repo linked to this room, if any.

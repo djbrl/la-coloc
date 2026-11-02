@@ -55,7 +55,7 @@ useWhenBack(() => void fetchRoom());
       @message="(login) => openChat('dm', { with: login })"
     />
     <p v-if="!me" class="visitor">
-      {{ w.logInToTalk }} <RouterLink to="/login">{{ w.logInWord }}</RouterLink>
+      <RouterLink to="/login">{{ w.logInWord }}</RouterLink>
     </p>
   </div>
 </template>

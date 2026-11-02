@@ -7,14 +7,20 @@ import { and, count, eq, ne } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
+import { isChatGuest } from "../houses/guests";
 import type { ApplicationView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
 import { knockText, noteText } from "../houses/lines";
-import { moveInto } from "../houses/move-in";
+import { MAX_ROOMS_PER_PERSON } from "../houses/money";
+import { moveInto, roomsRented } from "../houses/move-in";
 import { applicationChannel, channelMessages, houseChannel, person, tally } from "./queries";
 
 export const MAX_MESSAGE = 2000;
 const BURST = { messages: 20, perMs: 60_000 };
+// The workshop's answer to a newcomer's first word in its channel. Scripted: nobody really lives there.
+const WORKSHOP_REPLY_MS = 1500;
+const guestWelcome = (first: string) => `Come in, ${first}. No room left, but the kitchen's always open. What are you building?`;
+const workshopReply = (first: string) => `Dalal ak jàmm, ${first}! Happy you're here. Ask us anything, we all started with the same page.`;
 
 // What the doorbell tells its listeners (the notifications): someone knocked, or a knock was answered.
 export type KnockEvent =
@@ -30,6 +36,8 @@ export class DoorbellService {
   private recent = new Map<string, number[]>();
   private listeners: KnockListener[] = [];
   private readonly log = new Logger("doorbell");
+  // How long the workshop takes to answer. A field so a test doesn't have to wait.
+  replyDelayMs = WORKSHOP_REPLY_MS;
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -44,6 +52,7 @@ export class DoorbellService {
     if (!room) throw new NotFoundException("no such room");
     if (room.occupantId) throw new ConflictException({ message: "Someone already lives in this room.", code: "roomTaken" });
     if (await this.houses.membership(houseId, applicantId)) throw new ConflictException({ message: "You already live here.", code: "alreadyLiveHere" });
+    if ((await roomsRented(this.db, applicantId)) >= MAX_ROOMS_PER_PERSON) throw new ConflictException({ message: `${MAX_ROOMS_PER_PERSON} rooms a person. End a lease to take another.`, code: "room_limit", max: MAX_ROOMS_PER_PERSON });
     const [already] = await this.db
       .select({ id: applications.id })
       .from(applications)
@@ -115,9 +124,35 @@ export class DoorbellService {
   }
 
   async postToHouse(houseId: string, authorId: string, body: string) {
-    if (!(await this.houses.membership(houseId, authorId))) throw new ForbiddenException({ message: "Only flatmates can talk in the living room.", code: "flatmatesOnlyTalk" });
-    await this.post(houseChannel(houseId), authorId, body);
+    if (!(await this.houses.membership(houseId, authorId)) && !(await isChatGuest(this.db, houseId, authorId))) throw new ForbiddenException({ message: "Only flatmates can talk in the living room.", code: "flatmatesOnlyTalk" });
+    const channel = houseChannel(houseId);
+    const [said] = await this.db.select({ n: count() }).from(messages).where(and(eq(messages.channel, channel), eq(messages.authorId, authorId)));
+    await this.post(channel, authorId, body);
     this.houses.changes.next(houseId);
+    if (said.n === 0) await this.answerFirstWord(houseId, authorId);
+  }
+
+  // Your first message in the workshop's channel gets an answer from its host, a moment later. "First" is read from
+  // the channel itself, so it happens once per person, survives a refresh, and a demo reset (which empties the
+  // channels) starts it over.
+  private async answerFirstWord(houseId: string, authorId: string) {
+    const [house] = await this.db.select({ tutorial: houses.tutorial, chefId: houses.chefId }).from(houses).where(eq(houses.id, houseId));
+    if (!house?.tutorial || !house.chefId || house.chefId === authorId) return;
+    const [author] = await this.db.select({ name: users.name, login: users.login }).from(users).where(eq(users.id, authorId));
+    const first = (author.name ?? author.login).trim().split(/\s+/)[0];
+    const reply = async () => {
+      await this.db.insert(messages).values({ channel: houseChannel(houseId), authorId: house.chefId, body: workshopReply(first) });
+      this.houses.changes.next(houseId);
+    };
+    setTimeout(() => void reply().catch((err) => this.log.warn(`couldn't answer in the workshop: ${err.message}`)), this.replyDelayMs).unref();
+  }
+
+  // An example house's host welcomes a guest let into its chat.
+  async welcomeGuest(houseId: string, guestId: string) {
+    const [house] = await this.db.select({ chefId: houses.chefId }).from(houses).where(eq(houses.id, houseId));
+    const [guest] = await this.db.select({ name: users.name, login: users.login }).from(users).where(eq(users.id, guestId));
+    if (!house?.chefId || !guest) return;
+    await this.post(houseChannel(houseId), house.chefId, guestWelcome((guest.name ?? guest.login).trim().split(/\s+/)[0]));
   }
 
   /**

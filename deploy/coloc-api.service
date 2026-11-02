@@ -1,0 +1,16 @@
+[Unit]
+Description=La Coloc API, and the caretakers of houses that paid for a server
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=coloc
+EnvironmentFile=/etc/coloc/coloc.env
+WorkingDirectory=/opt/coloc/src/apps/api
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

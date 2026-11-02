@@ -1,5 +1,5 @@
 // Turns what happens in the house into fridge notes, in the house's own voice.
-import type { DeployStatus, RoomEvent } from "@coloc/protocol";
+import { BUILD_CANCELLED, type DeployStatus, type RoomEvent } from "@coloc/protocol";
 import type { FridgeNoteView } from "./house.types";
 import { noteText } from "./lines";
 
@@ -20,6 +20,8 @@ export function noteForRoomEvent(e: RoomEvent, flatmate: string): Draft {
 export function noteForDeploy(s: DeployStatus, flatmate: string): Draft | null {
   if (s.status === "live") return { tone: "thanks", room: s.room, text: noteText("shipped", { name: flatmate }) };
   if (s.status === "failed") {
+    // Cancelled on purpose: no news for the house.
+    if (s.detail === BUILD_CANCELLED) return null;
     const reason = (s.detail ?? "unknown error").split("\n")[0];
     return { tone: "danger", room: s.room, text: noteText("deployFailed", { name: flatmate, reason }) };
   }

@@ -45,6 +45,12 @@ export function findHouses<H extends Pick<CityHouse, "name" | "city" | "tagline"
   const q = query.trim().toLowerCase();
   if (!q) return houses;
   return houses.filter((h) =>
-    [h.name, h.city, h.tagline, ...h.rooms.flatMap((r) => [r.project, r.ad, r.occupant?.login, r.occupant?.name])].join(" ").toLowerCase().includes(q),
+    [h.name, h.tagline, ...h.rooms.flatMap((r) => [r.project, r.ad, r.occupant?.login, r.occupant?.name])].join(" ").toLowerCase().includes(q),
   );
+}
+
+/** The people in Find's rows: by name or login. */
+export function findPeople<P extends { login: string; name: string }>(people: P[], query: string): P[] {
+  const q = query.trim().toLowerCase();
+  return q ? people.filter((p) => `${p.name} ${p.login}`.toLowerCase().includes(q)) : [];
 }

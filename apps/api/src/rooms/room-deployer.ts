@@ -3,7 +3,7 @@
 import { ConflictException, HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { type Db, deployments, houses, repos, roomSecrets, rooms, users } from "@coloc/db";
 import type { DeployKind } from "@coloc/protocol";
-import { and, eq, gt, inArray } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNotNull, ne } from "drizzle-orm";
 import { Limiter } from "../chat/limiter";
 import { AgentRegistry } from "../agents/agent.registry";
 import { DB } from "../db/db.module";
@@ -11,6 +11,8 @@ import { GITHUB_CLIENT } from "../github/chores.service";
 import type { GithubAppClient } from "../github/github.client";
 import type { DeploymentView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
+import { noCredit, projectKey } from "../credit/credit.service";
+import { MAX_PROJECTS_PER_PERSON, PROJECT_COST_FCFA, WORKSHOP_ID } from "../houses/money";
 import type { SecretBox } from "./secrets";
 
 export const SECRETS = Symbol("SECRETS");
@@ -21,12 +23,13 @@ type Room = typeof rooms.$inferSelect;
 export const DEPLOYS = { count: 5, perMs: 10 * 60_000 };
 // A build that hasn't reported back in this long is stuck, not running: don't let it block the room for ever.
 const STUCK_MS = 15 * 60_000;
-const UNDER_WAY = ["queued", "cloning", "building", "starting"] as const;
+export const UNDER_WAY = ["queued", "cloning", "building", "starting"] as const;
 
 export interface Source {
   // What the agent clones. For a GitHub repo it carries a one-hour token: never store or show it.
   url: string;
-  ref: string;
+  // No ref: the repo's default branch, whatever it's called.
+  ref?: string;
   github?: { repoId: number };
 }
 
@@ -61,9 +64,28 @@ export class RoomDeployer {
       )
       .limit(1);
     if (running) throw new ConflictException({ message: "This room is already being put online. Wait for it to finish.", code: "alreadyDeploying" });
+    if (kind === "prod" && room.houseId !== WORKSHOP_ID) await this.canStartProject(room, userId);
     if (!this.byHand.take(userId, now.getTime())) {
       throw new HttpException({ message: "That's a lot of deploys in a few minutes. Wait a little before the next one.", code: "slowDownDeploys" }, HttpStatus.TOO_MANY_REQUESTS);
     }
+  }
+
+  /**
+   * Only so many projects a person, and a new one has to be affordable. It's only paid once it's online (HousesService
+   * recordDeployStatus), so a failed build costs nothing. Its occupant pays, whoever pressed the button. The workshop is free.
+   */
+  private async canStartProject(room: Room, userId: string): Promise<void> {
+    const payer = room.occupantId ?? userId;
+    const [{ n }] = await this.db
+      .select({ n: count() })
+      .from(rooms)
+      .where(and(eq(rooms.occupantId, payer), ne(rooms.houseId, WORKSHOP_ID), isNotNull(rooms.lastDeployId), ne(rooms.status, "empty"), ne(rooms.id, room.id)));
+    if (n >= MAX_PROJECTS_PER_PERSON) {
+      throw new ConflictException({ code: "project_limit", max: MAX_PROJECTS_PER_PERSON, message: `${MAX_PROJECTS_PER_PERSON} projects a person. Empty one of your rooms to start another.` });
+    }
+    if (room.url || (await this.houses.credit.paid(projectKey(room.houseId, room.name, payer)))) return;
+    const credit = await this.houses.credit.balance(payer);
+    if (credit < PROJECT_COST_FCFA) throw noCredit(PROJECT_COST_FCFA - credit);
   }
 
   /** The room's secrets, decrypted, as environment variables. */
@@ -96,7 +118,7 @@ export class RoomDeployer {
       const ref = room.branch ?? (await this.github.defaultBranch(repo.installationId, repo.fullName));
       return { url: `https://x-access-token:${token}@github.com/${repo.fullName}.git`, ref, github: { repoId: repo.githubId } };
     }
-    if (room.source) return { url: room.source, ref: room.branch ?? "main" };
+    if (room.source) return { url: room.source, ref: room.branch ?? undefined };
     return null;
   }
 
@@ -116,7 +138,7 @@ export class RoomDeployer {
       room.name,
       kind,
       source.url,
-      source.ref,
+      source.ref ?? "default",
       opts.requestedBy ?? null,
       source.github && opts.prNumber ? { repoId: source.github.repoId, prNumber: opts.prNumber } : undefined,
     );

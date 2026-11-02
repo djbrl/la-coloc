@@ -131,6 +131,10 @@ describe("chores", () => {
     expect(await svc.handle("pull_request_review", review(1, gh.jib))).toBe("done");
     const [c] = await db.select().from(chores);
     expect(c).toMatchObject({ status: "done", outcome: "approved" });
+    // It earned the reviewer credit, once, and nothing for reviewing it again.
+    await svc.handle("pull_request_review", review(1, gh.jib));
+    expect((await db.select().from(users).where(eq(users.login, "jib")))[0].credit).toBe(15_500);
+    expect((await db.select().from(users).where(eq(users.login, "moussa")))[0].credit).toBe(15_000);
 
     const view = await houses.view("sacre-coeur");
     expect(view!.ledger.find((l) => l.login === "jib")).toEqual({ login: "jib", given: 1, received: 0 });

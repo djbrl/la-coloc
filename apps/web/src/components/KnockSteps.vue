@@ -5,12 +5,14 @@
 // and takes you to it, instead of letting you write a note only to hear it on the last step.
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { messageSent } from "../conversations";
 import { coreDown, downWords, wentDown } from "../core";
 import { loadMe, me } from "../session";
 import { refusalText } from "../refusals";
 import type { Room } from "../types";
 import { knockOn } from "./lobby/cards";
 import { joinWords as w } from "./joinWords";
+import RepoPicker from "./RepoPicker.vue";
 import UiSteps from "./UiSteps.vue";
 
 // The room only matters by name, so any room shape fits: the city's slimmer one, or the house page's Room.
@@ -36,6 +38,10 @@ const already = computed(() => (known.value ? { id: known.value.id } : refused.v
 const where = computed(() => props.houseName || w.thisHouse);
 
 onMounted(() => dialog.value?.showModal());
+
+// Picking one of your GitHub repos fills the same link pasting would. Only public ones: the house reads this link.
+const GITHUB = "https://github.com/";
+const pickedRepo = computed(() => (repo.value.startsWith(GITHUB) ? repo.value.slice(GITHUB.length) : undefined));
 
 function next() {
   error.value = "";
@@ -86,6 +92,7 @@ async function send() {
   }
   // Your list of open knocks now has this one: the cards offer "Your knock" from here on.
   void loadMe();
+  messageSent(`/api/houses/${props.houseId}/knock`);
   open(data.id);
 }
 
@@ -162,6 +169,7 @@ function onClick(e: MouseEvent) {
         <form v-else-if="step === 2" class="form" novalidate @submit.prevent="next">
           <h2>{{ w.repoTitle }}</h2>
           <p class="muted">{{ w.repoWhy }}</p>
+          <RepoPicker :selected="pickedRepo" public-only @pick="(r) => { repo = GITHUB + r.fullName; error = ''; }" />
           <input
             v-model="repo"
             data-autofocus
@@ -214,7 +222,7 @@ function onClick(e: MouseEvent) {
 }
 .form { display: grid; gap: 16px; }
 .lead { font-size: 19px; font-weight: 600; }
-.quote { margin: 0; padding: 4px 0 4px 16px; border-left: 3px solid var(--accent-fill); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
+.quote { margin: 0; padding: 10px 14px; border-radius: var(--r-md); background: var(--tile); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
 .form a { overflow-wrap: anywhere; }
 .nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
 /* Chunky buttons, as in a game's menu: the main one in the accent, the way back in grey. */

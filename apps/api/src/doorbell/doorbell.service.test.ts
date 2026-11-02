@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { chores, type Db, memberships, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { and, eq } from "drizzle-orm";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MembershipsService } from "../auth/memberships.service";
 import { HousesService } from "../houses/houses.service";
 import { seedCity } from "../seed/city";
@@ -160,6 +160,29 @@ describe("the vote", () => {
     const other = await doorbell.view(b.id, ids.koffi);
     expect(other.status).toBe("declined");
     expect(other.messages.at(-1)!.body).toContain("Someone else moved in");
+  });
+});
+
+describe("the workshop's answer to your first word", () => {
+  const channelOf = async (viewer: string) => (await houses.view("atelier", ids[viewer]))!.channel!.filter((m) => m.author?.login === "ndeye" && m.body.includes("Fatou"));
+
+  beforeEach(async () => {
+    doorbell.replyDelayMs = 1;
+    await db.insert(memberships).values({ houseId: "atelier", userId: ids.fatou });
+  });
+
+  it("answers once, by your first name, however many times you talk", async () => {
+    await doorbell.postToHouse("atelier", ids.fatou, "Salut !");
+    await vi.waitFor(async () => expect(await channelOf("fatou")).toHaveLength(1));
+    await doorbell.postToHouse("atelier", ids.fatou, "Encore moi");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(await channelOf("fatou")).toHaveLength(1);
+  });
+
+  it("stays quiet in a real house", async () => {
+    await doorbell.postToHouse("sacre-coeur", ids.awa, "who broke the build?");
+    await new Promise((r) => setTimeout(r, 20));
+    expect((await houses.view("sacre-coeur", ids.awa))!.channel).toHaveLength(1);
   });
 });
 

@@ -5,14 +5,15 @@
 //
 // The quest is eight chapters, each a screen-sized step or two, and each detected rather than clicked where the
 // game can see it: you walked, you went in, you took the room, it went live, you opened it, you shared it.
-//   1 arrive   land on the street, learn to walk
+//   1 arrive   land on the street, the controls one card at a time with everything still, then walk
 //   2 find     follow the beacon to a house with a free room, go in, take the room
 //   3 keys     the room is yours: keys, your name on the door
 //   4 project  bring your project: a ready-made starter in one press, or your own repo from GitHub
 //   5 launch   watch it build, as a show: the crane, four plain stages, fireworks
 //   6 open     your address, big, one press to open it
 //   7 share    copy it, send it on WhatsApp, scan it with your phone
-//   8 house    meet the house: the flatmates, reviews, the news board; then "Welcome home"
+//   8 house    meet the house: the flatmates, reviews, the news board; then "Well done"
+// After it the real city, with its welcome and a short walkthrough of what's new on screen.
 import type { TutorialState } from "../../../types";
 
 // The workshop: the quest's one house, where every newcomer gets their first room. The same id as WORKSHOP_ID in
@@ -28,14 +29,16 @@ export const WALKS: Action[] = ["walk-up", "walk-left", "walk-down", "walk-right
 export type Chapter = "arrive" | "find" | "keys" | "project" | "launch" | "open" | "share" | "house";
 export const CHAPTERS: Chapter[] = ["arrive", "find", "keys", "project", "launch", "open", "share", "house"];
 
-// The steps, in order. "welcome" is the first card; "home" is the "Welcome home" moment that closes chapter 8;
-// "city" is the real city, behind its own welcome card, once the quest is over.
-export type Step = "welcome" | "walk" | "look" | "go" | "room" | "keys" | "project" | "launch" | "open" | "share" | "house" | "home" | "city";
-export const STEPS: Step[] = ["welcome", "walk", "look", "go", "room", "keys", "project", "launch", "open", "share", "house", "home", "city"];
+// The steps, in order. "welcome" is the first card; "intro" walks through the controls before you may move; "home" is
+// the "Well done" moment that closes chapter 8; "city" is the real city, behind its own welcome card, once the quest is
+// over; "tour" shows what's new on its screen, then you're free.
+export type Step = "welcome" | "intro" | "walk" | "look" | "go" | "room" | "keys" | "project" | "launch" | "open" | "share" | "house" | "home" | "city" | "tour";
+export const STEPS: Step[] = ["welcome", "intro", "walk", "look", "go", "room", "keys", "project", "launch", "open", "share", "house", "home", "city", "tour"];
 
 // Which chapter each step is part of. The city's card comes after the quest: no chapter.
 export const CHAPTER_OF: Record<Step, Chapter | null> = {
   welcome: "arrive",
+  intro: "arrive",
   walk: "arrive",
   look: "find",
   go: "find",
@@ -48,18 +51,20 @@ export const CHAPTER_OF: Record<Step, Chapter | null> = {
   house: "house",
   home: "house",
   city: null,
+  tour: null,
 };
 
 // The pieces of the lobby's screen, besides the city itself: the site's top bar ("chrome"), the city's activity,
 // the place button, the round tools, the keys, the minimap, the prompt for what's in reach, and the quest's tracker
-// (the chapter stamps at the top).
+// (the slim pill at the top).
 export type Piece = "chrome" | "here" | "place" | "tools" | "keys" | "map" | "prompt" | "quest";
 export const PIECES: Piece[] = ["chrome", "here", "place", "tools", "keys", "map", "prompt", "quest"];
-// What comes on screen as the quest goes: first nothing, then the tracker, then the map with the goal's pin and the
+// What comes on screen as the quest goes: first nothing, then the "?", then the tracker, then the map with the goal's pin and the
 // prompt at the door, then the rest of the HUD once you live somewhere.
-const TRACKER: Piece[] = ["quest"];
-const FINDING: Piece[] = ["quest", "place", "map", "prompt"];
+const TRACKER: Piece[] = ["quest", "keys"];
+const FINDING: Piece[] = ["quest", "keys", "place", "map", "prompt"];
 const HUD: Piece[] = ["quest", "place", "map", "tools", "keys"];
+const CITY: Piece[] = PIECES.filter((p) => p !== "quest");
 
 // What the engine lets you do (Lobby's `setControls`).
 export interface Controls {
@@ -84,7 +89,8 @@ export interface Setup {
 }
 export const SETUP: Record<Step, Setup> = {
   welcome: { controls: OFF, reveal: [], poll: false, beacon: false },
-  walk: { controls: WALK, reveal: [], poll: false, beacon: false },
+  intro: { controls: OFF, reveal: ["keys"], poll: false, beacon: false },
+  walk: { controls: WALK, reveal: ["keys"], poll: false, beacon: false },
   look: { controls: OFF, reveal: TRACKER, poll: false, beacon: true },
   go: { controls: ALL, reveal: FINDING, poll: false, beacon: true },
   room: { controls: ALL, reveal: FINDING, poll: true, beacon: false },
@@ -97,8 +103,24 @@ export const SETUP: Record<Step, Setup> = {
   house: { controls: ALL, reveal: HUD, poll: false, beacon: false },
   home: { controls: OFF, reveal: HUD, poll: false, beacon: false },
   // The real city, behind a welcome card: nothing moves until you've read it.
-  city: { controls: OFF, reveal: PIECES.filter((p) => p !== "quest"), poll: false, beacon: false },
+  city: { controls: OFF, reveal: CITY, poll: false, beacon: false },
+  tour: { controls: OFF, reveal: CITY, poll: false, beacon: false },
 };
+
+// The walkthrough's cards, one thing each, while nothing moves: the controls at the start of the quest, what's new on
+// the city's screen at the end. Someone who skipped the quest never saw the first ones, so they get them in the city.
+const INTRO_CARDS = ["help", "walk", "dash", "use"] as const;
+const TOUR_CARDS = ["search", "map", "pick", "chat", "bell", "settings"] as const;
+export type TourCardName = (typeof INTRO_CARDS)[number] | (typeof TOUR_CARDS)[number];
+// A touch screen has no key list and nothing to press for [ and ].
+const NO_TOUCH: TourCardName[] = ["help", "pick"];
+// The walkthroughs by name: each shows once. The lobby keeps that in the browser (lobby/house/tours.ts).
+const INTRO = "walk-intro";
+const TOUR = "city-tour";
+export interface TourMemory {
+  seen(name: string): boolean;
+  see(name: string): void;
+}
 
 // The cards of chapter 8, one idea each: who lives here, reviews, the news board.
 export const HOUSE_CARDS = ["flatmates", "reviews", "news"] as const;
@@ -122,7 +144,7 @@ export type TutorialEvent =
   | { type: "shared" } // the link was copied, sent or shared
   | { type: "next" } // the card's main button, where there is one
   | { type: "back" } // a step back within a step (GitHub → the choice, a failed launch → the choice)
-  | { type: "skip" } // "Later", without guilt (sharing)
+  | { type: "skip" } // "Later", without guilt (sharing); Escape in a walkthrough
   | { type: "city" } // the quest was finished or skipped and marked done: the city comes back
   | { type: "end" }; // "Let's go" on the city's welcome
 
@@ -196,16 +218,23 @@ export class TutorialMachine {
   liveAtLaunch = false;
   sawBuild = false;
   launched = false;
-  // Chapter 8: which card.
+  // Chapter 4 again after a launch that stopped: the coach opens on the list of repos.
+  repick = false;
+  // Chapter 8 and the walkthroughs: which card.
   card = 0;
+  // The walkthrough's cards this time.
+  tourCards: TourCardName[] = [];
   // Each finished chapter, in order, as it was stamped: the tracker fills in and the view plays the stamp.
   stamps: Chapter[] = [];
 
   // A phone or a tablet: the cards talk about tapping, not keys.
   readonly touch: boolean;
+  private readonly tours: TourMemory;
 
-  constructor(opts: { touch?: boolean } = {}) {
+  constructor(opts: { touch?: boolean; tours?: TourMemory } = {}) {
     this.touch = opts.touch ?? false;
+    const seen = new Set<string>();
+    this.tours = opts.tours ?? { seen: (name) => seen.has(name), see: (name) => seen.add(name) };
   }
 
   /** The chapter you're in, or null in the city. */
@@ -247,7 +276,11 @@ export class TutorialMachine {
     switch (this.step) {
       case "welcome":
         if (e.type === "start" && e.resume && this.canResume) return this.jump(resumeStep(this.saved, this.state));
-        if (e.type === "start" || e.type === "next") this.enter("walk");
+        if (e.type === "start" || e.type === "next") this.enter("intro");
+        return;
+      case "intro":
+        if (e.type === "skip" || (e.type === "next" && this.card >= this.tourCards.length - 1)) this.enter("walk");
+        else if (e.type === "next") this.card += 1;
         return;
       case "walk":
         // Any walk at all: a walk key, or a click or tap on the ground.
@@ -282,7 +315,9 @@ export class TutorialMachine {
           this.launched = false;
           this.liveAtLaunch = isLive(this.state);
         } else if (e.type === "back") {
+          // A failed or cancelled launch: back to picking a project, not to the one that just stopped.
           this.enter("project");
+          this.repick = true;
           return;
         } else if (e.type === "next" && this.launched) {
           this.enter("open");
@@ -307,7 +342,11 @@ export class TutorialMachine {
         // "Into the city" marks the quest done first (useTutorial.finish), which sends "city".
         return;
       case "city":
-        if (e.type === "end") this.stop();
+        if (e.type === "end") this.enter("tour");
+        return;
+      case "tour":
+        if (e.type === "skip" || (e.type === "next" && this.card >= this.tourCards.length - 1)) this.stop();
+        else if (e.type === "next") this.card += 1;
         return;
     }
   }
@@ -325,7 +364,7 @@ export class TutorialMachine {
     const from = chapterIndex(CHAPTER_OF[this.step]);
     const to = step === "city" ? CHAPTERS.length : chapterIndex(CHAPTER_OF[step]);
     if (stamp && step !== "city") for (let i = Math.max(0, from); i < to; i++) if (!this.stamps.includes(CHAPTERS[i])) this.stamps.push(CHAPTERS[i]);
-    // "Welcome home": the last chapter is stamped too.
+    // "Well done": the last chapter is stamped too.
     if (step === "home" && !this.stamps.includes("house")) this.stamps.push("house");
     this.step = step;
     this.github = this.state?.github.linked ? "linked" : "none";
@@ -333,7 +372,19 @@ export class TutorialMachine {
     this.sawBuild = false;
     this.launched = false;
     this.liveAtLaunch = false;
+    this.repick = false;
     this.card = 0;
+    if (step === "intro" || step === "tour") {
+      this.tourCards = this.walkthrough(step);
+      this.tours.see(INTRO);
+      if (step === "tour") this.tours.see(TOUR);
+      // Seen before: straight on.
+      if (!this.tourCards.length) {
+        if (step === "intro") this.enter("walk", stamp);
+        else this.stop();
+        return;
+      }
+    }
     if (step === "go" && this.state?.room) return this.enter("keys", stamp);
     if (step === "room" && this.state?.room) return this.enter("keys", stamp);
     if (step === "launch") {
@@ -341,5 +392,12 @@ export class TutorialMachine {
       this.liveAtLaunch = isLive(this.state);
       this.sawBuild = isBuilding(this.state);
     }
+  }
+
+  // Which cards a walkthrough shows: none if it was seen already; in the city, the controls too if those never showed.
+  private walkthrough(step: "intro" | "tour"): TourCardName[] {
+    const intro = this.tours.seen(INTRO) ? [] : INTRO_CARDS;
+    const cards: readonly TourCardName[] = step === "intro" ? intro : this.tours.seen(TOUR) ? [] : [...intro, ...TOUR_CARDS];
+    return cards.filter((c) => !this.touch || !NO_TOUCH.includes(c));
   }
 }

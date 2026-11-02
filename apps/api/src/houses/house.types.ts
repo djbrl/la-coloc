@@ -1,5 +1,5 @@
 // What the website sees. Built by HousesService from the database plus the live state it keeps in memory.
-import type { Badge, DeploymentStatus, HousePlan, HouseStatus, MemberRole, NoteTone, RoomStatus } from "@coloc/db";
+import type { Badge, DeploymentStatus, HouseGuestStatus, HousePlan, HouseStatus, MemberRole, NoteTone, RoomStatus } from "@coloc/db";
 
 export type { Badge };
 import type { DeployKind, RoomLimits } from "@coloc/protocol";
@@ -35,6 +35,8 @@ export interface RoomView {
   usage: RoomUsage | null;
   // A seeded example in a real house (the workshop's other learners): shown as lived in, but nothing runs.
   demo: boolean;
+  // The project's repository, for flatmates only: a linked repo may be private, and the house view is public.
+  repo: string | null;
   // Flatmates of the house who teamed up on this room's project, not counting its occupant ([] when none), first
   // to join first. They may update, restart and set up the room like its occupant (rooms.service.ts manageable).
   team: PersonView[];
@@ -73,10 +75,15 @@ export interface ViewerView {
   login: string;
   member: boolean;
   role: MemberRole | null;
-  // The room this viewer lives in, if any: the one they can deploy to.
+  // The rooms this viewer rents here, in the house's order, and the first of them (null: none).
   room: string | null;
+  rooms: string[];
+  // They ended their last lease here: when they stop being a flatmate (the end of the month). Null otherwise.
+  leavingUntil: string | null;
   // Their open knock on this house, if they have one.
   application: string | null;
+  // Where they stand with the house's chat, from outside a full house: asked, let in, or told no today.
+  guest: HouseGuestStatus | null;
 }
 
 // The house profile. Public: anyone can see who lives there and what they're building.
@@ -94,6 +101,8 @@ export interface HouseView {
   domain: string;
   agentOnline: boolean;
   monthlyCostFcfa: number | null;
+  // How people pay where the house is.
+  operators: string[];
   rules: { strictReviews: boolean };
   chef: PersonView | null;
   members: (PersonView & { role: MemberRole })[];
@@ -104,6 +113,8 @@ export interface HouseView {
   // Flatmates only: who's knocking, and the living-room chat.
   doorbell: DoorbellItem[] | null;
   channel: MessageView[] | null;
+  // Who was let into the chat from outside. Null for anyone who can't read it.
+  guests: PersonView[] | null;
   // Flatmates only: reviews waiting to be done.
   chores: ChoreView[] | null;
   // The chef only: the server size they rented (null: none yet) and whether its agent key has been made.

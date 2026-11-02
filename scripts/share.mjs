@@ -65,7 +65,7 @@ writeFileSync(
       rewrites: [
         { source: "/api/:path*", destination: `${tunnel}/api/:path*` },
         // The site is one page: every other address is the app's own route.
-        { source: "/((?!assets/|lobby/|loading/|.*\\..*).*)", destination: "/index.html" },
+        { source: "/((?!assets/|lobby/|.*\\..*).*)", destination: "/index.html" },
       ],
     },
     null,
