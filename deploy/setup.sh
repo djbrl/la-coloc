@@ -15,12 +15,14 @@ say() { printf '\n==> %s\n' "$1"; }
 as_coloc() { su -s /bin/sh coloc -c "cd $SRC && $1"; }
 export DEBIAN_FRONTEND=noninteractive
 
-# --- 1. The machine: only SSH, 80 and 443 from outside, keys only -----------------------------------------------
+# --- 1. The machine: only SSH, the rooms' SSH door, 80 and 443 from outside, keys only -----------------------------------------------
 
 say "Locking the server down"
 ufw allow OpenSSH >/dev/null
 ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
+# The rooms' SSH (apps/api/src/ssh): not the server's own, which stays on 22.
+ufw allow 2222/tcp >/dev/null
 ufw --force enable >/dev/null
 printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n' > /etc/ssh/sshd_config.d/00-hardening.conf
 sshd -t && systemctl reload ssh
@@ -38,7 +40,7 @@ fi
 
 say "Installing Node, Docker and Caddy (if they're missing)"
 apt-get update -q
-apt-get install -y -q ca-certificates curl git caddy
+apt-get install -y -q ca-certificates curl git caddy rsync xfsprogs
 if [ "$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)" -lt 22 ]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y -q nodejs
@@ -60,6 +62,30 @@ if ! cmp -s /tmp/coloc-daemon.json /etc/docker/daemon.json; then
   mv /tmp/coloc-daemon.json /etc/docker/daemon.json
   systemctl restart docker
 fi
+
+# Docker's files get a disk of their own, as XFS with quotas: the only way Docker can hold each room to a size, so one
+# room can't fill the machine. It's a file on the real disk, mounted at /var/lib/docker. A server that already ran without
+# it has its files copied across, and the old copy stays in /var/lib/docker.before-xfs until someone deletes it.
+if ! findmnt -n -o OPTIONS --target /var/lib/docker | grep -q prjquota; then
+  say "Moving Docker onto a disk that can limit each room"
+  disk=/var/lib/coloc-docker.img
+  systemctl stop docker.socket docker.service
+  rm -f "$disk"
+  truncate -s "$(( $(df --output=avail -BM / | tail -1 | tr -dc 0-9) * 85 / 100 ))M" "$disk"
+  mkfs.xfs -q "$disk"
+  mkdir -p /mnt/coloc-docker
+  mount -o loop,pquota "$disk" /mnt/coloc-docker
+  rsync -aHAX --numeric-ids /var/lib/docker/ /mnt/coloc-docker/
+  umount /mnt/coloc-docker
+  rmdir /mnt/coloc-docker
+  mv /var/lib/docker /var/lib/docker.before-xfs
+  mkdir /var/lib/docker
+  grep -q "^$disk " /etc/fstab || echo "$disk /var/lib/docker xfs loop,pquota 0 0" >> /etc/fstab
+  mount /var/lib/docker
+fi
+mkdir -p /etc/systemd/system/docker.service.d
+printf '[Unit]\nRequiresMountsFor=/var/lib/docker\n' > /etc/systemd/system/docker.service.d/coloc-disk.conf
+systemctl daemon-reload
 systemctl enable --now docker
 
 # --- 3. Who runs it, and its keys ---------------------------------------------------------------------------------
@@ -87,6 +113,10 @@ KEYS
   )
 fi
 
+# Made once too: a new host key would make everyone's ssh warn that the server changed.
+[ -e "$ETC/ssh_host_ed25519_key" ] || ssh-keygen -q -t ed25519 -N "" -C "la-coloc" -f "$ETC/ssh_host_ed25519_key"
+rm -f "$ETC/ssh_host_ed25519_key.pub"
+
 touch "$ETC/github.env"
 cat > "$ETC/coloc.env.new" <<SETTINGS
 PORT=4100
@@ -103,6 +133,11 @@ COLOC_PUBLIC_SCHEME=https
 COLOC_PUBLIC_PORT=443
 COLOC_WORKDIR=$DATA/agent
 COLOC_PROXY_CONFIG_DIR=$DATA/agent/proxy
+COLOC_SSH_PORT=2222
+COLOC_SSH_HOST=$COLOC_DOMAIN
+COLOC_SSH_HOST_KEY_FILE=$ETC/ssh_host_ed25519_key
+COLOC_ROOM_INTERNET=1
+COLOC_ROOM_DISK_MB=1024
 SETTINGS
 cat "$ETC/secrets.env" "$ETC/github.env" >> "$ETC/coloc.env.new"
 mv "$ETC/coloc.env.new" "$ETC/coloc.env"
@@ -119,6 +154,8 @@ COLOC_PUBLIC_PORT=443
 COLOC_WORKDIR=$DATA/agent
 COLOC_PROXY_CONFIG_DIR=$DATA/agent/proxy
 COLOC_ALLOW_LOCAL_REPOS=file://$DATA/starter
+COLOC_ROOM_INTERNET=1
+COLOC_ROOM_DISK_MB=1024
 SETTINGS
 }
 caretaker sacre-coeur "$COLOC_DOMAIN"
@@ -149,7 +186,8 @@ systemctl restart caddy
 
 cp "$SRC"/deploy/coloc-*.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now coloc-firewall.service
+systemctl enable coloc-firewall.service
+systemctl restart coloc-firewall.service
 systemctl enable coloc-api.service coloc-caretaker@sacre-coeur.service coloc-caretaker@atelier.service
 systemctl restart coloc-api.service
 

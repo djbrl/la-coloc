@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOBODY, isRoomNetwork, resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetwork, roomNetworks, roomRoute, runAs } from "./room-spec";
+import { NOBODY, ROOM_CAPS, isRoomNetwork, roomHomeVolume, resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetwork, roomNetworks, roomRoute, runAs } from "./room-spec";
 
 const input = {
   houseId: "sacre-coeur",
@@ -31,6 +31,33 @@ describe("room walls", () => {
   it("never mounts anything from the host, the Docker socket included", () => {
     expect(spec.HostConfig?.Binds).toBeUndefined();
     expect(spec.HostConfig?.Mounts).toBeUndefined();
+  });
+
+  it("on a server that can limit it, has a writable disk of that size, and keeps the image's user", () => {
+    const room = roomContainerSpec({ ...input, diskMb: 1024, rootIsSafe: true, homeVolume: "coloc-home-sacre-coeur--jib--abc" });
+    expect(room.HostConfig?.ReadonlyRootfs).toBe(false);
+    expect(room.HostConfig?.StorageOpt).toEqual({ size: "1024m" });
+    expect(room.HostConfig?.Tmpfs).toBeUndefined();
+    expect(room.HostConfig?.Binds).toEqual(["coloc-home-sacre-coeur--jib--abc:/home/room"]);
+    expect(room.User).toBeUndefined();
+    expect(room.HostConfig?.CapDrop).toEqual(["ALL"]);
+    expect(room.HostConfig?.CapAdd).toEqual(ROOM_CAPS);
+    expect(room.HostConfig?.SecurityOpt).toContain("no-new-privileges:true");
+    expect(room.HostConfig?.Privileged).toBe(false);
+  });
+
+  it("stays read-only and nobody without a limit, and nobody where root would be root on the machine", () => {
+    expect(spec.HostConfig?.ReadonlyRootfs).toBe(true);
+    expect(spec.HostConfig?.StorageOpt).toBeUndefined();
+    expect(spec.HostConfig?.CapAdd).toBeUndefined();
+    const notRemapped = roomContainerSpec({ ...input, diskMb: 1024, rootIsSafe: false });
+    expect(notRemapped.User).toBe(NOBODY);
+    expect(notRemapped.HostConfig?.CapAdd).toBeUndefined();
+  });
+
+  it("never gives the next tenant the last one's files", () => {
+    expect(roomHomeVolume("eaz", "jib", "user-1")).not.toBe(roomHomeVolume("eaz", "jib", "user-2"));
+    expect(roomHomeVolume("eaz", "jib", "user-1")).not.toBe(roomHomeVolume("other", "jib", "user-1"));
   });
 
   it("lives on its own network, sealed unless the house opens it", () => {

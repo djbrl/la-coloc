@@ -29,6 +29,8 @@ export interface AgentConfig {
   allowLocalRepos: LocalRepos;
   // Rooms are sealed (they reach nothing, the machine included) unless the house opens them to the internet.
   roomInternet: boolean;
+  // Each room's writable disk and its kept files, in MB each. Needs Docker on XFS with quotas (deploy/setup.sh). Unset: read-only rooms.
+  roomDiskMb?: number;
   // Builds with no network at all. Safer, but a Dockerfile that installs packages can't.
   buildOffline: boolean;
 }
@@ -65,6 +67,7 @@ export function loadConfig(): AgentConfig {
     usageIntervalMs: Number(process.env.COLOC_USAGE_INTERVAL_MS ?? 30_000),
     allowLocalRepos: localRepos(process.env.COLOC_ALLOW_LOCAL_REPOS),
     roomInternet: process.env.COLOC_ROOM_INTERNET === "1",
+    roomDiskMb: Number(process.env.COLOC_ROOM_DISK_MB) || undefined,
     buildOffline: process.env.COLOC_BUILD_OFFLINE === "1",
   };
 }

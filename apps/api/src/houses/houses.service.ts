@@ -118,6 +118,9 @@ function person(u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "
 
 const SNAPSHOT_FRESH_MS = 5000;
 
+// What a build says when the server restarted under it.
+export const BUILD_LOST = "The server restarted during this build. Your code is fine: try it again.";
+
 @Injectable()
 export class HousesService {
   // Pings live pages (house page, city) with the id of the house that changed.
@@ -333,7 +336,7 @@ export class HousesService {
     const open = await this.db.select({ id: deployments.id, room: deployments.room }).from(deployments).where(and(eq(deployments.houseId, houseId), inArray(deployments.status, [...IN_FLIGHT])));
     for (const d of open) {
       if (building.includes(d.id)) continue;
-      await this.recordDeployStatus(houseId, { type: "deploy_status", deployId: d.id, room: d.room, status: "failed", detail: "The server restarted during this build. Your code is fine: try it again." });
+      await this.recordDeployStatus(houseId, { type: "deploy_status", deployId: d.id, room: d.room, status: "failed", detail: BUILD_LOST });
     }
   }
 

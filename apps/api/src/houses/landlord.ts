@@ -26,7 +26,7 @@ export function loadLandlordConfig(env = process.env): LandlordConfig | null {
 
 const RESTART_MS = 5_000;
 // How this machine serves rooms: a caretaker needs the same answers as the launcher's own. Nothing secret.
-const MACHINE_SETTINGS = ["DOCKER_HOST", "COLOC_PUBLIC_SCHEME", "COLOC_PUBLIC_PORT", "COLOC_WORKDIR", "COLOC_PROXY_CONFIG_DIR"];
+const MACHINE_SETTINGS = ["DOCKER_HOST", "COLOC_PUBLIC_SCHEME", "COLOC_PUBLIC_PORT", "COLOC_WORKDIR", "COLOC_PROXY_CONFIG_DIR", "COLOC_ROOM_INTERNET", "COLOC_ROOM_DISK_MB"];
 const RETRY_DB_MS = 10_000;
 const RETIRE_MS = 30_000;
 

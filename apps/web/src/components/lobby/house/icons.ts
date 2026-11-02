@@ -36,7 +36,7 @@ export const icons = {
   // Two sheets: copy.
   copy: "M9 9h11v12H9z M5 15V3h11",
   // A key.
-  key: "M8 21a5 5 0 1 1 3.9-8.1L21 4 M16 9l2 2 M13 12l2 2",
+  key: "M13 16a5 5 0 1 1-10 0 5 5 0 0 1 10 0 M11.5 12.5L21 3 M17 7l3 3 M14 10l2.5 2.5",
   // A window with four panes: a room's app. Coloured by state (lit, dark).
   window: "M4 4h16v16H4z M12 4v16 M4 12h16",
   // A warning triangle: a room that's down.

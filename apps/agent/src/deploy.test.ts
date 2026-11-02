@@ -12,6 +12,9 @@ const h = vi.hoisted(() => ({
   removed: vi.fn(async () => undefined),
   clone: vi.fn(),
   healthy: vi.fn(),
+  ensureHome: vi.fn(async () => "the-home"),
+  openHome: vi.fn(async () => undefined),
+  removeHomes: vi.fn(async () => undefined),
 }));
 vi.mock("./git", () => ({ shallowClone: h.clone, resolveInside: (root: string) => root }));
 vi.mock("./recipe", () => ({ ensureDockerfile: async () => undefined }));
@@ -21,7 +24,11 @@ vi.mock("./docker", () => ({
   pullImage: vi.fn(),
   docker: { createContainer: h.create },
   dropOldNetworks: vi.fn(async () => undefined),
+  ensureRoomHome: h.ensureHome,
   ensureRoomNetwork: vi.fn(async () => undefined),
+  openRoomHome: h.openHome,
+  removeRoomHomes: h.removeHomes,
+  rootIsRemapped: async () => true,
   imageConfig: async () => ({}),
   lastLogs: async () => "",
   removeContainer: h.removed,
@@ -30,7 +37,7 @@ vi.mock("./docker", () => ({
   waitHealthy: h.healthy,
 }));
 
-import { deploy } from "./deploy";
+import { deploy, removeRoom } from "./deploy";
 
 const cfg = { houseId: "h", houseDomain: "h.test", workDir: "/tmp", allowLocalRepos: false, buildOffline: false, roomInternet: true } as unknown as AgentConfig;
 const cmd = { type: "deploy", deployId: "d1", room: "awa", kind: "prod", repo: "https://github.com/a/b.git", path: ".", limits: { memoryMb: 256, cpus: 0.5 }, env: {} } as DeployCommand;
@@ -102,5 +109,36 @@ describe("cancelling a deploy", () => {
     await deploy(cfg, cmd, report, undefined, new AbortController().signal);
     expect(h.route).toHaveBeenCalled();
     expect(said.at(-1)?.status).toBe("live");
+  });
+});
+
+describe("a room's kept files", () => {
+  const server = { ...cfg, roomDiskMb: 1024 } as AgentConfig;
+  const created = () => h.create.mock.calls[0][0] as { HostConfig: { Binds?: string[]; StorageOpt?: object; ReadonlyRootfs: boolean } };
+
+  it("are there for the occupant, opened before the app starts", async () => {
+    await deploy(server, { ...cmd, occupant: "user-1" }, reports().report);
+    expect(h.ensureHome).toHaveBeenCalledWith("h", "awa", "user-1", 1024);
+    expect(created().HostConfig.Binds).toEqual(["the-home:/home/room"]);
+    expect(created().HostConfig.ReadonlyRootfs).toBe(false);
+    expect(h.openHome).toHaveBeenCalledOnce();
+  });
+
+  it("aren't given to a pull request's preview, which still gets a limited disk", async () => {
+    await deploy(server, { ...cmd, kind: "preview", occupant: "user-1" }, reports().report);
+    expect(h.ensureHome).not.toHaveBeenCalled();
+    expect(created().HostConfig.Binds).toBeUndefined();
+    expect(created().HostConfig.StorageOpt).toEqual({ size: "1024m" });
+  });
+
+  it("don't exist on a machine that can't limit them", async () => {
+    await deploy(cfg, { ...cmd, occupant: "user-1" }, reports().report);
+    expect(h.ensureHome).not.toHaveBeenCalled();
+    expect(created().HostConfig.ReadonlyRootfs).toBe(true);
+  });
+
+  it("go when the room is emptied", async () => {
+    await removeRoom(server, "awa");
+    expect(h.removeHomes).toHaveBeenCalledWith("h", "awa");
   });
 });

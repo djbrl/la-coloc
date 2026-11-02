@@ -8,6 +8,7 @@ import { watchRoomEvents } from "./events";
 import { connect } from "./link";
 import { sampleRooms } from "./meter";
 import { syncRoutes } from "./proxy";
+import { Shells } from "./shell";
 
 const VERSION = "0.1.0";
 
@@ -37,6 +38,26 @@ async function main() {
 
   const link = connect(cfg, VERSION, (cmd: ApiToAgent) => {
     switch (cmd.type) {
+      // Not queued: a shell lasts as long as someone keeps typing, and a build mustn't wait for it (or the other way round).
+      case "shell_open":
+        console.log(`[shell] ${cmd.room}: opened`);
+        void shells.start(cmd);
+        break;
+      case "shell_input":
+        shells.input(cmd.shellId, cmd.data);
+        break;
+      case "shell_eof":
+        shells.eof(cmd.shellId);
+        break;
+      case "shell_resize":
+        shells.resize(cmd.shellId, cmd.cols, cmd.rows);
+        break;
+      case "shell_ack":
+        shells.ack(cmd.shellId, cmd.bytes);
+        break;
+      case "shell_close":
+        void shells.close(cmd.shellId);
+        break;
       case "deploy": {
         console.log(`[deploy] ${cmd.room} ${cmd.kind} ${cmd.ref ?? "default branch"}`);
         const signal = builds.add(cmd.deployId, cmd.room, cmd.kind);
@@ -86,7 +107,13 @@ async function main() {
           .catch((e) => link.send({ type: "logs", requestId: cmd.requestId, room: cmd.room, text: "", error: (e as Error).message }));
         break;
     }
-  }, () => void sendSnapshot(), () => builds.ids());
+  }, () => {
+    // A new line: the API has forgotten every shell from before it.
+    shells.closeAll();
+    void sendSnapshot();
+  }, () => builds.ids());
+  const shells = new Shells(cfg.houseId, (m) => link.send(m));
+  void shells.sweep();
 
   await watchRoomEvents(cfg.houseId, (e) => {
     console.log(`[event] ${e.room}: ${e.event}`);

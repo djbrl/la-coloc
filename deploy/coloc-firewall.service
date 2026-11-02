@@ -1,5 +1,5 @@
 [Unit]
-Description=Keeps builds and rooms away from the cloud's metadata service and its private network
+Description=Keeps builds and rooms away from the cloud's metadata service and its private network, and from sending email
 Requires=docker.service
 After=docker.service
 PartOf=docker.service
@@ -7,7 +7,7 @@ PartOf=docker.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -c 'for to in 169.254.169.254 10.0.0.0/8; do iptables -C DOCKER-USER -d $to -j DROP 2>/dev/null || iptables -I DOCKER-USER -d $to -j DROP; done'
+ExecStart=/bin/sh -c 'for to in 169.254.169.254 10.0.0.0/8; do iptables -C DOCKER-USER -d $to -j DROP 2>/dev/null || iptables -I DOCKER-USER -d $to -j DROP; done; for port in 25 465 587; do iptables -C DOCKER-USER -p tcp --dport $port -j DROP 2>/dev/null || iptables -I DOCKER-USER -p tcp --dport $port -j DROP; done'
 
 [Install]
 WantedBy=multi-user.target

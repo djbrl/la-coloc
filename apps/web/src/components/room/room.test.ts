@@ -12,6 +12,7 @@ import {
   draftRows,
   firstLine,
   imageNameOk,
+  imageRef,
   memoryUse,
   neverOnline,
   parsePort,
@@ -191,6 +192,26 @@ describe("uploading a project", () => {
     expect(imageNameOk("nginx:alpine")).toBe(true);
     expect(imageNameOk("ghcr.io/you/app:1.0")).toBe(true);
     expect(imageNameOk("Bad Name; rm")).toBe(false);
+    expect(imageNameOk("https://hub.docker.com/r/you/app")).toBe(false);
+  });
+
+  it("turns what people paste for an image into its name", () => {
+    expect(imageRef("https://hub.docker.com/r/42dsy/bount-dev")).toBe("42dsy/bount-dev");
+    expect(imageRef("hub.docker.com/r/42dsy/bount-dev/tags?name=x")).toBe("42dsy/bount-dev");
+    expect(imageRef("https://hub.docker.com/_/nginx")).toBe("nginx");
+    expect(imageRef("https://hub.docker.com/repository/docker/you/app/general")).toBe("you/app");
+    expect(imageRef("https://hub.docker.com/layers/you/app/1.0/images/sha256-abc")).toBe("you/app:1.0");
+    expect(imageRef("docker pull you/app:1.0")).toBe("you/app:1.0");
+    expect(imageRef(" docker://ghcr.io/you/app:1 ")).toBe("ghcr.io/you/app:1");
+    expect(imageRef("https://ghcr.io/you/app")).toBe("ghcr.io/you/app");
+    expect(imageRef("nginx:alpine")).toBe("nginx:alpine");
+  });
+
+  it("says what's wrong with an image that wouldn't pull", () => {
+    expect(buildTrouble("no matching manifest for linux/amd64 in the manifest list entries")).toBe("imagePlatform");
+    expect(buildTrouble("pull access denied for you/app, repository does not exist")).toBe("imageMissing");
+    expect(buildTrouble("(HTTP code 400) unexpected - invalid reference format")).toBe("imageMissing");
+    expect(buildTrouble("(HTTP code 404) no such image - No such image: you/app:latest")).toBe("imageMissing");
   });
 
   it("lets a chef choose the code only for a room nobody lives in", () => {

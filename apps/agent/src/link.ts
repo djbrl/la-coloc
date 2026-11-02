@@ -59,7 +59,7 @@ export function connect(
   return {
     send: (msg) => {
       // Usage samples and build lines are only useful fresh: don't queue them while offline.
-      if (ws?.readyState !== WebSocket.OPEN && (msg.type === "usage" || msg.type === "deploy_log")) return;
+      if (ws?.readyState !== WebSocket.OPEN && (msg.type === "usage" || msg.type === "deploy_log" || msg.type === "shell_output" || msg.type === "shell_exit")) return;
       outbox.push(msg);
       flush();
     },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Who you are in the city, before anything else: at first login, and again after the demo restarts. The door first
+// Who you are in the city, before anything else: at first login, and again after the demo restarts. A welcome first
 // (CreationDoor.vue), then pick a look with the camera on your character, then you're given your credit to settle in
 // (CreditAward.vue). Saved on the last step: until then, coming back starts it over, and when it's saved LobbyView
 // lets the quest begin.
@@ -34,7 +34,7 @@ function go(to: "look" | "award") {
   nextTick(() => main.value?.focus());
 }
 
-// Through the door: it lifts off the city, and your character is there.
+// Past the welcome, and your character is there.
 function enter() {
   play("arrive");
   go("look");
@@ -68,10 +68,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
 </script>
 
 <template>
-  <Transition name="lift">
-    <CreationDoor v-if="step === 'door'" @next="enter" />
-  </Transition>
-  <div v-if="step === 'look'" class="creation" role="dialog" aria-modal="false" aria-labelledby="creation-title">
+  <CreationDoor v-if="step === 'door'" @next="enter" />
+  <div v-else-if="step === 'look'" class="creation" role="dialog" aria-modal="false" aria-labelledby="creation-title">
     <h2 id="creation-title">{{ w.lookTitle }}</h2>
     <!-- Like a game's character select: arrows either side of the count (the arrow keys work too). -->
     <div class="picker">
@@ -115,11 +113,7 @@ h2 { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 700; }
 .count { flex: 1; font-size: 17px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
 .foot { display: flex; gap: 8px; }
 .foot .primary { flex: 1 1 0; }
-/* The door lifts off the city. */
-.lift-leave-active { transition: transform 0.55s var(--ease); }
-.lift-leave-to { transform: translateY(-100%); }
 @media (prefers-reduced-motion: reduce) {
   .creation { animation: none; }
-  .lift-leave-active { transition: none; }
 }
 </style>

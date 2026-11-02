@@ -164,6 +164,8 @@ async function finish() {
       :room="data.room.name"
       :url="data.room.url"
       :other-word="w.fixSetup"
+      :refusal="actionNote?.error ? actionNote.text : ''"
+      :retrying="action === 'redeploy'"
       @close="logOpen = false"
       @retry="emit('run', 'redeploy')"
       @other="logOpen = false; emit('tab', 'code')"

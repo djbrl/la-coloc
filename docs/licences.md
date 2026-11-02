@@ -17,6 +17,7 @@ Added 15 10 (branch `first-home`): `uqr` 0.1.3 (MIT, no dependencies; by Anthony
 in the web app, to draw the QR code of a newcomer's address in the quest's "Show it off" card (`tutorial/share.ts`).
 Added 31 10 (the "Panneau" brand): two more fonts, self-hosted from npm: `@fontsource/archivo-black` and `@fontsource/caveat-brush` (SIL Open
 Font Licence 1.1, same reasoning as above).
+Added 2 11 (SSH into a room): `ssh2` 1.17.0 (MIT) and `@types/ssh2` (MIT, development only). `ssh2` brings `asn1` (MIT), `bcrypt-pbkdf` (BSD-3-Clause), `safer-buffer` (MIT), `tweetnacl` (Unlicense), and optionally `cpu-features`, `buildcheck` and `nan` (MIT).
 
 ## Art and assets
 Only assets we made ourselves, or under CC0 / a permissive licence, with the source written down here.

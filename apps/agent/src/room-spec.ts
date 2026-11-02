@@ -37,13 +37,27 @@ export function roomNetworks(houseId: string, room: string, sealed: boolean): { 
   return { current, old: [roomNetwork(houseId, room, !sealed), legacyRoomNetwork(room)] };
 }
 
-// Nobody, unless the image picked its own user: an app that needs root on a read-only disk with no capabilities
-// has no business being root.
+// On a machine that can't give a room its own limited disk, or where root in a room would be root on the machine: nobody,
+// unless the image picked its own user.
 export const NOBODY = "65534:65534";
 
 export function runAs(imageUser: string | undefined): string | undefined {
   const u = (imageUser ?? "").trim();
   return !u || u === "root" || u === "0" || u.startsWith("0:") || u.startsWith("root:") ? NOBODY : undefined;
+}
+
+// A room on a server that can hold it to a size (deploy/setup.sh): a small Linux machine. Its disk is writable, and root
+// inside runs as an ordinary user outside (userns-remap), so most images run as they were written. These few rights only
+// hold inside the room: enough to install a package or start nginx, nothing that touches the kernel or the network.
+export const ROOM_CAPS = ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "KILL", "NET_BIND_SERVICE"];
+
+// What's kept when a new version replaces the old one. Under /home, not over it: an image may keep its app in /home/node.
+export const ROOM_HOME = "/home/room";
+
+// Named after who lives there, so the next tenant gets an empty one by construction, even if a lease ended while the
+// server was off and nothing has cleared the old one yet.
+export function roomHomeVolume(houseId: string, room: string, occupant: string): string {
+  return `coloc-home-${houseId}--${room}--${occupant.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12)}`;
 }
 
 // Docker label filters for this house's room containers: all of them, one room's, or one room's prod or preview.
@@ -70,7 +84,12 @@ export interface RoomContainerInput {
   limits: RoomLimits;
   env: Record<string, string>;
   houseDomain: string;
-  readOnlyRootfs?: boolean;
+  // This machine can limit a room's disk: writable, up to this size. Without it, read-only, and /tmp in memory.
+  diskMb?: number;
+  // Named volume kept across versions, mounted at ROOM_HOME.
+  homeVolume?: string;
+  // Root in a room is an ordinary user on this machine (userns-remap): images keep the user they asked for.
+  rootIsSafe?: boolean;
   // Sealed (the default): its network reaches nothing but the proxy. See roomNetwork.
   sealed?: boolean;
   // The user the image asked for (its USER), if any: root or nothing runs as nobody instead.
@@ -83,7 +102,7 @@ export function containerName(room: string, kind: DeployKind, deployId: string):
 
 export function roomContainerSpec(i: RoomContainerInput): Docker.ContainerCreateOptions {
   const network = roomNetwork(i.houseId, i.room, i.sealed ?? true);
-  const user = runAs(i.imageUser);
+  const user = i.diskMb && i.rootIsSafe ? undefined : runAs(i.imageUser);
   const memoryBytes = i.limits.memoryMb * 1024 * 1024;
 
   return {
@@ -107,12 +126,16 @@ export function roomContainerSpec(i: RoomContainerInput): Docker.ContainerCreate
       NanoCpus: Math.round(i.limits.cpus * 1e9),
       // A fork bomb hits this ceiling instead of the house's.
       PidsLimit: 256,
-      // No Linux capabilities at all, and no way to gain new privileges (setuid binaries etc).
+      // No Linux capabilities beyond ROOM_CAPS, and no way to gain new privileges (setuid binaries etc).
       CapDrop: ["ALL"],
+      ...(i.diskMb && i.rootIsSafe ? { CapAdd: ROOM_CAPS } : {}),
       SecurityOpt: ["no-new-privileges:true"],
       Privileged: false,
-      ReadonlyRootfs: i.readOnlyRootfs ?? true,
-      Tmpfs: { "/tmp": "rw,noexec,nosuid,size=64m" },
+      // Full disk: the app gets "no space left" and the neighbours notice nothing.
+      ...(i.diskMb
+        ? { ReadonlyRootfs: false, StorageOpt: { size: `${i.diskMb}m` } }
+        : { ReadonlyRootfs: true, Tmpfs: { "/tmp": "rw,noexec,nosuid,size=64m" } }),
+      ...(i.homeVolume ? { Binds: [`${i.homeVolume}:${ROOM_HOME}`] } : {}),
       // Its own network: other rooms can't reach it, only the proxy can. Sealed, it can't reach out either.
       NetworkMode: network,
       // An app that runs out of memory restarts on its own, alone.

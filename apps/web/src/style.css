@@ -103,7 +103,7 @@
   --frame: #15101c;
   --window-glow: inset 0 0 0 1.5px #2e2436, 0 0 44px 10px rgba(240, 133, 58, 0.3), 0 14px 26px -6px rgba(0, 0, 0, 0.7);
   --curtain: repeating-linear-gradient(90deg, #5e1420 0 3px, #481019 3px 6px);
-  --wall: var(--curtain) left / 9px 100% no-repeat, var(--curtain) right / 9px 100% no-repeat, radial-gradient(90% 75% at 50% 0, #ffbb6e, #f28e42 58%, #dd7329);
+  --wall: var(--curtain) left / 7px 100% no-repeat, var(--curtain) right / 7px 100% no-repeat, radial-gradient(90% 75% at 50% 0, #ffbb6e, #f28e42 58%, #dd7329);
   /* The string of lights along a window's top. */
   --bulb: #ffe08a;
   /* A dark room: free, with its sign. */
@@ -506,8 +506,8 @@ dialog.step-sign { --panel: #2a1621; padding: 8px; border: 0; border-radius: 8px
 .step-sign .inner .d { width: 6px; height: 6px; background: rgba(42, 22, 33, 0.35); }
 .step-sign .inner .d.done { background: var(--text); }
 .step-sign .inner .d.on { width: 18px; border-radius: 3px; background: var(--text); }
-.step-sign .inner .form { padding: 0 14px 14px; }
-.step-sign .inner .form > h2 { position: relative; display: flex; align-items: center; height: 72px; margin: 0 -14px; padding: 12px 62px 0 18px; color: var(--text); font-size: 30px; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step-sign .inner .form { padding: 0 16px 16px; }
+.step-sign .inner .form > h2 { position: relative; display: flex; align-items: center; height: 72px; margin: 0 -16px; padding: 12px 62px 0 18px; color: var(--text); font-size: 30px; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .step-sign .inner .x { position: absolute; z-index: 1; top: 22px; right: 13px; display: grid; place-items: center; width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--frame); color: #fff1dc; font: 500 16px/1 var(--font); cursor: pointer; box-shadow: none; }
 .step-sign .inner .x:hover:not(:disabled) { background: #2a2036; }
 /* On a phone it's a sheet along the bottom edge. */
