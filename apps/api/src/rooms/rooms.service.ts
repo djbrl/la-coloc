@@ -7,6 +7,7 @@ import { HousesService } from "../houses/houses.service";
 import { monthEnd, monthOf } from "../houses/money";
 import { SECRETS } from "./room-deployer";
 import { checkSecret, MAX_SECRETS, type SecretBox } from "./secrets";
+import { sshAddress } from "../ssh/ssh.service";
 
 export interface RoomSettings {
   project?: string | null;
@@ -87,6 +88,8 @@ export class RoomsService {
     return {
       house: { id: house!.id, name: house!.name, domain: house!.domain, agentOnline: house!.agentOnline, strictReviews: house!.rules.strictReviews, chef: house!.viewer?.role === "chef" },
       as,
+      // The SSH tab, for those a shell would open to (SshService). Not the chef, and not an example room.
+      ssh: as !== "chef" && !room.demo && !house!.demo && sshAddress() ? { ...sshAddress()!, user: `${room.name}.${houseId}` } : null,
       // For the occupant, unless the room has no lease to end (the workshop, an example): the Lease tab's numbers.
       lease:
         as === "flatmate" && !room.demo && !house!.demo && !house!.tutorial

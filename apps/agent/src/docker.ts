@@ -1,10 +1,11 @@
 // Everything the agent asks Docker to do: build images, run rooms, swap versions.
 import Docker from "dockerode";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import tar from "tar-fs";
 import type { DeployKind } from "@coloc/protocol";
-import { LABEL, roomFilter, roomNetwork } from "./room-spec";
+import { LABEL, ROOM_HOME, roomFilter, roomHomeVolume, roomNetwork } from "./room-spec";
 
 export const docker = new Docker();
 
@@ -40,6 +41,38 @@ async function dropNetwork(houseId: string, name: string, proxyContainer: string
   if (containers.some((c) => c.Name !== proxyContainer)) return;
   await network.disconnect({ Container: proxyContainer, Force: true }).catch(() => undefined);
   await network.remove();
+}
+
+/** Whether root in a container is an ordinary user on this machine. It can't change while Docker runs. */
+let remapped: Promise<boolean> | undefined;
+export function rootIsRemapped(): Promise<boolean> {
+  remapped ??= docker.info().then((i: { SecurityOptions?: string[] }) => !!i.SecurityOptions?.some((o) => o.includes("name=userns")));
+  return remapped;
+}
+
+/** The volume someone's kept files live in, limited to a size. Docker only applies a size when a volume is created. */
+export async function ensureRoomHome(houseId: string, room: string, occupant: string, sizeMb: number): Promise<string> {
+  const name = roomHomeVolume(houseId, room, occupant);
+  const exists = await docker.getVolume(name).inspect().then(() => true, () => false);
+  if (!exists) await docker.createVolume({ Name: name, DriverOpts: { size: `${sizeMb}m` }, Labels: { [LABEL.house]: houseId, [LABEL.room]: room } });
+  return name;
+}
+
+/** A new volume belongs to root: this lets any user write in it, as in /tmp, before the app first starts. */
+export async function openRoomHome(container: Docker.Container): Promise<void> {
+  const empty = await mkdtemp(path.join(tmpdir(), "coloc-home-"));
+  try {
+    const archive = tar.pack(empty, { map: (h) => ({ ...h, name: ROOM_HOME.slice(1), mode: 0o1777, uid: 0, gid: 0 }) });
+    await container.putArchive(archive as unknown as NodeJS.ReadableStream, { path: "/" });
+  } finally {
+    await rm(empty, { recursive: true, force: true });
+  }
+}
+
+/** The room is free: nothing of its last occupant stays on the machine. */
+export async function removeRoomHomes(houseId: string, room: string): Promise<void> {
+  const { Volumes } = await docker.listVolumes({ filters: { label: [`${LABEL.house}=${houseId}`, `${LABEL.room}=${room}`] } });
+  await Promise.all((Volumes ?? []).map((v) => docker.getVolume(v.Name).remove()));
 }
 
 async function dockerignore(dir: string): Promise<string[]> {
@@ -106,13 +139,16 @@ export async function buildImage(contextDir: string, tag: string, onLine: (line:
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024 * 1024;
 export async function pullImage(ref: string, onLine: (line: string) => void, signal?: AbortSignal): Promise<void> {
   const stream = (await docker.pull(ref, signal ? { abortSignal: signal } : {})) as NodeJS.ReadableStream;
+  // Why a pull failed comes as one more line in its stream, and the stream still ends normally.
+  let refused: string | undefined;
   await new Promise<void>((resolve, reject) => {
     signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
     docker.modem.followProgress(
       stream,
-      (err) => (err ? reject(err) : resolve()),
+      (err) => (err ? reject(err) : refused ? reject(new Error(refused)) : resolve()),
       // Layer-by-layer progress is noise: only the lines that say something.
-      (event: { status?: string; id?: string; progress?: string }) => {
+      (event: { status?: string; id?: string; progress?: string; error?: string }) => {
+        refused = event.error ?? refused;
         if (event.status && !event.id && !event.progress) onLine(event.status);
       },
     );

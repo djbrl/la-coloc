@@ -4,13 +4,12 @@ import { ConflictException, HttpException, HttpStatus, Inject, Injectable } from
 import { type Db, deployments, houses, repos, roomSecrets, rooms, users } from "@coloc/db";
 import type { DeployKind } from "@coloc/protocol";
 import { and, count, eq, gt, inArray, isNotNull, ne } from "drizzle-orm";
-import { Limiter } from "../chat/limiter";
 import { AgentRegistry } from "../agents/agent.registry";
 import { DB } from "../db/db.module";
 import { GITHUB_CLIENT } from "../github/chores.service";
 import type { GithubAppClient } from "../github/github.client";
 import type { DeploymentView } from "../houses/house.types";
-import { HousesService } from "../houses/houses.service";
+import { BUILD_LOST, HousesService } from "../houses/houses.service";
 import { noCredit, projectKey } from "../credit/credit.service";
 import { MAX_PROJECTS_PER_PERSON, PROJECT_COST_FCFA, WORKSHOP_ID } from "../houses/money";
 import type { SecretBox } from "./secrets";
@@ -21,6 +20,7 @@ type Room = typeof rooms.$inferSelect;
 // Deploys someone asks for by hand (the room page, the quest): each one is a build on the house's server, so a few
 // in a row, then a pause. Merges and previews from GitHub don't count: they come from pushes, not from a button.
 export const DEPLOYS = { count: 5, perMs: 10 * 60_000 };
+const NOTHING_BUILT_MS = 30_000;
 // A build that hasn't reported back in this long is stuck, not running: don't let it block the room for ever.
 const STUCK_MS = 15 * 60_000;
 export const UNDER_WAY = ["queued", "cloning", "building", "starting"] as const;
@@ -43,11 +43,11 @@ export class RoomDeployer {
     @Inject(GITHUB_CLIENT) private readonly github: GithubAppClient | null,
   ) {}
 
-  private readonly byHand = new Limiter(DEPLOYS.count, DEPLOYS.perMs);
 
   /**
    * The brake on deploys asked for by hand: one at a time per room (a second press while it builds does nothing but
-   * build twice), and a few per person in ten minutes. Throws the 409 or 429 to show them.
+   * build twice), and a few per person in ten minutes. A build that stopped before it built anything (a wrong image name)
+   * or that the server lost under it used nothing, so it doesn't count. Throws the 409 or 429 to show them.
    */
   async brake(room: Room, kind: DeployKind, userId: string, now = new Date()): Promise<void> {
     const [running] = await this.db
@@ -65,7 +65,12 @@ export class RoomDeployer {
       .limit(1);
     if (running) throw new ConflictException({ message: "This room is already being put online. Wait for it to finish.", code: "alreadyDeploying" });
     if (kind === "prod" && room.houseId !== WORKSHOP_ID) await this.canStartProject(room, userId);
-    if (!this.byHand.take(userId, now.getTime())) {
+    const recent = await this.db
+      .select({ status: deployments.status, detail: deployments.detail, createdAt: deployments.createdAt, updatedAt: deployments.updatedAt })
+      .from(deployments)
+      .where(and(eq(deployments.requestedBy, userId), gt(deployments.createdAt, new Date(now.getTime() - DEPLOYS.perMs))));
+    const counted = recent.filter((d) => !(d.status === "failed" && (d.detail === BUILD_LOST || d.updatedAt.getTime() - d.createdAt.getTime() < NOTHING_BUILT_MS)));
+    if (counted.length >= DEPLOYS.count) {
       throw new HttpException({ message: "That's a lot of deploys in a few minutes. Wait a little before the next one.", code: "slowDownDeploys" }, HttpStatus.TOO_MANY_REQUESTS);
     }
   }
@@ -153,6 +158,7 @@ export class RoomDeployer {
       port: room.port ?? undefined,
       limits: { memoryMb: room.memoryMb, cpus: room.cpus },
       env,
+      occupant: room.occupantId ?? undefined,
     });
     return d;
   }

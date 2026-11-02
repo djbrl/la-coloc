@@ -11,7 +11,7 @@ import UiNote, { loud, type Note } from "../UiNote.vue";
 import { sendJSON } from "../../session";
 import type { RepoChoice, RoomManage } from "../../types";
 import RoomServerOff from "./RoomServerOff.vue";
-import { canChangeCode, codeBody, codeRows, imageNameOk, parsePort, readTrouble, type SettingsForm } from "./room";
+import { canChangeCode, codeBody, codeRows, imageNameOk, imageRef, parsePort, readTrouble, type SettingsForm } from "./room";
 import { roomWords as w } from "./words";
 
 const props = defineProps<{
@@ -71,7 +71,7 @@ const named = computed(() => (route.value === "github" ? props.data.github?.full
 
 const sourceTyped = () => {
   const text = typed.value.trim();
-  return text && route.value === "image" ? `${IMAGE}${text.replace(/^docker:\/\//, "")}` : text;
+  return text && route.value === "image" ? `${IMAGE}${imageRef(text)}` : text;
 };
 
 // The choice, with what the room has now open if it's a link or an image.
@@ -133,10 +133,15 @@ async function pickRepo(repo: RepoChoice) {
 function importTyped() {
   note.value = null;
   if (!typed.value.trim() || !typing.value) return;
-  route.value = typing.value;
-  if (route.value === "image" && !imageNameOk(sourceTyped().slice(IMAGE.length))) {
-    note.value = loud(w.badImage);
-    return;
+  // A Docker Hub page pasted as a link is an image.
+  route.value = /hub\.docker\.com\//.test(typed.value) ? "image" : typing.value;
+  if (route.value === "image") {
+    typed.value = imageRef(typed.value);
+    if (!imageNameOk(typed.value)) {
+      typing.value = "image";
+      note.value = loud(w.badImage);
+      return;
+    }
   }
   if (sourceTyped() !== props.data.settings.source) Object.assign(props.form, { branch: "", buildPath: ".", port: "" });
   void read();

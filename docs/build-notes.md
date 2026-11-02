@@ -1224,3 +1224,59 @@ Jib tested the droplet again and sent a long list. Four agents built it in paral
 
 **Known limits:** a pnpm lockfile older than pnpm's current format fails at install, with pnpm's own message. A freed room keeps its name, even when that's the last tenant's login, because it's the room's address. Missions are saved per browser.
 
+## 2 Nov 2026: Docker Hub links, refused retries, and quieter first windows
+
+Jib pasted `https://hub.docker.com/r/42dsy/bount-dev` as an image and got `invalid reference format`: the address went to Docker as if it were a name, because `:` and `/` are legal in one. `imageRef` in `room.ts` now turns a Docker Hub page or a `docker pull` line into the name, and the API and the caretaker refuse anything with `://` in it.
+
+Testing with the real image found a second bug. Docker gives its reason for refusing a pull as a line in the stream, and the stream still ends normally, so `pullImage` carried on and failed later with "no such image". It now fails with Docker's own words, and the window explains the two usual cases: no amd64 version, and image not found.
+
+Try again looked dead because of the limit of 5 builds per 10 minutes. The refusal was shown behind the log window. It now shows in the window, and the limit counts from the database, leaving out builds that stopped within 30 seconds or that a server restart lost. Those used nothing.
+
+The welcome and credit moments were full-screen and loud. Jib wanted a window like the others with a better layout, so both are now plain sign-style dialogs.
+
+Known gap: a room counts as live once its container stays up for 5 seconds, whether or not anything answers. `42dsy/bount-dev:refonte` runs `nuxt dev`, which can't write to a read-only disk: it reported live while Nuxt had stopped with EROFS.
+
+## 2 Nov 2026: SSH into your room
+
+`ssh -p 2222 <room>.<house>@<city host>` now opens a shell inside a room's running project. `docs/architecture.md` has the design. The main decision: no account on the server. The API is the SSH server and relays bytes to a `docker exec`, so a person gets exactly what their project has and nothing of the machine's.
+
+Tested on the real server with the real `ssh` command, against a throwaway copy of the API and database, with four test keys.
+
+**Allowed:** occupant, teammate, exit codes, stdout and stderr apart, terminal size and live resize, a room's secrets for its occupant, piped input through to the end.
+
+**Refused or stopped:** a stranger, the chef, a flatmate not on the team, root, someone else's room, an unknown room (same message), passwords, sftp, local and reverse forwarding, a fifth shell. Disk writes outside /tmp fail, capabilities are 0, the network is sealed. Someone taken off a team is thrown out within a minute, and a removed key stops working. Killing `ssh` stops what it was running. Redeploying or ending the lease ends the shell. A caretaker crash says the line dropped and leaves nothing behind. A login with no shell closes after 2 minutes.
+
+**Found and fixed by testing:**
+- Output stopped at 2 MB when it came fast: a fixed "too much waiting" limit became acknowledgements.
+- `ssh -tt` with piped input hung, because closing the stream cut the terminal's output: a terminal now gets Ctrl-D, as from a keyboard.
+- `stty size` was wrong until the terminal's size was passed when the exec starts.
+- Killing `ssh` left its processes running, because closing the line doesn't stop a `docker exec`: the shell now records its process number.
+- Piped input lost data (180032 of 200000 bytes). I first blamed Docker and added a delay, which didn't cure it. The real cause was input arriving before the shell had started, so it was dropped. It now waits, and the delay is gone.
+- An image with no shell showed Docker's raw error: it now says plainly that the image may have none.
+- The tab imported GitHub keys whenever someone had none, so a removed key came back on the next visit: it now imports once.
+
+**Speed:** 50 MB of output in 3.7 s on the server itself. From my laptop through a test tunnel, 5 MB took about 25 s against 5 s for plain `ssh`, so that route is much slower than the server's own. The tunnel encrypts twice, which may explain part of that, and the public port hasn't been measured with a big transfer.
+
+**Known limits:** shell only, so no sftp, scp or port forwarding. A container that's crashed can't be entered, because there's nothing to exec into. A key added on GitHub later needs the "Use my GitHub keys" button.
+
+## 2 Nov 2026: rooms become small servers
+
+Jib's point after SSH shipped: we rent out a room of a server, not a deploy button. The SSH I'd built could look but not fix: read-only disk, no internet, disconnecting killed everything. Those limits were also stopping ordinary deploys. An app couldn't call Stripe or OpenAI, and SQLite data vanished on each redeploy. So on a server, rooms now have internet, a writable 1 GB disk, 1 GB kept in `/home/room`, and images run as the user they asked for. `architecture.md` has the design, and `docs/todo-jib.md` has the risks this opens up.
+
+**Moving Docker:** hard disk limits need XFS, so `/var/lib/docker` moved onto an XFS disk file on the live droplet. I first tested limits, kept files and permissions with a separate temporary Docker daemon on a small XFS disk, without touching the city. The move kept every row (33 users, 10 houses, 38 rooms, 46 messages), and the city came back alone after a reboot.
+
+**Tested with real `ssh` on a throwaway copy:**
+- **Reached:** http and https sites.
+- **Blocked:** cloud metadata, the cloud's private network, the database, another room, the API, the database port and Caddy's admin port by both the gateway and the public IP, and email on ports 25, 465 and 587.
+- **Disk:** the writable disk and `/home/room` each stop at 1 GB with "no space left", and the neighbour room carries on.
+- **What lasts:** a restart keeps everything. A redeploy keeps `/home/room` and resets the rest.
+- **Leaving running:** `nohup` survives logging out, and a plain command stops when `ssh` dies.
+- **Root:** official nginx goes live and runs as uid 100000 on the machine. `mknod`, `mount`, `dmesg`, kernel settings and network changes all fail. `apk add` and `apt-get install` work in a 256 MB room.
+- **End of a lease:** a file seen on disk is gone from the machine after leaving, the old tenant can't log in, and the next tenant finds an empty home.
+
+**Found by testing:** three of my deploys were refused by the limit of 5 builds per 10 minutes, and my test helper still counted them as passes. It would have reported the lease wipe as proven with no file ever written. I fixed the helper and reran those checks.
+
+**Changed from what I told Jib:** I said the app wouldn't run as root in Project mode. Non-root can't write to files in most images, so a writable disk wouldn't have helped them. Root in a room is an ordinary user on the machine, so images now keep the user they asked for. `/home/room` replaces the `/home` I'd mentioned, because some images keep their app in `/home/node`.
+
+**Known limits:** `df` on `/home/room` shows the whole pool, not 1 GB, though the limit holds. If a lease ends while a server is off and its containers are already gone, the old volume stays until someone empties that room again. The next tenant still can't see it. Jib's `42dsy/bount-dev:refonte` no longer fails on the disk, but `nuxt dev` only listens on localhost and used 245 of 256 MB, so visitors got a 503 while the room said "live".
+

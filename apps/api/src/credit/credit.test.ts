@@ -1,10 +1,11 @@
 // The city's fake money: what stops it being spent twice, earned twice or overdrawn, and what a project costs.
+import { randomUUID } from "node:crypto";
 import { creditEntries, type Db, deployments, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AgentRegistry } from "../agents/agent.registry";
-import { HousesService } from "../houses/houses.service";
+import { BUILD_LOST, HousesService } from "../houses/houses.service";
 import { PROJECT_COST_FCFA, WELCOME_CREDIT_FCFA } from "../houses/money";
 import { RoomDeployer } from "../rooms/room-deployer";
 import { seedCity } from "../seed/city";
@@ -107,6 +108,19 @@ describe("a project", () => {
     const d = await houses.createDeployment("sacre-coeur", room.name, "prod", "https://x/y.git", "main");
     await houses.recordDeployStatus("sacre-coeur", { type: "deploy_status", deployId: d.id, room: room.name, status: "failed", detail: "no" });
     expect(await credit.balance(awa)).toBe(WELCOME_CREDIT_FCFA);
+  });
+
+  it("stops after a few real builds, but a build that never got going or was lost to a restart doesn't count", async () => {
+    const room = await fresh();
+    const build = (status: "failed" | "live", detail: string | null, took: number) => {
+      const createdAt = new Date(Date.now() - 60_000);
+      return { id: randomUUID(), houseId: "sacre-coeur", room: room.name, kind: "prod" as const, repo: "docker://x/y", ref: "default", status, detail, requestedBy: awa, createdAt, updatedAt: new Date(createdAt.getTime() + took) };
+    };
+    await db.insert(deployments).values(Array.from({ length: 6 }, () => build("failed", "invalid reference format", 200)));
+    await db.insert(deployments).values(Array.from({ length: 6 }, () => build("failed", BUILD_LOST, 45_000)));
+    await expect(deployer.brake(room, "prod", awa)).resolves.toBeUndefined();
+    await db.insert(deployments).values(Array.from({ length: 5 }, () => build("failed", "a step failed", 45_000)));
+    expect(refusal(await deployer.brake(room, "prod", awa).catch((e) => e))).toMatchObject({ code: "slowDownDeploys" });
   });
 
   it("is free in the workshop", async () => {

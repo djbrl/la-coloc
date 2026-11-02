@@ -33,6 +33,9 @@ export const users = pgTable("users", {
   name: text("name"),
   avatarUrl: text("avatar_url"),
   bio: text("bio"),
+  // They've imported, pasted or removed an SSH key: from here their keys are their own choice, and the SSH tab stops
+  // fetching them from GitHub on its own. A key someone removed doesn't come back.
+  sshKeysChosen: boolean("ssh_keys_chosen").notNull().default(false),
   location: text("location"),
   // Their character in the lobby: one of the models in apps/web/public/lobby/people ("female-a" … "male-f").
   avatar: text("avatar"),
@@ -160,6 +163,23 @@ export const roomTeammates = pgTable(
     addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.roomId, t.userId] }), index("room_teammates_user").on(t.userId)],
+);
+
+// The public keys someone logs in to their rooms with, over SSH (apps/api/src/ssh). Only public keys: nothing here is
+// secret. A key belongs to the person, and opens the rooms they live or work in, for as long as they do.
+export const sshKeys = pgTable(
+  "ssh_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    // "ssh-ed25519 AAAA…", without the comment at the end.
+    publicKey: text("public_key").notNull(),
+    // SHA256:…, the way `ssh-keygen -l` writes it, so people can tell their keys apart.
+    fingerprint: text("fingerprint").notNull(),
+    fromGithub: boolean("from_github").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("ssh_keys_user_fingerprint").on(t.userId, t.fingerprint)],
 );
 
 // Someone from outside a full house who asked to join its group chat. "open": waiting for a flatmate to answer.

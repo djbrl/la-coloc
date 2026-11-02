@@ -41,7 +41,7 @@ const RepoUrl = z
 const RepoOrImage = z
   .string()
   .max(300)
-  .regex(/^(https:\/\/[^/\s]+\/\S+|docker:\/\/[a-z0-9][a-z0-9._\-/:@]{0,250})$/, HTTPS_ONLY)
+  .regex(/^(https:\/\/[^/\s]+\/\S+|docker:\/\/(?!.*:\/\/)[a-z0-9][a-z0-9._\-/:@]{0,250})$/, HTTPS_ONLY)
   .refine((u) => !/^https:\/\/[^/]*@/.test(u), "don't put credentials in the URL: link the repo with the GitHub App instead");
 const InspectBody = z.object({
   source: RepoOrImage.optional(),

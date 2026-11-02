@@ -59,6 +59,11 @@ const fr: Record<string, (r: Refusal) => string> = {
   // Knocking on a house.
   demoHouseKnock: () => "C'est une maison d'exemple : personne n'habite ici pour vous ouvrir.",
   roomTaken: () => "Quelqu'un habite déjà cette chambre.",
+  sshNoGithub: () => "Ce compte n'est pas un compte GitHub.",
+  sshPrivateKey: () => "C'est une clé privée, elle reste sur votre ordinateur. Collez le fichier .pub.",
+  sshBadKey: () => "Ce n'est pas une clé publique. Elle commence par ssh-ed25519 ou ssh-rsa.",
+  sshGithubDown: () => "GitHub n'a pas répondu. Réessayez.",
+  sshKeyLimit: (r) => `${r.max} clés par personne. Retirez-en une d'abord.`,
   alreadyLiveHere: () => "Vous habitez déjà ici.",
   alreadyKnocked: () => "Vous avez déjà frappé à cette maison.",
   knockClosed: () => "Cette demande est close.",

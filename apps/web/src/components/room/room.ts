@@ -170,7 +170,17 @@ export function settingsBody(form: SettingsForm, githubLinked: boolean, port: nu
 export const canChangeCode = (data: Pick<RoomManage, "as"> & { room: Pick<RoomManage["room"], "occupant"> }) => data.as !== "chef" || !data.room.occupant;
 
 /** A Docker image's name, the way the API takes it: `nginx:alpine`, `you/app:1.0`. */
-export const imageNameOk = (name: string) => /^[a-z0-9][a-z0-9._\-/:@]{0,250}$/.test(name);
+export const imageNameOk = (name: string) => /^[a-z0-9][a-z0-9._\-/:@]{0,250}$/.test(name) && !name.includes("://");
+
+/** What people paste for an image, as Docker wants it. A Docker Hub page's address or a `docker pull` line becomes `you/app:1.0`. */
+export function imageRef(typed: string): string {
+  const text = typed.trim().replace(/^(docker:\/\/|docker\s+pull\s+|https?:\/\/)/, "").replace(/[?#].*$/, "");
+  const page = text.replace(/^(www\.)?hub\.docker\.com\//, "");
+  if (page === text) return text;
+  const tagged = page.match(/^layers\/([^/]+\/[^/]+)\/([^/]+)/);
+  if (tagged) return `${tagged[1]}:${tagged[2]}`;
+  return page.match(/^_\/([^/]+)/)?.[1] ?? page.match(/^(?:r|repository\/docker)\/([^/]+\/[^/]+)/)?.[1] ?? text;
+}
 
 /** A secret's name the way the app reads it: trimmed and in capitals. */
 export const secretName = (typed: string) => typed.trim().toUpperCase();
@@ -214,6 +224,8 @@ export function buildTrouble(detail: string | null | undefined): BuildTrouble {
   const d = detail ?? "";
   if (/^build cancelled/i.test(d)) return "cancelled";
   if (/restarted during this build/i.test(d)) return "lost";
+  if (/no matching manifest|does not provide the specified platform/i.test(d)) return "imagePlatform";
+  if (/pull access denied|manifest unknown|not found: manifest|no such image|invalid reference format|not an image name/i.test(d)) return "imageMissing";
   if (/made no website/i.test(d)) return "noSite";
   if (/couldn't tell how to run|Cannot locate specified Dockerfile/i.test(d)) return "noRecipe";
   if (/git clone failed|Repository not found|could not read/i.test(d)) return "fetch";

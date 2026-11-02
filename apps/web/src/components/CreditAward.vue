@@ -1,34 +1,26 @@
 <script setup lang="ts">
-// The credit, given with some ceremony: the window clears, a big coin stands on a red burst over the city, and the
-// sum counts up on its face from 0. When it lands: the coin's sound, one tiny line, and the key was there all along,
-// so nobody has to sit through it. Calmer motion shows the final number at once. The amount is whatever /api/me says.
+// The credit, given with some ceremony but in a window like the other steps: the sum counts up from 0 under the band,
+// and when it lands, the coin's sound. What earns more sits below it. The key was there all along, so nobody has to sit
+// through it. Calmer motion shows the final number at once. The amount is whatever /api/me says.
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { play } from "../lobby/sound";
 import { settings } from "../settings";
 import { digits } from "./credit";
+import Icon from "./lobby/house/Icon.vue";
 import { fcfa } from "./lobby/house/server";
 import { creditWords as w, welcomeWords as ww } from "./words";
 
 const props = defineProps<{ amount: number; saving: boolean; error: string }>();
 const emit = defineEmits<{ go: []; back: [] }>();
 
-// The burst behind the coin: a flat star of sixteen points, around the middle of a 200×200 box.
-const BURST = Array.from({ length: 32 }, (_, i) => {
-  const r = i % 2 ? 72 : 100;
-  const a = (i / 32) * Math.PI * 2;
-  return `${(100 + r * Math.cos(a)).toFixed(1)},${(100 + r * Math.sin(a)).toFixed(1)}`;
-}).join(" ");
-
 const COUNT_MS = 1400;
 const calm = settings.reduceMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const shown = ref(calm ? props.amount : 0);
-const landed = ref(false);
-const key = ref<HTMLButtonElement | null>(null);
+const dialog = ref<HTMLDialogElement | null>(null);
 let frame = 0;
 
 function land() {
   shown.value = props.amount;
-  landed.value = true;
   play("coin");
 }
 
@@ -41,7 +33,7 @@ function count(start: number, now: number) {
 }
 
 onMounted(() => {
-  key.value?.focus({ preventScroll: true });
+  dialog.value?.showModal();
   if (calm || !props.amount) land();
   else frame = requestAnimationFrame((now) => count(now, now));
 });
@@ -49,70 +41,45 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 </script>
 
 <template>
-  <div class="award" role="dialog" aria-modal="true" aria-labelledby="award-title">
-    <h2 id="award-title" class="sr-only">{{ w.awardTitle(fcfa(amount)) }}</h2>
-    <div class="seal" :class="{ landed }" aria-hidden="true">
-      <svg class="burst" viewBox="0 0 200 200"><polygon :points="BURST" /></svg>
-      <div class="coin">
-        <span class="sum">{{ digits(shown) }}</span>
-        <span class="unit">{{ w.unit }}</span>
+  <dialog ref="dialog" class="step-sign" :aria-label="w.awardTitle(fcfa(amount))" @cancel.prevent>
+    <div class="inner">
+      <div class="form">
+        <h2>{{ w.awardBand }}</h2>
+        <p class="stat" aria-hidden="true"><Icon name="coin" :size="34" /><strong>{{ digits(shown) }}</strong><span>{{ w.unit }}</span></p>
+        <p class="tiny">{{ w.fake }}</p>
+        <p class="label">{{ w.awardEarn }}</p>
+        <ul class="earn">
+          <li><Icon name="check" :size="22" />{{ w.review }}</li>
+          <li><Icon name="trophy" :size="22" />{{ w.arena }}</li>
+        </ul>
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
+        <div class="foot">
+          <button v-if="error" type="button" class="second" :disabled="saving" @click="emit('back')">{{ ww.back }}</button>
+          <button type="button" class="primary go" autofocus :disabled="saving" @click="emit('go')">{{ error ? w.tryAgain : w.awardGo }}</button>
+        </div>
       </div>
     </div>
-    <p class="line" :class="{ landed }">{{ w.awardWhy }}</p>
-    <p v-if="error" class="line error" role="alert">{{ error }}</p>
-    <div class="foot">
-      <button v-if="error" type="button" class="second" :disabled="saving" @click="emit('back')">{{ ww.back }}</button>
-      <button ref="key" type="button" class="primary go" :disabled="saving" @click="emit('go')">{{ error ? w.tryAgain : w.awardGo }}</button>
-    </div>
-  </div>
+  </dialog>
 </template>
 
 <style scoped>
-/* The window clears: the city steps back under the scrim, with your character somewhere behind the coin. */
-.award {
-  --coin: clamp(150px, min(62vw, 42dvh), 340px);
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: clamp(16px, 3dvh, 28px);
-  padding: 16px;
-  background: var(--scrim);
-  animation: award-in var(--dur) var(--ease);
+dialog { width: min(460px, calc(100vw - 32px)); animation: menu-pop var(--dur-slow) var(--ease-pop); }
+dialog::backdrop { background: var(--scrim); }
+@keyframes menu-pop {
+  from { opacity: 0; transform: translateY(10px) scale(0.94); }
 }
-@keyframes award-in {
-  from { opacity: 0; }
-}
-.seal { position: relative; display: grid; place-items: center; width: var(--coin); height: var(--coin); margin: calc(var(--coin) * 0.24) 0; animation: seal-in 0.5s var(--ease-pop); }
-@keyframes seal-in {
-  from { transform: scale(0.5); opacity: 0; }
-}
-/* Landing: one soft bump, as if stamped. */
-.seal.landed { animation: seal-land 0.34s var(--ease-pop); }
-@keyframes seal-land {
-  40% { transform: scale(1.07); }
-}
-.burst { position: absolute; inset: -22%; width: 144%; height: 144%; fill: var(--panel-red); animation: burst-turn 24s linear infinite; }
-@keyframes burst-turn {
-  to { transform: rotate(360deg); }
-}
-/* The coin: flat yellow, a hard lip under it, and a dashed line inside its edge like the postcard's stamp. */
-.coin { position: relative; display: grid; align-content: center; justify-items: center; gap: 4px; width: 100%; height: 100%; border-radius: 50%; background: var(--sticker); color: var(--ink); box-shadow: 0 9px 0 var(--accent-lip); }
-.coin::before { content: ""; position: absolute; inset: 5%; border: 3px dashed var(--ink); border-radius: 50%; }
-.sum { font: 800 calc(var(--coin) * 0.2)/1 var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.unit { font: 400 calc(var(--coin) * 0.075)/1 var(--display); }
-/* The tiny line, on a flat strip so it reads over any part of the city. It arrives with the sum. */
-.line { margin: 0; max-width: min(520px, 100%); padding: 8px 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); font-size: 16px; line-height: 1.35; text-align: center; opacity: 0; transition: opacity var(--dur-slow) var(--ease); }
-.line.landed, .line.error { opacity: 1; }
-.line.error { color: var(--danger); }
-.foot { display: flex; gap: 8px; width: min(360px, 100%); }
-.foot .second { flex: none; min-height: 60px; background: var(--surface); }
-.go { flex: 1 1 0; min-height: 60px; font-size: 20px; box-shadow: 0 5px 0 var(--accent-lip); }
-.go:focus-visible, .second:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.stat { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 22px 0 0; color: var(--panel-red); }
+.stat strong { font: 400 46px/1.05 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stat span { align-self: flex-end; padding-bottom: 6px; font: 400 18px/1 var(--display); }
+.tiny { margin: 6px 0 18px; font-size: 14px; color: var(--muted); text-align: center; }
+.label { margin: 0 0 6px; font-size: 14px; font-weight: 700; }
+.earn { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+.earn li { display: flex; align-items: center; gap: 8px; min-height: 50px; padding: 6px 12px; border-radius: var(--r-md); background: var(--tile); font-size: 15px; font-weight: 700; line-height: 1.2; }
+.earn :deep(svg) { flex: none; color: var(--panel-red); }
+.error { margin: 0 0 12px; color: var(--danger); font-size: 15px; }
+.foot { display: flex; gap: 8px; }
+.go { flex: 1 1 0; }
 @media (prefers-reduced-motion: reduce) {
-  .award, .seal, .seal.landed, .burst { animation: none; }
-  .line { transition: none; }
+  dialog { animation: none; }
 }
 </style>

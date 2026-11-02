@@ -2,8 +2,8 @@
 // Node, Python, Go, PHP or static project goes online as it is. It's still Docker underneath, with the same walls: the
 // recipe only saves the newcomer from writing one. A Dockerfile in the repo always wins.
 //
-// A room's disk is read-only and its app runs as nobody (room-spec.ts), so each recipe keeps what tools write
-// in /tmp. The app is told its port as $PORT; none of them EXPOSE one, so that's 3000 unless the room says otherwise.
+// A room's disk can be read-only and its app can run as nobody (room-spec.ts, on a machine that can't limit a disk), so
+// each recipe keeps what tools write in /tmp. The app is told its port as $PORT; none of them EXPOSE one, so that's 3000 unless the room says otherwise.
 import { lstat, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 

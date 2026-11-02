@@ -19,6 +19,9 @@ const props = defineProps<{
   url?: string | null;
   // What the failed build's second key says, when it doesn't lead to another project.
   otherWord?: string;
+  // Why Try again was refused, and that it's on its way: the window covers whatever's behind it.
+  refusal?: string;
+  retrying?: boolean;
 }>();
 const emit = defineEmits<{ close: []; retry: []; other: []; cancelled: [] }>();
 
@@ -158,13 +161,13 @@ onBeforeUnmount(() => clearInterval(timer));
       </div>
 
       <p v-if="stopped" class="trouble" role="status">{{ trouble }}</p>
-      <p v-if="refused" class="trouble refused" role="alert">{{ refused }}</p>
+      <p v-if="refused || (stopped && refusal)" class="trouble refused" role="alert">{{ refused || refusal }}</p>
 
       <footer class="foot">
         <button type="button" class="second" :disabled="!lines.length" @click="copy"><Icon :name="copied ? 'tick' : 'copy'" :size="18" />{{ copied ? w.logCopied : w.logCopy }}</button>
         <template v-if="stopped">
           <button type="button" class="second" @click="emit('other')">{{ otherWord ?? w.otherProject }}</button>
-          <button type="button" class="primary" @click="emit('retry')">{{ w.buildAgain }}</button>
+          <button type="button" class="primary" :disabled="retrying" @click="emit('retry')">{{ w.buildAgain }}</button>
         </template>
         <a v-else-if="status === 'live' && url" class="button primary" :href="url" target="_blank" rel="noopener">{{ w.logOpen }}</a>
         <template v-else-if="build && !over">

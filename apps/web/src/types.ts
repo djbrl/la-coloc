@@ -339,6 +339,8 @@ export interface RoomManage {
   // flatmate: you live in this room. teammate: you teamed up on it (same rights as its flatmate). chef: you run the
   // house (update and restart only).
   as: "flatmate" | "chef" | "teammate";
+  // How to SSH in. Null: this server has no SSH, or a shell isn't for you (a chef, an example room).
+  ssh?: { host: string; port: number; user: string } | null;
   // The Lease tab, for the occupant of a room that has a lease to end: their part of this month's bill (null: the house
   // has no bill yet), how many rooms they rent in this house, and when rent stops if they end it now.
   lease?: { share: number | null; rooms: number; until: string } | null;

@@ -6,11 +6,15 @@ import {
   docker,
   pullImage,
   dropOldNetworks,
+  ensureRoomHome,
   ensureRoomNetwork,
   imageConfig,
   lastLogs,
+  openRoomHome,
   removeContainer,
+  removeRoomHomes,
   retiring,
+  rootIsRemapped,
   roomContainers,
   waitHealthy,
 } from "./docker";
@@ -34,7 +38,7 @@ const IMAGE = "docker://";
 export const imageOf = (source: string) => {
   if (!source.startsWith(IMAGE)) return null;
   const ref = source.slice(IMAGE.length);
-  if (!/^[a-z0-9][a-z0-9._\-/:@]{0,250}$/.test(ref)) throw new Error(`not an image name: ${ref}`);
+  if (!/^[a-z0-9][a-z0-9._\-/:@]{0,250}$/.test(ref) || ref.includes("://")) throw new Error(`not an image name: ${ref}`);
   return ref;
 };
 
@@ -82,6 +86,8 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
     await ensureRoomNetwork(cfg.houseId, cmd.room, cfg.proxyContainer, networks.current);
     const config = await imageConfig(tag);
     const port = resolvePort(cmd.port, config.exposedPorts);
+    // A preview gets no kept files: a pull request must not run against the real ones.
+    const home = cfg.roomDiskMb && cmd.kind === "prod" && cmd.occupant ? await ensureRoomHome(cfg.houseId, cmd.room, cmd.occupant, cfg.roomDiskMb) : undefined;
     const spec = roomContainerSpec({
       houseId: cfg.houseId,
       room: cmd.room,
@@ -94,9 +100,13 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
       houseDomain: cfg.houseDomain,
       sealed: !cfg.roomInternet,
       imageUser: config.user,
+      diskMb: cfg.roomDiskMb,
+      homeVolume: home,
+      rootIsSafe: cfg.roomDiskMb ? await rootIsRemapped() : false,
     });
     const container = await docker.createContainer(spec);
     newContainerId = container.id;
+    if (home) await openRoomHome(container);
     await container.start();
 
     try {
@@ -139,7 +149,9 @@ export async function inspect(cfg: AgentConfig, repo: string, ref: string | unde
   const checkout = await shallowClone(cfg.workDir, repo, ref, cfg.allowLocalRepos);
   try {
     const found = await inspectProject(checkout.dir, resolveInside(checkout.dir, sub));
-    return { ...found, branch: checkout.branch, sha: checkout.sha.slice(0, 12) };
+    // A warning about something this house's rooms can do is no warning.
+    const flags = cfg.roomInternet ? found.flags.filter((f) => f !== "wantsInternet") : found.flags;
+    return { ...found, flags, branch: checkout.branch, sha: checkout.sha.slice(0, 12) };
   } finally {
     await checkout.cleanup();
   }
@@ -151,6 +163,7 @@ export async function removeRoom(cfg: AgentConfig, room: string): Promise<void> 
   await Promise.all(containers.map((c) => removeContainer(c.Id)));
   const networks = roomNetworks(cfg.houseId, room, !cfg.roomInternet);
   await dropOldNetworks(cfg.houseId, [networks.current, ...networks.old], cfg.proxyContainer).catch(() => undefined);
+  await removeRoomHomes(cfg.houseId, room).catch((e) => console.error(`[remove] ${room}: couldn't remove its files: ${(e as Error).message}`));
 }
 
 /** The pull request closed: its preview leaves. The room's real app isn't touched. */

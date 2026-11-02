@@ -15,6 +15,7 @@ import { TUTORIAL_HOUSE } from "../components/lobby/tutorial/tutorial";
 import RoomCode from "../components/room/RoomCode.vue";
 import RoomHistory from "../components/room/RoomHistory.vue";
 import RoomLease from "../components/room/RoomLease.vue";
+import RoomSsh from "../components/room/RoomSsh.vue";
 import RoomLogs from "../components/room/RoomLogs.vue";
 import RoomOverview from "../components/room/RoomOverview.vue";
 import RoomSecrets from "../components/room/RoomSecrets.vue";
@@ -192,7 +193,7 @@ watch(follow, (on) => {
 });
 
 // The tabs: an icon and a word each. Only the secrets need a line to say what they are.
-type TabKey = "overview" | "code" | "secrets" | "logs" | "history" | "lease";
+type TabKey = "overview" | "code" | "secrets" | "logs" | "history" | "ssh" | "lease";
 const tab = ref<TabKey>("overview");
 const tabs = computed<PanelTab[]>(() => [
   { key: "overview", icon: "gauge", word: w.tabs.overview },
@@ -200,6 +201,7 @@ const tabs = computed<PanelTab[]>(() => [
   { key: "secrets", icon: "lock", word: w.tabs.secrets, badge: data.value?.secrets.length || undefined },
   { key: "logs", icon: "logs", word: w.tabs.logs },
   { key: "history", icon: "clock", word: w.tabs.history },
+  ...(data.value?.ssh ? [{ key: "ssh", icon: "key" as const, word: w.tabs.ssh }] : []),
   // For whoever lives here, unless the room has no lease to end (the workshop, an example).
   ...(data.value?.lease ? [{ key: "lease", icon: "door" as const, word: w.tabs.lease }] : []),
 ]);
@@ -341,6 +343,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
           />
           <RoomSecrets v-else-if="tab === 'secrets'" :data="data" :base="base" :reload="load" :when="when" />
           <RoomLogs v-else-if="tab === 'logs'" v-model:follow="follow" :text="logs" :message="logsMessage" :loading="logsLoading" @refresh="fetchLogs" />
+          <RoomSsh v-else-if="tab === 'ssh' && data.ssh" :data="data" />
           <RoomLease v-else-if="tab === 'lease' && data.lease" :lease="data.lease" :base="base" @left="leftRoom" />
           <RoomHistory v-else :deployments="data.deployments" :github="data.github" :when="when" />
         </div>

@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "ssh_keys_chosen" boolean DEFAULT false NOT NULL;

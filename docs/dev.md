@@ -174,12 +174,13 @@ COLOC_USAGE_INTERVAL_MS=5000 COLOC_ALLOW_LOCAL_REPOS=file://$PWD \
 
 Each says `[link] connected to ws://localhost:4100/agent`, and the API logs `agent online`.
 
-- **Rooms are sealed.** Each room runs on an internal Docker network (`coloc-sealed-<house>--<room>`): only Traefik
-  reaches it, and it reaches nothing, not the internet and not your laptop. `COLOC_ROOM_INTERNET=1` opens a house's
-  rooms to the internet (network `coloc-room-<house>--<room>`); a room moves on its next deploy.
+- **On a laptop, rooms are sealed.** Each room runs on an internal Docker network (`coloc-sealed-<house>--<room>`): only
+  Traefik reaches it, and it reaches nothing, not the internet and not your laptop. `COLOC_ROOM_INTERNET=1` opens a
+  house's rooms to the internet (network `coloc-room-<house>--<room>`); a room moves on its next deploy. A server has it on.
 - **Builds** run one at a time per house (`COLOC_BUILD_SLOTS` for more). They can still download packages;
   `COLOC_BUILD_OFFLINE=1` builds with no network at all, which breaks Dockerfiles that install anything.
-- **Rooms run as nobody** (uid 65534) unless their image picks a user other than root.
+- **On a laptop, rooms are read-only and run as nobody** (uid 65534) unless their image picks a user other than root.
+  A server's are small machines: see "A room as a small server" in `architecture.md`.
 - `COLOC_ALLOW_LOCAL_REPOS` lets a caretaker build from `file://` folders: a comma list of exact `file://` addresses,
   or `1` for any folder. **Development only.** The API never takes a `file://` address from a person anyway: only the
   quest's starter page uses one.
@@ -292,6 +293,8 @@ Run it again to update: data and keys stay, and only an empty city gets seeded. 
   private network also holds the cloud's DNS, which is why `daemon.json` names public resolvers.
 - **Settings** are in `/etc/coloc`: `secrets.env` is made once and never again, `github.env` comes from your laptop's
   `dev/.env.github`, and each seeded caretaker has its own short file with no database password or GitHub keys.
+- **Docker's files are on their own XFS disk**, a file at `/var/lib/coloc-docker.img` mounted at `/var/lib/docker`, so each room can be held to a size. On a server that already ran without it, `setup.sh` copies the files across, which stops the rooms for a minute, and leaves the old copy in `/var/lib/docker.before-xfs` to delete once all is well.
+- **SSH into rooms** uses port 2222, which `setup.sh` opens, and a host key made once in `/etc/coloc`. To close it: `ufw delete allow 2222/tcp`.
 - **Logs:** `journalctl -u coloc-api -f`, and `journalctl -u coloc-caretaker@atelier -f`.
 
 The GitHub App has one webhook address. Pointing it at a server means pushes stop reaching a laptop's smee relay until
@@ -372,6 +375,7 @@ It puts `examples/hello` in Jib's room and `examples/memory-hog` in Moussa's 128
 | `COLOC_USAGE_INTERVAL_MS` | `30000` | How often it measures CPU and memory |
 | `COLOC_PROXY_CONTAINER`, `COLOC_ROUTE_SETTLE_MS` | `coloc-traefik`, `2000` | Traefik's container, and how long to wait for it to follow a new route |
 | `COLOC_ROOM_INTERNET` | off: rooms are sealed | `1`: rooms can reach the internet (never the other rooms) |
+| `COLOC_ROOM_DISK_MB` | off: rooms are read-only, and run as nobody | Writable disk of this size, and kept files in `/home/room` of this size. Needs Docker on XFS with quotas, which `deploy/setup.sh` sets up |
 | `COLOC_BUILD_OFFLINE` | off | `1`: builds get no network |
 | `COLOC_BUILD_SLOTS` | `1` | How many builds run at once on this house |
 | `COLOC_ALLOW_LOCAL_REPOS` | off | Build from `file://` folders: a comma list of exact addresses, or `1` for any. **Development only** |

@@ -43,10 +43,10 @@ Choices worth saying to a jury:
 - **The caretaker never holds GitHub credentials.** For each build the API sends a short-lived token for that one repo.
 - **Neither rooms nor Traefik get the Docker socket.** The caretaker writes one small route file per room and
   Traefik reads the folder. A broken-into room or proxy can't take over the server.
-- **Rooms are sealed.** Each room is on its own internal Docker network (`coloc-sealed-<house>--<room>`): Traefik
-  reaches it, and it reaches nothing, not the other rooms, the internet, or the machine (on Docker Desktop,
-  `host.docker.internal` would lead to the laptop's database and API). A house can open its rooms to the internet
-  with `COLOC_ROOM_INTERNET=1` (network `coloc-room-<house>--<room>`).
+- **A room has its own network.** On a server (`COLOC_ROOM_INTERNET=1`, network `coloc-room-<house>--<room>`) it reaches
+  the internet but not the other rooms, the database, the machine's private services, the cloud's private network or
+  metadata service, and it can't send email (`deploy/coloc-firewall.service`). On a laptop it's sealed by default
+  (`coloc-sealed-<house>--<room>`), because on Docker Desktop `host.docker.internal` would lead to the laptop's database and API.
 
 ## How a push becomes a live room
 
@@ -60,8 +60,7 @@ Choices worth saying to a jury:
 4. The caretaker (`apps/agent/src/deploy.ts`) clones the repo, builds the image from the repo's Dockerfile, or from one it
    writes when there's none (`apps/agent/src/recipe.ts`: Node, Python, Go, PHP, plain sites), one build
    at a time per house (`slots.ts`; with no network if `COLOC_BUILD_OFFLINE=1`), and starts a new container with its
-   walls (`room-spec.ts`: memory and CPU caps, no extra rights, a read-only disk, its own sealed network, and user
-   65534 unless the image picks a user other than root). It clones only `https://` repos; a `file://` folder only
+   walls (`room-spec.ts`: memory and CPU caps, a limited disk, its own network; see "A room as a small server"). It clones only `https://` repos; a `file://` folder only
    when `COLOC_ALLOW_LOCAL_REPOS` names it (in development, the quest's starter page).
 5. It checks the new container answers, rewrites the room's route file so Traefik sends visitors to it, waits for
    Traefik to follow, then stops the old one. Nobody sees a gap.
@@ -152,6 +151,34 @@ A knock only lists public repos: its link is shown to the house.
 
 `POST .../cancel-build` sends the caretaker `cancel_build`. It aborts that room's real builds, running or waiting (`agent/src/builds.ts`, an `AbortController` per build; Docker stops a build when its client hangs up). The deployment ends as failed with "Build cancelled.", which the web treats as going back rather than as a failure. Whatever was online stays online.
 
+## A room as a small server
+
+We rent out a room of a server, not a deploy button. Deploying is the main use, but a room behaves like a small Linux machine, within these limits.
+
+- **Disk:** writable, 1 GB, with another 1 GB in `/home/room` (`COLOC_ROOM_DISK_MB`). When it's full the app gets "no space left", and the neighbours notice nothing. A redeploy starts a new container, so everything resets except `/home/room`. A restart keeps everything.
+- **Who keeps the disk honest:** only XFS with project quotas lets Docker enforce a size per container, so `deploy/setup.sh` puts `/var/lib/docker` on an XFS disk file (`/var/lib/coloc-docker.img`, 85% of the free space).
+- **Kept files belong to a person.** The volume is named after the occupant (`roomHomeVolume`), so the next tenant gets an empty one by construction, even if a lease ended while the server was off. `removeRoom` deletes it when the room empties. A pull request's preview gets no kept files.
+- **Root:** an image runs as the user it asked for, root included, because `userns-remap` makes root in a room user 100000 on the machine. It holds seven rights inside the room (`ROOM_CAPS`): enough for `apt install` or official nginx, nothing touching the kernel or the network. `no-new-privileges`, Docker's seccomp profile and the memory, CPU and process limits stay on. `rootIsRemapped` checks this: without it, the app runs as nobody.
+- **Without `COLOC_ROOM_DISK_MB`** (a laptop, whose disk can't enforce a size) a room stays read-only and runs as nobody, as it did at first.
+
+Still one room, one address, one port: a second project can run inside, but visitors can't reach it yet.
+
+## SSH into a room
+
+`ssh -p 2222 <room>.<house>@<city host>` opens a shell inside a room's running project. There's no real login on the server: the API is the SSH server, and the person never touches the machine.
+
+1. **The door** (`apps/api/src/ssh/ssh.gateway.ts`, the `ssh2` library, public keys only). The name says which room. The offered key must belong to its occupant or a teammate who still lives in the house (`SshService.people`). The chef has no way in, and example rooms have none. Every refusal reads the same, so nobody can use it to find out which rooms exist.
+2. **The line** (`agents/shell.broker.ts`). Bytes go over the caretaker's existing websocket, so no room or server needs a port of its own.
+3. **The shell** (`apps/agent/src/shell.ts`). A `docker exec` in the room's running prod container, so it has what the project has: same user, disk, network and limits. Closing the line doesn't stop a `docker exec`, so the shell writes down its process number and the caretaker hangs up on that group, as any server does: `nohup` and `tmux` keep running until the next deploy. `sweep` does the same for what a crashed caretaker left behind.
+
+Only a shell or a command: no passwords, no sftp, no port forwarding. Limits: 4 shells a person, 40 a server, 200 connections, 30 new connections a minute per address, 20 s to log in, 30 min idle, and a login that opens no shell closes after 2 min. Access is checked again every 60 s, so someone taken off a team is out within a minute.
+
+Output is paced: the caretaker pauses above 1 MB not yet acknowledged and resumes below 256 KB, and the API acknowledges once SSH has taken the bytes. Input that arrives while the shell is still starting waits for it, because a pipe doesn't wait.
+
+Keys belong to a person, not a room (`ssh_keys`, `/api/me/ssh-keys`). A real GitHub account gets `github.com/<login>.keys` the first time the tab opens, and never again by itself (`users.ssh_keys_chosen`): a key someone removed stays removed.
+
+The gateway only starts with `COLOC_SSH_PORT` and `COLOC_SSH_HOST_KEY_FILE` set. `deploy/setup.sh` sets both, makes the host key once and opens the port.
+
 ## The chat
 
 Every conversation is a channel in the `messages` table: `house:<id>`, `application:<id>`, `dm:<id>:<id>` (two
@@ -222,7 +249,7 @@ A good hour of reading: `packages/protocol/src/index.ts` → `apps/agent/src/roo
 Planned at the start, not in the code. Each is on [TODO.md](../TODO.md) or was cut:
 
 - The real server on Datacloud: `deploy/` has only run on a DigitalOcean droplet so far.
-- A database per room (the "kitchen"), backups, disk limits and disk measurement.
+- A database per room (the "kitchen"), backups, showing a room how much disk it uses, and a second address for a second project in a room.
 - A job queue (pg-boss) and timed jobs: webhooks are handled straight away, and a few timers do the rest.
 - Real payment and a real hosting provider: `houses/payment.ts` simulates the first, `houses/landlord.ts` stands in for the second.
 - gVisor for stronger walls, and more stacks without a Dockerfile (Railpack would replace `recipe.ts` if they pile up).

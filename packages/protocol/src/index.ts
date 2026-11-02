@@ -33,6 +33,8 @@ export const DeployCommand = z.object({
   port: z.number().int().min(1).max(65535).optional(),
   limits: RoomLimits,
   env: z.record(z.string()).default({}),
+  // Who lives there: their files are kept for them, and never handed to the next person (room-spec.ts, roomHomeVolume).
+  occupant: z.string().min(1).optional(),
 });
 export type DeployCommand = z.infer<typeof DeployCommand>;
 
@@ -88,7 +90,28 @@ export type CancelBuildCommand = z.infer<typeof CancelBuildCommand>;
 // What a cancelled deployment says, so the API and the room page can tell it from a real failure.
 export const BUILD_CANCELLED = "Build cancelled.";
 
-export const ApiToAgent = z.discriminatedUnion("type", [DeployCommand, RemoveRoomCommand, RestartRoomCommand, RemovePreviewCommand, GetLogsCommand, InspectCommand, CancelBuildCommand]);
+// A shell inside a room's running app, for someone the API let in over SSH (apps/api/src/ssh). The bytes go as base64,
+// a few KB at a time. `command`: run that and stop (`ssh room ls`). Left out: an interactive shell. `tty`: a terminal of
+// that size, as `ssh` asks for when a person is typing.
+export const ShellId = z.string().min(1).max(64);
+export const ShellOpen = z.object({
+  type: z.literal("shell_open"),
+  shellId: ShellId,
+  room: RoomName,
+  command: z.string().max(8192).optional(),
+  tty: z.object({ term: z.string().max(64), cols: z.number().int().min(1).max(1000), rows: z.number().int().min(1).max(1000) }).optional(),
+});
+export type ShellOpen = z.infer<typeof ShellOpen>;
+export const ShellInput = z.object({ type: z.literal("shell_input"), shellId: ShellId, data: z.string().max(90_000) });
+// Nothing more to read on its stdin: `cat file | ssh room 'cat > /tmp/file'` needs to hear it.
+export const ShellEof = z.object({ type: z.literal("shell_eof"), shellId: ShellId });
+export const ShellResize = z.object({ type: z.literal("shell_resize"), shellId: ShellId, cols: z.number().int().min(1).max(1000), rows: z.number().int().min(1).max(1000) });
+// So much of its output has reached the person. The caretaker holds a command back when too much hasn't.
+export const ShellAck = z.object({ type: z.literal("shell_ack"), shellId: ShellId, bytes: z.number().int().min(0) });
+// The person left: whatever the shell is running stops too.
+export const ShellClose = z.object({ type: z.literal("shell_close"), shellId: ShellId });
+
+export const ApiToAgent = z.discriminatedUnion("type", [ShellOpen, ShellInput, ShellEof, ShellResize, ShellAck, ShellClose, DeployCommand, RemoveRoomCommand, RestartRoomCommand, RemovePreviewCommand, GetLogsCommand, InspectCommand, CancelBuildCommand]);
 export type ApiToAgent = z.infer<typeof ApiToAgent>;
 
 // ---- agent → API ----
@@ -193,7 +216,13 @@ export const Inspected = z.object({
 });
 export type Inspected = z.infer<typeof Inspected>;
 
-export const AgentToApi = z.discriminatedUnion("type", [Hello, DeployStatus, DeployLog, Inspected, Usage, RoomEvent, RoomsSnapshot, Logs]);
+export const ShellOutput = z.object({ type: z.literal("shell_output"), shellId: ShellId, data: z.string().max(90_000), stderr: z.boolean().optional() });
+export type ShellOutput = z.infer<typeof ShellOutput>;
+// It's over: how the command ended, or why it never started. `reason` is one of a few words the API turns into a sentence.
+export const ShellExit = z.object({ type: z.literal("shell_exit"), shellId: ShellId, code: z.number().int().optional(), reason: z.enum(["not_running", "failed"]).optional() });
+export type ShellExit = z.infer<typeof ShellExit>;
+
+export const AgentToApi = z.discriminatedUnion("type", [ShellOutput, ShellExit, Hello, DeployStatus, DeployLog, Inspected, Usage, RoomEvent, RoomsSnapshot, Logs]);
 export type AgentToApi = z.infer<typeof AgentToApi>;
 
 export function parseApiToAgent(raw: string): ApiToAgent {

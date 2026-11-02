@@ -7,6 +7,7 @@ import { Core, isCoreDown } from "../core/core";
 import { HousesService } from "../houses/houses.service";
 import { AgentRegistry } from "./agent.registry";
 import { LogsBroker } from "./logs.broker";
+import { ShellBroker } from "./shell.broker";
 
 const HELLO_TIMEOUT_MS = 5000;
 // WebSocket close code 1013, "try again later": what we say when the database can't take the call right now.
@@ -29,6 +30,7 @@ export class AgentsGateway implements OnGatewayConnection {
     private readonly houses: HousesService,
     private readonly registry: AgentRegistry,
     private readonly logs: LogsBroker,
+    private readonly shells: ShellBroker,
     private readonly core: Core,
   ) {}
 
@@ -70,7 +72,10 @@ export class AgentsGateway implements OnGatewayConnection {
       clearTimeout(helloTimer);
       if (!houseId) return;
       this.registry.unregister(houseId, socket);
-      if (!this.registry.isOnline(houseId)) this.houses.setAgentOnline(houseId, false);
+      if (!this.registry.isOnline(houseId)) {
+        this.houses.setAgentOnline(houseId, false);
+        this.shells.houseGone(houseId);
+      }
       this.log.log(`agent offline: ${houseId}`);
     });
   }
@@ -93,6 +98,8 @@ export class AgentsGateway implements OnGatewayConnection {
       authenticated(msg.houseId);
       // Before anything new can be sent to it: what it doesn't know about now, it never will.
       if (msg.building) await this.houses.failLostBuilds(msg.houseId, msg.building);
+      // Any shells it had are on the old line, and it closes them when this one opens.
+      this.shells.houseGone(msg.houseId);
       this.registry.register(msg.houseId, socket);
       this.houses.setAgentOnline(msg.houseId, true);
       // The first time a new house's agent phones in, the house is no longer "in the making".
@@ -102,6 +109,12 @@ export class AgentsGateway implements OnGatewayConnection {
     }
 
     switch (msg.type) {
+      case "shell_output":
+        this.shells.output(houseId, msg);
+        break;
+      case "shell_exit":
+        this.shells.exit(houseId, msg);
+        break;
       case "deploy_status":
         await this.houses.recordDeployStatus(houseId, msg);
         break;

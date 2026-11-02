@@ -5,6 +5,7 @@ import type { Core } from "../core/core";
 import type { HousesService } from "../houses/houses.service";
 import { AgentsGateway, TRY_AGAIN_LATER } from "./agents.gateway";
 import type { AgentRegistry } from "./agent.registry";
+import type { ShellBroker } from "./shell.broker";
 import type { LogsBroker } from "./logs.broker";
 
 const hello = JSON.stringify({ type: "hello", houseId: "atelier", secret: "s", agentVersion: "1" });
@@ -14,7 +15,7 @@ function setup({ ready = true, verify = async () => true as boolean } = {}) {
   const core = { ready, reportDown: vi.fn() };
   const houses = { verifyAgentSecret: verify, setAgentOnline: vi.fn(), markLive: async () => false, failLostBuilds: vi.fn() } as unknown as HousesService;
   const registry = { register: vi.fn(), unregister: vi.fn(), isOnline: () => false } as unknown as AgentRegistry;
-  const gateway = new AgentsGateway(houses, registry, {} as LogsBroker, core as unknown as Core);
+  const gateway = new AgentsGateway(houses, registry, {} as LogsBroker, { houseGone: vi.fn() } as unknown as ShellBroker, core as unknown as Core);
   const socket = Object.assign(new EventEmitter(), { close: vi.fn() });
   return { core, gateway, socket, registry };
 }
