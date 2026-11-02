@@ -1612,18 +1612,18 @@ function statsOf(name: string) {
    minimap and the key hints, which the panel would half cover), leaving the place and the site's keys. */
 .paused .hud.top, .paused .hud.tools, .paused .hud.map, .paused .hud.find-key, .paused .hud.coin-key, .paused .hud.help { opacity: 0; pointer-events: none; }
 /* The search, top left: a white key with a red edge. Pressed, the field opens in the same place. */
-.find-key, .field { display: flex; align-items: center; gap: 10px; height: 62px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
+.find-key, .field { display: flex; align-items: center; gap: 10px; height: 62px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel-red), var(--lift); }
 .find-key { top: 24px; left: 24px; width: 62px; min-height: 0; justify-content: center; padding: 0; }
 .coin-key { top: 24px; left: calc(24px + 62px + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); font: 800 18px/1 var(--num); font-variant-numeric: tabular-nums; }
 .coin-key:hover:not(:disabled) { background: var(--tile); }
-.coin-key svg { flex: none; color: var(--accent); }
+.coin-key svg { flex: none; color: var(--panel-red); }
 .find-key:hover:not(:disabled) { background: var(--tile); }
-.find-key svg, .field svg { flex: none; color: var(--accent); }
-.place { top: 24px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 16px; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); cursor: pointer; }
+.find-key svg, .field svg { flex: none; color: var(--panel-red); }
+.place { top: 24px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 16px; border: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
 .place .city { font: 800 20px/1.1 var(--font); white-space: nowrap; }
 .lobby-number { top: 94px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 6px; height: 46px; min-height: 0; padding: 0 12px; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 800 16px/1 var(--font); box-shadow: 0 3px 0 var(--hairline); cursor: pointer; }
 .place:hover:not(:disabled) { background: var(--accent-fill-hover); }
-.place:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
+.place:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 /* What needs attention in this city, a yellow chip at the top; absent while all is well. It never catches clicks. */
 .top { top: calc(98px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: var(--r-md); background: var(--sticker); color: var(--ink); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
 .top.danger::before { content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--panel-red); }
@@ -1654,14 +1654,14 @@ function statsOf(name: string) {
   .tools { display: flex; }
   .help { display: none; }
 }
-.tools button { width: 50px; height: 50px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; display: grid; place-items: center; background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); cursor: pointer; }
+.tools button { width: 50px; height: 50px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; display: grid; place-items: center; background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
 .tools button:hover:not(:disabled) { background: var(--accent-fill-hover); }
-.tools button:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
+.tools button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 /* The open card, under the keys on the right; its empty space lets clicks through to the city. */
 .dock { top: 112px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; pointer-events: none; }
 .dock > * { pointer-events: auto; }
 /* "?", bottom right: the list of keys. */
-.help { right: 24px; bottom: max(28px, env(safe-area-inset-bottom)); width: 50px; height: 50px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); font: 800 22px/1 var(--font); cursor: pointer; }
+.help { right: 24px; bottom: max(28px, env(safe-area-inset-bottom)); width: 50px; height: 50px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 800 22px/1 var(--font); cursor: pointer; }
 .help:hover:not(:disabled) { background: var(--tile); }
 /* The middle column along the bottom: the coach or the prompt; the gaps let clicks through. */
 .centre { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
@@ -1680,7 +1680,7 @@ function statsOf(name: string) {
 }
 .soft { color: var(--muted); }
 /* The one main action: the red key, and the key it answers to. */
-.pill { border: 0; border-radius: var(--r-md); padding: 0 8px 0 16px; min-height: 46px; font: 500 18px/1 var(--font); background: var(--accent-fill); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
+.pill { border: 0; border-radius: var(--r-md); padding: 0 8px 0 16px; min-height: 46px; font: 400 18px/1 var(--display); background: var(--accent-fill); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
 .pill:active:not(:disabled) { transform: translateY(1px); }
 .pill:hover:not(:disabled) { background: var(--accent-fill-hover); }
 .map { left: 24px; bottom: max(28px, env(safe-area-inset-bottom)); }
@@ -1694,12 +1694,12 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .field input { flex: 1; min-width: 0; min-height: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; font-size: 19px; font-weight: 800; }
 .field input:focus { outline: none; }
 .field input::-webkit-search-cancel-button { display: none; }
-.field .x { flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 500 20px/1 var(--font); }
+.field .x { flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); font: 400 20px/1 var(--display); }
 .find .entries { flex: 0 1 auto; min-height: 0; list-style: none; margin: 0; padding: 6px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); overflow-y: auto; overscroll-behavior: contain; }
 .find .entry { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; cursor: pointer; }
 .find .entry:hover:not(:disabled) { background: var(--tile); }
 .find .entry:focus-visible { outline: none; background: var(--accent-soft); }
-.find .mark { flex: none; color: var(--accent); }
+.find .mark { flex: none; color: var(--panel-red); }
 .find .title { flex: 1; min-width: 0; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .find .where { flex: none; color: var(--muted); }
 .find .free-chip { flex: none; padding: 2px 8px; border-radius: var(--r-xs); background: var(--sticker); color: var(--ink); font-size: 15px; font-weight: 800; }
@@ -1747,10 +1747,10 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 @media (max-width: 520px) {
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
   .coin-key { top: 12px; left: calc(12px + 46px + 6px); height: 46px; padding: 0 10px; gap: 5px; font-size: 15px; }
-  .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: inset 0 0 0 1.5px var(--line), 0 3px 0 rgba(20, 12, 18, 0.45); }
+  .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: inset 0 0 0 3px var(--panel-red), 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
   .lobby-number { top: 66px; right: calc(12px + var(--keys-width, 0px) + 6px); }
-  .place { top: 12px; right: calc(12px + var(--keys-width, 0px) + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
+  .place { top: 12px; right: calc(12px + var(--keys-width, 0px) + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
   .place svg { display: none; }
   .place .city { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
   .prompt { gap: 10px; padding-left: 14px; font-size: 15px; max-width: 100%; }
@@ -1762,7 +1762,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .centre:not(.lifted) { left: 12px; bottom: max(28px, env(safe-area-inset-bottom)); transform: none; align-items: flex-start; max-width: calc(100vw - 180px); }
   /* The tools stand in a column down the right, under the keys, in the thumb's way of nothing. */
   .tools { top: calc(68px + var(--core-offset, 0px)); right: 12px; bottom: auto; flex-direction: column; gap: 6px; }
-  .tools button { width: 46px; height: 46px; box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
+  .tools button { width: 46px; height: 46px; box-shadow: 0 3px 0 var(--accent-lip); }
   /* One line: the city's name is already top right, and anything longer ends in "…". */
   .top { top: calc(68px + var(--core-offset, 0px)); left: 12px; right: 64px; transform: none; max-width: none; padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top p { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }

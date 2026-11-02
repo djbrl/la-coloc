@@ -45,7 +45,7 @@ function onKey(e: KeyboardEvent) {
   from { opacity: 0; transform: translateY(12px) scale(0.95); }
 }
 /* The picture: your house on a flat blue sky, a band of sand under it, the sticker slapped on the corner. */
-.hero { position: relative; display: grid; justify-items: center; padding-top: 18px; background: linear-gradient(var(--panel-blue) calc(100% - 22px), var(--wall-drawn) 0); }
+.hero { position: relative; display: grid; justify-items: center; padding-top: 18px; background: linear-gradient(var(--panel-blue) calc(100% - 22px), var(--wall) 0); }
 .art { width: 250px; margin-bottom: 9px; }
 .done { position: absolute; top: 14px; left: 14px; padding: 5px 12px 6px 10px; }
 .done .w { font-size: 15px; }

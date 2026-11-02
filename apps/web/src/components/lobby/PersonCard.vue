@@ -145,7 +145,7 @@ async function send(kind: "invite" | "share" | "withdraw") {
     <p v-else-if="said" class="soft small" role="status">{{ said }}</p>
     <p v-else-if="madeUp" class="soft small">{{ w.exampleLine }}</p>
 
-    <div class="menu sill">
+    <div class="menu">
       <!-- Chat first: never missing on someone who isn't you. -->
       <RouterLink v-if="message?.kind === 'login'" to="/login" class="big primary" :aria-label="w.messageLoginName(name)">
         <Icon name="chat" :size="20" /> {{ hw.person.chat }}

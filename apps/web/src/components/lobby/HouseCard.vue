@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // A house, seen from the street: what it is, who lives in it and what they build, which rooms are free, and
-// who's around right now. Like a game's interaction menu: "Go in" is the main action, and the panes show the rooms at
-// a glance: a flatmate at home, or a dark room with its sign.
+// who's around right now. Like a game's interaction menu: "Go in" is the main action, and the little building shows
+// the rooms at a glance (a blue window is free, as in the city).
 import { computed } from "vue";
 import { me } from "../../session";
 import type { CityHouse } from "../../types";
+import Avatar from "../Avatar.vue";
 import FreeSticker from "./FreeSticker.vue";
 import Icon from "./house/Icon.vue";
-import { roomPicture } from "./house/roomPicture";
 import HouseStats from "./HouseStats.vue";
 import { type CityRoom, knockOn, listNames, nameOf, sentence } from "./cards";
 import LobbyCard from "./LobbyCard.vue";
@@ -59,26 +59,17 @@ const hereLine = computed(() => {
       <FreeSticker v-if="free.length" :n="free.length" />
     </div>
 
-    <!-- The panes: a lit room per flatmate, a dark one with its sign when it's free. A free pane you may knock on is a
-         button. A room being built flickers. -->
-    <ul class="panes">
-      <li v-for="room in house.rooms" :key="room.name" class="pane" :class="{ free: !room.occupant, building: room.building }">
+    <!-- The little building: a lit window per room, the free ones blue, as in the city. A free window you may knock on
+         is a button. -->
+    <ul class="building">
+      <li v-for="room in house.rooms" :key="room.name" class="window" :class="{ free: !room.occupant }">
         <template v-if="room.occupant">
-          <img class="pic" :src="roomPicture(room.occupant.login)" alt="" loading="lazy" />
-          <span class="tag">
-            <span class="who" :title="nameOf(room.occupant)">{{ nameOf(room.occupant) }}</span>
-            <span class="project">{{ room.project ?? room.name }}</span>
-          </span>
-          <span class="sr-only">{{ room.project ? w.builds(room.project) : w.room(room.name) }}</span>
+          <span class="who" :title="nameOf(room.occupant)"><Avatar :person="room.occupant" :size="56" decorative /></span>
+          <span class="project">{{ room.project ?? room.name }}</span>
+          <span class="sr-only">{{ nameOf(room.occupant) }}, {{ room.project ? w.builds(room.project) : w.room(room.name) }}</span>
         </template>
-        <button v-else-if="canKnock" class="free-go" :aria-label="w.knockName(room.name)" :title="room.ad ? sentence(seeded(room.ad)) : w.openToAll" @click="emit('knock', room)">
-          <span class="loue"><b>{{ w.forRent }}</b></span>
-        </button>
-        <span v-else class="free-go" :title="room.ad ? sentence(seeded(room.ad)) : w.openToAll">
-          <span v-if="knock?.room === room.name" class="knocked">{{ w.knocked }}</span>
-          <span v-else class="loue"><b>{{ w.forRent }}</b></span>
-          <span class="sr-only">, {{ room.name }}</span>
-        </span>
+        <button v-else-if="canKnock" class="free-go" :aria-label="w.knockName(room.name)" :title="room.ad ? sentence(seeded(room.ad)) : w.openToAll" @click="emit('knock', room)">{{ w.free }}</button>
+        <span v-else class="free-word" :title="room.ad ? sentence(seeded(room.ad)) : w.openToAll">{{ knock?.room === room.name ? w.knocked : w.free }}<span class="sr-only">, {{ room.name }}</span></span>
       </li>
     </ul>
 
@@ -88,7 +79,7 @@ const hereLine = computed(() => {
     <p v-if="mine" class="soft small">{{ w.yourHouse }}</p>
     <p v-else-if="hereLine" class="soft small">{{ hereLine }}</p>
 
-    <div class="menu sill">
+    <div class="menu">
       <div class="main">
         <button class="big primary" @click="emit('enter')">
           <Icon name="door" :size="22" /> {{ w.goIn }} <kbd v-if="near" aria-hidden="true">E</kbd>
@@ -106,38 +97,24 @@ const hereLine = computed(() => {
 <style scoped>
 .house-card { --card-width: 410px; }
 .facts { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; }
-/* The panes: two a floor on the dark frame. A lit room with a paper tag under it, or a dark room with its sign. */
-.panes { list-style: none; margin: 0; padding: 5px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; border-radius: 3px; background: var(--frame); }
-.pane { display: flex; flex-direction: column; min-width: 0; height: 112px; overflow: hidden; background: #ffd9a6; }
-.pic { flex: 1 1 0; min-height: 0; width: 100%; object-fit: cover; object-position: 50% 62%; }
-.tag { flex: none; display: grid; padding: 5px 8px 6px; background: var(--surface); color: var(--text); }
-.who, .project { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.who { font-size: 14px; font-weight: 600; line-height: 1.2; }
-.project { font-size: 13px; line-height: 1.2; color: var(--muted); }
-.pane.free { background: var(--dark-room); }
-.free-go { display: grid; place-items: center; width: 100%; height: 100%; min-height: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; }
-button.free-go:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
-.free-go:focus-visible { outline: 3px solid #ffd21f; outline-offset: -5px; }
-.knocked { color: #fff1dc; font-weight: 600; }
-/* The bulb in a room being built isn't sure of itself. Never more than three flashes in a second. */
-.pane.building .pic { animation: unsure 5s linear infinite; }
-@keyframes unsure {
-  0%, 62% { filter: none; }
-  63% { filter: brightness(0.62); }
-  65% { filter: none; }
-  67% { filter: brightness(0.7); }
-  69%, 100% { filter: none; }
-}
-.what { font-size: 16px; font-weight: 500; line-height: 1.25; }
+/* The building: two windows a floor on a black frame. A lit window has its flatmate's face and project in it. */
+.building { list-style: none; margin: 0; padding: 6px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; background: var(--ink); }
+.window { position: relative; height: 96px; min-width: 0; overflow: hidden; background: var(--lit-window); }
+.window.free { background: var(--free-window); }
+.who { position: absolute; left: 8px; top: 8px; display: block; }
+.project { position: absolute; right: 5px; bottom: 5px; max-width: calc(100% - 10px); padding: 1px 6px; border-radius: 5px; background: #ffffff; color: var(--ink); font-size: 14px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.free-go, .free-word { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 0; padding: 0; border-radius: 0; background: none; color: #ffffff; font: 800 20px/1 var(--font); }
+.free-go:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
+.free-go:focus-visible { outline-color: #ffffff; outline-offset: -5px; }
+.what { font-size: 19px; font-weight: 800; line-height: 1.15; }
 .main { display: flex; gap: 8px; }
 .main .primary { flex: 1 1 auto; }
 .main .knock { flex: 0 1 auto; min-height: 60px; font-size: 18px; }
-/* A phone: lower panes, so the main button stays in view. */
+/* A phone: lower windows, so the main button stays in view. */
 @media (max-width: 520px), (max-height: 760px) {
-  .pane { height: 92px; }
+  .window { height: 72px; }
+  .who :deep(.avatar) { width: 44px !important; height: 44px !important; }
+  .who { left: 6px; top: 6px; }
   .facts { min-height: 46px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pane.building .pic { animation: none; }
 }
 </style>

@@ -1,141 +1,89 @@
 /*
- * La Coloc's look: "Pièce allumée", the landing's street carried into the game. You stand on the sidewalk at dusk, and
- * every window is a lit room: a dark frame with a warm glow round it, an orange wall with curtains and a string of
- * lights (one bulb is dead, always the same one), what you read on paper taped to that wall, and a dark sill under it
- * for what you can do. The main button is a lit neon tube, the others dark glass.
+ * La Coloc's look: "Panneau", a hardware-store FOR RENT sign turned into a game's menus.
  *
- * Titles are in Londrina Solid, everything else in Rubik, buttons included: no funky font on a button. The À LOUER sign
- * keeps Archivo Black. Wear means something or it isn't there: a flickering pane is a room being built.
+ * Every card is a sign: an off-white board, a coloured line inside its edge, a title band in the panel's colour, a white
+ * body, a hard flat shadow under it (.sign below). Titles and buttons are in Archivo Black;
+ * everything else is Bricolage Grotesque. A line only ever runs between two rows. One radius (9px), three button
+ * heights (46 in a row, 50 by default, 60 for the main action). No glass, no blur, no soft shadows.
  *
- * Every colour is a token below. There are two scopes: the street (the page, the HUD, the sill) and the room (the inside
- * of a window). Components never write a colour of their own. Fonts are self-hosted (fonts.css says which files and
- * why), all under the SIL Open Font Licence.
+ * Every colour is a token below, for day and for night. Components never write a colour of their own. Fonts are
+ * self-hosted (fonts.css says which files and why), all under the SIL Open Font Licence.
  */
-:root, .tone-street, .sill {
-  /* Surfaces: the night's plum, and a lighter one for tracks and quiet buttons. */
-  --board: #1c1426;
-  --bg: #120c1c;
-  --surface: #1c1426;
-  --sunken: #150f1e;
-  --tile: #2a2036;
-  --fill: #2a2036;
-  --fill-hover: #36293f;
+:root, .tone-day {
+  /* Surfaces: the sign's off-white board, a white body on it, soft fills for tracks and quiet buttons. */
+  --board: #f7f5ef;
+  --bg: #f7f5ef;
+  --surface: #ffffff;
+  --sunken: #f1eee6;
+  --tile: #f1eee6;
+  --fill: #e8e5dd;
+  --fill-hover: #dcd8ce;
 
-  /* Text and lines. --muted keeps 4.5:1 or more on --fill-hover. */
-  --text: #fff1dc;
-  --muted: #cdbdc6;
-  --border: #6b5a78;
-  --line: #43344f;
-  --line-strong: #6b5a78;
-  --hairline: rgba(255, 241, 220, 0.14);
+  /* Text and lines. --muted keeps 4.5:1 or more even on --fill-hover, so 12–13 px lines stay readable. */
+  --text: #17151a;
+  --muted: #5c5862;
+  --border: #17151a;
+  /* A faint edge where something still needs one, the ink's edge, and the line between two rows. */
+  --line: #e0dcd2;
+  --line-strong: #17151a;
+  --hairline: rgba(23, 21, 26, 0.16);
 
-  --accent: #ff8fa3;
-  --accent-soft: #3a1427;
-  /* The keyboard's focus ring. */
-  --ring: #ffd21f;
-  --focus: rgba(255, 210, 31, 0.4);
+  /* The sign's red: filled buttons, and red words on white. --accent-lip is the darker step under the HUD's keys. */
+  --accent: #b3202c;
+  --accent-fill: #b3202c;
+  --accent-fill-hover: #c8283a;
+  --accent-lip: #6e121b;
+  --accent-soft: #f9e4e3;
+  --on-accent: #ffffff;
+  /* The keyboard's focus ring, in the handles' blue so it never hides on a red button. */
+  --ring: #1e4fa8;
+  --focus: rgba(30, 79, 168, 0.4);
   /* An @handle, the same blue everywhere. */
-  --handle: #8fb4ff;
+  --handle: #1e4fa8;
 
   /* Status: green is online (a dot and nothing else), yellow is what needs attention, red is down. */
-  --live: #4fd08d;
-  --live-soft: #163a2a;
-  --warn: #ffb53d;
-  --warn-soft: #4a3208;
-  --danger: #ff7a7a;
-  --danger-soft: #3d1620;
-  --on-danger: #2a0c10;
-  /* A free room: blue, as a free window in the city (lobby/windows.ts). --free is for words. */
-  --free: #8fb0ff;
-  --free-soft: #1c2a52;
-
-  --nav-bg: #1c1426;
-  --nav-bg-float: #1c1426;
-  --scrim: rgba(18, 12, 28, 0.55);
-  /* Soft, and dark: a window or a piece of the HUD standing off the street. */
-  --shadow: 0 14px 26px -6px rgba(0, 0, 0, 0.7);
-  --lift: 0 6px 14px -4px rgba(0, 0, 0, 0.6);
-  /* A ghost button's edge. */
-  --quiet-edge: inset 0 0 0 1.5px var(--border);
-  color-scheme: dark;
-}
-
-/* Inside a window: ink on the orange wall and on paper. --muted keeps 4.5:1 on the wall's darkest corner. */
-.sign, dialog.step-sign, .tone-room {
-  --board: #fbf3e2;
-  --bg: #fbf3e2;
-  --surface: #fbf3e2;
-  --sunken: #f3e6cc;
-  --tile: #fbf3e2;
-  --fill: rgba(42, 22, 33, 0.12);
-  --fill-hover: rgba(42, 22, 33, 0.2);
-
-  --text: #2a1621;
-  --muted: #431f18;
-  --border: #2a1621;
-  --line: rgba(42, 22, 33, 0.2);
-  --line-strong: rgba(42, 22, 33, 0.45);
-  --hairline: rgba(42, 22, 33, 0.16);
-
-  --accent: #5a0a17;
-  --accent-soft: #ffe0b8;
-  --ring: #15101c;
-  --focus: rgba(21, 16, 28, 0.35);
-  --handle: #142f80;
-
-  --live: #0b5a37;
-  --live-soft: #d9efe0;
-  --warn: #5a3400;
+  --live: #1f8a4c;
+  --live-soft: #ddf2e5;
+  --warn: #7a4e00;
   --warn-soft: #ffd21f;
-  --danger: #5a0a17;
-  --danger-soft: #fbe0dc;
+  --danger: #b3202c;
+  --danger-soft: #f9e4e3;
   --on-danger: #ffffff;
-  --free: #142f80;
-  --free-soft: #dfe6fb;
+  /* A free room: blue, as a free window in the city (lobby/windows.ts). --free is for words on white. */
+  --free: #2f62e0;
+  --free-soft: #e5edff;
 
-  --quiet-edge: inset 0 0 0 1.5px var(--border);
-  color-scheme: light;
-}
-
-/* Theme-free tokens: the panels' colours, type, sizes, corners, motion. */
-:root {
-  /* The window: its dark frame, the warm light it throws on the street, and its wall (curtains, then the orange). */
-  --frame: #15101c;
-  --window-glow: inset 0 0 0 1.5px #2e2436, 0 0 44px 10px rgba(240, 133, 58, 0.3), 0 14px 26px -6px rgba(0, 0, 0, 0.7);
-  --curtain: repeating-linear-gradient(90deg, #5e1420 0 3px, #481019 3px 6px);
-  --wall: var(--curtain) left / 7px 100% no-repeat, var(--curtain) right / 7px 100% no-repeat, radial-gradient(90% 75% at 50% 0, #ffbb6e, #f28e42 58%, #dd7329);
-  /* The string of lights along a window's top. */
-  --bulb: #ffe08a;
-  /* A dark room: free, with its sign. */
-  --dark-room: radial-gradient(70% 60% at 50% 40%, #2a3a6b, #18224a);
-
-  /* The neon, off the landing: the main button is a lit tube on dark glass. Same in every scope. */
-  --accent-fill: #2b101e;
-  --accent-fill-hover: #3a1427;
-  --accent-lip: #12060c;
-  --on-accent: #fff4ef;
-  --neon: #ff4a68;
-  --neon-core: #ffe6e6;
-  --neon-glow: rgba(255, 45, 85, 0.6);
-  --tube: inset 0 0 0 1px var(--neon-core), 0 0 0 3px var(--neon), 0 0 16px 3px var(--neon-glow), inset 0 0 16px rgba(255, 45, 85, 0.4);
-  --tube-hot: inset 0 0 0 1px #ffffff, 0 0 0 3px #ff6480, 0 0 24px 6px var(--neon-glow), inset 0 0 22px rgba(255, 45, 85, 0.55);
-
-  /* Solid colours that stand for something, whatever the scope. */
-  --panel-red: #7a1020;
-  --panel-green: #1f6b4a;
-  --panel-blue: #24335f;
-  --panel-black: #1c1426;
   /* The house drawings (HouseDrawing.vue). */
   --roof: #c4683f;
-  --wall-drawn: #f3e3cf;
+  --wall: #f3e3cf;
   --window-off: #d9d1c4;
   /* A lit window (your room, online) and a palm's leaves, for the quest's drawings (tutorial/HouseArt.vue). */
   --window-lit: #ffc94d;
   --leaf: #3e8a4a;
   --sky-dot: #f2b33d;
-  /* Logs read best light-on-dark. */
-  --code-bg: #120c1c;
-  --code-text: #fff1dc;
+
+  /* Logs read best light-on-dark in both modes. */
+  --code-bg: #17151a;
+  --code-text: #f7f5ef;
+
+  --nav-bg: #ffffff;
+  --nav-bg-float: #ffffff;
+  --scrim: rgba(24, 12, 22, 0.55);
+  /* Hard and flat, like a board held off a wall: --shadow under a card, --lift under a small piece of the HUD. */
+  --shadow: 0 7px 0 rgba(20, 12, 18, 0.45);
+  --lift: 0 5px 0 rgba(20, 12, 18, 0.45);
+  /* A ghost button's edge: three pixels of ink. */
+  --quiet-edge: inset 0 0 0 3px var(--text);
+  color-scheme: light;
+}
+
+/* Theme-free tokens: the panels' colours, type, sizes, corners, motion. */
+:root {
+  /* What a panel is about, by colour: houses, rent and people; settings; notifications; chat. And the yellow sticker. */
+  --panel-red: #b3202c;
+  --panel-green: #1f6b4a;
+  --panel-blue: #1e4fa8;
+  --panel-black: #17151a;
   --sticker: #ffd21f;
   --ink: #17151a;
   /* A free room's window, on the little building and in a room's row. */
@@ -144,11 +92,9 @@
   --lit-window: #ffd27f;
   --on-panel: #ffffff;
 
-  --font: "Rubik", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  /* Titles. */
-  --display: "Londrina Solid", var(--font);
-  /* The À LOUER sign and the yellow sticker: a hardware store's own letters. */
-  --sign-font: "Archivo Black", var(--font);
+  --font: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Titles and buttons. */
+  --display: "Archivo Black", var(--font);
   /* Numbers that line up in columns: the text face with tabular figures (see .num). */
   --num: var(--font);
   /* Real code only: logs, a command, an address. */
@@ -164,11 +110,11 @@
   --t-3xl: 40px;
 
   /* One corner, everywhere. The names stay so a component can say what it's rounding; a dot or a pill keeps --r-pill. */
-  --r-xs: 8px;
-  --r-sm: 8px;
-  --r-md: 8px;
-  --r-lg: 8px;
-  --r-xl: 8px;
+  --r-xs: 9px;
+  --r-sm: 9px;
+  --r-md: 9px;
+  --r-lg: 9px;
+  --r-xl: 9px;
   --r-pill: 999px;
 
   /* Spacing steps. */
@@ -192,11 +138,12 @@
 
   --wrap: 980px;
   --gutter: 22px;
+  color-scheme: light;
 }
 
 /*
- * One look, whatever the visitor's system prefers: `color-scheme` in each scope above keeps the browser's own form
- * controls and scrollbars in step. The 3D city's dusk is its own business (src/lobby/daylight.ts).
+ * One look: cards and menus are always on white, whatever the visitor's system prefers. `color-scheme` above keeps the
+ * browser's own form controls and scrollbars light too. The 3D city's light is its own business (src/lobby).
  */
 
 * { box-sizing: border-box; }
@@ -242,9 +189,9 @@ code { font-family: var(--code); font-size: 0.86em; }
 .rows .end { margin-left: auto; }
 
 /*
- * Buttons, in plain type, 50px tall unless a row or the main action says otherwise (46 and 56).
- * The main one is a lit neon tube (.primary), one per view. A ghost has a thin edge round it and nothing in it: that's
- * .second, a.button, and a plain <button> a component hasn't styled.
+ * Buttons, in the display face, 50px tall unless a row or the main action says otherwise (46 and 60).
+ * The main one is the sign's red (.primary), one per view. A ghost has three pixels of ink around it and nothing in
+ * it: that's .second, a.button, and a plain <button> a component hasn't styled.
  */
 button, input, select, textarea { font: inherit; color: inherit; }
 button {
@@ -254,9 +201,9 @@ button {
   border-radius: var(--r-md);
   background: var(--fill);
   color: var(--text);
-  font-family: var(--font);
-  font-size: 16px;
-  font-weight: 500;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 400;
   line-height: 1.1;
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
@@ -265,17 +212,15 @@ button:hover:not(:disabled) { background: var(--fill-hover); }
 button.primary, a.button.primary {
   background: var(--accent-fill);
   color: var(--on-accent);
-  box-shadow: var(--tube);
+  box-shadow: none;
 }
-button.primary:hover:not(:disabled), a.button.primary:hover { background: var(--accent-fill-hover); box-shadow: var(--tube-hot); }
-button.primary:active:not(:disabled), a.button.primary:active { filter: brightness(0.8); }
+button.primary:hover:not(:disabled), a.button.primary:hover { background: var(--accent-fill-hover); }
+button.primary:active:not(:disabled), a.button.primary:active { transform: translateY(1px); }
 /* The way back in a step-by-step sheet ("Back", "Not now", "Skip"), and any unstyled button: the ghost. */
 button.second, :where(button:not([class])) { background: transparent; box-shadow: var(--quiet-edge); }
 button.second:hover:not(:disabled), :where(button:not([class])):hover:not(:disabled) { background: var(--tile); }
 button.second:active:not(:disabled) { transform: translateY(1px); }
-button:disabled { opacity: 0.5; cursor: default; }
-/* A tube that's off: no glow, no promise. */
-button.primary:disabled { background: transparent; color: var(--text); box-shadow: var(--quiet-edge); }
+button:disabled { opacity: 0.42; cursor: default; }
 /* A button that reads like a word in a sentence: for secondary actions. */
 button.link, .more {
   display: inline-flex;
@@ -294,7 +239,7 @@ button.link, .more {
 button.link:hover:not(:disabled) { background: none; text-decoration: underline; text-underline-offset: 3px; }
 button.link.danger { color: var(--danger); }
 /* A link that does a button's job, like "Log in with GitHub". */
-a.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); background: transparent; color: var(--text); box-shadow: var(--quiet-edge); font-family: var(--font); font-size: 18px; font-weight: 400; line-height: 1.1; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+a.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); background: transparent; color: var(--text); box-shadow: var(--quiet-edge); font-family: var(--display); font-size: 18px; font-weight: 400; line-height: 1.1; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 a.button:hover { background: var(--tile); text-decoration: none; }
 /* "‹ Back to somewhere", above a page's headline. */
 .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin-bottom: 8px; font-size: 14px; }
@@ -305,7 +250,7 @@ input:where(:not([type="checkbox"], [type="radio"], [type="range"])), select, te
   width: 100%;
   min-height: 50px;
   padding: 10px 12px;
-  border: 1.5px solid var(--border);
+  border: 3px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface);
   color: var(--text);
@@ -415,34 +360,26 @@ button.toggle[role="switch"][aria-checked] .knob { display: none; }
 .toast { margin: 0; padding: 9px 16px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); font-size: 15px; line-height: 1.3; text-align: center; }
 .toast .said { font-weight: 800; }
 
-/* The window: a dark frame with a warm glow, an orange wall inside it, with the string of lights along the top. Sign.vue
+/* The sign: a round-cornered window with a line in the panel's colour for an edge, a title band, a white body. Sign.vue
    draws it for a small card; a panel that has to fit its own head and tabs (Inside.vue, ListCard.vue) uses the classes.
-   Paper (--surface, --tile) goes on the wall; .sill goes under it. */
-.sign { --panel: #2a1621; padding: 8px; border-radius: 8px; background: var(--frame); color: var(--text); box-shadow: var(--window-glow); }
-.sign-frame { display: flex; flex-direction: column; min-height: 0; height: 100%; border-radius: 3px; background: var(--wall); }
+   Set --panel on it to change the colour. */
+.sign { --panel: var(--panel-red); border-radius: 15px; color: var(--text); box-shadow: var(--shadow); }
+.sign-frame { display: flex; flex-direction: column; min-height: 0; height: 100%; border: 3px solid var(--panel); border-radius: 15px; background: var(--surface); }
 /* A band is the same height with or without a line under its title: 72 on a small card, 88 on a large one. */
-.sign-band { position: relative; flex: none; display: flex; flex-direction: column; justify-content: center; min-width: 0; height: 72px; padding: 12px 62px 0 18px; color: var(--text); }
+.sign-band { position: relative; flex: none; display: flex; flex-direction: column; justify-content: center; min-width: 0; height: 72px; padding: 0 62px 0 16px; border-radius: 12px 12px 0 0; background: var(--panel); color: var(--on-panel); }
 .sign-band.large { height: 88px; }
-.sign-band > h1, .sign-band > h2 { min-width: 0; margin: 0; font-size: 30px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sign-band.large > h1, .sign-band.large > h2 { font-size: 40px; }
-.sign-sub { margin: 2px 0 0; font-size: 15px; font-weight: 500; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* The lights, and the bulb that's dead. Two backgrounds, nothing to redraw. */
-.sign-band::before, .step-sign .inner .form > h2::before { content: ""; position: absolute; left: 18px; right: 18px; top: 3px; height: 14px; background: radial-gradient(circle, var(--bulb) 0 3.2px, rgba(255, 224, 138, 0.5) 3.8px, transparent 7px) 0 0 / 34px 14px repeat-x; pointer-events: none; }
-.sign-band::after, .step-sign .inner .form > h2::after { content: ""; position: absolute; left: 186px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: #8a5a2c; pointer-events: none; box-shadow: 0 0 0 3px #f2a053; }
-.sign-x { position: absolute; top: 50%; right: 14px; display: grid; place-items: center; width: 40px; height: 40px; min-height: 0; margin-top: -14px; padding: 0; border-radius: var(--r-md); background: var(--frame); color: #fff1dc; font: 500 16px/1 var(--font); cursor: pointer; }
-.sign-x:hover:not(:disabled) { background: #2a2036; }
-.sign-x:focus-visible { outline-color: var(--ring); }
-.sign-body { flex: 1 1 auto; min-height: 0; padding: 10px 16px 14px; }
-/* The sill: dark, under the wall, where the actions go. */
-.sill { color: var(--text); background: linear-gradient(180deg, #2a2030, #1a1422); box-shadow: inset 0 2px 0 #3d3145; }
-/* The little À LOUER sign, zip-tied in a free room. */
-.loue { position: relative; display: inline-block; padding: 2px; background: #f7f5ef; rotate: -3deg; box-shadow: 0 3px 5px rgba(0, 0, 0, 0.5); }
-.loue::before, .loue::after { content: ""; position: absolute; left: 50%; width: 4px; height: 7px; margin-left: -2px; border-radius: 1px; background: #17151a; }
-.loue::before { top: -7px; }
-.loue::after { bottom: -7px; }
-.loue b { display: block; padding: 3px 7px 4px; border-radius: 3px; background: #b3202c; color: #ffffff; font: 400 14px/0.95 var(--sign-font); text-align: center; letter-spacing: 0.01em; text-transform: uppercase; white-space: nowrap; }
+.sign-band > h1, .sign-band > h2 { min-width: 0; margin: 0; font-size: 24px; line-height: 1.08; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sign-band.large > h1, .sign-band.large > h2 { font-size: 34px; }
+.sign-sub { margin: 2px 0 0; font-size: 16px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sign-x { position: absolute; top: 50%; right: 10px; display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; margin-top: -22px; padding: 0; border-radius: var(--r-md); background: var(--surface); color: var(--panel); font: 400 20px/1 var(--display); }
+.sign-x:hover:not(:disabled) { background: var(--tile); }
+.sign-x:focus-visible { outline-color: var(--surface); }
+.sign-body { flex: 1 1 auto; min-height: 0; padding: 12px 14px 14px; border-radius: 0 0 12px 12px; background: var(--surface); }
+.sign.green { --panel: var(--panel-green); }
+.sign.blue { --panel: var(--panel-blue); }
+.sign.black { --panel: var(--panel-black); }
 /* A free room, the sticker that can't be missed. */
-.sticker { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 4px 9px; background: var(--sticker); color: var(--ink); font-family: var(--sign-font); rotate: -3deg; box-shadow: 0 2px 0 rgba(20, 12, 18, 0.3); white-space: nowrap; }
+.sticker { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 4px 9px; background: var(--sticker); color: var(--ink); font-family: var(--display); rotate: -3deg; box-shadow: 0 2px 0 rgba(20, 12, 18, 0.3); white-space: nowrap; }
 .sticker .n { font-size: 34px; line-height: 1; }
 .sticker .w { font-size: 13px; line-height: 1.05; text-transform: uppercase; }
 
@@ -499,17 +436,17 @@ button.toggle[role="switch"][aria-checked] .knob { display: none; }
 
 /* A dialog with steps (knocking, renting a server): a sign too, whose band is the heading of the step you're on, with
    the step dots along its foot. UiSteps and the dialogs' own forms keep their markup. */
-dialog.step-sign { --panel: #2a1621; padding: 8px; border: 0; border-radius: 8px; background: var(--frame); color: var(--text); box-shadow: var(--window-glow); }
-.step-sign .inner { position: relative; border-radius: 3px; background: var(--wall); }
-.step-sign .inner .steps { gap: 0; }
+dialog.step-sign { --panel: var(--panel-red); padding: 0; border: 0; border-radius: 15px; background: none; color: var(--text); box-shadow: var(--shadow); }
+.step-sign .inner { position: relative; border: 3px solid var(--panel); border-radius: 15px; background: var(--surface); }
+.step-sign .inner .steps { gap: 0; border-radius: var(--r-md); background: var(--surface); }
 .step-sign .inner .dots { position: absolute; z-index: 1; top: 60px; left: 22px; gap: 5px; }
-.step-sign .inner .d { width: 6px; height: 6px; background: rgba(42, 22, 33, 0.35); }
-.step-sign .inner .d.done { background: var(--text); }
-.step-sign .inner .d.on { width: 18px; border-radius: 3px; background: var(--text); }
-.step-sign .inner .form { padding: 0 16px 16px; }
-.step-sign .inner .form > h2 { position: relative; display: flex; align-items: center; height: 72px; margin: 0 -16px; padding: 12px 62px 0 18px; color: var(--text); font-size: 30px; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.step-sign .inner .x { position: absolute; z-index: 1; top: 22px; right: 13px; display: grid; place-items: center; width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--frame); color: #fff1dc; font: 500 16px/1 var(--font); cursor: pointer; box-shadow: none; }
-.step-sign .inner .x:hover:not(:disabled) { background: #2a2036; }
+.step-sign .inner .d { width: 6px; height: 6px; background: rgba(255, 255, 255, 0.45); }
+.step-sign .inner .d.done { background: var(--on-panel); }
+.step-sign .inner .d.on { width: 18px; border-radius: 3px; background: var(--on-panel); }
+.step-sign .inner .form { padding: 0 14px 14px; }
+.step-sign .inner .form > h2 { display: flex; align-items: center; height: 72px; margin: 0 -14px; padding: 0 62px 0 16px; border-radius: var(--r-md) var(--r-md) 0 0; background: var(--panel); color: var(--on-panel); font-size: 24px; line-height: 1.08; overflow: hidden; }
+.step-sign .inner .x { position: absolute; z-index: 1; top: 17px; right: 13px; display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); font: 400 20px/1 var(--display); }
+.step-sign .inner .x:hover:not(:disabled) { background: var(--tile); }
 /* On a phone it's a sheet along the bottom edge. */
 @media (max-width: 520px) {
   dialog.step-sign { width: 100%; max-width: 100%; margin: auto 0 0; padding-bottom: max(7px, env(safe-area-inset-bottom)); }

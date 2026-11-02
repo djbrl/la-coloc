@@ -80,67 +80,30 @@ function atlasFor(map: THREE.Texture, style: CityStyle): THREE.Texture | null {
   const key = `${map.uuid}:${style.city}`;
   let t = atlases.get(key);
   if (!t) {
-    // A copy of the original texture (same wrapping, flip and colour space), with the redrawn image. A source of its own:
-    // a clone shares its image with the original, which has to stay as it is for the next city and for the glass below.
+    // A copy of the original texture (same wrapping, flip and colour space), with the redrawn image.
     t = map.clone();
-    t.source = new THREE.Source(redraw(image, style));
+    t.image = redraw(image, style);
     t.needsUpdate = true;
     atlases.set(key, t);
   }
   return t;
 }
 
-// Which pixels of an atlas are window glass: saturated blues, white on black, made once per atlas. A lit building's copy of
-// its material glows through this, so its windows light up at dusk with no light in the scene to pay for.
-const glass = new Map<string, THREE.Texture>();
-
-function glassOf(map: THREE.Texture): THREE.Texture | null {
-  const image = map.image as (CanvasImageSource & { width: number; height: number }) | undefined;
-  if (!image?.width) return null;
-  let t = glass.get(map.uuid);
-  if (!t) {
-    const c = document.createElement("canvas");
-    c.width = image.width;
-    c.height = image.height;
-    const g = c.getContext("2d", { willReadFrequently: true })!;
-    g.drawImage(image, 0, 0);
-    const data = g.getImageData(0, 0, c.width, c.height);
-    const px = data.data;
-    const color = new THREE.Color();
-    const hsl: Hsl = { h: 0, s: 0, l: 0 };
-    for (let i = 0; i < px.length; i += 4) {
-      color.setRGB(px[i] / 255, px[i + 1] / 255, px[i + 2] / 255, THREE.SRGBColorSpace).getHSL(hsl, THREE.SRGBColorSpace);
-      const deg = hsl.h * 360;
-      const on = deg >= 195 && deg <= 255 && hsl.s >= 0.5;
-      px[i] = px[i + 1] = px[i + 2] = on ? 255 : 0;
-    }
-    g.putImageData(data, 0, 0);
-    t = map.clone();
-    t.source = new THREE.Source(c);
-    t.needsUpdate = true;
-    glass.set(map.uuid, t);
-  }
-  return t;
-}
-
-/** Repaints a loaded building in a city's colours. Only buildings: trees, people and props keep theirs. `lit`: its
- *  windows are on. */
-export function dye(model: THREE.Object3D, style: CityStyle, lit = false) {
+/** Repaints a loaded building in a city's colours. Only buildings: trees, people and props keep theirs. */
+export function dye(model: THREE.Object3D, style: CityStyle) {
   model.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
     const swap = (m: THREE.Material): THREE.Material => {
       const map = (m as THREE.MeshStandardMaterial).map;
       if (!map) return m;
-      const key = `${m.uuid}:${style.city}:${lit}`;
+      const key = `${m.uuid}:${style.city}`;
       let copy = copies.get(key);
       if (!copy) {
         const atlas = atlasFor(map, style);
         if (!atlas) return m;
         copy = m.clone();
         (copy as THREE.MeshStandardMaterial).map = atlas;
-        const on = lit ? glassOf(map) : null;
-        if (on) Object.assign(copy, { emissiveMap: on, emissive: new THREE.Color(0xffb45c), emissiveIntensity: 1.1 });
         copies.set(key, copy);
       }
       return copy;

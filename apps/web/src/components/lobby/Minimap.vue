@@ -387,12 +387,11 @@ function onKey(e: KeyboardEvent) {
   padding: 7px;
   background: var(--board);
   color: var(--text);
-  box-shadow: inset 0 0 0 1.5px var(--line), var(--lift);
+  box-shadow: inset 0 0 0 3px var(--panel-red), var(--lift);
 }
 .holder { position: relative; flex: none; }
 /* The small map opens the big one; on the big map only a house can be picked. */
-/* The map at dusk, like the city it shows. */
-canvas { display: block; flex: none; cursor: pointer; filter: brightness(0.74) saturate(0.85); }
+canvas { display: block; flex: none; cursor: pointer; }
 .big canvas { cursor: default; }
 .big canvas.pointing { cursor: pointer; }
 /* The compass: a small round badge on the map's top right corner, an N under a little pointer. */
@@ -405,8 +404,8 @@ canvas { display: block; flex: none; cursor: pointer; filter: brightness(0.74) s
   display: grid;
   place-items: center;
   border-radius: var(--r-pill);
-  background: var(--surface);
-  color: var(--accent);
+  background: #ffffff;
+  color: var(--panel-red);
   box-shadow: 0 0 0 2px var(--ink);
   font: 800 10px/1 var(--font);
   pointer-events: none;
@@ -419,7 +418,7 @@ canvas { display: block; flex: none; cursor: pointer; filter: brightness(0.74) s
   transform: translateX(-50%);
   border: 3.5px solid transparent;
   border-top: 0;
-  border-bottom: 4px solid var(--neon);
+  border-bottom: 4px solid var(--panel-red);
 }
 .big .compass { top: 8px; right: 8px; width: 24px; height: 24px; font-size: 14px; }
 /* The goal's halo: a soft red ring around its house, under the pin, swelling and fading like a sonar ping.

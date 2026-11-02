@@ -109,10 +109,10 @@ const AROUND = 2 * Math.PI * RADIUS;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--panel-red);
+  color: var(--on-panel);
   /* A game pad's button: round, with a lip that sinks when pressed. */
-  box-shadow: inset 0 0 0 1.5px var(--line), var(--lift);
+  box-shadow: 0 5px 0 var(--accent-lip);
   cursor: pointer;
   touch-action: manipulation;
   user-select: none;
@@ -126,7 +126,7 @@ const AROUND = 2 * Math.PI * RADIUS;
 }
 .touch-dash > svg { grid-area: 1 / 1; }
 /* Pushed in: it moves down by what its lip loses. */
-.touch-dash:active { transform: translateY(3px); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
+.touch-dash:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 .touch-dash.cooling { opacity: 0.7; }
 .touch-dash:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 

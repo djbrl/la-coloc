@@ -97,7 +97,7 @@ async function shareNatively() {
 .card { position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; width: min(320px, 80vw); display: grid; gap: 10px; padding: 12px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel), var(--lift); }
 .link { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--handle); overflow-wrap: anywhere; }
 .ways { display: flex; flex-wrap: wrap; gap: 6px; }
-.share .way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); box-shadow: var(--quiet-edge); font: 500 15px/1 var(--font); text-decoration: none; }
+.share .way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); box-shadow: var(--quiet-edge); font: 400 15px/1 var(--display); text-decoration: none; }
 .share .way:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
 .share .way.done { color: var(--live); }
 .here { margin: 0; font-size: 14px; line-height: 1.3; color: var(--muted); }

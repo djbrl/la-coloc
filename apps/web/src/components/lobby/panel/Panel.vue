@@ -23,12 +23,12 @@ defineProps<{ summary?: string | null; explain?: string | null; bodyLabel?: stri
       <Explain v-if="summary" class="p-summary" :summary="summary" :more="explain" />
       <slot />
     </div>
-    <footer v-if="$slots.foot" class="p-foot sill"><slot name="foot" /></footer>
+    <footer v-if="$slots.foot" class="p-foot"><slot name="foot" /></footer>
   </div>
 </template>
 
 <style scoped>
-/* The band is the head, on the wall; the rest sits on the wall under it, down to the sill. */
+/* The band is the head, edge to edge in the sign's frame; the rest sits on the white body under it. */
 .panel-shape {
   position: relative;
   display: flex;
@@ -58,11 +58,11 @@ defineProps<{ summary?: string | null; explain?: string | null; bodyLabel?: stri
 }
 /* With no tabs and no head above it (a step of a flow), the body still keeps off the band. */
 .p-body:last-child { padding-bottom: 14px; }
-/* The one next step, on the sill. */
-.p-foot { display: flex; align-items: center; gap: 8px; padding: 12px 14px; }
-.p-foot :deep(button), .p-foot :deep(a.button) { min-height: 54px; font-size: 18px; }
-.p-foot :deep(.second), .p-foot :deep(.small) { min-height: 46px; font-size: 16px; }
+/* The one next step, on the same white, with no line above it. */
+.p-foot { display: flex; align-items: center; gap: 8px; padding: 0 14px 14px; }
+.p-foot :deep(button), .p-foot :deep(a.button) { min-height: 60px; font-size: 24px; }
+.p-foot :deep(.second), .p-foot :deep(.small) { min-height: 50px; font-size: 18px; }
 @media (max-width: 480px) {
-  .p-foot :deep(button), .p-foot :deep(a.button) { min-height: 50px; font-size: 17px; }
+  .p-foot :deep(button), .p-foot :deep(a.button) { min-height: 54px; font-size: 19px; }
 }
 </style>

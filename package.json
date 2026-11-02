@@ -21,7 +21,6 @@
     "share": "node scripts/share.mjs",
     "perf": "node scripts/perf.mjs",
     "render:landing": "node scripts/render-landing.mjs",
-    "render:rooms": "node scripts/render-rooms.mjs",
     "up": "node scripts/up.mjs"
   },
   "engines": {

@@ -3,7 +3,7 @@ import { styleFor } from "./cityStyle";
 import { daylight } from "./daylight";
 
 describe("daylight", () => {
-  it("is dusk, with a touch of the city's sky on the horizon only", () => {
+  it("is full day, with a touch of the city's sky on the horizon only", () => {
     const plain = daylight();
     const dakar = daylight(0xf2d48a);
     expect(dakar.hemi).toBe(plain.hemi);

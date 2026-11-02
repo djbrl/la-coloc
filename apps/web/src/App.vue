@@ -103,8 +103,8 @@ const gear = (() => {
   top: 0;
   z-index: 50;
   height: 56px;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--panel-red);
+  color: var(--on-panel);
 }
 .inner { height: 100%; max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .logo { font: 400 20px/1 var(--display); text-transform: uppercase; color: inherit; white-space: nowrap; }
@@ -120,13 +120,13 @@ const gear = (() => {
   height: var(--key);
   padding: 0;
   border-radius: var(--r-md);
-  background: var(--surface);
-  color: var(--text);
+  background: var(--panel-red);
+  color: var(--on-panel);
   white-space: nowrap;
 }
 .icon, .side :deep(.ring) { width: var(--key); }
 .item svg, .side :deep(.ring svg) { width: var(--key-icon); height: var(--key-icon); }
-.word-key { padding: 0 14px; font: 500 18px/1 var(--font); }
+.word-key { padding: 0 14px; font: 400 18px/1 var(--display); }
 .word-key .narrow { display: none; }
 .item:hover, .side :deep(.ring:hover:not(:disabled)), .side :deep(.ring[aria-expanded="true"]) { background: var(--accent-fill-hover); text-decoration: none; }
 .house.router-link-active { background: var(--accent-lip); }
@@ -137,8 +137,8 @@ const gear = (() => {
 .bar.float .inner { display: block; max-width: none; padding: 0; }
 .bar.float .logo { display: none; }
 .bar.float .side { position: absolute; top: 24px; right: 24px; }
-.bar.float :is(.item, :deep(.ring)) { box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
-.bar.float :is(.item, :deep(.ring)):active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
+.bar.float :is(.item, :deep(.ring)) { box-shadow: 0 5px 0 var(--accent-lip); }
+.bar.float :is(.item, :deep(.ring)):active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 .bar.float .word-key { padding: 0 18px; font-size: 20px; }
 
 .flow { min-height: calc(100vh - 56px); outline: none; }
@@ -147,7 +147,7 @@ const gear = (() => {
   /* A phone: smaller keys in a tighter corner, and the login's word becomes its icon (the word stays for a screen reader). */
   .bar.float { --key: 44px; --key-icon: 22px; }
   .bar.float .side { top: 12px; right: 12px; gap: 6px; }
-  .bar.float :is(.item, :deep(.ring)) { box-shadow: inset 0 0 0 1.5px var(--line), var(--lift); }
+  .bar.float :is(.item, :deep(.ring)) { box-shadow: 0 3px 0 var(--accent-lip); }
   .word-key .narrow { display: block; }
   .word-key .word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .bar.float .word-key { width: var(--key); padding: 0; }

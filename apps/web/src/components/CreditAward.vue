@@ -68,7 +68,7 @@ dialog::backdrop { background: var(--scrim); }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.94); }
 }
-.stat { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 22px 0 0; color: var(--text); }
+.stat { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 22px 0 0; color: var(--panel-red); }
 .stat strong { font: 400 46px/1.05 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stat span { align-self: flex-end; padding-bottom: 6px; font: 400 18px/1 var(--display); }
 .tiny { margin: 6px 0 18px; font-size: 14px; color: var(--muted); text-align: center; }

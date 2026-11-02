@@ -197,7 +197,7 @@ h2 { margin: 0; font: 400 26px/1.1 var(--display); }
 .live h2 { color: var(--live); }
 .failed h2 { color: var(--danger); }
 .meta { display: flex; gap: 12px; min-width: 0; margin-left: auto; color: var(--muted); font: 600 14px/1 var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
-.x { flex: none; display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--tile); box-shadow: none; color: var(--text); font: 500 20px/1 var(--font); }
+.x { flex: none; display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--tile); box-shadow: none; color: var(--ink); font: 400 20px/1 var(--display); }
 
 .track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
 .track li { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); font-size: 14px; line-height: 1.2; }
@@ -217,7 +217,7 @@ h2 { margin: 0; font: 400 26px/1.1 var(--display); }
 .lines .step:first-child { margin-top: 0; }
 .lines .error { color: #ff8b8b; font-weight: 700; }
 .lines .wait { opacity: 0.6; }
-.back { position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; background: var(--surface); color: var(--text); font: 700 14px/1 var(--font); }
+.back { position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; background: var(--surface); color: var(--ink); font: 700 14px/1 var(--font); }
 
 .trouble { margin: 0; font-size: 15px; line-height: 1.35; }
 .refused { color: var(--danger); }

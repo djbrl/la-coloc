@@ -238,12 +238,13 @@ function trapTab(e: KeyboardEvent) {
   animation: pop-in var(--dur-slow) var(--ease-pop);
 }
 .sign-frame { position: relative; }
-/* The head's two keys, under the string of lights. */
-.sign-x { z-index: 2; top: 40px; }
+/* The band's two keys, 44px and centred in its 88px. They're placed from inside the frame's border, and the band
+   starts 3px further in, after the frame's padding. */
+.sign-x { z-index: 2; top: 44px; }
 .back-btn { right: auto; left: 16px; }
 .deep { --band-lead: 52px; }
-/* The page fills what's left, on the wall. If a window is too short for it, it scrolls here rather than spilling out. */
-.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+/* The page fills what's left, on the white. If a window is too short for it, it scrolls here rather than spilling out. */
+.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--surface); }
 .page-host > * { flex: 1 1 auto; min-height: 0; }
 /* The pause menu's entrance: a quick scale up from just under full size. */
 @keyframes pop-in {
