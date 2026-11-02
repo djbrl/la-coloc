@@ -28,6 +28,9 @@ COLOC_SITE {
 		# Only the build output: no data, no settings and no .git can ever be served from here.
 		root * /opt/coloc/src/apps/web/dist
 		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		# The page names the build's files, so a browser must ask before reusing it, or it keeps showing the last build.
+		@page path_regexp ^(/index\.html|[^.]*)$
+		header @page Cache-Control "no-cache"
 		encode zstd gzip
 		# The site is one page: every other address is the app's own route.
 		try_files {path} /index.html
