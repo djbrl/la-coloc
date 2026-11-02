@@ -28,9 +28,7 @@ import PayBill from "./house/PayBill.vue";
 import RentServer from "./house/RentServer.vue";
 import RoomDetails from "./house/RoomDetails.vue";
 import ShareHouse from "./house/ShareHouse.vue";
-import Rundown from "./house/Rundown.vue";
 import { evenSplit, fcfa, rentOfPerson, type ServerInfo } from "./house/server";
-import { linkedHouse, markTourSeen, toursSeen } from "./house/tours";
 import { houseWords as w } from "./house/words";
 import ListRow from "./panel/ListRow.vue";
 import Panel from "./panel/Panel.vue";
@@ -47,20 +45,15 @@ type TabKey = "rooms" | "people" | "channel" | "chores" | "fridge" | "bill";
 
 const props = defineProps<{
   id: string;
-  // The tutorial asks for the window's rundown (Rundown.vue). It also stands in for the first-time tour.
-  rundown?: boolean;
   // Open on this tab (flatmates only), and switch to it again whenever it changes: a quest can point at a part of
   // the house ("look at your reviews") without the player hunting for the tab.
   tab?: TabKey;
-  // Keep the first-visit rundown from starting by itself, when something else (a quest) is already guiding the
-  // player. The rundown still runs when `rundown` asks for it.
-  quiet?: boolean;
   // The tutorial's coach is up with its own main action ("Take the room"): the workshop's room row then keeps
   // quiet, so there's one button for one action.
   coached?: boolean;
 }>();
 // `view`: the house as it arrives (first fetch, then each push on its stream), for a page that shows more of it.
-const emit = defineEmits<{ open: [place: Place]; label: [text: string]; rundownDone: []; view: [house: HouseView | null] }>();
+const emit = defineEmits<{ open: [place: Place]; label: [text: string]; view: [house: HouseView | null] }>();
 
 // The chef's server info is new on the API side; reading it through this type works whether or not the shared
 // HouseView type has caught up. The exchange (the bill, the tontine, the month's reviews) may be missing from an
@@ -352,7 +345,7 @@ function press(key: RoomKey) {
 // Someone on the housemates' list (a flatmate, someone knocking, a guest in the chat): their Chat key, on everyone but
 // you, and their GitHub, for a real account. `room`: the room they're listed with, whose flag says if they're made up.
 const inExampleRoom = (room: string | null) => !!(room && house.value?.rooms.find((r) => r.name === room)?.demo);
-const rowChat = (person: Person, room: string | null) => chatKey(person, inExampleRoom(room), situation.value);
+const rowChat = (person: Person) => chatKey(person, situation.value);
 const rowGithub = (person: Person, room: string | null) => (person.login === me.value ? null : personActions(person, inExampleRoom(room), situation.value, {}).github);
 
 // A full house: asking to join its group chat. The house's stream brings the answer; a refusal says why in the foot.
@@ -478,60 +471,6 @@ function paid() {
 }
 const payButton = computed(() => member.value && shownTab.value === "bill" && !!myDue.value && !paying.value);
 
-// What the rundown says about the foot, after "Your next step is always here.": the step itself, per viewer.
-const tourLast = computed((): string | null => {
-  switch (foot.value.kind) {
-    case "login":
-      return w.tour.login;
-    case "rent":
-      return w.tour.rent;
-    case "knock":
-    case "pick":
-      return w.tour.knock;
-    case "thread":
-      return w.tour.thread;
-    default:
-      return null;
-  }
-});
-
-// The rundown: asked for by the tutorial (once, when it reaches its step), or shown on a first visit to a house
-// walked into in the lobby (not on a house's own page, and not on the house a link opened).
-// It shows the rooms tab. When it ends it counts as the house's tour seen, and the tutorial hears of it if it asked.
-const rundownOn = ref(false);
-let tutorialAsked = false;
-let owed = false;
-function startRundown() {
-  openRoom.value = null;
-  tab.value = "rooms";
-  rundownOn.value = true;
-}
-watch(
-  () => props.rundown,
-  (asked) => {
-    if (!asked || tutorialAsked) return;
-    tutorialAsked = owed = true;
-    startRundown();
-  },
-  { immediate: true },
-);
-watch(
-  () => !!house.value,
-  (loaded) => {
-    // `quiet`: something else is guiding the player right now, so the first-visit rundown waits for another visit.
-    if (!loaded || props.quiet || rundownOn.value || tutorialAsked || toursSeen().includes("house")) return;
-    if (props.id === linkedHouse || location.pathname.startsWith("/houses/")) return;
-    startRundown();
-  },
-);
-function rundownEnded() {
-  rundownOn.value = false;
-  markTourSeen("house");
-  if (owed) {
-    owed = false;
-    emit("rundownDone");
-  }
-}
 </script>
 
 <template>
@@ -556,7 +495,7 @@ function rundownEnded() {
     >
       <template #head>
         <div class="head">
-          <div data-tour="header">
+          <div>
             <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
               <!-- The chef of a house being made: copy an invite link. Any other house (not the workshop): share it. -->
               <template v-if="(chef && making) || shareable" #aside>
@@ -571,7 +510,7 @@ function rundownEnded() {
       </template>
 
       <template #tabs>
-        <div data-tour="tabs">
+        <div>
           <PanelTabs v-model="tab" :tabs="tabs" :label="w.parts" />
         </div>
       </template>
@@ -607,7 +546,7 @@ function rundownEnded() {
             <span v-if="seatRent(s)" class="amount small">{{ seatRent(s) }}</span>
           </template>
           <template #end>
-            <button v-if="rowChat(s.person, s.room)" type="button" class="chat-key" :disabled="rowChat(s.person, s.room)!.kind === 'chatOff'" :aria-label="w.person.chatName(nameOf(s.person).split(' ')[0])" @click.stop="press(rowChat(s.person, s.room)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
+            <button v-if="rowChat(s.person)" type="button" class="chat-key" :aria-label="w.person.chatName(nameOf(s.person).split(' ')[0])" @click.stop="press(rowChat(s.person)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
             <a v-if="rowGithub(s.person, s.room)" class="button git-key" :href="rowGithub(s.person, s.room)!" target="_blank" rel="noopener" :aria-label="w.person.githubName(s.person.login)" :title="w.person.githubName(s.person.login)" @click.stop><Icon name="external" :size="16" /></a>
             <button v-if="s.kind === 'knock' || s.room" type="button" class="see" :aria-label="w.peopleName(nameOf(s.person))" @click.stop="pick(s)"><Icon name="next" :size="18" /></button>
           </template>
@@ -616,7 +555,7 @@ function rundownEnded() {
         <ListRow v-for="g in house.guests ?? []" :key="`g:${g.login}`" :title="nameOf(g)" :sub="w.guests.line">
           <template #lead><Avatar :person="g" :size="44" decorative /></template>
           <template #end>
-            <button v-if="rowChat(g, null)" type="button" class="chat-key" :disabled="rowChat(g, null)!.kind === 'chatOff'" :aria-label="w.person.chatName(nameOf(g).split(' ')[0])" @click="press(rowChat(g, null)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
+            <button v-if="rowChat(g)" type="button" class="chat-key" :aria-label="w.person.chatName(nameOf(g).split(' ')[0])" @click="press(rowChat(g)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
             <a v-if="rowGithub(g, null)" class="button git-key" :href="rowGithub(g, null)!" target="_blank" rel="noopener" :aria-label="w.person.githubName(g.login)" :title="w.person.githubName(g.login)"><Icon name="external" :size="16" /></a>
             <button v-if="member || g.login === me" type="button" class="chat-key" :aria-label="g.login === me ? w.guests.leaveName : w.guests.removeName(nameOf(g))" @click="removeGuest(g.login)">{{ g.login === me ? w.guests.leave : w.guests.remove }}</button>
           </template>
@@ -635,7 +574,7 @@ function rundownEnded() {
         <UiNote v-if="rulesNote" :note="rulesNote" />
         <!-- Whose turn it is (its faces in order, the one whose turn it is lit), and the month's reviews with the
              house's review rule. -->
-        <div class="life" data-tour="life">
+        <div class="life">
           <p v-if="tontineText" class="tontine">
             <span class="turns" aria-hidden="true">
               <Avatar v-for="(p, i) in turnFaces" :key="p.login" :person="p" :size="i === 0 ? 26 : 20" decorative :class="{ now: i === 0 }" />
@@ -748,7 +687,7 @@ function rundownEnded() {
       </template>
 
       <template v-if="footShown" #foot>
-        <div class="foot" data-tour="foot">
+        <div class="foot">
           <!-- On the Bill tab, with your share still to pay, paying it is the next step. -->
           <button v-if="payButton" type="button" class="primary go" @click="paying = true"><Icon name="bill" :size="20" />{{ w.pay(fcfa(myDue!.due)) }}</button>
           <RouterLink v-else-if="foot.kind === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />{{ w.logInToKnock }}</RouterLink>
@@ -762,8 +701,6 @@ function rundownEnded() {
     <p v-else class="muted empty" aria-live="polite">{{ w.opening }}</p>
 
     <template v-if="house">
-      <!-- The parts it points at carry data-tour="header | crew | tabs | rooms | foot". -->
-      <Rundown v-if="rundownOn" :name="house.name" :demo="house.demo" :next="tourLast" @done="rundownEnded" />
       <RentServer v-if="renting" :house-id="house.id" :live="live" :resume="serverComing" :key-made="keyMade" :plan="house.server?.plan" @close="renting = false" />
       <KnockSteps
         v-if="knocking"
@@ -778,8 +715,7 @@ function rundownEnded() {
 </template>
 
 <style scoped>
-/* Positioned, so the rundown can place its ring and bubble over the parts in this box's own pixels. The panel
-   inside it is exactly as tall as the sheet leaves. */
+/* The panel inside it is exactly as tall as the sheet leaves. */
 .inside-house { position: relative; display: flex; flex-direction: column; min-height: 0; }
 .inside-house > :deep(.panel-shape), .inside-house > :deep(.waiting) { flex: 1 1 auto; }
 .empty { padding: 24px var(--gutter); display: grid; gap: 8px; }

@@ -102,8 +102,6 @@ export type RoomKey =
   | { kind: "login" }
   // A direct message: to a flatmate, or a chat request to someone whose house you don't live in.
   | { kind: "chat"; login: string }
-  // The same key, off: a made-up person has nobody behind them to read it.
-  | { kind: "chatOff" }
   // The same key, when you're logged out: it takes you to log in.
   | { kind: "chatLogin" }
   | { kind: "knock"; room: string }
@@ -114,10 +112,9 @@ export type RoomKey =
 const isExample = (person: Pick<Person, "github">, roomDemo: boolean, s: Situation) => s.demo || roomDemo || person.github === false;
 
 /** The Chat key on someone in this house, the same rule as on a street card (chat/chat.ts). Only you have none. */
-export function chatKey(person: Pick<Person, "login" | "github">, roomDemo: boolean, s: Situation): RoomKey | null {
-  const action = messageAction({ isMe: s.viewer?.login === person.login, example: isExample(person, roomDemo, s) }, s.viewer);
+export function chatKey(person: Pick<Person, "login">, s: Situation): RoomKey | null {
+  const action = messageAction({ isMe: s.viewer?.login === person.login }, s.viewer);
   if (action?.kind === "open") return { kind: "chat", login: person.login };
-  if (action?.kind === "example") return { kind: "chatOff" };
   return action?.kind === "login" ? { kind: "chatLogin" } : null;
 }
 
@@ -133,7 +130,7 @@ export function roomKeys(room: Pick<Room, "name" | "occupant" | "demo" | "team">
     if (v.application) return one({ kind: "thread", id: v.application });
     return one(canKnock(s) ? { kind: "knock", room: room.name } : null);
   }
-  const chat = chatKey(room.occupant, !!room.demo, s);
+  const chat = chatKey(room.occupant, s);
   if (!v) return one(chat);
   if (room.occupant.login === v.login) return one({ kind: "manage" });
   if (room.team?.some((p) => p.login === v.login)) return { main: chat, second: { kind: "manage" } };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateNeighbourhood, ROAD, seeded } from "./neighbourhood";
-import { allPassersBy, isMadeUpHandle, keepApart, laneFor, MOST, passerbyCount, passersBy, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
+import { allPassersBy, isMadeUpHandle, keepApart, laneFor, MOST, passerbyCount, passersBy, sidewalks, standAt, type Stroll, VISITORS, visitorsIn, walkAhead } from "./passersby";
 
 describe("passers-by", () => {
   it("carry made-up handles no GitHub account can have (an underscore in each)", () => {
@@ -90,5 +90,16 @@ describe("passers-by", () => {
       keepApart([a, far], 0.8);
       expect(far).toEqual({ x: 5, z: 5 });
     });
+  });
+});
+
+describe("visitors", () => {
+  it("come from other cities, the same ones every time, and don't double up with the locals", () => {
+    const visitors = visitorsIn("Dakar", VISITORS);
+    expect(visitors).toHaveLength(VISITORS);
+    expect(visitors).toEqual(visitorsIn("Dakar", VISITORS));
+    for (const v of visitors) expect(v.from).not.toBe("dakar");
+    const locals = passersBy("Dakar", MOST - VISITORS).map((p) => p.login);
+    for (const v of visitors) expect(locals).not.toContain(v.login);
   });
 });

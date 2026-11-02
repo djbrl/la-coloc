@@ -16,14 +16,12 @@ export function pickTab(asked: ChatTab, tabs: ChatTab[]): ChatTab {
   return tabs.includes(asked) ? asked : tabs[0];
 }
 
-/** Chat, on anyone you see: you can always start talking to them. Open the conversation; shown disabled for an example
- *  person (with why), logged in or not, since logging in wouldn't change it; to the login page when you're logged
- *  out. Only you have no Chat key. */
-export type MessageAction = { kind: "open" } | { kind: "example" } | { kind: "login" } | null;
+/** Chat, on anyone you see, example people too (they answer once, saying what they are): open the conversation, or go
+ *  to the login page when you're logged out. Only you have no Chat key. */
+export type MessageAction = { kind: "open" } | { kind: "login" } | null;
 
-export function messageAction(person: { isMe: boolean; example: boolean }, viewer: { login: string } | null): MessageAction {
+export function messageAction(person: { isMe: boolean }, viewer: { login: string } | null): MessageAction {
   if (person.isMe) return null;
-  if (person.example) return { kind: "example" };
   return viewer ? { kind: "open" } : { kind: "login" };
 }
 

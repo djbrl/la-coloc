@@ -2,9 +2,10 @@
 // doors. Each has a full name fitting the city and a handle on their name tag, invented here. Each handle has an
 // underscore, which GitHub never allows in a login: it reads like a handle, but no real person on GitHub can have it
 // (in the 16 Oct review, 36 of the earlier hyphenated ones turned out to be real accounts). They have no house and no
-// GitHub account, and their card says they're an example person. Nothing about them goes to the API.
+// GitHub account, and their card says they're an example person. The API only hears of one when someone writes to them.
 // Pure: no three.js. The lobby (Lobby.ts) dresses them with the same avatars as everyone and walks them around the
 // blocks on the sidewalks, crossing at the zebras (`sidewalks`, `walkAhead`), a little apart from each other (`keepApart`).
+import people from "../../../../packages/domain/src/passersby.json";
 import { type Block, ROAD, seeded } from "./neighbourhood";
 
 export interface Passerby {
@@ -12,162 +13,21 @@ export interface Passerby {
   login: string;
   // Their full name, shown on their card.
   name: string;
+  // A visitor: the city they come from, so their tag says they're a tourist.
+  from?: string;
 }
 
 // [full name, handle], by city. Names from the city's own languages; none repeats a seeded flatmate's first name in
 // the same city, so a passer-by is never mistaken for someone who lives there.
-const PEOPLE: Record<string, [string, string][]> = {
-  dakar: [
-    ["Mamadou Diop", "mdiop_221"],
-    ["Fatou Sow", "fatou_sow_dev"],
-    ["Ousmane Fall", "ousfall_dev"],
-    ["Mariama Sarr", "msarr_sn"],
-    ["Pape Seck", "pape_seck_221"],
-    ["Astou Faye", "astoufaye_dev"],
-    ["Ibrahima Gueye", "ibagueye_dev"],
-    ["Rokhaya Ndour", "rokhaya_nd"],
-    ["Modou Thiam", "modou_thiam"],
-    ["Seynabou Kane", "seynabou_k"],
-    ["Abdou Ndao", "abdou_ndao_sn"],
-    ["Khadija Cissé", "kcisse_dev"],
-    ["Saliou Mbengue", "saliou_mb"],
-    ["Bineta Diagne", "bineta_221"],
-    ["Alioune Wade", "alioune_wade_codes"],
-    ["Ndeye Fatou Lo", "nflo_dev"],
-  ],
-  lomé: [
-    ["Kossi Amegah", "kossi_amegah"],
-    ["Afi Mensah", "afi_mensah"],
-    ["Yawo Adjovi", "yawo_228"],
-    ["Akossiwa Lawson", "akossiwa_l"],
-    ["Sena Dossou", "sena_dossou"],
-    ["Komlan Ayivi", "komlan_dev"],
-    ["Ama Tsogbe", "ama_tsogbe"],
-    ["Elom Atsu", "elom_atsu"],
-    ["Kodjo Agbeko", "kodjo_codes"],
-    ["Abla Kpodar", "abla_kp"],
-    ["Mawuli Gbedemah", "mawuli_228"],
-    ["Dzifa Amouzou", "dzifa_am"],
-    ["Selom Klu", "selomklu_dev"],
-    ["Enyonam Afatsawo", "enyo_af"],
-    ["Kafui Logo", "kafui_logo"],
-    ["Yao Komla Tete", "ykt_dev"],
-  ],
-  cotonou: [
-    ["Sèna Houngbo", "sena_houngbo"],
-    ["Codjo Dossa", "codjo_229"],
-    ["Mahugnon Akpo", "mahu_akpo"],
-    ["Gildas Zinsou", "gzinsou_dev"],
-    ["Ablawa Tossou", "ablawa_t"],
-    ["Romaric Ahouandjinou", "romaric_a"],
-    ["Bernice Kiki", "bernice_kiki"],
-    ["Brice Gbaguidi", "bgbaguidi_dev"],
-    ["Dossi Agbodjan", "dossi_ag"],
-    ["Hermione Sossou", "hsossou_229"],
-    ["Ulrich Adjaho", "ulrich_adj"],
-    ["Carmelle Houessou", "carmelle_h"],
-    ["Fiacre Hounsa", "fiacre_dev"],
-    ["Prudence Ahyi", "prudence_ahyi"],
-    ["Wilfried Tchibozo", "wtchibozo_dev"],
-    ["Yétondé Avocè", "yetonde_av"],
-  ],
-  abidjan: [
-    ["Konan Kouassi", "konan_kouassi"],
-    ["Aya Koné", "aya_kone_dev"],
-    ["Adjoua Bamba", "adjoua_225"],
-    ["Kader Diabaté", "kader_db"],
-    ["Amenan Yapi", "amenan_yapi"],
-    ["Ibrahim Doumbia", "idoumbia_225"],
-    ["Affoué Kra", "affoue_kra"],
-    ["Didier N'Guessan", "didier_ng"],
-    ["Fanta Konaté", "fanta_konate"],
-    ["Hervé Gnahoré", "herve_gn_dev"],
-    ["Akissi Kouadio", "akissi_k"],
-    ["Souleymane Traoré", "soul_traore"],
-    ["Mireille Aka", "mireille_aka"],
-    ["Jean-Marc Yao Kouamé", "jmkouame_dev"],
-    ["Bintou Sangaré", "bintou_225"],
-    ["Wilfried Assi", "wassi_codes"],
-  ],
-  douala: [
-    ["Franck Nkotto", "franck_nk"],
-    ["Larissa Fotso", "lfotso_dev"],
-    ["Hervé Tchoua", "hervetch_dev"],
-    ["Ange-Marie Ngono", "am_ngono"],
-    ["Paul Ekwalla", "pekwalla_237"],
-    ["Sandrine Moukoko", "sandrine_mk"],
-    ["Yannick Njoya", "ynjoya_dev"],
-    ["Prisca Ewane", "prisca_ewane"],
-    ["Steve Essomba", "steve_essomba"],
-    ["Brenda Ngassa", "brenda_237"],
-    ["Rodrigue Tagne", "rtagne_dev"],
-    ["Mireille Ebode", "mireille_eb"],
-    ["Cédric Kamga", "ckamga_dev"],
-    ["Linda Nkwenti", "linda_nk"],
-    ["Arnaud Belinga", "arnaud_bel"],
-    ["Vanessa Mbarga", "vmbarga_237"],
-  ],
-  kigali: [
-    ["Divine Ingabire", "divine_ing"],
-    ["Jean Bosco Niyonzima", "jbniyo_dev"],
-    ["Patrick Mugisha", "pmugisha_250"],
-    ["Claudine Uwimana", "claudine_uw"],
-    ["Olivier Nshuti", "onshuti_dev"],
-    ["Diane Umutoni", "diane_umutoni"],
-    ["Kevin Manzi", "kmanzi_dev"],
-    ["Ange Uwase", "ange_uwase"],
-    ["Fabrice Habimana", "fhabimana_dev"],
-    ["Sandrine Mukamana", "sandrine_mkm"],
-    ["Yves Ishimwe", "yves_ishimwe"],
-    ["Nadine Iradukunda", "nadine_ira"],
-    ["Christian Mugabo", "cmugabo_250"],
-    ["Joselyne Uwera", "jose_uwera"],
-    ["Emmanuel Nkusi", "emma_nkusi"],
-    ["Alice Mutesi", "alice_mutesi_dev"],
-  ],
-  tunis: [
-    ["Amine Gharbi", "amine_gh"],
-    ["Ines Jebali", "ines_jebali"],
-    ["Mehdi Chaabane", "mehdi_ch"],
-    ["Rania Hammami", "rhammami_dev"],
-    ["Karim Mejri", "karim_216"],
-    ["Nour Ben Ammar", "nour_ba"],
-    ["Oussama Sassi", "osassi_dev"],
-    ["Yosra Khelifi", "yosra_kh"],
-    ["Skander Ayari", "skander_ayari"],
-    ["Mariem Dridi", "mariem_dridi"],
-    ["Firas Bouzid", "firas_216"],
-    ["Emna Chaari", "emna_ch_dev"],
-    ["Wassim Riahi", "wriahi_dev"],
-    ["Asma Ferchichi", "asma_fer"],
-    ["Hamza Mzoughi", "hmzoughi_dev"],
-    ["Sarra Belhadj", "sarra_bh"],
-  ],
-  marrakech: [
-    ["Youssef Amrani", "yamrani_dev"],
-    ["Hajar Ouazzani", "hajar_oz"],
-    ["Anas Berrada", "anas_berrada"],
-    ["Imane Tazi", "imane_tazi"],
-    ["Hamza Alaoui", "hamza_212"],
-    ["Kenza Bennani", "kbennani_dev"],
-    ["Ayoub Chraibi", "ayoub_chr"],
-    ["Zineb Fassi", "zineb_fassi"],
-    ["Soufiane Lahlou", "soufiane_l"],
-    ["Meryem Kettani", "meryem_212"],
-    ["Ilyas Bensouda", "ilyas_bs"],
-    ["Nisrine Tahiri", "nisrine_t"],
-    ["Reda Sqalli", "reda_sq"],
-    ["Ghita Benjelloun", "ghita_bj"],
-    ["Othmane Idrissi", "othmane_id"],
-    ["Loubna Saidi", "loubna_saidi_dev"],
-  ],
-};
+const PEOPLE = people as unknown as Record<string, [string, string][]>;
 
 // A city without its own list borrows one, the same one each time.
 const FALLBACK = "dakar";
 
 // The most there can be in a city: one list's length.
 export const MOST = 16;
+// How many of them are from another city, so a city always has a tourist or two walking around.
+export const VISITORS = 2;
 
 /** How many walk around: fewer on low quality (a slow phone), and fewer on a small screen, which shows less street. */
 export function passerbyCount(quality: "high" | "low", smallScreen: boolean): number {
@@ -181,6 +41,17 @@ export function passersBy(city: string, count: number): Passerby[] {
   const rand = seeded(`passersby:${city.toLowerCase()}`);
   const shuffled = list.map(([name, login]) => ({ name, login, k: rand() })).sort((a, b) => a.k - b.k);
   return shuffled.slice(0, Math.max(0, Math.min(count, list.length))).map(({ name, login }) => ({ name, login }));
+}
+
+/** `count` people from other cities, visiting this one: the tourists a city always has. Same ones every time. */
+export function visitorsIn(city: string, count: number): Passerby[] {
+  const here = city.toLowerCase();
+  const rand = seeded(`visitors:${here}`);
+  const elsewhere = Object.entries(PEOPLE)
+    .filter(([from]) => from !== here)
+    .map(([from, list]) => ({ from, who: list[Math.floor(rand() * list.length)], k: rand() }))
+    .sort((a, b) => a.k - b.k);
+  return elsewhere.slice(0, count).map(({ from, who: [name, login] }) => ({ name, login, from }));
 }
 
 /**

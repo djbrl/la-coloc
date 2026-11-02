@@ -18,6 +18,7 @@ in the web app, to draw the QR code of a newcomer's address in the quest's "Show
 Added 31 10 (the "Panneau" brand): two more fonts, self-hosted from npm: `@fontsource/archivo-black` and `@fontsource/caveat-brush` (SIL Open
 Font Licence 1.1, same reasoning as above).
 Added 2 11 (SSH into a room): `ssh2` 1.17.0 (MIT) and `@types/ssh2` (MIT, development only). `ssh2` brings `asn1` (MIT), `bcrypt-pbkdf` (BSD-3-Clause), `safer-buffer` (MIT), `tweetnacl` (Unlicense), and optionally `cpu-features`, `buildcheck` and `nan` (MIT).
+Added 2 11 (the city you belong to): `mmdb-lib` 3.0.4 (MIT) to read `@ip-location-db/dbip-country-mmdb`, the DB-IP Lite country database. It's data under CC-BY-4.0: [IP Geolocation by DB-IP](https://db-ip.com), attribution kept here. The API looks an address up on its own machine, only at login, and doesn't store it.
 
 ## Art and assets
 Only assets we made ourselves, or under CC0 / a permissive licence, with the source written down here.

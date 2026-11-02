@@ -8,8 +8,9 @@
 // Live updates: a direct message nudges both people's open tabs on the lobby's live line (`pushes`, a login each;
 // the page then asks for its conversations). A city's room and board ping `changes`, which the city's stream
 // (chat.controller.ts) passes on to whoever has the chat open; their page then fetches what's new.
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { applications, blocks, boardPosts, chatReads, type Db, houses, messages, type ReportKind, reports, users } from "@coloc/db";
+import { passerbyName } from "@coloc/domain";
 import { and, count, desc, eq, gt, inArray, like, max, ne, or, sql } from "drizzle-orm";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
@@ -36,7 +37,7 @@ export interface ConversationsView {
   items: ConversationItem[];
 }
 
-/** One conversation, opened. `canWrite` false says why in `why` (an example person, a block). */
+/** One conversation, opened. `canWrite` false says why in `why` (a block). */
 export interface ConversationView {
   with: PersonView & { example: boolean };
   // You blocked them (you can unblock from here).
@@ -63,10 +64,16 @@ export interface ReportView {
 // "arenaChat": only a new message in the arena's room.
 export type CityChange = { city: string; what: "chat" | "board" | "arena" | "arenaChat" };
 
+const EXAMPLE_REPLY_MS = 1500;
+const exampleReply = (first: string) => `Hey ${first}, good to meet you! I'm an example resident, so this is the only answer you'll get from me. For a real conversation, try the city's room.`;
+
 @Injectable()
 export class ChatService {
   // The login of someone with a new direct message (and the sender, for their other tabs).
   readonly pushes = new Subject<string>();
+  // How long an example person takes to answer. Tests shorten it.
+  replyDelayMs = EXAMPLE_REPLY_MS;
+  private readonly log = new Logger(ChatService.name);
   // Something new in a city's room, on its board, or in its Arena.
   readonly changes = new Subject<CityChange>();
   // The brakes: messages (a DM, the city's room, a reply) and board posts, per person.
@@ -146,18 +153,17 @@ export class ChatService {
   async conversation(userId: string, login: string): Promise<ConversationView> {
     const other = await this.someone(userId, login);
     const channel = dmChannel(userId, other.id);
-    const example = await this.notifications.isExample(other);
+    const example = await this.isMadeUp(other);
     const block = await this.blockBetween(userId, other.id);
     const list = await channelMessages(this.db, channel, CITY_HISTORY, userId);
     await this.markRead(userId, channel);
-    const why = example ? "This is an example person: nobody would read your message." : block === "mine" ? "You blocked them." : block === "theirs" ? "They aren't taking messages from you." : null;
+    const why = block === "mine" ? "You blocked them." : block === "theirs" ? "They aren't taking messages from you." : null;
     return { with: { ...person(other), example }, blocked: block === "mine", canWrite: !why, why, messages: list };
   }
 
-  /** A direct message to `login`. Not to yourself, an example person, or anyone either of you blocked. */
+  /** A direct message to `login`. Not to yourself, or anyone either of you blocked. An example person answers once. */
   async sendDm(userId: string, login: string, body: string): Promise<{ id: string }> {
     const other = await this.someone(userId, login);
-    if (await this.notifications.isExample(other)) throw new ConflictException({ message: "This is an example person: nobody would read your message.", code: "examplePersonMessage" });
     const block = await this.blockBetween(userId, other.id);
     if (block === "mine") throw new ForbiddenException({ message: "You blocked them. Unblock them to write.", code: "youBlocked" });
     if (block === "theirs") throw new ForbiddenException({ message: "They aren't taking messages from you.", code: "theyBlocked" });
@@ -165,10 +171,31 @@ export class ChatService {
     const id = await this.write(channel, userId, body);
     // Your own message is read by you.
     await this.markRead(userId, channel);
-    const [me] = await this.db.select({ login: users.login }).from(users).where(eq(users.id, userId));
+    const [me] = await this.db.select({ login: users.login, name: users.name }).from(users).where(eq(users.id, userId));
     this.pushes.next(other.login);
-    if (me) this.pushes.next(me.login);
+    if (me) {
+      this.pushes.next(me.login);
+      if (await this.isMadeUp(other)) await this.answerFirstWord(channel, other.id, me);
+    }
     return { id };
+  }
+
+  // Nobody reads an example person's messages, so saying hello gets one answer that says so, a moment later. "First" is
+  // read from the channel, so it's once per pair, and a demo reset (which empties the channels) starts it over.
+  private async answerFirstWord(channel: string, authorId: string, to: { login: string; name: string | null }) {
+    const [said] = await this.db.select({ n: count() }).from(messages).where(and(eq(messages.channel, channel), eq(messages.authorId, authorId)));
+    if (said.n > 0) return;
+    const first = (to.name ?? to.login).trim().split(/\s+/)[0];
+    const reply = async () => {
+      await this.db.insert(messages).values({ channel, authorId, body: exampleReply(first) });
+      this.pushes.next(to.login);
+    };
+    setTimeout(() => void reply().catch((err) => this.log.warn(`couldn't answer as an example person: ${err.message}`)), this.replyDelayMs).unref();
+  }
+
+  // Someone nobody plays: a seeded flatmate or a passer-by.
+  private async isMadeUp(other: UserRow): Promise<boolean> {
+    return passerbyName(other.login) !== undefined || (await this.notifications.isExample(other));
   }
 
   // ---- Blocking ----
@@ -271,10 +298,20 @@ export class ChatService {
 
   // Someone else, by login: not yourself, and someone who exists.
   private async someone(userId: string, login: string): Promise<UserRow> {
-    const [other] = await this.db.select().from(users).where(eq(users.login, login));
+    const [found] = await this.db.select().from(users).where(eq(users.login, login));
+    const other = found ?? (await this.passerby(login));
     if (!other) throw new NotFoundException({ message: "There's nobody by that name in the city.", code: "nobodyInCity" });
     if (other.id === userId) throw new BadRequestException({ message: "That's you.", code: "thatsYou" });
     return other;
+  }
+
+  // Passers-by are made up in the browser, with no account, until someone writes to one: then a message needs an author.
+  private async passerby(login: string): Promise<UserRow | undefined> {
+    const name = passerbyName(login);
+    if (!name) return undefined;
+    await this.db.insert(users).values({ login, name }).onConflictDoNothing();
+    const [made] = await this.db.select().from(users).where(eq(users.login, login));
+    return made;
   }
 
   // Whether `userId` may read a channel: a city's room, its arena's and a post's replies are public; a DM is its two people's;

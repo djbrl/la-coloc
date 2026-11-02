@@ -23,6 +23,8 @@ export interface PlayerState {
   example?: boolean;
   // The title they won in the Arena and wear (docs/arena.md), on their name tag. An older API leaves it out.
   badge?: Badge | null;
+  // The city they belong to, for the tourist chip on their tag. An older API leaves it out.
+  homeCity?: string | null;
 }
 
 // One lobby of a city with several.

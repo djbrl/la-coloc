@@ -62,14 +62,13 @@ const team = computed(() => {
   return teamUp({ login: person.value.login, example: !!actions.value?.example }, v, props.house, v.room, notices.sent);
 });
 // Example houses and rooms say so once, in the foot, when there's nothing to press.
-const readOnly = computed(() => (props.house.demo || !!actions.value?.example) && (!keys.value.main || keys.value.main.kind === "chatOff"));
+const readOnly = computed(() => (props.house.demo || !!actions.value?.example) && !keys.value.main);
 
 const key = (k: RoomKey) => {
   switch (k.kind) {
     case "manage":
       return { icon: "key" as const, word: w.details.manage, name: undefined };
     case "chat":
-    case "chatOff":
     case "chatLogin":
       return { icon: "chat" as const, word: w.person.chat, name: w.person.chatName(first.value) };
     case "thread":
@@ -170,7 +169,7 @@ onMounted(() => backKey.value?.focus({ preventScroll: true }));
       <div v-if="keys.main || keys.second || actions?.invite || team || readOnly || error" class="keys">
         <p v-if="error" class="error" role="alert">{{ error }}</p>
         <RouterLink v-if="keys.main?.kind === 'login'" to="/login" class="button primary key"><Icon name="login" :size="20" />{{ w.logInToKnock }}</RouterLink>
-        <button v-else-if="keys.main" type="button" class="primary key" :disabled="keys.main.kind === 'chatOff' || busy" :aria-label="key(keys.main).name" @click="press(keys.main)">
+        <button v-else-if="keys.main" type="button" class="primary key" :disabled="busy" :aria-label="key(keys.main).name" @click="press(keys.main)">
           <Icon :name="key(keys.main).icon" :size="20" />{{ key(keys.main).word }}
         </button>
         <button v-if="keys.second" type="button" class="second key" :aria-label="key(keys.second).name" @click="press(keys.second)">

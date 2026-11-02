@@ -1,5 +1,5 @@
 // The house panel's own words, in English and French (see i18n.ts): its head, tabs, rows and foot (HouseInside.vue),
-// the floor plan (FloorPlan.vue), the window's rundown (Rundown.vue), the bill and the tontine (exchange.ts)
+// the floor plan (FloorPlan.vue), the bill and the tontine (exchange.ts)
 // and paying a share (PayBill.vue). The things themselves (a house, a room, a knock) are named in panel/words.ts.
 // The French says "vous", like the rest of the site, and keeps names (houses, rooms, projects, people) as they are.
 import { defineWords, plural, pluriel } from "../../../i18n";
@@ -143,22 +143,6 @@ export const houseWords = defineWords(
       githubName: (login: string) => `@${login} on GitHub (opens a new tab)`,
     },
 
-    // The window's rundown (Rundown.vue).
-    tour: {
-      label: "What's in this window",
-      headerExample: (name: string) => `${name}: an example house.`,
-      header: (name: string) => `${name}: a server a few devs share. Green dot: it's running.`,
-      tabs: "Who lives here, and the rest of the house.",
-      rooms: "The floor plan: who's in each room, what they're making, what they pay.",
-      foot: "Your next step.",
-      next: "Next",
-      gotIt: "Got it",
-      // What the last step adds about the foot, per viewer.
-      login: "Log in to knock.",
-      rent: "Yours: set up the server.",
-      knock: "Yours: knock on a free room.",
-      thread: "Yours: see how your knock is going.",
-    },
 
     // The exchange in sentences (exchange.ts).
     thisMonth: "this month",
@@ -307,20 +291,6 @@ export const houseWords = defineWords(
       githubName: (login) => `@${login} sur GitHub (nouvel onglet)`,
     },
 
-    tour: {
-      label: "Ce qu'il y a dans cette fenêtre",
-      headerExample: (name) => `${name} : une maison d'exemple.`,
-      header: (name) => `${name} : un serveur partagé par quelques devs. Point vert : il tourne.`,
-      tabs: "Qui habite ici, et le reste de la maison.",
-      rooms: "Le plan : qui est dans chaque chambre, ce qu'il construit, ce qu'il paie.",
-      foot: "Votre prochaine étape.",
-      next: "Suivant",
-      gotIt: "Compris",
-      login: "Connectez-vous pour frapper.",
-      rent: "La vôtre : installer le serveur.",
-      knock: "La vôtre : frapper à une chambre libre.",
-      thread: "La vôtre : voir où en est votre demande.",
-    },
 
     thisMonth: "ce mois-ci",
     reviewsTraded: (n) => (n > 0 ? `${pluriel(n, "revue échangée", "revues échangées")} ce mois-ci.` : "Aucune revue échangée ce mois-ci."),

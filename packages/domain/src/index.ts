@@ -3,3 +3,4 @@ export * from "./rotation";
 export * from "./bill";
 export * from "./tontine";
 export * from "./admission";
+export * from "./passersby";

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { isAdmin } from "./auth.config";
 import { AuthService, SESSION_COOKIE, SESSION_DAYS, STATE_COOKIE } from "./auth.service";
-import { clearCookie, type HttpRequest, type HttpResponse, parseCookies, setCookie } from "./http";
+import { clearCookie, clientIp, type HttpRequest, type HttpResponse, parseCookies, setCookie } from "./http";
 import { MembershipsService } from "./memberships.service";
 import { isCoreDown } from "../core/core";
 import { AVATARS } from "../lobby/presence";
@@ -55,7 +55,7 @@ export class AuthController {
       return;
     }
     try {
-      const user = await this.auth.upsertGithubUser(await this.auth.githubProfile(code));
+      const user = await this.auth.upsertGithubUser(await this.auth.githubProfile(code), clientIp(req));
       await this.startSession(res, user.id);
       res.redirect(302, `${this.auth.config.publicUrl}/`);
     } catch (e) {
@@ -66,11 +66,11 @@ export class AuthController {
 
   @Post("auth/dev-login")
   @HttpCode(200)
-  async devLogin(@Body() body: unknown, @Res({ passthrough: true }) res: HttpResponse) {
+  async devLogin(@Body() body: unknown, @Req() req: HttpRequest, @Res({ passthrough: true }) res: HttpResponse) {
     if (!this.auth.config.devLogin) throw new ForbiddenException("dev login is off");
     const parsed = DevLoginBody.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    const user = await this.auth.devLogin(parsed.data.login).catch((e: Error) => {
+    const user = await this.auth.devLogin(parsed.data.login, clientIp(req)).catch((e: Error) => {
       // A database outage isn't the visitor's mistake: let it become the calm 503.
       throw isCoreDown(e) ? e : new BadRequestException(e.message);
     });
@@ -97,6 +97,8 @@ export class AuthController {
         name: user.name,
         avatarUrl: user.avatarUrl,
         avatar: user.avatar,
+        // The city you belong to: where the lobby opens when you have no house.
+        homeCity: user.homeCity ?? null,
         tutorialDone: !!user.tutorialDoneAt,
         // What they have left of the city's fake money (see credit/).
         credit: user.credit,

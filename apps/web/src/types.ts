@@ -272,6 +272,9 @@ export interface Me {
   avatarUrl: string | null;
   // Their lobby character ("female-a" … "male-f"), or null if they haven't picked one.
   avatar: string | null;
+  // The city you belong to, given at your first login: where the lobby opens when you have no house. An older API
+  // leaves it out.
+  homeCity?: string | null;
   // `room`: their first room in that house; `rooms`: all of them.
   houses: { id: string; name: string; role: MemberRole; room: string | null; rooms: string[] }[];
   // Finished (or skipped) the tutorial? Missing on an API that doesn't have the tutorial yet.

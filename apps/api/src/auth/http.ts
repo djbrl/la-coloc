@@ -9,6 +9,13 @@ export interface HttpResponse {
   redirect(status: number, url: string): void;
 }
 
+/** Who's asking, as the proxy in front saw them. Caddy sets this header itself; on a laptop there may be none. */
+export function clientIp(req: HttpRequest): string | null {
+  const forwarded = req.headers["x-forwarded-for"];
+  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0].trim();
+  return first || null;
+}
+
 export function parseCookies(header: string | string[] | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   const raw = Array.isArray(header) ? header.join("; ") : (header ?? "");

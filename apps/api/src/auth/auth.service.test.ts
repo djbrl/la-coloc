@@ -121,6 +121,17 @@ describe("GitHub login", () => {
     expect(second.login).toBe("jib-new");
   });
 
+  it("gives a city from where they first log in, and never changes it", async () => {
+    const auth = new AuthService(db, config());
+    // An address in Senegal, then one in Nigeria: they moved around, they still belong to Dakar.
+    const first = await auth.upsertGithubUser(profile, "41.82.0.1");
+    expect(first.homeCity).toBe("Dakar");
+    expect((await auth.upsertGithubUser(profile, "105.112.0.1")).homeCity).toBe("Dakar");
+    // An account from before this existed gets one at its next login.
+    await db.update(users).set({ homeCity: null }).where(eq(users.id, first.id));
+    expect((await auth.upsertGithubUser(profile, "105.112.0.1")).homeCity).toBe("Cotonou");
+  });
+
   it("is off when no client id is configured", () => {
     const auth = new AuthService(db, loadAuthConfig({}));
     expect(auth.config.github).toBeNull();

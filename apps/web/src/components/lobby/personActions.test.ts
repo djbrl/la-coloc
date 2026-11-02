@@ -30,8 +30,11 @@ describe("Chat comes first, on everyone you see", () => {
     for (const p of people) expect(messageAction(p, null)).toEqual({ kind: "login" });
   });
 
-  it("is there, disabled, for an example person", () => {
-    for (const p of [passerBy, koffi]) for (const v of [...viewers, null]) expect(messageAction(p, v)).toEqual({ kind: "example" });
+  it("is there for an example person too: they answer", () => {
+    for (const p of [passerBy, koffi]) {
+      for (const v of viewers) expect(messageAction(p, v)).toEqual({ kind: "open" });
+      expect(messageAction(p, null)).toEqual({ kind: "login" });
+    }
   });
 
   it("is missing only on yourself", () => {

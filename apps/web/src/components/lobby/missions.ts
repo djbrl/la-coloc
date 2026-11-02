@@ -15,8 +15,7 @@ export const noMissions = (): Missions => ({ done: [], collapsed: false, finishe
 
 /**
  * Which mission a message counts for, from the address it was posted to. A direct message or the city's public room
- * is talking to a stranger (the city's room must count: on an empty demo city, most people walking around are seeded
- * and can't be messaged). A house's channel or a knock on its door, which always carries a message, is introducing
+ * is talking to a stranger. A house's channel or a knock on its door, which always carries a message, is introducing
  * yourself. Anything else (a board's reply, the Arena's chat) counts for nothing.
  */
 export function missionOfMessage(url: string): MissionId | null {

@@ -55,7 +55,7 @@ function said(room: Room): string {
 </script>
 
 <template>
-  <div class="plan" data-tour="rooms">
+  <div class="plan">
     <p class="numbers">
       <span><strong>{{ house.rooms.length }}</strong> {{ w.plan.rooms(house.rooms.length) }}</span>
       <span v-if="free()"><strong>{{ free() }}</strong> {{ w.plan.free(free()) }}</span>

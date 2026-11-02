@@ -37,6 +37,9 @@ export const users = pgTable("users", {
   // fetching them from GitHub on its own. A key someone removed doesn't come back.
   sshKeysChosen: boolean("ssh_keys_chosen").notNull().default(false),
   location: text("location"),
+  // The city they belong to, chosen from where they first logged in from (auth/homeCity.ts). They can walk anywhere; a
+  // tag says "tourist" where they don't belong. Null: seeded people, and accounts that haven't logged in since.
+  homeCity: text("home_city"),
   // Their character in the lobby: one of the models in apps/web/public/lobby/people ("female-a" … "male-f").
   avatar: text("avatar"),
   // Their top public repos (at most 3), read from GitHub when they log in. Null: never read (dev logins, seeded people).

@@ -126,10 +126,10 @@ describe("a room's page: its keys", () => {
     expect(roomKeys(room("two", awa, { team: [person("kofi")] }), situation({ viewer: flatmate })).main).toEqual({ kind: "chat", login: "awa" });
   });
 
-  it("chats with a flatmate, and shows the key off for a made-up one", () => {
+  it("chats with a flatmate, made-up or not", () => {
     expect(roomKeys(room("two", awa), situation({ viewer: flatmate }))).toEqual({ main: { kind: "chat", login: "awa" }, second: null });
-    expect(roomKeys(room("two", seeded), situation({ viewer: flatmate })).main).toEqual({ kind: "chatOff" });
-    expect(roomKeys(room("two", awa, { demo: true }), situation({ viewer: flatmate })).main).toEqual({ kind: "chatOff" });
+    expect(roomKeys(room("two", seeded), situation({ viewer: flatmate })).main).toEqual({ kind: "chat", login: "ibou" });
+    expect(roomKeys(room("two", awa, { demo: true }), situation({ viewer: flatmate })).main).toEqual({ kind: "chat", login: "awa" });
   });
 
   it("puts Chat first from outside, with the knock beside it", () => {
@@ -158,9 +158,9 @@ describe("a room's page: its keys", () => {
     expect(roomKeys({ ...free, demo: true }, situation({ viewer: flatmate, freeRooms: ["three"] })).main).toBeNull();
   });
 
-  it("keeps Chat on an example house's people, off, and nothing to press on its free rooms", () => {
-    expect(roomKeys(room("two", seeded), situation({ demo: true, freeRooms: ["four"] }))).toEqual({ main: { kind: "chatOff" }, second: null });
-    expect(roomKeys(room("two", seeded), situation({ viewer: null, demo: true })).main).toEqual({ kind: "chatOff" });
+  it("keeps Chat on an example house's people, and nothing to press on its free rooms", () => {
+    expect(roomKeys(room("two", seeded), situation({ demo: true, freeRooms: ["four"] }))).toEqual({ main: { kind: "chat", login: "ibou" }, second: null });
+    expect(roomKeys(room("two", seeded), situation({ viewer: null, demo: true })).main).toEqual({ kind: "chatLogin" });
     expect(roomKeys(room("three", null), situation({ demo: true, freeRooms: ["three"] }))).toEqual({ main: null, second: null });
   });
 
@@ -181,28 +181,27 @@ describe("a housemate's Chat key", () => {
   const flatmate = viewer({ member: true, role: "flatmate", room: "one" });
 
   it("writes to real people, inside the house or out, never to yourself", () => {
-    expect(chatKey(awa, false, situation({ viewer: flatmate }))).toEqual({ kind: "chat", login: "awa" });
-    expect(chatKey(awa, false, situation())).toEqual({ kind: "chat", login: "awa" });
-    expect(chatKey({ ...awa, login: "jib" }, false, situation({ viewer: flatmate }))).toBeNull();
+    expect(chatKey(awa, situation({ viewer: flatmate }))).toEqual({ kind: "chat", login: "awa" });
+    expect(chatKey(awa, situation())).toEqual({ kind: "chat", login: "awa" });
+    expect(chatKey({ ...awa, login: "jib" }, situation({ viewer: flatmate }))).toBeNull();
   });
 
   it("takes you to log in when you're logged out", () => {
-    expect(chatKey(awa, false, situation({ viewer: null }))).toEqual({ kind: "chatLogin" });
+    expect(chatKey(awa, situation({ viewer: null }))).toEqual({ kind: "chatLogin" });
   });
 
-  it("is off for a made-up person, whoever you are", () => {
+  it("works on a made-up person too, whoever you are", () => {
     const seeded: Person = { ...person("ibou"), github: false };
-    expect(chatKey(seeded, false, situation({ viewer: flatmate }))).toEqual({ kind: "chatOff" });
-    expect(chatKey(seeded, false, situation())).toEqual({ kind: "chatOff" });
-    expect(chatKey(seeded, false, situation({ viewer: null }))).toEqual({ kind: "chatOff" });
-    expect(chatKey(awa, false, situation({ demo: true }))).toEqual({ kind: "chatOff" });
-    expect(chatKey(awa, true, situation())).toEqual({ kind: "chatOff" });
+    expect(chatKey(seeded, situation({ viewer: flatmate }))).toEqual({ kind: "chat", login: "ibou" });
+    expect(chatKey(seeded, situation())).toEqual({ kind: "chat", login: "ibou" });
+    expect(chatKey(seeded, situation({ viewer: null }))).toEqual({ kind: "chatLogin" });
+    expect(chatKey(awa, situation({ demo: true }))).toEqual({ kind: "chat", login: "awa" });
   });
 
   it("is there on everyone but you: there's always a way to start talking", () => {
     const viewers = [flatmate, viewer(), viewer({ application: "k9" }), null];
     const people: Person[] = [awa, { ...person("ibou"), github: false }, person("moussa")];
-    for (const v of viewers) for (const p of people) expect(chatKey(p, false, situation({ viewer: v }))).not.toBeNull();
+    for (const v of viewers) for (const p of people) expect(chatKey(p, situation({ viewer: v }))).not.toBeNull();
   });
 });
 

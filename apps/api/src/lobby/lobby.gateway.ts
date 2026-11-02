@@ -112,7 +112,7 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
         if (left) return;
         // The same connection, now as that person: the visitor goes, they arrive.
         this.send(this.presence.leave(conn));
-        this.send(this.presence.join(conn, { login: user.login, name: user.name, avatar: user.avatar, github: user.githubId !== null, example, badge: user.badge ?? null }));
+        this.send(this.presence.join(conn, { login: user.login, name: user.name, avatar: user.avatar, github: user.githubId !== null, example, badge: user.badge ?? null, homeCity: user.homeCity ?? null }));
       }
       checking = false;
       drain();
@@ -134,7 +134,7 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
     const example = user ? await this.isExample(user) : false;
     if (left) return;
     this.sockets.set(conn, socket);
-    this.send(this.presence.join(conn, user ? { login: user.login, name: user.name, avatar: user.avatar, github: user.githubId !== null, example, badge: user.badge ?? null } : null));
+    this.send(this.presence.join(conn, user ? { login: user.login, name: user.name, avatar: user.avatar, github: user.githubId !== null, example, badge: user.badge ?? null, homeCity: user.homeCity ?? null } : null));
     joined = true;
     drain();
   }

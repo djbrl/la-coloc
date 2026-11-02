@@ -4,6 +4,7 @@ import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import { DB } from "../db/db.module";
 import type { AuthConfig } from "./auth.config";
+import { homeCityFor } from "./homeCity";
 import { type HttpRequest, parseCookies } from "./http";
 
 export const AUTH_CONFIG = Symbol("AUTH_CONFIG");
@@ -159,9 +160,10 @@ export class AuthService {
   /**
    * Finds or creates the user for a GitHub account, keyed by GitHub's numeric id (logins can change).
    * If a seeded demo user already holds that login, the demo user is renamed: a GitHub account never
-   * inherits anything from a seeded one.
+   * inherits anything from a seeded one. `ip`: where they logged in from, for the city they belong to; it isn't kept.
+   * A city once given stays: moving around never changes it.
    */
-  async upsertGithubUser(p: GithubProfile): Promise<User> {
+  async upsertGithubUser(p: GithubProfile, ip: string | null = null): Promise<User> {
     const fields = {
       login: p.login,
       name: p.name,
@@ -177,10 +179,10 @@ export class AuthService {
         .where(and(eq(users.login, p.login), isNull(users.githubId)));
       const [existing] = await tx.select().from(users).where(eq(users.githubId, p.id));
       if (existing) {
-        const [u] = await tx.update(users).set(fields).where(eq(users.id, existing.id)).returning();
+        const [u] = await tx.update(users).set({ ...fields, homeCity: existing.homeCity ?? homeCityFor(ip) }).where(eq(users.id, existing.id)).returning();
         return u;
       }
-      const [u] = await tx.insert(users).values({ githubId: p.id, ...fields }).returning();
+      const [u] = await tx.insert(users).values({ githubId: p.id, ...fields, homeCity: homeCityFor(ip) }).returning();
       return u;
     });
   }
@@ -196,12 +198,12 @@ export class AuthService {
   }
 
   /** Development only (COLOC_DEV_LOGIN=1): be anyone, creating them if needed. */
-  async devLogin(login: string): Promise<User> {
+  async devLogin(login: string, ip: string | null = null): Promise<User> {
     if (!this.config.devLogin) throw new Error("dev login is off");
     if (!LOGIN.test(login)) throw new Error("not a valid login");
     const [existing] = await this.db.select().from(users).where(eq(users.login, login));
     if (existing) return existing;
-    const [u] = await this.db.insert(users).values({ login, name: login }).returning();
+    const [u] = await this.db.insert(users).values({ login, name: login, homeCity: homeCityFor(ip) }).returning();
     return u;
   }
 }

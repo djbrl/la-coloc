@@ -103,7 +103,7 @@ async function toggleBlock() {
         </button>
       </div>
       <p v-if="error" class="error small" role="alert">{{ error }}</p>
-      <p v-else-if="open && !open.canWrite && open.why" class="soft small">{{ open.with.example ? w.whyExample : open.blocked ? w.whyBlocked : w.whyTheirs }}</p>
+      <p v-else-if="open && !open.canWrite && open.why" class="soft small">{{ open.blocked ? w.whyBlocked : w.whyTheirs }}</p>
       <ChatPanel
         v-if="open"
         :messages="open.messages"

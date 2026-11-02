@@ -34,12 +34,13 @@ import { liveKey, liveState } from "./live";
 import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff, RING, ringPaint } from "./models";
 import { CityProps, makeBoard, makePins, waxParasols } from "./props";
 import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
-import { keepApart, laneFor, MOST, passerbyCount, passersBy, type SidewalkPoint, sidewalks, standAt, type Stroll, walkAhead } from "./passersby";
+import { keepApart, laneFor, MOST, passerbyCount, passersBy, type SidewalkPoint, sidewalks, standAt, type Stroll, VISITORS, visitorsIn, walkAhead } from "./passersby";
 import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
 import { cityKey, cityOwnsKeys, readLayout } from "./keys";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
 import { FrameBudget } from "./frameBudget";
+import { isTourist } from "./tags";
 import { Tag, type TagKind, TagLayer } from "./tagLayer";
 import { declutter, type TagSpot } from "./tags";
 import { dye } from "./tint";
@@ -121,6 +122,8 @@ export interface Resident {
   project: string | null;
   // The Arena title they wear, as the city lists them: the flatmates out front carry it on their tags too.
   badge?: Badge | null;
+  // Every city they have a room in: they aren't a tourist in any of them.
+  cities?: string[];
 }
 
 export interface LobbyEvents {
@@ -297,6 +300,10 @@ export class Lobby {
   private sidewalks: SidewalkPoint[][] = [];
   private remotes = new Map<string, Remote>();
   private residents = new Map<string, Resident>();
+  // The city each person belongs to, from the live line (people online) or passersby.ts: for the tourist chip.
+  private homeCities = new Map<string, string | null>();
+  // Off on the tutorial's street, which belongs to no city.
+  private touristsHere = true;
   private board: Board | null = null;
   // The Arena, in a city that has one; what its big screen shows (kept across cities), and the last head count told to Vue.
   private arena: Arena | null = null;
@@ -514,7 +521,8 @@ export class Lobby {
    * for the tutorial's street). `passersBy: false` leaves its streets to the flatmates (the tutorial's one street,
    * where nothing should distract).
    */
-  setNeighbourhood(n: Neighbourhood, houses: CityHouse[], opts: { passersBy?: boolean; close?: boolean } = {}) {
+  setNeighbourhood(n: Neighbourhood, houses: CityHouse[], opts: { passersBy?: boolean; close?: boolean; tourists?: boolean } = {}) {
+    this.touristsHere = opts.tourists !== false;
     // The city stream re-sends the city often. Only rebuild if what's drawn changed; the live state (windows, the
     // crane, the power, knocks, the board's pins) is redrawn in place by `updateHouses`.
     const key = JSON.stringify([n.city, houses.map((h) => [h.id, h.name, h.status, h.demo, h.plot, h.rooms.map((r) => r.name)])]);
@@ -730,6 +738,7 @@ export class Lobby {
     }
     this.trophy(this.playerTag);
     for (const r of this.remotes.values()) this.trophy(r.tag);
+    this.setResidents(this.residents);
   }
 
   setQuality(quality: "high" | "low", reduceMotion: boolean) {
@@ -1066,9 +1075,13 @@ export class Lobby {
 
   // ---- Everyone else who's online here ----
 
-  addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean; badge?: Badge | null }) {
-    // The line says who we are too: that's where your own title comes from.
-    if (p.login === this.opts.login) this.setBadge(p.login, p.badge ?? null);
+  addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean; badge?: Badge | null; homeCity?: string | null }) {
+    this.homeCities.set(p.login, p.homeCity ?? null);
+    // The line says who we are too: that's where your own title and home city come from.
+    if (p.login === this.opts.login) {
+      this.setBadge(p.login, p.badge ?? null);
+      this.badge(this.playerTag, p.login);
+    }
     if (p.login === this.opts.login || this.remotes.has(p.login)) return;
     const name = p.name ?? p.login;
     const { avatar, tag } = this.makePerson(p.login, name, "person");
@@ -1581,7 +1594,8 @@ export class Lobby {
     this.sidewalks = sidewalks(n.blocks);
     if (!this.sidewalks.length) return;
     const rand = seeded(`walkers:${n.city}`);
-    for (const who of passersBy(n.city, MOST)) {
+    for (const who of [...visitorsIn(n.city, VISITORS), ...passersBy(n.city, MOST - VISITORS)]) {
+      this.homeCities.set(who.login, who.from ?? n.city);
       const dir: 1 | -1 = rand() < 0.5 ? 1 : -1;
       const stroll: Stroll = { block: Math.floor(rand() * this.sidewalks.length), at: Math.floor(rand() * 16), dir, lane: laneFor(dir, rand) };
       const at = standAt(this.sidewalks[stroll.block][stroll.at], stroll.lane);
@@ -2029,10 +2043,13 @@ export class Lobby {
 
   /**
    * The small badge after a name: their house, on the house's colour (the same as the ring at their feet), so
-   * flatmates read as a group. Someone without a house gets none. Rebuilt whenever the residents change.
+   * flatmates read as a group. Someone without a house gets none: just their name. After it, "tourist" for someone
+   * visiting from another city. Rebuilt whenever the residents change.
    */
   private badge(tag: Tag, login: string | null) {
     const home = login ? this.residents.get(login) : undefined;
+    const tourist = this.touristsHere && !!login && isTourist(this.builtCity, home?.cities ?? [], this.homeCities.get(login));
+    tag.say({ tourist: tourist ? words.tourist : null });
     if (!home) {
       tag.say({ home: null });
       return;

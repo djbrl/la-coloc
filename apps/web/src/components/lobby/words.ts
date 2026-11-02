@@ -47,7 +47,6 @@ export const cardWords = defineWords(
     boardLine: (waiting: number, late: number) => `${plural(waiting, "review", "reviews")} waiting${late ? `, ${late} late` : ""}.`,
     // PersonCard.vue
     personLabel: (name: string) => `${name}, someone in the city`,
-    visiting: "Visiting.",
     thatsYou: " · That's you.",
     messageName: (name: string) => `Write to ${name}`,
     messageLoginName: (name: string) => `Log in to write to ${name}`,
@@ -92,7 +91,6 @@ export const cardWords = defineWords(
     boardNone: (_city) => "Aucune revue en attente.",
     boardLine: (waiting, late) => `${pluriel(waiting, "revue", "revues")} en attente${late ? `, ${late} en retard` : ""}.`,
     personLabel: (name) => `${name}, quelqu'un en ville`,
-    visiting: "De passage.",
     thatsYou: " · C'est vous.",
     messageName: (name) => `Écrire à ${name}`,
     messageLoginName: (name) => `Se connecter pour écrire à ${name}`,
@@ -156,6 +154,7 @@ export const hudWords = defineWords(
     dashName: "Dash",
     // Lobby.ts: words drawn in the 3D city. A visitor's own name tag, and the hidden names of the bubbles over heads.
     youTag: "you",
+    tourist: "Tourist",
     knocking: (house: string) => `Someone is knocking at ${house}`,
     waves: "waves hello",
     thumbsDown: "thumbs down",
@@ -219,6 +218,7 @@ export const hudWords = defineWords(
     tryNow: "Réessayer",
     dashName: "Sprint",
     youTag: "vous",
+    tourist: "Touriste",
     knocking: (house) => `Quelqu'un frappe à ${house}`,
     waves: "fait coucou",
     thumbsDown: "pouce vers le bas",

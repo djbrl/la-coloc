@@ -148,8 +148,8 @@ const myCity = computed(() => {
   const mine = me.value?.houses[0]?.id;
   return props.houses.find((h) => h.id === mine)?.city ?? null;
 });
-// The city in the address bar, else your house's city, else the busiest one.
-const city = ref<string>(String(route.query.city ?? "") || myCity.value || cities.value[0]?.name || "Dakar");
+// The city in the address bar, else your house's city, else the city you belong to, else the busiest one.
+const city = ref<string>(String(route.query.city ?? "") || myCity.value || me.value?.homeCity || cities.value[0]?.name || "Dakar");
 // The chat's City and Board tabs are about the city you're in.
 watch(city, (c) => (chatSheet.city = c), { immediate: true });
 const here = computed(() => props.houses.filter((h) => h.city === city.value));
@@ -159,8 +159,12 @@ const residents = computed(() => {
   const map = new Map<string, Home>();
   for (const h of props.houses)
     for (const r of h.rooms)
-      // Someone with several rooms is shown in their first.
-      if (r.occupant && !map.has(r.occupant.login)) map.set(r.occupant.login, { houseId: h.id, houseName: h.name, city: h.city, room: r.name, project: r.project, badge: r.occupant.badge ?? null });
+      if (r.occupant) {
+        // Someone with several rooms is shown in their first, and is at home in every city they have one.
+        const known = map.get(r.occupant.login);
+        if (known) known.cities?.push(h.city);
+        else map.set(r.occupant.login, { houseId: h.id, houseName: h.name, city: h.city, cities: [h.city], room: r.name, project: r.project, badge: r.occupant.badge ?? null });
+      }
   return map;
 });
 
@@ -172,7 +176,7 @@ function build() {
   const n = inWorkshop.value ? tutorialNeighbourhood() : generateNeighbourhood(city.value, here.value);
   neighbourhood.value = n;
   // Passers-by walk the city's streets, not the tutorial's: the quest keeps its one street calm.
-  lobby.setNeighbourhood(n, shown.value, { passersBy: !inWorkshop.value, close: inWorkshop.value });
+  lobby.setNeighbourhood(n, shown.value, { passersBy: !inWorkshop.value, close: inWorkshop.value, tourists: !inWorkshop.value });
   lobby.setResidents(residents.value);
   shownArena = "";
   showArenaScreen();
@@ -1388,7 +1392,7 @@ function statsOf(name: string) {
             <template v-else-if="near.kind === 'person'">
               <span>
                 <strong>{{ near.name }}</strong>
-                <span class="soft">{{ residents.get(near.login) ? `, ${residents.get(near.login)!.houseName}` : w.visiting }}</span>
+                <span v-if="residents.get(near.login)" class="soft">, {{ residents.get(near.login)!.houseName }}</span>
               </span>
               <button class="pill" @click="lobby?.interact()">{{ w.seePerson }} <kbd>{{ caps.e }}</kbd></button>
             </template>
@@ -1497,7 +1501,6 @@ function statsOf(name: string) {
       v-if="place"
       :key="placeKey(place)"
       :start="place"
-      :quiet="inWorkshop"
       :tab="questTab"
       :coached="inWorkshop && !centred"
       @change="insideChanged"

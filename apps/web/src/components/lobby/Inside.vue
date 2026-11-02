@@ -12,15 +12,11 @@ import { hudWords as w } from "./words";
 
 const props = defineProps<{
   start: Place;
-  // The tutorial asks a house's view for the window's rundown (HouseInside, house/Rundown.vue).
-  rundown?: boolean;
   // The tutorial's coach is up, with its own main action: a room's page then keeps its own buttons quieter.
   coached?: boolean;
   // For the house the panel opened on (`start`), handed to its HouseInside: the tab to show (a quest pointing at a
-  // part of the house), and `quiet` to keep its first-visit rundown from starting by itself. A house opened on top
-  // later (from a link) gets neither, so a quest's ask never leaks into another house.
+  // part of the house). A house opened on top later (from a link) doesn't get it, so a quest's ask never leaks.
   tab?: "rooms" | "people" | "channel" | "chores" | "fridge" | "bill";
-  quiet?: boolean;
 }>();
 
 // Whether the page on top is the one the panel opened on.
@@ -30,8 +26,6 @@ const emit = defineEmits<{
   close: [];
   // An outside link in the panel was clicked (the browser still follows it): its full address.
   link: [url: string];
-  // The rundown ended (Got it, or Escape).
-  rundownDone: [];
 }>();
 
 const sheet = ref<HTMLElement | null>(null);
@@ -63,13 +57,6 @@ function leftRoom(houseId: string) {
   const house: Place = { kind: "house", id: houseId };
   const under = stack.value.slice(0, -1);
   stack.value = under.length && placeKey(under[under.length - 1]) === placeKey(house) ? under : [...under, house];
-}
-
-// The rundown runs once per panel: going to a room and back to the house doesn't start it over.
-const rundownSeen = ref(false);
-function rundownEnded() {
-  rundownSeen.value = true;
-  emit("rundownDone");
 }
 
 watch(topKey, (now) => {
@@ -200,13 +187,10 @@ function trapTab(e: KeyboardEvent) {
           v-if="top.kind === 'house'"
           :key="topKey"
           :id="top.id"
-          :rundown="!!rundown && !rundownSeen"
           :tab="atStart ? tab : undefined"
-          :quiet="atStart && quiet"
           :coached="coached"
           @open="go"
           @label="(l) => (label = l)"
-          @rundown-done="rundownEnded"
         />
         <ApplicationPage v-else-if="top.kind === 'application'" :key="topKey" :id="top.id" embedded @label="(l) => (label = l)" />
         <RoomPage v-else :key="topKey" :id="top.houseId" :room="top.room" embedded :coached="coached" @label="(l) => (label = l)" @left="leftRoom" />

@@ -115,16 +115,45 @@ describe("direct messages", () => {
     expect((await chat.conversation(ids.awa, "fatou")).messages).toEqual([]);
   });
 
-  it("refuses yourself, nobody, an example person, an empty or too long message, and visitors", async () => {
+  it("refuses yourself, nobody, an empty or too long message, and visitors", async () => {
     expect(await status(chat.sendDm(ids.fatou, "fatou", "me"))).toBe(400);
     expect(await status(chat.sendDm(ids.fatou, "nobody-here", "hi"))).toBe(404);
-    // Koffi is a seeded flatmate of an example house.
-    expect(await status(chat.sendDm(ids.fatou, "koffi", "hi"))).toBe(409);
-    expect((await chat.conversation(ids.fatou, "koffi")).canWrite).toBe(false);
     expect(await status(chat.sendDm(ids.fatou, "sam", "   "))).toBe(400);
     expect(await status(chat.sendDm(ids.fatou, "sam", "x".repeat(1001)))).toBe(400);
     expect(await status(controller.sendDm("sam", { body: "hi" }, req))).toBe(401);
     expect(await status(controller.conversations(req))).toBe(401);
+  });
+
+  it("reach an example person, who answers the first one, once", async () => {
+    chat.replyDelayMs = 0;
+    const answered = async (n: number) => {
+      for (let i = 0; i < 50 && (await chat.conversation(ids.fatou, "koffi")).messages.length < n; i++) await new Promise((r) => setTimeout(r, 5));
+      return (await chat.conversation(ids.fatou, "koffi")).messages;
+    };
+    // Koffi is a seeded flatmate of an example house.
+    const open = await chat.conversation(ids.fatou, "koffi");
+    expect(open.canWrite).toBe(true);
+    expect(open.with.example).toBe(true);
+    await chat.sendDm(ids.fatou, "koffi", "hi");
+    const first = await answered(2);
+    expect(first).toHaveLength(2);
+    expect(first.some((m) => m.body.includes("example resident"))).toBe(true);
+    await chat.sendDm(ids.fatou, "koffi", "still there?");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(await answered(3)).toHaveLength(3);
+  });
+
+  it("reach a passer-by, who only exists once someone writes to them; any other unknown name is nobody", async () => {
+    chat.replyDelayMs = 0;
+    const before = await db.select().from(users).where(eq(users.login, "mdiop_221"));
+    expect(before).toEqual([]);
+    const open = await chat.conversation(ids.fatou, "mdiop_221");
+    expect(open.with.name).toBe("Mamadou Diop");
+    expect(open.with.example).toBe(true);
+    await chat.sendDm(ids.fatou, "mdiop_221", "salut");
+    await chat.sendDm(ids.sam, "mdiop_221", "salut aussi");
+    expect(await db.select().from(users).where(eq(users.login, "mdiop_221"))).toHaveLength(1);
+    expect(await status(chat.sendDm(ids.fatou, "made_up_person", "hi"))).toBe(404);
   });
 
   it("are stored as typed: markup is just text", async () => {

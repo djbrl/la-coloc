@@ -79,7 +79,7 @@ const team = computed(() => {
   return teamUp({ login: props.login, example: madeUp.value }, me.value, mine, myRoom, notices.sent);
 });
 // Chat: the first key on anyone but you (chat/chat.ts).
-const message = computed(() => messageAction({ isMe: props.isMe, example: madeUp.value }, me.value));
+const message = computed(() => messageAction({ isMe: props.isMe }, me.value));
 // The free room to offer, when your house has several: the first until you pick another.
 const pickedRoom = ref<string | null>(null);
 const offered = computed(() => {
@@ -120,9 +120,8 @@ async function send(kind: "invite" | "share" | "withdraw") {
       <template v-else>@{{ login }}</template>
     </template>
     <BadgeChip v-if="badge" class="worn" :badge="badge" />
-    <p class="soft small who">
+    <p v-if="where || isMe" class="soft small who">
       <template v-if="where">{{ where }}</template>
-      <template v-else>{{ w.visiting }}</template>
       <template v-if="isMe">{{ w.thatsYou }}</template>
     </p>
 
@@ -150,7 +149,7 @@ async function send(kind: "invite" | "share" | "withdraw") {
       <RouterLink v-if="message?.kind === 'login'" to="/login" class="big primary" :aria-label="w.messageLoginName(name)">
         <Icon name="chat" :size="20" /> {{ hw.person.chat }}
       </RouterLink>
-      <button v-else-if="message" class="big primary" :disabled="message.kind === 'example'" :aria-label="w.messageName(name)" @click="openChat('dm', { with: login })">
+      <button v-else-if="message" class="big primary" :aria-label="w.messageName(name)" @click="openChat('dm', { with: login })">
         <Icon name="chat" :size="20" /> {{ hw.person.chat }}
       </button>
 
@@ -199,8 +198,6 @@ async function send(kind: "invite" | "share" | "withdraw") {
 .desc { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 /* Their name on GitHub, on the band. */
 .handle { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-/* The Chat key off, for an example person: it stays readable but plainly off. */
-.menu .big.primary:disabled { opacity: 1; background: var(--fill); color: var(--muted); cursor: not-allowed; }
 /* The keys after Chat: side by side when both fit, each stepping back from it. */
 .moves { display: flex; flex-wrap: wrap; gap: 8px; }
 .moves > * { flex: 1 1 150px; min-width: 0; }

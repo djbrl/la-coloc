@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { declutter, type TagSpot } from "./tags";
+import { declutter, isTourist, type TagSpot } from "./tags";
 
 const spot = (name: string, x: number, y: number, d: number, keep = false): TagSpot & { name: string } => ({ name, x, y, w: 80, d, keep, shown: false, crowded: false, tag: null });
 const names = (spots: (TagSpot & { name?: string })[], pick: (s: TagSpot) => boolean) => spots.filter(pick).map((s) => (s as { name: string }).name).sort();
@@ -63,5 +63,22 @@ describe("name tags in a pile-up", () => {
     declutter(spots, 2, Infinity);
     expect(spots.map((s) => (s as { name: string }).name)).toEqual(["a", "b", "spare"]);
     expect(spare.shown).toBe(false);
+  });
+});
+
+describe("who's a tourist", () => {
+  it("is someone with no house here", () => {
+    expect(isTourist("Dakar", ["Lomé"], "Dakar")).toBe(true);
+    expect(isTourist("Lomé", ["Lomé"], "Dakar")).toBe(false);
+    expect(isTourist("Kigali", ["Lomé", "Kigali"], null)).toBe(false);
+  });
+  it("is, with no house anywhere, someone away from the city they belong to", () => {
+    expect(isTourist("Tunis", [], "Dakar")).toBe(true);
+    expect(isTourist("Dakar", [], "Dakar")).toBe(false);
+  });
+  it("is nobody when we can't tell", () => {
+    expect(isTourist("Dakar", [], null)).toBe(false);
+    expect(isTourist("Dakar", [], undefined)).toBe(false);
+    expect(isTourist("", ["Lomé"], "Dakar")).toBe(false);
   });
 });

@@ -16,6 +16,8 @@ export interface TagWords {
   home?: { text: string; background: string; color: string } | null;
   // The title they won in the Arena: a trophy and its words.
   won?: { text: string; tone: Tone } | null;
+  // They're visiting from another city: the word for it, after their house.
+  tourist?: string | null;
 }
 
 /** One tag: what it says, and the thing it floats over (it follows it, `y` metres up). */
@@ -79,6 +81,7 @@ const TONES: Record<Tone, { background: string; color: string }> = {
   silver: { background: "#d5d9e0", color: "#23262c" },
   bronze: { background: "#dc955c", color: "#3b1d05" },
 };
+const TOURIST = { background: "#0f6e84", color: "#fff" };
 const CROWDED_ALPHA = 0.35;
 const FADE = 0.2;
 // Enough for everyone you'll meet in a while. Past this the pictures start over; the ones in use are redrawn as needed.
@@ -87,8 +90,8 @@ const MOST_PICTURES = 400;
 const MARGIN = 120;
 
 /**
- * Where everything goes in a tag, in CSS pixels, from how wide its words measure. A crowded tag drops its house chip
- * and the words of its title, keeping the trophy in its colour: who won still shows at a busy door.
+ * Where everything goes in a tag, in CSS pixels, from how wide its words measure. A crowded tag drops its house and
+ * tourist chips and the words of its title, keeping the trophy in its colour: who won still shows at a busy door.
  */
 export function tagLayout(words: TagWords, crowded: boolean, measure: (text: string, size: number) => number) {
   const look = LOOKS[words.kind];
@@ -112,9 +115,14 @@ export function tagLayout(words: TagWords, crowded: boolean, measure: (text: str
     home.w = home.pad * 2 + measure(words.home!.text, home.textSize);
     x = home.at + home.w;
   }
+  const tourist = words.tourist && !crowded ? { at: x + look.chipGap, textSize: small ? 8 : 9, height: small ? 12 : 14, pad: small ? 5 : 6, w: 0 } : null;
+  if (tourist) {
+    tourist.w = tourist.pad * 2 + measure(words.tourist!, tourist.textSize);
+    x = tourist.at + tourist.w;
+  }
   const width = Math.ceil(x + look.padX);
   const height = Math.ceil(look.size * 1.2 + look.padY * 2);
-  return { look, width, height, swatchAt, cupAt, textAt, won, home };
+  return { look, width, height, swatchAt, cupAt, textAt, won, home, tourist };
 }
 
 export class TagLayer {
@@ -226,8 +234,8 @@ export class TagLayer {
 
   private pictureFor(tag: Tag): Picture | null {
     if (tag.pictureOf === this.generation && tag.picture) return tag.picture;
-    const { kind, text, swatch, home, won } = tag.words;
-    const key = `${kind}|${text}|${swatch ?? ""}|${home?.text ?? ""}|${home?.background ?? ""}|${won?.text ?? ""}|${won?.tone ?? ""}|${tag.crowded}`;
+    const { kind, text, swatch, home, won, tourist } = tag.words;
+    const key = `${kind}|${text}|${swatch ?? ""}|${home?.text ?? ""}|${home?.background ?? ""}|${won?.text ?? ""}|${won?.tone ?? ""}|${tourist ?? ""}|${tag.crowded}`;
     let picture = this.pictures.get(key);
     if (!picture) {
       if (this.pictures.size >= MOST_PICTURES) this.forget();
@@ -305,6 +313,13 @@ export class TagLayer {
       ctx.fillStyle = words.home.color;
       ctx.font = font(h.textSize);
       ctx.fillText(words.home.text, h.at + h.pad, mid);
+    }
+    if (layout.tourist && words.tourist) {
+      const t = layout.tourist;
+      chip(ctx, t.at, mid, t.w, t.height, TOURIST.background);
+      ctx.fillStyle = TOURIST.color;
+      ctx.font = font(t.textSize);
+      ctx.fillText(words.tourist, t.at + t.pad, mid);
     }
     return { image, w: width, h: height + below, cy: height / 2, width };
   }

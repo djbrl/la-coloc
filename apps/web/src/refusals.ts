@@ -14,7 +14,6 @@ const fr: Record<string, (r: Refusal) => string> = {
   // Chat: direct messages, a city's room and its board.
   adminsOnly: () => "Seuls les admins de la ville peuvent lire les signalements.",
   noCity: () => "Cette ville n'existe pas.",
-  examplePersonMessage: () => "C'est une personne d'exemple : personne ne lirait votre message.",
   youBlocked: () => "Vous avez bloqué cette personne. Débloquez-la pour lui écrire.",
   theyBlocked: () => "Cette personne n'accepte pas vos messages.",
   noMessage: () => "Ce message n'existe pas.",

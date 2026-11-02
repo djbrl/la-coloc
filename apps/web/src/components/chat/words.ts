@@ -39,7 +39,6 @@ export const chatWords = defineWords(
     blockSure: "Block them?",
     blocked: "Blocked. Their messages are hidden.",
     // Why you can't write (the API says it in English as `why`).
-    whyExample: "Example person: can't be messaged.",
     whyBlocked: "You blocked them.",
     whyTheirs: "Not taking messages from you.",
     // The city's room.
@@ -90,7 +89,6 @@ export const chatWords = defineWords(
     unblock: "Débloquer",
     blockSure: "Le bloquer ?",
     blocked: "Bloqué. Ses messages sont cachés.",
-    whyExample: "Personne d'exemple : pas de messages.",
     whyBlocked: "Vous l'avez bloqué.",
     whyTheirs: "N'accepte pas vos messages.",
     cityTitle: (city: string) => `${city}, tout le monde`,

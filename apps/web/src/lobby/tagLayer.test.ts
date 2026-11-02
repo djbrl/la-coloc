@@ -18,6 +18,14 @@ describe("where things go in a name tag", () => {
     expect(width).toBe(home!.at + home!.w + 9);
   });
 
+  it("puts tourist after the house, and drops it when crowded", () => {
+    const { home, tourist, width } = tagLayout({ ...awa, tourist: "Tourist" }, false, measure);
+    expect(tourist!.at).toBeGreaterThan(home!.at + home!.w);
+    expect(width).toBe(tourist!.at + tourist!.w + 9);
+    expect(tagLayout({ ...awa, tourist: "Tourist" }, true, measure).tourist).toBeNull();
+    expect(tagLayout({ kind: "person", text: "Awa", tourist: "Tourist" }, false, measure).tourist!.at).toBe(9 + 18 + 6);
+  });
+
   it("drops the house and the title's words when crowded, keeping the trophy", () => {
     const { won, home, width } = tagLayout(awa, true, measure);
     expect(home).toBeNull();

@@ -21,6 +21,16 @@ export interface TagSpot {
   tag: Tag | null;
 }
 
+/**
+ * Whether someone is a tourist here: they don't live in this city, or, with no house anywhere, it isn't the city they
+ * belong to. Nobody's a tourist when we can't tell (`here` empty: the tutorial's street; no city given: a visitor).
+ */
+export function isTourist(here: string, houseCities: string[], homeCity: string | null | undefined): boolean {
+  if (!here) return false;
+  if (houseCities.length) return !houseCities.includes(here);
+  return !!homeCity && homeCity !== here;
+}
+
 export const TAG_HEIGHT = 18;
 // People keep moving, so a pile-up has to settle or the tags in it blink. A faded tag only comes back with this many
 // pixels clear around it, and counts as this many metres further away when deciding who's the nearest.

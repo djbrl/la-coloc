@@ -34,6 +34,8 @@ export interface Player {
   example?: boolean;
   // The Arena title they wear, for their name tag. Null: none.
   badge?: Badge | null;
+  // The city they belong to, for the tourist chip on their tag. Null: none given (seeded people).
+  homeCity?: string | null;
   x: number;
   z: number;
   ry: number;
@@ -64,6 +66,8 @@ export interface Viewer {
   github?: boolean;
   example?: boolean;
   badge?: Badge | null;
+  // The city they belong to, for the tourist chip on their tag. Null: none given (seeded people).
+  homeCity?: string | null;
 }
 
 export type Out =
