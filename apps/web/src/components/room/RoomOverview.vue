@@ -4,6 +4,7 @@
 // put it online or update it. A failed build says why and what to do; a house whose server isn't connected says only
 // that.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import Avatar from "../Avatar.vue";
 import Icon from "../lobby/house/Icon.vue";
 import StatusDot from "../lobby/panel/StatusDot.vue";
 import { bare, explain, roomState } from "../lobby/panel/words";
@@ -11,10 +12,10 @@ import { fcfa } from "../lobby/house/server";
 import { locale } from "../../i18n";
 import UiNote, { type Note } from "../UiNote.vue";
 import UiSteps from "../UiSteps.vue";
-import type { RoomManage } from "../../types";
+import type { RoomInside, RoomManage } from "../../types";
 import BuildLog from "./BuildLog.vue";
 import RoomServerOff from "./RoomServerOff.vue";
-import { buildFailed, buildTrouble, canRestart, liveVersion, logTail, memoryUse, refWord, roomSentence, type SettingsForm, sshLine, updateTile } from "./room";
+import { addressDead, buildFailed, buildTrouble, canRestart, liveVersion, logTail, memoryUse, refWord, roomSentence, type SettingsForm, sshLine, startedByHand, updateTile } from "./room";
 import { roomWords as w } from "./words";
 import { seeded } from "../seeded";
 
@@ -38,11 +39,17 @@ const props = defineProps<{
   // What the room printed, for the Logs tile, and why there's nothing to show if so.
   logs: string;
   logsMessage: string;
+  // What's inside the room, if anyone has looked (the page does, while the menu or the Inside part is open).
+  inside?: RoomInside | null;
 }>();
 // `tab`: sent to the Code part to fix or upload something. `open`: a tile was pressed.
-const emit = defineEmits<{ run: [what: "redeploy" | "restart"]; tab: [to: "code"]; open: [part: "code" | "logs" | "secrets" | "ssh" | "lease"]; logShown: [] }>();
+const emit = defineEmits<{ run: [what: "redeploy" | "restart"]; tab: [to: "code"]; open: [part: "code" | "logs" | "secrets" | "ssh" | "lease" | "inside"]; logShown: [] }>();
 
 const state = computed(() => roomState(props.data.room));
+const sshPeople = computed(() => props.data.ssh?.people ?? []);
+const sshWho = computed(() => w.inside.who(sshPeople.value.map((p) => p.name ?? p.login).join(", ")));
+const started = computed(() => startedByHand(props.inside ?? null));
+const dead = computed(() => addressDead(props.inside ?? null));
 const said = computed(() => roomSentence(props.data.room, props.data.deployments));
 const memory = computed(() => memoryUse(props.data.room.usage));
 const version = computed(() => liveVersion(props.data.deployments));
@@ -143,23 +150,34 @@ async function finish() {
         </button>
       </li>
       <li v-if="data.ssh">
-        <button type="button" class="tile" data-section="ssh" @click="emit('open', 'ssh')">
-          <span class="word"><Icon name="key" :size="22" />{{ w.tabs.ssh }}</span>
+        <button type="button" class="tile" data-section="ssh" :title="sshPeople.length ? sshWho : undefined" @click="emit('open', 'ssh')">
+          <span class="word">
+            <Icon name="key" :size="22" />{{ w.tabs.ssh }}
+            <!-- Whoever is in over SSH right now: their faces. -->
+            <span v-if="sshPeople.length" class="faces">
+              <Avatar v-for="p in sshPeople.slice(0, 3)" :key="p.login" :person="p" :size="24" decorative />
+              <span class="sr-only">{{ sshWho }}</span>
+            </span>
+          </span>
           <span class="low">
             <strong>{{ w.tile.server }}</strong>
             <code>{{ sshLine(data.ssh) }}</code>
           </span>
         </button>
       </li>
+      <!-- How full the room is. Where it can be looked inside, the tile opens that, and says when the address leads
+           nowhere or something started by hand is running. -->
       <li>
-        <div class="tile still">
-          <span class="word"><Icon name="gauge" :size="22" />{{ w.tile.resources }}</span>
+        <component :is="data.inside ? 'button' : 'div'" :type="data.inside ? 'button' : undefined" class="tile" :class="{ still: !data.inside, dead }" :data-section="data.inside ? 'inside' : undefined" @click="data.inside && emit('open', 'inside')">
+          <span class="word"><Icon :name="data.inside ? 'folder' : 'gauge'" :size="22" />{{ data.inside ? w.tabs.inside : w.tile.resources }}</span>
           <span class="low">
             <strong>{{ memory ? `${memory.mb} / ${data.room.limits.memoryMb}` : data.room.limits.memoryMb }} {{ w.mb }}</strong>
             <span v-if="memory" class="bar" aria-hidden="true"><span :style="{ width: `${memory.pct}%` }"></span></span>
-            <small>{{ w.tile.cpuMax(data.room.limits.cpus.toLocaleString(locale())) }}</small>
+            <small v-if="dead" class="warn-line">{{ w.inside.nothingThere }}</small>
+            <small v-else-if="started.length">{{ w.inside.alsoRunning }} <code>{{ started.map((r) => r.command ?? `:${r.port}`).join(", ") }}</code></small>
+            <small v-else>{{ w.tile.cpuMax(data.room.limits.cpus.toLocaleString(locale())) }}</small>
           </span>
-        </div>
+        </component>
       </li>
       <li>
         <button type="button" class="tile" data-section="secrets" @click="emit('open', 'secrets')">
@@ -267,6 +285,15 @@ button.tile.dark:hover:not(:disabled) { background: color-mix(in srgb, var(--ink
 .tail { min-width: 0; display: grid; gap: 2px; font: 500 12px/1.3 var(--code); }
 .tail span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dot-here { flex: none; }
+/* The address leads nowhere: the Inside tile says so, in red. */
+.tile.dead { background: var(--danger-soft); }
+button.tile.dead:hover:not(:disabled) { background: color-mix(in srgb, var(--danger-soft) 80%, var(--danger)); }
+.low small.warn-line { color: var(--danger); font-weight: 700; }
+.low small code { font-size: 13px; color: var(--text); }
+/* Whoever is in over SSH: their faces, overlapping, at the end of the tile's word. */
+.faces { margin-left: auto; display: inline-flex; }
+.faces > :deep(*) + :deep(*) { margin-left: -8px; }
+.faces :deep(img), .faces :deep(.avatar) { box-shadow: 0 0 0 2px var(--tile); }
 
 /* A failed build: what to do, the log, another try. */
 .trouble { flex: none; display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--danger-soft); }

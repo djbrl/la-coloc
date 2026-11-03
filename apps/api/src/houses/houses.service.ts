@@ -112,7 +112,7 @@ function repoLink(fullName: string | undefined, source: string | null): string |
   return source?.startsWith("https://") ? source : null;
 }
 
-function person(u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "badge"> | null | undefined): PersonView | null {
+export function person(u: Pick<UserRow, "login" | "name" | "avatarUrl" | "githubId" | "badge"> | null | undefined): PersonView | null {
   return u ? { login: u.login, name: u.name, avatarUrl: u.avatarUrl, github: u.githubId !== null, badge: u.badge ?? null } : null;
 }
 

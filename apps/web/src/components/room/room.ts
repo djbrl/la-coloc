@@ -3,7 +3,7 @@
 // exact body the settings PATCH sends. No DOM here.
 import { bare, explain } from "../lobby/panel/words";
 import type { IconName } from "../lobby/house/icons";
-import type { RoomManage, RoomStatus, RoomUsage } from "../../types";
+import type { RoomInside, RoomManage, RoomProcess, RoomStatus, RoomUsage } from "../../types";
 import { roomWords as w } from "./words";
 import { seeded } from "../seeded";
 
@@ -264,4 +264,21 @@ export function readTrouble(message: string): ReadTrouble | null {
   if (/git clone failed|repository not found|could not read/i.test(message)) return "repo";
   if (/didn't answer in time|still reading/i.test(message)) return "slow";
   return null;
+}
+
+// A size as people read it: a folder's in MB once it's past one, a small file's in KB.
+export function sizeWord(kb: number): string {
+  if (kb < 1024) return `${kb} ${w.kb}`;
+  const n = kb / 1024;
+  return `${n < 10 ? n.toFixed(1) : Math.round(n)} ${w.mb}`;
+}
+
+// The room's address leads to a port nothing listens on any more: whatever was started there has stopped.
+export function addressDead(inside: RoomInside | null): boolean {
+  return !!inside?.addressPort && !inside.running.some((r) => r.port === inside.addressPort && !r.localOnly);
+}
+
+// What someone started by hand and that's still going: the Overview says so, since it isn't the room's project.
+export function startedByHand(inside: RoomInside | null): RoomProcess[] {
+  return inside?.running.filter((r) => r.started) ?? [];
 }

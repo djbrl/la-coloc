@@ -9,6 +9,7 @@ import {
   ensureRoomHome,
   ensureRoomNetwork,
   imageConfig,
+  linkProject,
   lastLogs,
   openRoomHome,
   removeContainer,
@@ -20,7 +21,7 @@ import {
 } from "./docker";
 import { resolveInside, shallowClone } from "./git";
 import { inspectProject } from "./inspect";
-import { routeTo, unroute, unrouteRoom } from "./proxy";
+import { backToProject, routeTo, unroute, unrouteRoom } from "./proxy";
 import { ensureDockerfile } from "./recipe";
 import { Slots } from "./slots";
 import { LABEL, containerName, resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetworks } from "./room-spec";
@@ -108,6 +109,7 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
     newContainerId = container.id;
     if (home) await openRoomHome(container);
     await container.start();
+    if (home) await linkProject(container, config.workingDir);
 
     try {
       await waitHealthy(container, undefined, undefined, signal);
@@ -181,6 +183,8 @@ export async function restartRoom(cfg: AgentConfig, room: string): Promise<void>
     setTimeout(() => retiring.delete(c.Id), 60_000).unref();
     await docker.getContainer(c.Id).restart({ t: 10 });
   }
+  // What someone started by hand stopped with it, so the address goes back to what starts by itself.
+  await backToProject(cfg, room);
 }
 
 /** The last lines the room's app printed (stdout and stderr), newest last. */

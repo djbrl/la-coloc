@@ -7,6 +7,7 @@ import { randomBytes } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AgentRegistry } from "../agents/agent.registry";
 import { LogsBroker } from "../agents/logs.broker";
+import { ShellBroker } from "../agents/shell.broker";
 import type { AuthService } from "../auth/auth.service";
 import type { GithubAppClient } from "../github/github.client";
 import { GithubReposController } from "../github/repos.controller";
@@ -46,7 +47,7 @@ beforeEach(async () => {
   houses = new HousesService(db);
   service = new RoomsService(db, houses, box);
   logs = new LogsBroker(agents);
-  controller = new RoomsController(service, new RoomDeployer(db, houses, agents, box, null), houses, agents, logs, auth);
+  controller = new RoomsController(service, new RoomDeployer(db, houses, agents, box, null), houses, agents, logs, auth, new ShellBroker(agents));
 });
 
 const deployCmd = () => sent.find((c) => c.type === "deploy") as DeployCommand;

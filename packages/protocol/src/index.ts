@@ -68,6 +68,14 @@ export const GetLogsCommand = z.object({
 });
 export type GetLogsCommand = z.infer<typeof GetLogsCommand>;
 
+// What's in a room, for its own people: its kept files and what's running. The agent answers with an `inside` message.
+export const LookInside = z.object({ type: z.literal("look_inside"), requestId: z.string().min(1).max(64), room: RoomName });
+export type LookInside = z.infer<typeof LookInside>;
+
+// Sends the room's address to another port of the same container. Also answered with `inside`.
+export const SetAddress = z.object({ type: z.literal("set_address"), requestId: z.string().min(1).max(64), room: RoomName, port: z.number().int().min(1).max(65535) });
+export type SetAddress = z.infer<typeof SetAddress>;
+
 // Asks what a project is, before anything is built. The agent answers with an `inspected` message.
 export const InspectCommand = z.object({
   type: z.literal("inspect"),
@@ -111,7 +119,7 @@ export const ShellAck = z.object({ type: z.literal("shell_ack"), shellId: ShellI
 // The person left: whatever the shell is running stops too.
 export const ShellClose = z.object({ type: z.literal("shell_close"), shellId: ShellId });
 
-export const ApiToAgent = z.discriminatedUnion("type", [ShellOpen, ShellInput, ShellEof, ShellResize, ShellAck, ShellClose, DeployCommand, RemoveRoomCommand, RestartRoomCommand, RemovePreviewCommand, GetLogsCommand, InspectCommand, CancelBuildCommand]);
+export const ApiToAgent = z.discriminatedUnion("type", [ShellOpen, ShellInput, ShellEof, ShellResize, ShellAck, ShellClose, DeployCommand, RemoveRoomCommand, RestartRoomCommand, RemovePreviewCommand, GetLogsCommand, InspectCommand, CancelBuildCommand, LookInside, SetAddress]);
 export type ApiToAgent = z.infer<typeof ApiToAgent>;
 
 // ---- agent → API ----
@@ -222,7 +230,56 @@ export type ShellOutput = z.infer<typeof ShellOutput>;
 export const ShellExit = z.object({ type: z.literal("shell_exit"), shellId: ShellId, code: z.number().int().optional(), reason: z.enum(["not_running", "failed"]).optional() });
 export type ShellExit = z.infer<typeof ShellExit>;
 
-export const AgentToApi = z.discriminatedUnion("type", [ShellOutput, ShellExit, Hello, DeployStatus, DeployLog, Inspected, Usage, RoomEvent, RoomsSnapshot, Logs]);
+// One thing in a room's folder. `project`: the link to the running code, which each deploy replaces.
+export const RoomEntry = z.object({
+  name: z.string().max(255),
+  kind: z.enum(["folder", "file", "link"]),
+  kb: z.number().int().nonnegative().optional(),
+  // What it looks like from the files in it: node, python, website…
+  stack: z.string().max(16).optional(),
+  project: z.boolean().optional(),
+});
+export type RoomEntry = z.infer<typeof RoomEntry>;
+
+// Something running in a room. `started`: by someone inside, not by the project. `localOnly`: it only listens to the
+// room itself (127.0.0.1), so no address can lead to it.
+export const RoomProcess = z.object({
+  command: z.string().max(80).nullable(),
+  port: z.number().int().min(1).max(65535).optional(),
+  localOnly: z.boolean().optional(),
+  started: z.boolean(),
+});
+export type RoomProcess = z.infer<typeof RoomProcess>;
+
+// Null `home`: this server keeps no files for rooms. `addressPort`: where the room's address leads now.
+export const RoomInside = z.object({
+  home: z
+    .object({
+      path: z.string().max(64),
+      usedKb: z.number().int().nonnegative(),
+      limitMb: z.number().int().positive().optional(),
+      entries: z.array(RoomEntry).max(40),
+      // Things in the folder past the ones listed.
+      more: z.number().int().nonnegative(),
+    })
+    .nullable(),
+  running: z.array(RoomProcess).max(30),
+  projectPort: z.number().int().nullable(),
+  addressPort: z.number().int().nullable(),
+});
+export type RoomInside = z.infer<typeof RoomInside>;
+
+// The answer to look_inside or set_address: what's inside, or which of a few reasons there's no looking.
+export const Inside = z.object({
+  type: z.literal("inside"),
+  requestId: z.string(),
+  room: RoomName,
+  inside: RoomInside.optional(),
+  error: z.enum(["not_running", "no_shell", "not_listening", "failed"]).optional(),
+});
+export type Inside = z.infer<typeof Inside>;
+
+export const AgentToApi = z.discriminatedUnion("type", [ShellOutput, ShellExit, Hello, DeployStatus, DeployLog, Inspected, Usage, RoomEvent, RoomsSnapshot, Logs, Inside]);
 export type AgentToApi = z.infer<typeof AgentToApi>;
 
 export function parseApiToAgent(raw: string): ApiToAgent {

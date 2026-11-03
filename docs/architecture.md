@@ -155,13 +155,19 @@ A knock only lists public repos: its link is shown to the house.
 
 We rent out a room of a server, not a deploy button. Deploying is the main use, but a room behaves like a small Linux machine, within these limits.
 
-- **Disk:** writable, 1 GB, with another 1 GB in `/home/room` (`COLOC_ROOM_DISK_MB`). When it's full the app gets "no space left", and the neighbours notice nothing. A redeploy starts a new container, so everything resets except `/home/room`. A restart keeps everything.
+- **Disk:** writable, 1 GB, with another 1 GB in `/home/your-room` (`COLOC_ROOM_DISK_MB`). When it's full the app gets "no space left", and the neighbours notice nothing. A redeploy starts a new container, so everything resets except `/home/room`. A restart keeps everything.
 - **Who keeps the disk honest:** only XFS with project quotas lets Docker enforce a size per container, so `deploy/setup.sh` puts `/var/lib/docker` on an XFS disk file (`/var/lib/coloc-docker.img`, 85% of the free space).
 - **Kept files belong to a person.** The volume is named after the occupant (`roomHomeVolume`), so the next tenant gets an empty one by construction, even if a lease ended while the server was off. `removeRoom` deletes it when the room empties. A pull request's preview gets no kept files.
 - **Root:** an image runs as the user it asked for, root included, because `userns-remap` makes root in a room user 100000 on the machine. It holds seven rights inside the room (`ROOM_CAPS`): enough for `apt install` or official nginx, nothing touching the kernel or the network. `no-new-privileges`, Docker's seccomp profile and the memory, CPU and process limits stay on. `rootIsRemapped` checks this: without it, the app runs as nobody.
 - **Without `COLOC_ROOM_DISK_MB`** (a laptop, whose disk can't enforce a size) a room stays read-only and runs as nobody, as it did at first.
 
-Still one room, one address, one port: a second project can run inside, but visitors can't reach it yet.
+**The running code is linked, not moved.** `~/project` in the folder points at the image's `WORKDIR` (`/app`, or `/site` for a static site; `linkProject`). The code stays in the image: copying it into the kept folder would eat that folder's 1 GB and can't work for every image. So `project` shows the code and edits there are live, but each deploy replaces it, while everything else in the folder stays. A real file or folder someone named `project` is left alone. A container keeps the folder it started with until its next deploy (`roomHomeOf` reads it from the container).
+
+**Seeing inside without going in.** The Inside tab asks `GET .../rooms/:room/inside` every 10 s while it or the Overview is open and the tab is visible, never in the background. The caretaker runs a small `/bin/sh` script in the room as the room's user (`apps/agent/src/inside.ts`): the folder's top level with sizes and what each thing looks like, listening ports from `/proc/net/tcp`, processes from `/proc/*/`. It needs no `ps` or `ss`, takes about 0.2 s, and gives up after 5 s or 256 KB. An image with no shell can't be looked into. Something started with `docker exec`, as SSH does, has its own session id, and that's how a process someone started is told from the project's. The room answers about itself and can lie, which is fine because the answer only goes to people who could open a shell there: not the chef, who only updates and restarts, and not an example room (`RoomsService.enterable`). Command names stop at the first flag or setting, where tokens tend to be.
+
+**One address, whichever port.** `PUT .../rooms/:room/address` sends the room's address to another port of its own container, if something really listens there on more than 127.0.0.1 (`setAddress`). The route file itself is the record, so nothing else needs storing: `syncRoutes` keeps a chosen port while it's the same container, and a deploy's new container goes back to the project's port. A restart or a crash does too (`backToProject`), since what was started by hand stopped with it. What someone starts stops when they leave, unless they use `nohup` or `tmux`.
+
+Still one room, one address: several things can run inside, and visitors reach one of them at a time.
 
 ## SSH into a room
 
@@ -176,6 +182,8 @@ Only a shell or a command: no passwords, no sftp, no port forwarding. Limits: 4 
 Output is paced: the caretaker pauses above 1 MB not yet acknowledged and resumes below 256 KB, and the API acknowledges once SSH has taken the bytes. Input that arrives while the shell is still starting waits for it, because a pipe doesn't wait.
 
 Keys belong to a person, not a room (`ssh_keys`, `/api/me/ssh-keys`). A real GitHub account gets `github.com/<login>.keys` the first time the tab opens, and never again by itself (`users.ssh_keys_chosen`): a key someone removed stays removed.
+
+Who has a shell in a room is known to `ShellBroker` (`inRoom`), kept in memory, and shown on the room's Overview to the people who could open one. A change pings the house's open pages.
 
 The gateway only starts with `COLOC_SSH_PORT` and `COLOC_SSH_HOST_KEY_FILE` set. `deploy/setup.sh` sets both, makes the host key once and opens the port.
 

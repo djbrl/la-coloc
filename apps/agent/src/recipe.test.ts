@@ -31,6 +31,8 @@ describe("recipeFor", () => {
     expect(r?.stack).toBe("static");
     expect(r?.dockerfile).toContain("AS build");
     expect(r?.dockerfile).toContain("COPY --from=build /site /site");
+    // The room's `project` link follows the image's folder.
+    expect(r?.dockerfile).toContain("WORKDIR /site");
     expect(r?.dockerfile).toContain('httpd -f -p "${PORT:-3000}"');
   });
 

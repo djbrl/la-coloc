@@ -16,6 +16,7 @@ import { bare, explain, roomLine, roomState } from "../components/lobby/panel/wo
 import { TUTORIAL_HOUSE } from "../components/lobby/tutorial/tutorial";
 import RoomCode from "../components/room/RoomCode.vue";
 import RoomHistory from "../components/room/RoomHistory.vue";
+import RoomInterior from "../components/room/RoomInterior.vue";
 import RoomLease from "../components/room/RoomLease.vue";
 import RoomSsh from "../components/room/RoomSsh.vue";
 import RoomLogs from "../components/room/RoomLogs.vue";
@@ -33,7 +34,7 @@ import { locale } from "../i18n";
 import { leaveTeam } from "../notices";
 import { me, sendJSON } from "../session";
 import { openStream, type Stream } from "../stream";
-import type { RoomManage } from "../types";
+import type { RoomInside, RoomInsideTrouble, RoomManage } from "../types";
 
 // `embedded`: shown inside the lobby's sheet, which has its own Back and Close. The page then drops its link
 // back to the house, and tells the sheet what to call it (`label`).
@@ -71,6 +72,14 @@ const waiting = ref(false);
 const failed = ref(false);
 let source: Stream | null = null;
 let reloadTimer: number | undefined;
+// What's inside the room: asked again and again only while someone is looking at it, since it runs a script in there.
+const inside = ref<RoomInside | null>(null);
+const insideTrouble = ref<RoomInsideTrouble | null>(null);
+const insideLooked = ref(false);
+const addressBusy = ref(false);
+const addressNote = ref<Note | null>(null);
+let lookTimer: number | undefined;
+const LOOK_EVERY_MS = 10_000;
 
 async function load() {
   const res = await fetch(`${base.value}/manage`).catch(() => null);
@@ -109,6 +118,9 @@ async function open() {
   source?.close();
   source = null;
   data.value = null;
+  inside.value = null;
+  insideTrouble.value = null;
+  insideLooked.value = false;
   errorKind.value = "";
   waiting.value = failed.value = false;
   await load();
@@ -149,6 +161,7 @@ onBeforeUnmount(() => {
   source?.close();
   clearInterval(followTimer);
   clearInterval(tailTimer);
+  clearInterval(lookTimer);
   clearTimeout(reloadTimer);
 });
 
@@ -197,10 +210,43 @@ watch(follow, (on) => {
   if (on) followTimer = window.setInterval(fetchLogs, 4000);
 });
 
+async function look() {
+  if (document.visibilityState === "hidden") return;
+  const res = await fetch(`${base.value}/inside`).catch(() => null);
+  insideLooked.value = true;
+  // The house's server is offline, or the core is: what's showing stays, and the next look tries again.
+  if (!res?.ok) {
+    if (!inside.value) insideTrouble.value = "failed";
+    return;
+  }
+  const found = (await res.json()) as { inside?: RoomInside; error?: RoomInsideTrouble };
+  inside.value = found.inside ?? null;
+  insideTrouble.value = found.error ?? null;
+}
+
+async function putOnline(port: number) {
+  addressBusy.value = true;
+  addressNote.value = null;
+  const res = await sendJSON<{ inside?: RoomInside }>("PUT", `${base.value}/address`, { port });
+  addressBusy.value = false;
+  if (!res.ok) addressNote.value = loud(res.message);
+  else if (res.data.inside) inside.value = res.data.inside;
+}
+
 // Which part of the room is open: the menu of tiles, or what a tile opened. Only the logs and the history share a tab
 // row. Only the secrets need a line to say what they are.
-type TabKey = "overview" | "code" | "secrets" | "logs" | "history" | "ssh" | "lease";
+type TabKey = "overview" | "code" | "secrets" | "logs" | "history" | "inside" | "ssh" | "lease";
 const tab = ref<TabKey>("overview");
+watch(
+  () => [data.value?.inside, tab.value, props.id, props.room] as const,
+  ([allowed, on]) => {
+    clearInterval(lookTimer);
+    if (!allowed || (on !== "overview" && on !== "inside")) return;
+    void look();
+    lookTimer = window.setInterval(look, LOOK_EVERY_MS);
+  },
+  { immediate: true },
+);
 const logTabs = computed<PanelTab[]>(() => [
   { key: "logs", icon: "logs", word: w.tabs.logs },
   { key: "history", icon: "clock", word: w.tabs.history },
@@ -212,6 +258,8 @@ const part = computed((): { icon: IconName; word: string } | null => {
       return { icon: "code", word: w.tabs.code };
     case "secrets":
       return { icon: "lock", word: w.tabs.secrets };
+    case "inside":
+      return { icon: "folder", word: w.tabs.inside };
     case "ssh":
       return { icon: "key", word: w.tabs.ssh };
     case "lease":
@@ -401,6 +449,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
             :show-log="showLog"
             :logs="logs"
             :logs-message="logsMessage"
+            :inside="inside"
             @log-shown="showLog = false"
             @run="run"
             @tab="(to) => { fixing = true; openPart(to); }"
@@ -419,6 +468,16 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
           />
           <RoomSecrets v-else-if="tab === 'secrets'" :data="data" :base="base" :reload="load" :when="when" />
           <RoomLogs v-else-if="tab === 'logs'" v-model:follow="follow" :text="logs" :message="logsMessage" :loading="logsLoading" @refresh="fetchLogs" />
+          <RoomInterior
+            v-else-if="tab === 'inside' && data.inside"
+            :inside="inside"
+            :trouble="insideTrouble"
+            :looked="insideLooked"
+            :deploying="data.room.status === 'deploying'"
+            :busy="addressBusy"
+            :note="addressNote"
+            @put-online="putOnline"
+          />
           <RoomSsh v-else-if="tab === 'ssh' && data.ssh" :data="data" />
           <RoomLease v-else-if="tab === 'lease' && data.lease" :lease="data.lease" :base="base" @left="leftRoom" />
           <RoomHistory v-else :deployments="data.deployments" :github="data.github" :when="when" />

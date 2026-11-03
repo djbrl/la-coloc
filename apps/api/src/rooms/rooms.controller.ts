@@ -19,6 +19,7 @@ import { DeployKind } from "@coloc/protocol";
 import { z } from "zod";
 import { AgentRegistry } from "../agents/agent.registry";
 import { LogsBroker } from "../agents/logs.broker";
+import { ShellBroker } from "../agents/shell.broker";
 import { AuthService } from "../auth/auth.service";
 import type { HttpRequest } from "../auth/http";
 import { isCoreDown } from "../core/core";
@@ -86,6 +87,7 @@ export class RoomsController {
     private readonly agents: AgentRegistry,
     private readonly logs: LogsBroker,
     private readonly auth: AuthService,
+    private readonly shells: ShellBroker,
   ) {}
 
   private async user(req: HttpRequest) {
@@ -96,7 +98,39 @@ export class RoomsController {
 
   @Get("manage")
   async manage(@Param("id") id: string, @Param("room") room: string, @Req() req: HttpRequest) {
-    return this.rooms.view(id, room, (await this.user(req)).id);
+    const view = await this.rooms.view(id, room, (await this.user(req)).id);
+    if (!view.ssh) return view;
+    return { ...view, ssh: { ...view.ssh, people: await this.rooms.peopleByIds(this.shells.inRoom(id, room)) } };
+  }
+
+  // What's in the room right now, read from inside it. Asked for while its page is open, never in the background.
+  @Get("inside")
+  async inside(@Param("id") id: string, @Param("room") roomName: string, @Req() req: HttpRequest) {
+    const room = await this.rooms.enterable(id, roomName, (await this.user(req)).id);
+    if (!this.agents.isOnline(id)) throw new ConflictException("The house's server is offline.");
+    try {
+      return await this.logs.lookInside(id, room.name);
+    } catch (e) {
+      throw new GatewayTimeoutException((e as Error).message);
+    }
+  }
+
+  // Sends the room's address to another port of its own container: something started by hand can go online.
+  @Put("address")
+  async address(@Param("id") id: string, @Param("room") roomName: string, @Body() body: unknown, @Req() req: HttpRequest) {
+    const room = await this.rooms.enterable(id, roomName, (await this.user(req)).id);
+    const parsed = z.object({ port: z.number().int().min(1).max(65535) }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException("That's not a port.");
+    if (!this.agents.isOnline(id)) throw new ConflictException("The house's server is offline.");
+    let found;
+    try {
+      found = await this.logs.setAddress(id, room.name, parsed.data.port);
+    } catch (e) {
+      throw new GatewayTimeoutException((e as Error).message);
+    }
+    if (found.error === "not_listening") throw new ConflictException("Nothing's answering on that port now.");
+    if (found.error) throw new ConflictException("Nothing's running in this room.");
+    return found;
   }
 
   @Patch("settings")

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   containers: [] as { Id: string; State: string }[],
-  execs: [] as { opts: { Cmd: string[]; Tty?: boolean; Env?: string[] }; stream: unknown; start: ReturnType<typeof vi.fn>; resize: ReturnType<typeof vi.fn>; inspect: ReturnType<typeof vi.fn> }[],
+  execs: [] as { opts: { Cmd: string[]; Tty?: boolean; Env?: string[]; WorkingDir?: string }; stream: unknown; start: ReturnType<typeof vi.fn>; resize: ReturnType<typeof vi.fn>; inspect: ReturnType<typeof vi.fn> }[],
 }));
 
 vi.mock("./docker", () => ({
@@ -12,7 +12,7 @@ vi.mock("./docker", () => ({
   docker: {
     modem: { demuxStream: (s: NodeJS.ReadableStream, out: NodeJS.WritableStream) => s.pipe(out) },
     getContainer: () => ({
-      exec: async (opts: { Cmd: string[]; Tty?: boolean; Env?: string[] }) => {
+      exec: async (opts: { Cmd: string[]; Tty?: boolean; Env?: string[]; WorkingDir?: string }) => {
         const stream = new PassThrough();
         const exec = { opts, stream, start: vi.fn(async () => stream), resize: vi.fn(async () => undefined), inspect: vi.fn(async () => ({ ExitCode: 7 })) };
         h.execs.push(exec);
@@ -42,6 +42,19 @@ describe("a shell in a room", () => {
     await shells.start({ type: "shell_open", shellId: "s1", room: "djbrl" });
     expect(sent).toEqual([{ type: "shell_exit", shellId: "s1", reason: "not_running" }]);
     expect(h.execs).toEqual([]);
+  });
+
+  it("arrives in the room's kept folder, wherever its container has it", async () => {
+    h.containers = [{ Id: "c1", State: "running", Mounts: [{ Name: "coloc-home-eaz--djbrl--abc", Destination: "/home/your-room" }] }];
+    await shells.start({ type: "shell_open", shellId: "s1", room: "djbrl" });
+    expect(h.execs[0].opts.WorkingDir).toBe("/home/your-room");
+    expect(h.execs[0].opts.Env).toContain("HOME=/home/your-room");
+  });
+
+  it("stays where the image starts when there's no kept folder", async () => {
+    await shells.start({ type: "shell_open", shellId: "s1", room: "djbrl" });
+    expect(h.execs[0].opts.WorkingDir).toBeUndefined();
+    expect(h.execs[0].opts.Env).toContain("HOME=/tmp");
   });
 
   it("opens a terminal of the size asked, and passes bytes both ways", async () => {

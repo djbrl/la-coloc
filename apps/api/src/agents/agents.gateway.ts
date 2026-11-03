@@ -34,6 +34,11 @@ export class AgentsGateway implements OnGatewayConnection {
     private readonly core: Core,
   ) {}
 
+  onModuleInit() {
+    // Who's in a room over SSH shows on its page, so that page hears when it changes.
+    this.shells.peopleChanged.subscribe((houseId) => this.houses.changes.next(houseId));
+  }
+
   handleConnection(socket: WebSocket, req?: IncomingMessage) {
     // A caretaker dials the API directly (on its own machine, or over wss to the real server). One that comes in
     // through a public tunnel or CDN is someone else trying their luck with a house key: the line is never offered there.
@@ -136,6 +141,9 @@ export class AgentsGateway implements OnGatewayConnection {
         for (const room of leftovers) this.registry.send(houseId, { type: "remove_room", room });
         break;
       }
+      case "inside":
+        this.logs.deliverInside(houseId, msg);
+        break;
       case "logs":
         this.logs.deliver(houseId, msg);
         break;

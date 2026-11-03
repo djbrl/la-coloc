@@ -6,8 +6,9 @@ import { loadConfig } from "./config";
 import { deploy, inspect, removePreview, removeRoom, restartRoom, roomLogs, snapshot } from "./deploy";
 import { watchRoomEvents } from "./events";
 import { connect } from "./link";
+import { lookInside, setAddress } from "./inside";
 import { sampleRooms } from "./meter";
-import { syncRoutes } from "./proxy";
+import { backToProject, syncRoutes } from "./proxy";
 import { Shells } from "./shell";
 
 const VERSION = "0.1.0";
@@ -106,6 +107,21 @@ async function main() {
           .then((text) => link.send({ type: "logs", requestId: cmd.requestId, room: cmd.room, text }))
           .catch((e) => link.send({ type: "logs", requestId: cmd.requestId, room: cmd.room, text: "", error: (e as Error).message }));
         break;
+      case "look_inside":
+        // Not queued, like the logs.
+        lookInside(cfg, cmd.room)
+          .catch(() => ({ error: "failed" as const }))
+          .then((found) => link.send({ type: "inside", requestId: cmd.requestId, room: cmd.room, ...found }));
+        break;
+      case "set_address":
+        // In the room's queue: it writes the same route a deploy swaps.
+        console.log(`[address] ${cmd.room}: port ${cmd.port}`);
+        enqueue(cmd.room, () =>
+          setAddress(cfg, cmd.room, cmd.port)
+            .catch(() => ({ error: "failed" as const }))
+            .then((found) => link.send({ type: "inside", requestId: cmd.requestId, room: cmd.room, ...found })),
+        );
+        break;
     }
   }, () => {
     // A new line: the API has forgotten every shell from before it.
@@ -118,6 +134,8 @@ async function main() {
   await watchRoomEvents(cfg.houseId, (e) => {
     console.log(`[event] ${e.room}: ${e.event}`);
     link.send(e);
+    // It started over: what someone started by hand is gone, so the address goes back to what starts by itself.
+    if (e.event === "oom" || e.event === "restarted") void backToProject(cfg, e.room).catch(() => undefined);
   });
 
   setInterval(async () => {

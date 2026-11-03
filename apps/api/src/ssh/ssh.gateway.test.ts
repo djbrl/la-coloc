@@ -68,7 +68,7 @@ describe("the SSH door", () => {
     });
     const c = await connect(port, "djbrl.eaz", { privateKey: mine.private });
     expect(await run(c, "ls /")).toEqual({ out: "ran ls /", err: "warned", code: 3 });
-    expect(shells.open).toHaveBeenCalledWith("eaz", "djbrl", expect.objectContaining({ command: "ls /" }), expect.anything());
+    expect(shells.open).toHaveBeenCalledWith("eaz", "djbrl", expect.objectContaining({ command: "ls /" }), expect.anything(), expect.any(String));
     c.end();
   });
 
