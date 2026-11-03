@@ -7,7 +7,7 @@
 // Everything on the wall is placed in --u, one unit being 1/1440 of the picture's width: the picture covers the screen
 // at any size, and the words stay on the bricks and the bubbles stay over the right flatmate. A phone has no room for
 // that: there the window comes first, then the sign on its pole, then the flatmates' lines under it (see the end of
-// the styles).
+// the styles). Below all that, the page scrolls on into what La Coloc sells (components/landing/LandingStory.vue).
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { landingWords as w } from "../components/words";
@@ -15,6 +15,8 @@ import { language, setLang } from "../i18n";
 import { headsOnPicture, setVisiting, windowOnPicture } from "../landing";
 import type { LandingRoom } from "../lobby/landingRoom";
 import { lobbyUi } from "../settings";
+import LandingStory from "../components/landing/LandingStory.vue";
+import { storyWords } from "../components/landing/words";
 
 const router = useRouter();
 
@@ -126,6 +128,12 @@ function tryDemo() {
   window.setTimeout(walkIn, ENTERING_MS);
 }
 
+// Down the page, below the street: what La Coloc sells (LandingStory). The key on the road scrolls there.
+function showHow() {
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document.getElementById("how")?.scrollIntoView({ behavior: calm ? "auto" : "smooth" });
+}
+
 // The name on the wall, as neon tubes: one line per letter. The last C is on its way out, so it's kept apart to blink;
 // while it's off, the sign reads LA COLO.
 const NEON_VIEW = "-20 2 615 140";
@@ -216,9 +224,14 @@ onBeforeUnmount(() => {
 
     <footer class="foot">
       <span>{{ CITIES }}</span>
+      <button type="button" class="down" @click="showHow">
+        {{ storyWords.down }}
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </button>
       <a href="https://github.com/Djbrl/la-coloc" rel="noopener" target="_blank">GitHub</a>
     </footer>
   </div>
+  <LandingStory :login-at="loginAt" @demo="tryDemo" />
 </template>
 
 <style scoped>
@@ -272,6 +285,11 @@ onBeforeUnmount(() => {
 /* The foot stays on the screen's own edge, on the road, whatever the crop. */
 .foot { position: absolute; z-index: 2; left: 36px; right: 36px; bottom: 10px; display: flex; justify-content: space-between; gap: 16px; font-size: 15px; font-weight: 600; color: #f4efe6; }
 .foot a { color: inherit; }
+/* The way down to the story, in the middle of the road. */
+.down { position: absolute; left: 50%; bottom: 0; translate: -50% 0; display: flex; align-items: center; gap: 8px; min-height: 48px; height: 48px; padding: 0 18px 0 22px; border: 0; border-radius: 24px; background: var(--say-bg); color: var(--say-ink); font: 800 16px/1 var(--font); white-space: nowrap; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4); }
+.down:hover:not(:disabled) { background: #ffffff; color: var(--say-ink); }
+.down:focus-visible { outline: 3px solid #ffd21f; outline-offset: 2px; }
+.entering .down { opacity: 0; }
 
 .city-window { position: absolute; width: calc(13 * var(--u)); height: calc(18 * var(--u)); margin: calc(-9 * var(--u)) 0 0 calc(-6.5 * var(--u)); background: #ffc773; will-change: opacity; animation: on-and-off 23s steps(1) infinite; }
 @keyframes on-and-off {
@@ -362,6 +380,7 @@ h2 { margin: 0; font-family: var(--display); }
   .say { position: static; width: 100%; padding: 9px 12px 10px; translate: none; border-radius: var(--r-md); font-size: 16px; opacity: 1; pointer-events: auto; }
   .say::after { display: none; }
   .foot { position: static; color: var(--title); flex-direction: column; gap: 4px; padding: 0 16px 16px; font-size: 14px; }
+  .down { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .slot, .room, .say { transition: none; }
