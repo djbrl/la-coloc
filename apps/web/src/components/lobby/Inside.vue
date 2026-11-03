@@ -3,11 +3,12 @@
 // on the right of the 3D city, so the camera can keep your character in view on the left (a bottom sheet on a
 // phone). The panel keeps its own back-stack, so a link from one page to another opens on top and Back returns.
 // It never touches the router: the list view keeps the real pages, this only shows them.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from "vue";
 import ApplicationPage from "../../pages/ApplicationPage.vue";
 import HouseInside from "./HouseInside.vue";
 import RoomPage from "../../pages/RoomPage.vue";
 import { type Place, placeFromPath, placeKey } from "./place";
+import { sheetStep } from "./sheetStep";
 import { hudWords as w } from "./words";
 
 const props = defineProps<{
@@ -48,6 +49,16 @@ function back() {
   stack.value = stack.value.slice(0, -1);
 }
 
+// The band's one back key, and Esc: a step back inside the page first (a room's part goes back to its menu), then
+// the page under it, then closed. The key shows whenever there's somewhere to go back to.
+const step = shallowRef<(() => void) | null>(null);
+provide(sheetStep, step);
+const canGoBack = computed(() => stack.value.length > 1 || !!step.value);
+function goBack() {
+  if (step.value) step.value();
+  else back();
+}
+
 function closeAll() {
   stack.value = [];
 }
@@ -80,7 +91,7 @@ function onWindowKey(e: KeyboardEvent) {
   if (e.key !== "Escape" || t?.closest?.("dialog[open], input, textarea")) return;
   if (sheet.value && t && sheet.value.contains(t)) return;
   e.preventDefault();
-  back();
+  goBack();
 }
 watch(topKey, async (now) => {
   if (!now) return;
@@ -131,7 +142,7 @@ function onKey(e: KeyboardEvent) {
   // A dialog on top (the knock steps) closes itself on Escape; that's not ours.
   if (e.key === "Escape" && !target?.closest("dialog[open]")) {
     e.preventDefault();
-    back();
+    goBack();
   } else if (e.key === "Tab") trapTab(e);
 }
 
@@ -164,7 +175,7 @@ function trapTab(e: KeyboardEvent) {
       v-if="top"
       ref="sheet"
       class="sheet sign"
-      :class="{ deep: stack.length > 1 }"
+      :class="{ deep: canGoBack, stacked: stack.length > 1, black: top.kind === 'room' }"
       role="dialog"
       aria-modal="true"
       :aria-label="label || fallback"
@@ -175,7 +186,7 @@ function trapTab(e: KeyboardEvent) {
     >
       <div class="sign-frame">
         <!-- Back and Close sit on the title band of whatever page is open (panel/PanelHead.vue leaves them room). -->
-        <button v-if="stack.length > 1" type="button" class="sign-x back-btn" :aria-label="w.back" @click="back">
+        <button v-if="canGoBack" type="button" class="sign-x back-btn" :aria-label="w.back" @click="goBack">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
         <button type="button" class="sign-x close" :aria-label="w.close" @click="closeAll"><span aria-hidden="true">X</span></button>
@@ -218,6 +229,8 @@ function trapTab(e: KeyboardEvent) {
      Only a panel's body scrolls, inside itself, when it holds a stream. */
   outline: none;
   overflow-wrap: anywhere;
+  /* Its own layer, so the page showing under it (.stacked) stays behind it and above the city. */
+  isolation: isolate;
   transform-origin: 70% 50%;
   animation: pop-in var(--dur-slow) var(--ease-pop);
 }
@@ -227,6 +240,9 @@ function trapTab(e: KeyboardEvent) {
 .sign-x { z-index: 2; top: 44px; }
 .back-btn { right: auto; left: 16px; }
 .deep { --band-lead: 52px; }
+/* Going deeper looks deeper: a room is a black sign, and a page opened from another sits on it, the one under showing
+   along its top edge. */
+.stacked::before { content: ""; position: absolute; z-index: -1; top: -10px; left: 16px; right: 16px; height: 48px; border-radius: 15px 15px 0 0; background: var(--panel-red); box-shadow: var(--shadow); }
 /* The page fills what's left, on the white. If a window is too short for it, it scrolls here rather than spilling out. */
 .page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--surface); }
 .page-host > * { flex: 1 1 auto; min-height: 0; }
@@ -245,7 +261,8 @@ function trapTab(e: KeyboardEvent) {
 @media (max-width: 719px) {
   .inside { display: grid; place-items: end stretch; }
   .scrim { background: color-mix(in srgb, var(--scrim) 45%, transparent); animation: fade-in 0.25s var(--ease); }
-  .sheet { position: relative; inset: auto; width: 100%; height: 70dvh; min-height: min(460px, 88dvh); animation-name: rise-in; }
+  /* min-width: a long line in it (a project's address) shortens to its ellipsis rather than widen the sheet past the screen. */
+  .sheet { position: relative; inset: auto; width: 100%; min-width: 0; height: 70dvh; min-height: min(460px, 88dvh); animation-name: rise-in; }
 }
 @media (min-width: 720px) and (max-height: 720px) {
   .sheet { top: 16px; bottom: 16px; }

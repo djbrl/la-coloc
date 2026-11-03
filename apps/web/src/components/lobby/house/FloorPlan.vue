@@ -3,7 +3,8 @@
 // many are free, what the server costs a month), then one tile per room, laid out the same in every tile: whose room
 // it is, then low down the project as the biggest thing with how it's doing beside it, a line about it, and what the
 // room costs. Lived-in rooms get the space and free ones wait in a low row under them (planGrid, crew.ts). Pressing a
-// tile opens the room's page (RoomDetails.vue). A free room is a plus, in the blue of a free window, and its price.
+// tile opens the room's page (RoomDetails.vue), which says what the plus can mean: knock, take it, or invite someone.
+// A free room is a plus, in the blue of a free window, and its price.
 import { computed } from "vue";
 import type { HouseView, Room } from "../../../types";
 import Avatar from "../../Avatar.vue";

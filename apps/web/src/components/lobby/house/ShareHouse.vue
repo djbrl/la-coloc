@@ -4,7 +4,7 @@
 // where there is one. The link is the API's share page (shareHouse.ts), so a person lands on "Join <house>" and
 // WhatsApp shows the same words with a picture of its city. On a laptop's own site (localhost) the link opens nowhere else: only the copy, and one line
 // that says so. Esc or a click outside closes the card. With a `word`, it's the panel's main button in the foot
-// instead, and the card opens above it.
+// instead, and the card opens above it; `quiet` makes that button a second one, beside another main key.
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import { language } from "../../../i18n";
 import { canShareNatively, whatsappLink } from "../tutorial/share";
@@ -12,7 +12,7 @@ import Icon from "./Icon.vue";
 import { houseShareLink, shareWays } from "./shareHouse";
 import { houseWords as w } from "./words";
 
-const props = defineProps<{ houseId: string; name: string; city: string; word?: string }>();
+const props = defineProps<{ houseId: string; name: string; city: string; word?: string; quiet?: boolean }>();
 
 const open = ref(false);
 const copied = ref(false);
@@ -68,7 +68,7 @@ async function shareNatively() {
 
 <template>
   <span ref="root" class="share" @keydown.esc.stop="close()">
-    <button ref="key" type="button" class="key" :class="{ primary: word, big: word }" :aria-label="word ? undefined : w.share.name(name)" :title="w.share.name(name)" :aria-expanded="open" aria-haspopup="dialog" @click="toggle">
+    <button ref="key" type="button" class="key" :class="{ primary: word && !quiet, big: word }" :aria-label="word ? undefined : w.share.name(name)" :title="w.share.name(name)" :aria-expanded="open" aria-haspopup="dialog" @click="toggle">
       <Icon name="share" :size="22" />{{ word }}
     </button>
     <Transition name="pop">

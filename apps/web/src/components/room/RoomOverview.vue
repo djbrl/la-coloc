@@ -55,6 +55,9 @@ const memory = computed(() => memoryUse(props.data.room.usage));
 const version = computed(() => liveVersion(props.data.deployments));
 const tail = computed(() => logTail(props.logs));
 const tile = computed(() => updateTile(props.data.room.status, props.data.deployments));
+// Update says what it builds from, in small under it: "from main".
+const from = computed(() => (tile.value.verb === w.update && !noCode.value ? w.fromBranch(refWord(props.data.settings.branch ?? "default")) : null));
+const about = computed(() => seeded(props.data.settings.projectDescription));
 const restartable = computed(() => canRestart(props.data.room.status, props.data.deployments));
 const serverUp = computed(() => props.data.house.agentOnline);
 // No code to build yet: uploading a project is the next step.
@@ -120,13 +123,15 @@ async function finish() {
       </div>
     </div>
 
-    <!-- A line about the project, as it shows on the house page and in the city. -->
+    <!-- A line about the project, as it shows on the house page and in the city, with a small pencil. With no line yet,
+         only a quiet "Describe it": a chore, not something to weigh against Update. -->
     <div v-if="!step" class="project">
-      <p class="about" :class="{ unset: !data.settings.projectDescription }">{{ seeded(data.settings.projectDescription) || w.noLine }}</p>
+      <p v-if="about" class="about">{{ about }}</p>
       <a v-if="data.room.previewUrl" class="preview" :href="data.room.previewUrl" target="_blank" rel="noopener">{{ w.tile.preview }} {{ bare(data.room.previewUrl) }}<span class="sr-only">{{ w.newTab }}</span></a>
-      <button ref="editButton" type="button" class="pencil" :aria-label="w.editProject" :title="w.editProject" @click="startEdit">
+      <button v-if="about" ref="editButton" type="button" class="pencil" :aria-label="w.editProject" :title="w.editProject" @click="startEdit">
         <Icon name="edit" :size="18" />
       </button>
+      <button v-else ref="editButton" type="button" class="add-line" :title="w.editProject" @click="startEdit"><Icon name="edit" :size="16" />{{ w.addLine }}</button>
     </div>
 
     <!-- The room's menu: each tile says how that part is doing, and opens it. Resources has nothing to open. -->
@@ -171,7 +176,9 @@ async function finish() {
         <component :is="data.inside ? 'button' : 'div'" :type="data.inside ? 'button' : undefined" class="tile" :class="{ still: !data.inside, dead }" :data-section="data.inside ? 'inside' : undefined" @click="data.inside && emit('open', 'inside')">
           <span class="word"><Icon :name="data.inside ? 'folder' : 'gauge'" :size="22" />{{ data.inside ? w.tabs.inside : w.tile.resources }}</span>
           <span class="low">
-            <strong>{{ memory ? `${memory.mb} / ${data.room.limits.memoryMb}` : data.room.limits.memoryMb }} {{ w.mb }}</strong>
+            <!-- What it uses, big; what it may use, in small words beside and under it. -->
+            <strong v-if="memory">{{ memory.mb }} {{ w.mb }} <span class="of">{{ w.tile.ofMb(data.room.limits.memoryMb) }}</span></strong>
+            <strong v-else>{{ data.room.limits.memoryMb }} {{ w.mb }}</strong>
             <span v-if="memory" class="bar" aria-hidden="true"><span :style="{ width: `${memory.pct}%` }"></span></span>
             <small v-if="dead" class="warn-line">{{ w.inside.nothingThere }}</small>
             <small v-else-if="started.length">{{ w.inside.alsoRunning }} <code>{{ started.map((r) => r.command ?? `:${r.port}`).join(", ") }}</code></small>
@@ -190,7 +197,9 @@ async function finish() {
           <span class="word"><Icon name="door" :size="22" />{{ w.tabs.lease }}</span>
           <span class="low">
             <strong>{{ data.lease.share === null ? w.tile.noBill : fcfa(data.lease.share) }}</strong>
-            <small v-if="data.lease.share !== null">{{ w.tile.aMonth }}</small>
+            <!-- The rent buys a share of the house's server, not 256 MB on its own. A phone's tile only says "a month". -->
+            <small v-if="data.lease.share !== null" class="share-line">{{ w.tile.shareOfServer }}</small>
+            <small v-if="data.lease.share !== null" class="a-month">{{ w.tile.aMonth }}</small>
           </span>
         </button>
       </li>
@@ -225,7 +234,10 @@ async function finish() {
       <button v-if="noCode" type="button" class="primary go" :class="{ quiet: coached }" @click="emit('tab', 'code')"><Icon name="code" :size="20" />{{ w.uploadProject }}</button>
       <button v-else-if="building" type="button" class="primary go" :class="{ quiet: coached }" @click="logOpen = true"><Icon name="code" :size="20" />{{ w.watchBuild }}</button>
       <button v-else type="button" class="primary go" :class="{ quiet: coached }" :disabled="action !== ''" :title="tile.hint" @click="emit('run', 'redeploy')">
-        <Icon :name="tile.icon" :size="20" />{{ action === "redeploy" ? w.starting : failed ? w.buildAgain : tile.verb }}
+        <Icon :name="tile.icon" :size="20" /><span class="go-text">
+          <span class="go-word">{{ action === "redeploy" ? w.starting : failed ? w.buildAgain : tile.verb }}</span>
+          <small v-if="from && action !== 'redeploy' && !failed" class="go-from">{{ from }}</small>
+        </span>
       </button>
       <button v-if="restartable" type="button" class="chunk restart" :disabled="action !== ''" :title="explain.restart" @click="emit('run', 'restart')">
         <Icon name="power" :size="18" />{{ action === "restart" ? w.restarting : w.restart }}
@@ -255,11 +267,12 @@ async function finish() {
 
 .project { flex: none; display: flex; align-items: center; gap: 10px; min-height: 40px; }
 .about { flex: 1 1 auto; min-width: 0; font-size: 15px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.unset { color: var(--muted); }
 .preview { flex: 0 1 auto; min-width: 0; font: 600 14px/1.2 var(--num); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A small chore, so a small key. */
 .pencil { flex: none; width: 40px; height: 40px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-md); background: none; box-shadow: none; color: var(--muted); }
 .pencil:hover:not(:disabled) { background: var(--tile); color: var(--text); }
+.add-line { order: -1; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; margin-left: -10px; margin-right: auto; border-radius: var(--r-md); background: none; box-shadow: none; color: var(--muted); font: 600 15px/1 var(--font); }
+.add-line:hover:not(:disabled) { background: var(--tile); color: var(--text); }
 
 /* The menu: two across, the rows sharing the height, and a last tile alone takes the whole row. */
 .tiles { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(104px, 1fr); gap: 8px; }
@@ -274,6 +287,7 @@ button.tile:focus-visible { outline: 3px solid var(--ring); outline-offset: -3px
 .word :deep(svg) { flex: none; }
 .low { min-width: 0; display: grid; gap: 2px; }
 .low strong { font: 800 21px/1.15 var(--num); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.low strong .of { font: 600 14px/1 var(--font); color: var(--muted); }
 .low small { font-size: 14px; line-height: 1.2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .low code { font-size: 12px; line-height: 1.3; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar { display: block; height: 6px; margin: 3px 0; border-radius: 3px; background: var(--fill); overflow: hidden; }
@@ -302,7 +316,12 @@ button.tile.dead:hover:not(:disabled) { background: color-mix(in srgb, var(--dan
 .trouble-keys { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .acts { flex: none; display: flex; gap: 8px; }
-.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; font-size: 20px; }
+.go { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; font-size: 20px; }
+.go :deep(svg) { flex: none; }
+.go-text { min-width: 0; display: grid; justify-items: start; }
+.go-word, .go-from { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go-from { font: 600 13px/1.2 var(--font); opacity: 0.85; }
+.low small.a-month { display: none; }
 /* The quest's coach has its own button up: this one steps back. */
 .go.quiet { background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
 .restart { flex: none; min-height: 56px; }
@@ -315,6 +334,9 @@ button.tile.dead:hover:not(:disabled) { background: color-mix(in srgb, var(--dan
   .bar { display: none; }
   .go, .restart { min-height: 48px; padding: 0 10px; gap: 6px; font-size: 16px; }
   .go { flex: 1 1 0; min-width: 0; white-space: nowrap; }
+  .go-from { font-size: 12px; }
+  .low small.share-line { display: none; }
+  .low small.a-month { display: block; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tile { transition: none; }

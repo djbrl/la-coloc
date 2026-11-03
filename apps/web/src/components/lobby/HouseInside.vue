@@ -175,15 +175,27 @@ const reviewsText = computed(() => {
 // A guest let into the chat from outside a full house reads and writes the channel, and nothing else of the house.
 const chatGuest = computed(() => !member.value && viewer.value?.guest === "accepted");
 
+// You live here alone, and nobody is knocking, in the chat or asking for a review: who lives here, the chat and the
+// reviews have nothing to show yet, so their tabs wait until someone moves in. The foot invites them.
+const alone = computed(() => {
+  const h = house.value;
+  if (!member.value || !h) return false;
+  return h.rooms.filter((r) => r.occupant).length <= 1 && !seats.value.some((s) => s.kind === "knock") && !h.guests?.length && !h.chores?.length && !h.channel?.length;
+});
+
 // The tabs: the floor plan and who lives here for anyone; the channel for a chat guest too; the rest for flatmates.
 const tab = ref<TabKey>("rooms");
 const tabs = computed((): Tab[] => [
   { key: "rooms", icon: "door", word: w.tabs.rooms },
-  { key: "people", icon: "people", word: w.tabs.people },
+  ...(alone.value ? [] : [{ key: "people", icon: "people", word: w.tabs.people }]),
   ...(member.value
     ? [
-        { key: "channel", icon: "chat", word: w.tabs.channel },
-        { key: "chores", icon: "check", word: w.tabs.chores, badge: myChores.value.length || undefined, alert: myChores.value.some((c) => c.late) },
+        ...(alone.value
+          ? []
+          : [
+              { key: "channel", icon: "chat", word: w.tabs.channel },
+              { key: "chores", icon: "check", word: w.tabs.chores, badge: myChores.value.length || undefined, alert: myChores.value.some((c) => c.late) },
+            ]),
         { key: "fridge", icon: "pin", word: w.tabs.fridge, badge: notes.value.length || undefined },
         { key: "bill", icon: "bill", word: w.tabs.bill },
       ]
@@ -204,7 +216,8 @@ watch(
   },
   { immediate: true },
 );
-const shownTab = computed((): TabKey => (member.value || tab.value === "people" || (chatGuest.value && tab.value === "channel") ? tab.value : "rooms"));
+// A tab that isn't offered (yet, or to you) shows the floor plan.
+const shownTab = computed((): TabKey => (tabs.value.some((t) => t.key === tab.value) ? tab.value : "rooms"));
 
 // Some tabs open on one plain sentence about the viewer's situation, with the longer "what is this, why it matters"
 // behind the "?" (Panel shows them through Explain.vue). The floor plan, the housemates and the chat speak for themselves.

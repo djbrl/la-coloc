@@ -47,7 +47,7 @@ const gear = (() => {
 <template>
   <a class="skip" href="#main">{{ w.skip }}</a>
   <!-- The lobby can ask for the bar to go (the tutorial does, until its last step; so does the landing). -->
-  <header v-show="lobbyUi.chrome" class="bar" :class="{ float: fullscreen }">
+  <header v-show="lobbyUi.chrome" class="bar" :class="{ float: fullscreen, 'under-window': lobbyUi.inside }">
     <nav class="inner" :aria-label="w.main">
       <RouterLink to="/" class="logo">La Coloc</RouterLink>
       <div ref="keysEl" class="side">
@@ -137,6 +137,11 @@ const gear = (() => {
 .bar.float .inner { display: block; max-width: none; padding: 0; }
 .bar.float .logo { display: none; }
 .bar.float .side { position: absolute; top: 24px; right: 24px; }
+/* A short window gives the lobby's open window the whole height, over these keys: they step back rather than peek out
+   behind its edge. */
+@media (min-width: 720px) and (max-height: 720px) {
+  .bar.float.under-window { visibility: hidden; }
+}
 .bar.float :is(.item, :deep(.ring)) { box-shadow: 0 5px 0 var(--accent-lip); }
 .bar.float :is(.item, :deep(.ring)):active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 .bar.float .word-key { padding: 0 18px; font-size: 20px; }

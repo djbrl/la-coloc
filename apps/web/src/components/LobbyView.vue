@@ -1236,7 +1236,7 @@ function statsOf(name: string) {
 </script>
 
 <template>
-  <div class="lobby" :class="{ paused: !!place || arenaOpen }">
+  <div class="lobby" :class="{ paused: !!place || arenaOpen, windowed: !!place }">
     <p v-if="failed" class="failed">{{ w.noWebgl }}</p>
 
     <template v-if="ready && !failed">
@@ -1614,6 +1614,12 @@ function statsOf(name: string) {
 /* A house, a room or a knock is open: like a game's pause menu, the HUD around it steps back (the search, the tools, the
    minimap and the key hints, which the panel would half cover), leaving the place and the site's keys. */
 .paused .hud.top, .paused .hud.tools, .paused .hud.map, .paused .hud.find-key, .paused .hud.coin-key, .paused .hud.help { opacity: 0; pointer-events: none; }
+/* Nothing peeks out from behind the open window: the lobby's number under the place key would show along its top edge,
+   and a short window, which gives the window the whole height, covers the place key too (and the site's keys: App.vue). */
+.windowed .hud.lobby-number { opacity: 0; pointer-events: none; }
+@media (min-width: 720px) and (max-height: 720px) {
+  .windowed .hud.place { opacity: 0; pointer-events: none; }
+}
 /* The search, top left: a white key with a red edge. Pressed, the field opens in the same place. */
 .find-key, .field { display: flex; align-items: center; gap: 10px; height: 62px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel-red), var(--lift); }
 .find-key { top: 24px; left: 24px; width: 62px; min-height: 0; justify-content: center; padding: 0; }

@@ -3,9 +3,10 @@
 // (see components/lobby/panel), so in the lobby's sheet it fits the sheet's height and never scrolls the sheet:
 // each part is made to fit, the long ones (logs, a long history) scroll inside themselves, and anything with more
 // than a field or two to fill in is a short step flow. On a page of its own the panel just grows.
-// It opens on a menu of tiles (RoomOverview.vue), one per part; a part opens in its place, with a key back to the menu.
+// It opens on a menu of tiles (RoomOverview.vue), one per part; a part opens in its place, with a key back to the menu
+// (in the lobby's sheet, the sheet's own back key: see lobby/sheetStep.ts).
 // The parts live in components/room; this page holds the room's data and talks to the API.
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import Icon from "../components/lobby/house/Icon.vue";
 import Panel from "../components/lobby/panel/Panel.vue";
@@ -27,6 +28,7 @@ import "../components/room/room.css";
 import { roomWords as w } from "../components/room/words";
 import Avatar from "../components/Avatar.vue";
 import { canRemove, firstName, teamNames } from "../components/lobby/team";
+import { sheetStep } from "../components/lobby/sheetStep";
 import UiNote, { loud, quiet, type Note } from "../components/UiNote.vue";
 import Waiting from "../components/Waiting.vue";
 import { useWhenBack, wentDown } from "../core";
@@ -285,8 +287,17 @@ function backToMenu() {
   fixing.value = false;
   tab.value = "overview";
 }
+// In the lobby's sheet, its band's back key is the way back to the menu: the part has no key of its own.
+const sheetBack = inject(sheetStep, null);
+watch(tab, (on) => {
+  if (sheetBack) sheetBack.value = on === "overview" ? null : backToMenu;
+});
+onBeforeUnmount(() => {
+  if (sheetBack?.value === backToMenu) sheetBack.value = null;
+});
 function arrived() {
-  if (focusNext === "back") backKey.value?.focus({ preventScroll: true });
+  const back = backKey.value ?? panel.value?.$el.closest("[role=dialog]")?.querySelector<HTMLElement>(".back-btn");
+  if (focusNext === "back") back?.focus({ preventScroll: true });
   else if (focusNext) panel.value?.$el.querySelector<HTMLElement>(`[data-section="${focusNext}"]`)?.focus({ preventScroll: true });
   focusNext = null;
 }
@@ -386,10 +397,11 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
       <template #head>
         <PanelHead :title="title" :state="state" :line="liveAt ? null : headLine">
           <template v-if="liveAt" #line>
-            <a class="lives-at" :href="liveAt" target="_blank" rel="noopener">{{ bare(liveAt) }}<span class="sr-only">{{ w.newTab }}</span></a>
+            <a class="lives-at" :href="liveAt" target="_blank" rel="noopener"><span class="at">{{ bare(liveAt) }}</span><Icon name="external" :size="14" /><span class="sr-only">{{ w.newTab }}</span></a>
           </template>
-          <template v-if="online" #aside>
-            <a :href="data.room.url!" target="_blank" rel="noopener" class="chunk small open-key">
+          <!-- Online, the address under the name is the way to the project. Not up yet, an older version still answers there: a key. -->
+          <template v-if="online && !liveAt" #aside>
+            <a :href="data.room.url!" target="_blank" rel="noopener" class="button open-key">
               <Icon name="external" :size="16" /> <span class="open-word">{{ w.open }}</span><span class="sr-only">{{ w.openProject }}</span>
             </a>
           </template>
@@ -426,7 +438,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
       <!-- In a part: the key back to the menu, and what this part is. -->
       <template v-if="tab !== 'overview'" #tabs>
         <div class="part-bar">
-          <button ref="backKey" type="button" class="chunk small to-menu" :aria-label="w.tile.backToRoom" :title="w.tile.backToRoom" @click="backToMenu"><Icon name="back" :size="20" /></button>
+          <button v-if="!sheetBack" ref="backKey" type="button" class="chunk small to-menu" :aria-label="w.tile.backToRoom" :title="w.tile.backToRoom" @click="backToMenu"><Icon name="back" :size="20" /></button>
           <PanelTabs v-if="inLogs" v-model="tab" :tabs="logTabs" :label="w.sections" />
           <h3 v-else-if="part" class="part-word"><Icon :name="part.icon" :size="22" />{{ part.word }}</h3>
         </div>
@@ -509,7 +521,9 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .room-panel { flex: 1 1 auto; }
 /* A room's name is a project's, often a repo's: it keeps the case it was written in. */
 .room-panel :deep(.panel-head .title) { text-transform: none; }
-.lives-at { min-width: 0; font-size: 15px; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lives-at { min-width: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: inherit; }
+.lives-at .at { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lives-at :deep(svg) { flex: none; }
 /* On a phone the name needs the width: the key keeps its icon, and its word for screen readers. */
 @media (max-width: 480px) {
   .open-key { width: 46px; padding: 0; justify-content: center; }

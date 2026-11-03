@@ -5,7 +5,7 @@
 // when it's yours, Chat first on anyone else, and on a free room: take it if you live here, knock if you don't. crew.ts
 // decides which; the house window does what they ask, except taking the room, which happens here so a refusal can be
 // said on the page. Example rooms stay read-only and say so.
-import { computed, onMounted, ref } from "vue";
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { inviteToHouse, notices } from "../../../notices";
 import { loadMe, me as session, postJSON } from "../../../session";
 import type { HouseView, Room } from "../../../types";
@@ -19,9 +19,11 @@ import Panel from "../panel/Panel.vue";
 import { roomState } from "../panel/words";
 import { firstName, teamNames, teamUp } from "../team";
 import TeamUp from "../TeamUp.vue";
+import { sheetStep } from "../sheetStep";
 import { canKnock, liveAddress, personActions, type RoomKey, roomKeys, type Situation } from "./crew";
 import Icon from "./Icon.vue";
 import { fcfa, rentOf } from "./server";
+import ShareHouse from "./ShareHouse.vue";
 import { houseWords as w } from "./words";
 
 const props = defineProps<{ house: HouseView; room: Room; situation: Situation }>();
@@ -61,6 +63,9 @@ const team = computed(() => {
   if (!person.value || !v?.member) return null;
   return teamUp({ login: person.value.login, example: !!actions.value?.example }, v, props.house, v.room, notices.sent);
 });
+// A free room, to someone who lives here: they can take it, or bring someone in. The page names both, so the plus on
+// the floor plan isn't a riddle.
+const invitable = computed(() => !person.value && !!props.situation.viewer?.member && !props.house.tutorial && props.house.status !== "making");
 // Example houses and rooms say so once, in the foot, when there's nothing to press.
 const readOnly = computed(() => (props.house.demo || !!actions.value?.example) && !keys.value.main);
 
@@ -109,16 +114,27 @@ async function take() {
   else void loadMe();
 }
 
-// The back arrow takes the focus as the page opens, so Esc goes back and Tab starts from the top.
+// The back arrow takes the focus as the page opens, so Esc goes back and Tab starts from the top. In the lobby's sheet
+// it's the sheet's own back key (sheetStep.ts), lent this step back while the page shows: one arrow on the band.
 const backKey = ref<HTMLButtonElement | null>(null);
-onMounted(() => backKey.value?.focus({ preventScroll: true }));
+const sheetBack = inject(sheetStep, null);
+const goBack = () => emit("back");
+const panel = ref<{ $el: HTMLElement } | null>(null);
+onMounted(async () => {
+  if (sheetBack) sheetBack.value = goBack;
+  await nextTick();
+  (backKey.value ?? panel.value?.$el.closest("[role=dialog]")?.querySelector<HTMLElement>(".back-btn"))?.focus({ preventScroll: true });
+});
+onBeforeUnmount(() => {
+  if (sheetBack?.value === goBack) sheetBack.value = null;
+});
 </script>
 
 <template>
-  <Panel class="room-details" @keydown.esc.stop="emit('back')">
+  <Panel ref="panel" class="room-details" @keydown.esc.stop="emit('back')">
     <template #head>
       <PanelHead :title="title" :state="state" :line="state.word">
-        <template #lead>
+        <template v-if="!sheetBack" #lead>
           <button ref="backKey" type="button" class="sign-x arrow" :aria-label="w.details.back" @click="emit('back')">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
@@ -166,7 +182,7 @@ onMounted(() => backKey.value?.focus({ preventScroll: true }));
         </li>
       </ul>
 
-      <div v-if="keys.main || keys.second || actions?.invite || team || readOnly || error" class="keys">
+      <div v-if="keys.main || keys.second || actions?.invite || team || invitable || readOnly || error" class="keys">
         <p v-if="error" class="error" role="alert">{{ error }}</p>
         <RouterLink v-if="keys.main?.kind === 'login'" to="/login" class="button primary key"><Icon name="login" :size="20" />{{ w.logInToKnock }}</RouterLink>
         <button v-else-if="keys.main" type="button" class="primary key" :disabled="busy" :aria-label="key(keys.main).name" @click="press(keys.main)">
@@ -179,6 +195,7 @@ onMounted(() => backKey.value?.focus({ preventScroll: true }));
           <Icon name="key" :size="18" />{{ bw.inviteHome(actions.invite.houseName) }}
         </button>
         <span v-else-if="actions?.invite?.kind === 'invited'" class="done"><Icon name="tick" :size="18" />{{ bw.invited }}</span>
+        <ShareHouse v-if="invitable" :house-id="house.id" :name="house.name" :city="house.city" :word="w.plan.invite" quiet />
         <TeamUp v-if="team && person" :state="team" :house-id="house.id" :login="person.login" :first="first" size="small" />
         <!-- A refusal's way out. -->
         <button v-if="error" type="button" class="second key" @click="emit('back')">{{ w.back }}</button>
@@ -217,6 +234,9 @@ onMounted(() => backKey.value?.focus({ preventScroll: true }));
 .facts :deep(svg) { flex: none; color: var(--muted); }
 .facts a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .keys { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+/* Inviting someone: a second key, on its own row under taking the room. */
+.keys > :deep(.share) { flex: 1 1 100%; }
+.keys > :deep(.share) .key { width: 100%; min-height: 50px; font-size: 18px; background: var(--tile); color: var(--text); box-shadow: none; }
 .key { flex: 1 1 160px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 60px; font-size: 24px; }
 a.key:hover { text-decoration: none; }
 .keys .key.second { min-height: 50px; font-size: 18px; background: var(--tile); color: var(--text); box-shadow: none; }
