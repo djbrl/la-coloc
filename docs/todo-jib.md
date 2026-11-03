@@ -1,15 +1,17 @@
 # What's left for Jib
 
-Written 2 Nov 2026. Only things Jib has to do or decide: payments, sign-ins, declarations, and anything that needs a person.
+Written 2 Nov 2026, dates updated 3 Nov. Only things Jib has to do or decide: payments, sign-ins, declarations, and anything that needs a person.
 
-## Today: could end the entry
+## Could end the entry
 
-1. **Check the official dates on the contest page.** `docs/contest-rules.md` is our copy from 2 Oct, and it says submissions closed on 31 Oct at 17:00 and the peer vote ends **today, 2 Nov, at 23:59**. Jib said on 28 Oct that the deadline moved to 15 Nov. I searched and found no public page confirming it, so only the contest page can settle this. If the peer vote is still on today, vote: under our copy of the rules, one member not voting eliminates the team.
-2. **Check that solo entries are allowed in writing.** Our copy says teams of 2 to 5.
+The rules changed. `docs/contest-rules.md` is the copy of 3 Nov, with what changed at the top. **Submissions close on Sun 15 Nov at 17:00 GMT.** The peer vote runs from 15 Nov at 18:00 to 16 Nov at 23:59, the public vote on 17–20 Nov, the jury on 21–22 Nov, and results on 23 Nov.
+
+1. **Vote in the peer vote, 15 Nov 18:00 to 16 Nov 23:59.** Every member must vote, or the team is out.
+2. **Get solo entries confirmed in writing.** The new rules still say teams of 2 to 5 (Art. 4). If the organiser said otherwise, ask them for an email, or keep a teammate on the team.
 
 ## Needed to submit
 
-3. **Deploy on Datacloud with at least one product bought there** (Art. 6). Without that, the entry isn't admissible. The 40% promo code applies until submissions close. `deploy/` should work on any fresh Ubuntu 24.04 server, but it has only run on the DigitalOcean rehearsal. I can do the deploy once there's a server and SSH access.
+3. **Deploy on Datacloud with at least one product bought there** (Art. 6). Without that, the entry isn't admissible. The 40% promo code applies until submissions close, but not to a VPS outside Dakar (Art. 8). `deploy/` should work on any fresh Ubuntu 24.04 server, but it has only run on the DigitalOcean rehearsal. I can do the deploy once there's a server and SSH access.
 4. **Make the AI declaration at submission** (tools used, parts concerned). `docs/ai-usage.md` has the content.
 5. **Make the ownership declaration at submission:** the project was made outside any job, client or school work.
 6. **Check `docs/licences.md` still holds when you submit.** `npm run licences:check` passed today.
@@ -23,8 +25,8 @@ Written 2 Nov 2026. Only things Jib has to do or decide: payments, sign-ins, dec
 
 ## Code and GitHub
 
-11. **Commit and push.** Nothing since `f5cab8c` is committed, and `landing-polish` isn't on GitHub at all: 73 commits ahead of `main` plus today's work exist only on this laptop. **This is the biggest risk of losing work.** Say the word and I'll do it.
-12. **Merge `landing-polish` into `main`** after that.
+11. **What's live is on GitHub.** `paydunya` holds everything on the droplet: `house-room-ui` plus buying credit with PayDunya. `landing-polish` is on GitHub too, but behind.
+12. **Merge `paydunya` into `main`** after that.
 13. **Decide whether the repo goes public.** `Djbrl/la-coloc` is still private. Your teammate said on 15 Oct they'd do it.
 
 ## Try on the live site
@@ -47,7 +49,7 @@ Written 2 Nov 2026. Only things Jib has to do or decide: payments, sign-ins, dec
 
 ## Worth remembering
 
-23. **A win means handing La Coloc to Systalink** (Art. 8): exclusive rights, signed by every member within 30 days. You already accepted this on 2 Oct, so it's only a reminder.
+23. **Ask what a win means now.** The old Art. 8 (5 000 000 FCFA, and handing La Coloc's rights to Systalink) is gone from the rules of 3 Nov, and nothing replaces it, though the rules still mention a prize. Ask the organiser (cadev@systalink.com) what the prize is and whether a winner still gives up the rights.
 
 ## Next for rooms
 

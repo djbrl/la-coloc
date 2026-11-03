@@ -46,5 +46,5 @@ npm run dev:web                       # open http://localhost:5175/login
 
 Built for the CADEV 2026 contest, *an African exchange platform built for devs by devs* ([rules](docs/contest-rules.md)).
 
-Every dependency and asset is under a permissive licence or CC0 ([docs/licences.md](docs/licences.md)). If the project
-wins, its rights go to the organiser, Systalink (rules, Art. 8).
+Every dependency and asset is under a permissive licence or CC0 ([docs/licences.md](docs/licences.md)). The rules of
+3 Nov no longer say what a winner gives the organiser, Systalink.

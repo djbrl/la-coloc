@@ -1,6 +1,15 @@
 # CADEV — Conditions générales de participation
 
-*Copied from the contest page by Jib, 02 10 2026. Copy of the official CADEV rules (Systalink).*
+*Copied from https://platform.systalink.com/cadev/conditions-generales on 3 Nov 2026, replacing our copy of 2 Oct.*
+
+**What changed since 2 Oct:**
+- **Dates:** submissions now close on 15 Nov at 17:00, and the peer vote runs from 15 Nov at 18:00 to 16 Nov at 23:59. The public vote is on 17–20 Nov, the jury on 21–22 Nov, and results on 23 Nov.
+- **Countries:** the list of 25 is now "francophone and anglophone Africa".
+- **Team size:** still teams of 2 to 5. Solo entries are still not allowed in writing.
+- **Prize and rights:** the old Art. 8 (5 000 000 FCFA and handing the winning solution's rights to Systalink) is gone. No article says what the prize is or what a winner gives up, though Art. 4 and Art. 10 still mention a prize.
+- **Discount:** the 40% code no longer covers a VPS outside Dakar.
+- **Numbering:** the articles after 7 moved up one. Art. 6 still sends you to "article 9" for the discount, which is now Art. 8, and Art. 9 sends you to "article 11" for fraud, which is now Art. 10.
+- **Contradiction:** Art. 3 says the jury is named by 20 Nov, but Art. 7 still says before submissions close.
 
 ---
 
@@ -20,18 +29,19 @@ L'inscription au Concours est gratuite. La soumission d'un projet suppose son d�
 ## Article 3 — Calendrier
 Toutes les heures indiquées dans le présent règlement sont exprimées en heure de Dakar (GMT). Le Concours se déroule selon le calendrier suivant :
 
-- Inscriptions et soumission des projets : du 25 septembre 2026 au 31 octobre 2026 à 17 h 00. Aucune inscription ni soumission n'est acceptée après cette heure.
-- Vote des pairs : du 1er novembre 2026 à 00 h 00 au 2 novembre 2026 à 23 h 59.
-- Vote du public et notation par le jury : du 4 novembre 2026 à 00 h 00 au 10 novembre 2026 à 23 h 59.
-- Proclamation des résultats : le 15 novembre 2026.
+- Inscriptions et soumission des projets : du 29 septembre 2026 au 15 novembre 2026 à 17 h 00 GMT. Aucune inscription ni soumission n'est acceptée après cette heure.
+- Vote des pairs : du 15 novembre 2026 à 18 h 00 GMT au 16 novembre 2026 à 23 h 59.
+- Campagne de l'équipe et vote du publique : du 17 novembre 2026 à 00 h 00 GMT au 20 novembre 2026 à 23 h 59.
+- Notation par le jury : du 21 novembre 2026 à 00 h 00 au 22 novembre 2026 à 23 h 59.
+- Proclamation des résultats : le 23 novembre 2026.
 
-La composition du jury est publiée au plus tard le 31 octobre 2026. Toute modification du calendrier est publiée sur la page du Concours et notifiée aux participants inscrits.
+La composition du jury est publiée au plus tard le 20 novembre 2026. Toute modification du calendrier est publiée sur la page du Concours et notifiée aux participants inscrits.
 
 ## Article 4 — Conditions de participation
 Le Concours est ouvert à toute personne physique qui, à la date de son inscription :
 
 - est âgée de dix-huit (18) ans révolus ;
-- a la nationalité de l'un des pays suivants, ou y réside : Algérie, Bénin, Burkina Faso, Burundi, Cameroun, Centrafrique, Comores, Congo, Côte d'Ivoire, Djibouti, Gabon, Guinée, Guinée équatoriale, Madagascar, Mali, Maroc, Mauritanie, Niger, République démocratique du Congo, Rwanda, Sénégal, Seychelles, Tchad, Togo, Tunisie (les « Pays éligibles ») ;
+- a la nationalité de l'un des pays de l'Afrique francophone et anglophone, ou y réside ;
 - dispose d'un compte Datacloud, l'inscription s'effectuant exclusivement via cette plateforme ;
 - a lu et accepté le présent règlement et la politique de confidentialité du Concours.
 
@@ -44,7 +54,7 @@ Ne peuvent participer : les collaborateurs de Systalink et des sociétés de son
 L'Organisateur peut vérifier à tout moment l'identité et l'âge des participants. Avant toute attribution de prix, chaque membre de l'équipe lauréate justifie de son identité par la production d'une pièce officielle.
 
 ## Article 5 — Inscription et acceptation du règlement
-L'inscription s'effectue depuis la page du Concours sur la plateforme Datacloud. L'accès à l'interface du Concours est subordonné à l'acceptation expresse du présent règlement, présenté intégralement au participant avant la validation de sa participation. Le règlement demeure accessible en permanence depuis l'interface du Concours et sur une page dédiée de la plateforme.
+L'inscription s'effectue depuis la page du Concours sur la plateforme Datacloud (https://platform.systalink.com/). L'accès à l'interface du Concours est subordonné à l'acceptation expresse du présent règlement, présenté intégralement au participant avant la validation de sa participation. Le règlement demeure accessible en permanence depuis l'interface du Concours et sur une page dédiée de la plateforme.
 
 ## Article 6 — Soumission des projets
 Le projet est soumis sous forme de solution déployée et accessible en ligne, afin de permettre son évaluation.
@@ -72,47 +82,32 @@ La sélection s'opère en trois étapes, par groupe national constitué selon le
 
 Tout membre du jury se déporte de l'évaluation d'un projet avec lequel il a un lien personnel ou professionnel. Le classement final est publié sur la plateforme.
 
-## Article 8 — Prix et cession de la solution gagnante
-Le lauréat reçoit un prix d'un montant brut de cinq millions (5 000 000) de francs CFA, qui récompense son classement. L'attribution et le versement du prix sont subordonnés à la cession exclusive à Systalink des droits patrimoniaux sur la solution gagnante (code source et objet, bases de données, documentation, éléments graphiques).
-
-Après la cession, Systalink est seule titulaire des droits d'exploitation de la solution. Le lauréat ne peut plus l'exploiter, la reproduire, l'adapter ni la commercialiser, et n'est pas associé à son développement ultérieur, sauf accord distinct avec Systalink.
-
-Le Concours n'est pas un dispositif de financement ou d'incubation du projet du lauréat.
-
-La cession est constatée par un acte écrit distinct, conforme aux articles 62 et 63 de la loi sénégalaise n° 2008-09 du 25 janvier 2008 sur le droit d'auteur et les droits voisins. Cet acte mentionne distinctement chacun des droits cédés et délimite la cession quant à son étendue, sa destination, son territoire et sa durée. Son modèle est communiqué au lauréat lors de la proclamation des résultats.
-
-L'acte est signé par chacun des membres de l'équipe lauréate. À défaut de signature de l'ensemble des membres dans un délai de trente (30) jours suivant la proclamation, l'Organisateur peut attribuer le prix au projet classé suivant.
-
-Conformément à l'article 27 de la loi n° 2008-09, le lauréat conserve sa qualité d'auteur. Il consent à ce que Systalink exploite la solution, la modifie et la commercialise sous ses propres marques, sans obligation de mentionner son nom.
-
-Le prix est versé par virement bancaire de Systalink, dans un délai de trente (30) jours suivant la signature de l'acte de cession, sur le ou les comptes désignés par les membres de l'équipe selon la clé de répartition déclarée à l'inscription. Il est versé sous déduction des retenues et prélèvements éventuellement applicables selon la réglementation en vigueur ; les autres impôts dus au titre du prix sont à la charge du lauréat.
-
-## Article 9 — Avantages promotionnels
-Remise de 40 % sur tout produit ou service Datacloud acquis pour déployer le projet soumis au Concours, jusqu'à la clôture des soumissions, par application d'un code promotionnel communiqué à chaque équipe inscrite.
+## Article 8 — Avantages promotionnels
+Remise de 40 % sur tout produit ou service Datacloud excepté les VPS hors Dakar acquis pour déployer le projet soumis au Concours, jusqu'à la clôture des soumissions, par application d'un code promotionnel communiqué à chaque équipe inscrite.
 
 Remise de 70 % sur l'ensemble des produits et services Datacloud, accordée à tout participant inscrit, de la proclamation des résultats au 31 décembre 2026.
 
 Ces remises sont personnelles, non cessibles et non cumulables avec toute autre offre. Les achats effectués sur Datacloud, y compris avec remise, sont régis par les conditions générales de Datacloud.
 
-## Article 10 — Droits des participants non lauréats
+## Article 9 — Droits des participants non lauréats
 Les participants non lauréats conservent l'intégralité de leurs droits sur leurs projets. Chaque participant concède à l'Organisateur une licence non exclusive et gratuite, limitée à l'hébergement, à l'affichage et à la présentation de son projet aux fins d'évaluation, de vote et de communication sur le Concours (nom du projet, visuels, classement). Cette licence expire douze (12) mois après la proclamation des résultats.
 
 L'Organisateur n'accède pas au code source des projets non lauréats, sauf accord du participant ou vérification d'une suspicion de fraude au sens de l'article 11.
 
 Les idées, concepts et fonctionnalités ne sont pas appropriables en tant que tels. La participation au Concours ne restreint pas la liberté de Systalink de concevoir, développer ou acquérir, de manière indépendante, des solutions similaires ou concurrentes à celles présentées.
 
-## Article 11 — Fraude et disqualification
+## Article 10 — Fraude et disqualification
 Constituent notamment une fraude : la création de comptes multiples, la manipulation des votes, le plagiat, la soumission d'un code non original ou développé avant le Concours, toute déclaration inexacte au titre de l'article 6. L'Organisateur peut disqualifier le participant concerné après l'avoir mis en mesure de présenter ses observations dans un délai de quarante-huit (48) heures. La disqualification entraîne la perte de tout prix et de tout avantage promotionnel non encore utilisé.
 
-## Article 12 — Données personnelles
+## Article 11 — Données personnelles
 Les données personnelles des participants et des votants sont traitées par Systalink conformément à la loi sénégalaise n° 2008-12 du 25 janvier 2008 et à la politique de confidentialité du Concours, présentée avant l'inscription et accessible en permanence depuis l'interface du Concours.
 
-## Article 13 — Responsabilité, modification et annulation
+## Article 12 — Responsabilité, modification et annulation
 L'Organisateur met en œuvre les moyens raisonnables pour assurer le bon déroulement du Concours et la disponibilité de la plateforme. Sa responsabilité ne peut être engagée en cas de dysfonctionnement du réseau internet, de défaillance imputable au participant ou à un tiers, ou de force majeure.
 
 L'Organisateur peut modifier, suspendre ou annuler le Concours si les circonstances l'exigent. Les participants en sont informés sans délai. En cas d'annulation, les sommes payées par les participants pour les services Datacloud acquis au titre de l'article 6 leur sont remboursées ou, à leur choix, converties en avoir.
 
-## Article 14 — Droit applicable et litiges
+## Article 13 — Droit applicable et litiges
 Le présent règlement est régi par le droit sénégalais. Toute réclamation est adressée à l'Organisateur dans les trente (30) jours suivant la proclamation des résultats, à l'adresse cadev@systalink.com. À défaut de résolution amiable, tout litige relève des juridictions compétentes de Dakar (Sénégal).
 
 ## Annexe 1 — Grille d'évaluation

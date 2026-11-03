@@ -8,12 +8,11 @@ approval first. Details of anything done: [docs/build-notes.md](docs/build-notes
 
 | When | What |
 |---|---|
-| **Thu 22 Oct** | Register the team (our target; registration closes with submissions) |
-| **Sun 25 Oct** | Submit (our target) |
-| **Sat 31 Oct, 17:00** | Hard deadline: nothing is accepted after it |
-| **Sun 1 – Mon 2 Nov** | Peer vote: **every member must vote**, or the team is out |
-| **4 – 10 Nov** | Public vote and jury: keep the site up until 10 Nov |
-| 15 Nov | Results |
+| **Sun 15 Nov, 17:00** | Registration and submissions close: nothing is accepted after it |
+| **Sun 15 Nov 18:00 – Mon 16 Nov** | Peer vote: **every member must vote**, or the team is out |
+| 17 – 20 Nov | Team campaign and public vote |
+| 21 – 22 Nov | Jury: keep the site up until then |
+| 23 Nov | Results |
 
 ## Must do
 
@@ -86,13 +85,13 @@ runs the isolation demo.
 
 ## Contest admin (Jib)
 
-- Register the team by Thu 22 Oct: every member has a Datacloud account; name a representative and the country.
-- Buy at least one Datacloud product with the 40% code before submitting.
+- Register the team before 15 Nov, 17:00: every member has a Datacloud account; name a representative and the country.
+- Buy at least one Datacloud product with the 40% code before submitting (not a VPS outside Dakar).
 - Each member signs the titularity declaration (rules, Art. 6).
 - Final pass on [docs/licences.md](docs/licences.md); `npm run licences:check` passes on the submitted commit.
 - Fill the last column of [docs/ai-usage.md](docs/ai-usage.md) with real reviewer names and dates.
-- Submit by Sun 25 Oct: the address, the declarations, the video.
-- Vote on 1–2 Nov, every member. Keep production up until 10 Nov.
+- Submit by Sun 15 Nov, 17:00: the address, the declarations, the video.
+- Vote on 15–16 Nov, every member. Keep production up until 23 Nov.
 - Rehearse: each member can explain their parts, AI-written ones included.
 - Decide on branch protection for `main`.
 

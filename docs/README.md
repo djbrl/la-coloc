@@ -25,7 +25,7 @@
 
 | Doc | One line |
 |---|---|
-| [contest-rules.md](contest-rules.md) | The official CADEV rules, in French: dates, scoring, licences (Art. 6), rights (Art. 8) |
+| [contest-rules.md](contest-rules.md) | The official CADEV rules, in French: copy of 3 Nov: dates, scoring, licences (Art. 6), rights (Art. 9) |
 | [licences.md](licences.md) | Every dependency's and every asset's licence. Update it when you add one |
 | [ai-usage.md](ai-usage.md) | The AI declaration. Add a row after notable AI-assisted work (only grows) |
 | [build-notes.md](build-notes.md) | A dated log of what was built, how it was checked and what was rough (only grows) |
