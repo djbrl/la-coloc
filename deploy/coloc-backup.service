@@ -1,0 +1,10 @@
+[Unit]
+Description=La Coloc's database dump, kept on the root disk (deploy/coloc-backup.sh)
+After=docker.service
+
+[Service]
+Type=oneshot
+# A dump reads the whole database: it waits behind the rooms and the city.
+Nice=10
+IOSchedulingClass=idle
+ExecStart=/usr/local/sbin/coloc-backup

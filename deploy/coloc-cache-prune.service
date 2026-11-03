@@ -1,0 +1,10 @@
+[Unit]
+Description=Clears La Coloc's build cache older than a week, however full the disk is
+After=docker.service
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+# Build cache only: images, containers and volumes stay.
+ExecStart=/usr/bin/docker builder prune --filter until=168h -f

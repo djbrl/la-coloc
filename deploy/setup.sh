@@ -15,6 +15,36 @@ say() { printf '\n==> %s\n' "$1"; }
 as_coloc() { su -s /bin/sh coloc -c "cd $SRC && $1"; }
 export DEBIAN_FRONTEND=noninteractive
 
+# --- 0. Before changing anything: does this machine have what the rest needs? -------------------------------------
+# It has only run on DigitalOcean. On a new host, better one sentence per missing piece now than a half-made server.
+
+say "Checking the machine"
+missing=0
+lack() { printf '  %s\n' "$1" >&2; missing=1; }
+os=$(. /etc/os-release 2>/dev/null && echo "${ID:-} ${VERSION_ID:-}") || true
+[ "$os" = "ubuntu 24.04" ] || printf '  Warning: this was written for Ubuntu 24.04, not "%s". Carrying on.\n' "${os:-unknown}" >&2
+[ "$(id -u)" -eq 0 ] || lack "It must run as root."
+[ -d /run/systemd/system ] || lack "systemd isn't running, and every part of the city is a systemd service."
+if command -v systemd-detect-virt >/dev/null 2>&1 && systemd-detect-virt -cq; then
+  lack "This is a container ($(systemd-detect-virt -c)), not a virtual machine: Docker can't have its own disk in one."
+fi
+command -v apt-get >/dev/null 2>&1 || lack "apt-get is missing: this only knows how to install Ubuntu's packages."
+command -v ufw >/dev/null 2>&1 || lack "ufw, the firewall, is missing: apt-get install ufw."
+[ -d /etc/ssh/sshd_config.d ] && command -v sshd >/dev/null 2>&1 || lack "The OpenSSH server is missing: apt-get install openssh-server."
+# Docker's disk below is an XFS file mounted through a loop device.
+grep -qsw xfs /proc/filesystems || modprobe xfs 2>/dev/null || lack "The kernel can't mount XFS, which Docker's disk needs to hold each room to a size: apt-get install linux-generic, then reboot."
+losetup -f >/dev/null 2>&1 || lack "No loop device can be used, and Docker's disk is a file mounted as one."
+# Docker's disk takes 85% of what's free on / when it's made (59 GB on the DigitalOcean server, from about 70 GB free).
+if ! findmnt -n -o OPTIONS --target /var/lib/docker 2>/dev/null | grep -q prjquota; then
+  docker_gb=$(( $(df --output=avail -BM / | tail -1 | tr -dc 0-9) * 85 / 100 / 1024 ))
+  if [ "$docker_gb" -lt 20 ]; then
+    lack "Docker's disk would only get ${docker_gb} GB, from 85% of what's free on /: it needs at least 20 GB."
+  elif [ "$docker_gb" -lt 59 ]; then
+    printf '  Warning: Docker'\''s disk will get %s GB, less than the 59 GB of the DigitalOcean server. Carrying on.\n' "$docker_gb" >&2
+  fi
+fi
+[ "$missing" -eq 0 ] || { echo "Nothing was changed." >&2; exit 1; }
+
 # --- 1. The machine: only SSH, the rooms' SSH door, 80 and 443 from outside, keys only -----------------------------------------------
 
 say "Locking the server down"
@@ -120,6 +150,8 @@ rm -f "$ETC/ssh_host_ed25519_key.pub"
 touch "$ETC/github.env"
 # PayDunya's test keys, written by hand (docs/dev.md). Without them, buying credit simply isn't offered.
 touch "$ETC/paydunya.env"
+# Where the disk alarm also sends its message, written by hand: COLOC_ALERT_URL=https://ntfy.sh/<topic>. Optional.
+touch "$ETC/alert.env"
 cat > "$ETC/coloc.env.new" <<SETTINGS
 PORT=4100
 COLOC_PUBLIC_URL=https://$COLOC_DOMAIN
@@ -186,8 +218,13 @@ caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 systemctl enable caddy
 systemctl restart caddy
 
-cp "$SRC"/deploy/coloc-*.service /etc/systemd/system/
+# Copied out of $SRC, which belongs to coloc, since root runs them.
+install -m 755 "$SRC/deploy/coloc-backup.sh" /usr/local/sbin/coloc-backup
+install -m 755 "$SRC/deploy/coloc-disk-check.sh" /usr/local/sbin/coloc-disk-check
+cp "$SRC"/deploy/coloc-*.service "$SRC"/deploy/coloc-*.timer /etc/systemd/system/
 systemctl daemon-reload
+# A dump every night, a disk check every 15 minutes, old build cache cleared every week.
+systemctl enable --now coloc-backup.timer coloc-disk-check.timer coloc-cache-prune.timer
 systemctl enable coloc-firewall.service
 systemctl restart coloc-firewall.service
 systemctl enable coloc-api.service coloc-caretaker@sacre-coeur.service coloc-caretaker@atelier.service

@@ -1,0 +1,7 @@
+[Unit]
+Description=Warns when La Coloc's disks are 80% full, and clears what can be rebuilt (deploy/coloc-disk-check.sh)
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/coloc-disk-check

@@ -1,0 +1,9 @@
+[Unit]
+Description=Clears La Coloc's old build cache every week
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
