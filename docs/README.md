@@ -19,6 +19,7 @@
 |---|---|
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Branches, commits, words in two languages, art and licences, tests, AI use |
 | [TODO.md](../TODO.md) | The one list of what's left, with "done when" for each item |
+| [ssh-walkthrough.md](ssh-walkthrough.md) | SSH into a room, end to end: the hops, each file, the security choices, jury questions, a demo |
 | [apps/web/public/lobby/README.md](../apps/web/public/lobby/README.md) | Where the 3D models come from, and their licences |
 
 ## Records (the contest asks for some of these)

@@ -15,7 +15,7 @@ The rules changed. `docs/contest-rules.md` is the copy of 3 Nov, with what chang
 4. **Make the AI declaration at submission** (tools used, parts concerned). `docs/ai-usage.md` has the content.
 5. **Make the ownership declaration at submission:** the project was made outside any job, client or school work.
 6. **Check `docs/licences.md` still holds when you submit.** `npm run licences:check` passed today.
-7. **Be ready to explain the code to the jury.** "Mastery of the delivered solution, including parts made with AI" is part of the technical grade. Start with `docs/architecture.md`. Nobody but me has read the SSH code yet.
+7. **Be ready to explain the code to the jury.** "Mastery of the delivered solution, including parts made with AI" is part of the technical grade. Start with `docs/architecture.md`. For SSH, which nobody but me had read, `docs/ssh-walkthrough.md` (3 Nov) is a study guide: the path file by file, the security choices, 14 questions a jury might ask with answers, and a two-minute demo.
 
 ## Needed for a good entry
 
@@ -40,7 +40,7 @@ The rules changed. `docs/contest-rules.md` is the copy of 3 Nov, with what chang
 17. **Done: a room that nobody can reach no longer says "live".** Since 3 Nov the caretaker checks that the app listens on the room's port where visitors can reach it. If not, the build fails and says why: localhost only (like `refonte`'s `nuxt dev`), another port (it names it), or nothing at all. The old version keeps running.
 18. **Is port 2222 fine open to everyone for the demo?** It only accepts registered keys. To close it: `ufw delete allow 2222/tcp`.
 19. **Turn off the demo restart before the jury?** It's on (`COLOC_DEMO_RESET=1`), and it most likely cleared your room.
-20. **Uptime alarm during the vote and jury?** Nothing tells you if the site goes down.
+20. **Uptime alarm during the vote and jury?** Nothing tells you if the site goes down. Since 3 Nov the disk check can post to a phone: put `COLOC_ALERT_URL=https://ntfy.sh/<a topic only you know>` in `/etc/coloc/alert.env` and install the ntfy app. A free outside checker (UptimeRobot or similar) on the site's address would cover the site going down; that needs your account.
 
 ## When the rehearsal ends
 
@@ -69,10 +69,10 @@ Rooms now have internet, a writable disk and root inside. These are the risks th
 
 ### Could take the city down
 
-30. **The database shares a disk with everything else** (high). Rooms are limited, but images and build cache aren't, and the database lives on the same 59 GB disk. If it fills, the database stops and the whole city with it. To do: an alarm at 80%, regular image and build-cache cleanup, and the database on its own disk.
-31. **No backups** (high). The database and everyone's `/home/your-room` are in one file on one server. To do: a nightly database dump off the server, and tell people `/home/your-room` isn't backed up.
+30. **The database shares a disk with everything else** (high). Rooms are limited, but images and build cache aren't, and the database lives on the same 59 GB disk. If it fills, the database stops and the whole city with it. Since 3 Nov, every 15 minutes `coloc-disk-check` looks at both disks: at 80% it logs a warning (`journalctl -p warning -u coloc-disk-check`) and clears build cache older than a day and images nothing uses. With `COLOC_ALERT_URL` set it also posts to a phone (item 20). Build cache older than a week goes every Sunday. Still to do: the database on its own disk.
+31. **No backups** (high). The database and everyone's `/home/your-room` are in one file on one server. Since 3 Nov, `coloc-backup` dumps the database every night at 03:30 into `/var/backups/coloc` on the root disk, outside Docker's, and keeps 7. A copy only leaves the server when you run `deploy/pull-backup.sh 138.68.78.148` from your laptop (restore line in that file): do it before the jury. Still to do: tell people `/home/your-room` isn't backed up, and copy dumps off the server by themselves.
 32. **Dependencies with known holes** (was high, now checked). On 3 Nov, `ws`, `body-parser`, `qs` and `multer` were raised to fixed versions through npm overrides (same major versions, all tests pass). `npm audit --omit=dev` still lists 9, none reachable here: `@nestjs/core`'s is in server-sent events' `type` and `id`, which are fixed words in our code. `zod` 3's needs a huge array, and requests stop at 100 kB. `uuid` (inside `dockerode`) needs a buffer we never pass, and `file-type` (inside `@nestjs/common`) is only used for file uploads, which we don't take. Fixing those for good means Nest 11 and zod 4: after the contest.
-33. **The setup has only run on DigitalOcean** (medium). Moving Docker onto XFS needs a kernel with XFS and loop mounts. Check it on Datacloud early, since that deployment is mandatory.
+33. **The setup has only run on DigitalOcean** (medium). Moving Docker onto XFS needs a kernel with XFS and loop mounts. Since 3 Nov `deploy/setup.sh` checks these first and stops before changing anything, one sentence per missing piece: root, systemd, a real VM (not a container), apt, ufw, OpenSSH, XFS, a loop device, and at least 20 GB for Docker's disk. It passes on the DigitalOcean server. Run it on Datacloud early, since that deployment is mandatory.
 
 ### Stronger walls
 
@@ -86,4 +86,4 @@ Rooms now have internet, a writable disk and root inside. These are the risks th
 38. **A room can't see its disk use** (low). `df` on `/home/your-room` shows the whole pool rather than 1 GB, though the limit holds. The room page's Inside tab shows the real use of that folder, not of the rest of the disk.
 39. **A lease that ends while the server is off** (low). If the containers are already gone too, the old files stay on disk until someone empties that room again. The next tenant can't see them, but they use space and should go. To do: report kept volumes in the caretaker's snapshot.
 40. **Laptop and server now differ** (low). A laptop's rooms stay sealed and read-only, so something can pass locally and behave differently on the server, or the other way round.
-
+41. **Small SSH gaps** (low), found while writing `docs/ssh-walkthrough.md`. The SSH door lets in rooms of an example house as long as the room itself isn't marked as an example; the room page hides SSH there (`ssh.service.ts:107` vs `rooms.service.ts:110`). Anyone holding someone's public key, which GitHub publishes, can test which rooms it opens, since the server says "sign with this" before any signature: that's how SSH works. A connection that opens a session but never a shell has no idle limit. Removing a key doesn't end a shell that's already open; the 60-second check only looks at who lives there.

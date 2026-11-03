@@ -174,7 +174,7 @@ Still one room, one address: several things can run inside, and visitors reach o
 `ssh -p 2222 <room>.<house>@<city host>` opens a shell inside a room's running project. There's no real login on the server: the API is the SSH server, and the person never touches the machine.
 
 1. **The door** (`apps/api/src/ssh/ssh.gateway.ts`, the `ssh2` library, public keys only). The name says which room. The offered key must belong to its occupant or a teammate who still lives in the house (`SshService.people`). The chef has no way in, and example rooms have none. Every refusal reads the same, so nobody can use it to find out which rooms exist.
-2. **The line** (`agents/shell.broker.ts`). Bytes go over the caretaker's existing websocket, so no room or server needs a port of its own.
+2. **The line** (`apps/api/src/agents/shell.broker.ts`). Bytes go over the caretaker's existing websocket, so no room or server needs a port of its own.
 3. **The shell** (`apps/agent/src/shell.ts`). A `docker exec` in the room's running prod container, so it has what the project has: same user, disk, network and limits. Closing the line doesn't stop a `docker exec`, so the shell writes down its process number and the caretaker hangs up on that group, as any server does: `nohup` and `tmux` keep running until the next deploy. `sweep` does the same for what a crashed caretaker left behind.
 
 Only a shell or a command: no passwords, no sftp, no port forwarding. Limits: 4 shells a person, 40 a server, 200 connections, 30 new connections a minute per address, 20 s to log in, 30 min idle, and a login that opens no shell closes after 2 min. Access is checked again every 60 s, so someone taken off a team is out within a minute.
@@ -201,6 +201,20 @@ The API opens its port first and keeps trying to reach Postgres. Meanwhile every
 answers `503 core_down`. The site recognises it, keeps you in the city with a card that retries, and recovers by
 itself. Caretakers are asked to reconnect later; running rooms keep running. Code: `apps/api/src/core/`,
 `apps/web/src/core.ts`.
+
+## Backups and the disk
+
+`coloc-backup.timer` dumps the database at 03:30 every night (`pg_dump -Fc` through `docker exec coloc-db`) into
+`/var/backups/coloc` on the root disk, so a full or broken Docker disk doesn't take the backups with it. The newest 7
+are kept. `deploy/pull-backup.sh <ip>` copies the newest one to a laptop; the restore line is in both scripts. Rooms'
+kept folders (`/home/your-room`) are not backed up.
+
+Images and build cache have no size limit and share Docker's disk with the rooms and the database. Every 15 minutes
+`coloc-disk-check` looks at `/` and `/var/lib/docker`. At 80% it warns in the journal, clears build cache older than a
+day and images no container uses, and posts to `COLOC_ALERT_URL` (from `/etc/coloc/alert.env`, at most every 6
+hours) if one is set. It never touches volumes or containers. Build cache older than a week goes every Sunday
+(`coloc-cache-prune.timer`). Before changing anything, `deploy/setup.sh` checks the machine has what it needs and
+stops with one sentence per missing piece.
 
 ## The database
 
