@@ -19,7 +19,7 @@ defineProps<{ summary?: string | null; explain?: string | null; bodyLabel?: stri
     <header v-if="$slots.head" class="p-head"><slot name="head" /></header>
     <div v-if="$slots.tabs" class="p-tabs"><slot name="tabs" /></div>
     <p v-if="explain && !summary" class="p-explain">{{ explain }}</p>
-    <div :id="bodyId" class="p-body" :role="bodyLabelledby ? 'tabpanel' : undefined" :aria-labelledby="bodyLabelledby" :aria-label="bodyLabel">
+    <div :id="bodyId" class="p-body" :role="bodyLabelledby ? 'tabpanel' : bodyLabel ? 'region' : undefined" :aria-labelledby="bodyLabelledby" :aria-label="bodyLabel">
       <Explain v-if="summary" class="p-summary" :summary="summary" :more="explain" />
       <slot />
     </div>

@@ -3,6 +3,7 @@
 // take the night to day, then squared paper. What a room is, how the rent falls, how a repo goes online, what a room
 // gets, the neighbours, the mobile money, and a last call to move in. Bands take the day back to night at the end.
 // The drawings are plain markup, not pictures, so they follow the language.
+import { num } from "../../i18n";
 import { storyWords as w } from "./words";
 import PixelHouse from "./PixelHouse.vue";
 
@@ -16,7 +17,8 @@ const GITHUB =
 </script>
 
 <template>
-  <div id="how" class="story">
+  <!-- Focusable from script only: the key on the road sends focus here, so Tab carries on down the story. -->
+  <div id="how" class="story" tabindex="-1">
     <div class="bands" aria-hidden="true"><span v-for="c in DAWN" :key="c" :style="{ background: c }" /></div>
 
     <div class="paper">
@@ -85,7 +87,7 @@ project  notes.md
         </div>
         <ul class="figures">
           <li><strong class="num">256</strong><span class="tag">{{ w.specs.memory }}</span></li>
-          <li><strong class="num">0,5</strong><span class="tag">{{ w.specs.cpu }}</span></li>
+          <li><strong class="num">{{ num(0.5) }}</strong><span class="tag">{{ w.specs.cpu }}</span></li>
           <li><strong class="num">÷4</strong><span class="tag">{{ w.specs.split }}</span></li>
         </ul>
       </section>
@@ -157,6 +159,7 @@ project  notes.md
 
 <style scoped>
 /* Its own colours: the cream of the paper, the ink, the dawn's orange for arrows and wires. */
+.story:focus { outline: none; }
 .story { --paper: #fbf6e9; --rule: #e3d8be; --ink: #1d1a17; --ink-2: #4a443d; --ink-3: #6b6255; --orange: #e0532a; --sun: #fbd45c; --pale: #fdf0c2; background: #2a2138; color: var(--ink); font-family: var(--font); font-weight: 400; }
 .bands { display: grid; }
 .bands span { height: 26px; }

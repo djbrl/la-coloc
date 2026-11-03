@@ -1,11 +1,8 @@
 import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
-import ApplicationPage from "./pages/ApplicationPage.vue";
 import CityPage from "./pages/CityPage.vue";
-import HousePage from "./pages/HousePage.vue";
 import LoginPage from "./pages/LoginPage.vue";
-import RoomPage from "./pages/RoomPage.vue";
 import { listWords } from "./components/list/words";
 import { installCoreFetch, onRecovered } from "./core";
 // The language (English or French) is chosen before anything draws, and <html lang> follows it (i18n.ts).
@@ -23,9 +20,11 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: "/", component: CityPage, meta: { fullscreen: true } },
-    { path: "/houses/:id", component: HousePage, props: true },
-    { path: "/houses/:id/rooms/:room", component: RoomPage, props: true },
-    { path: "/applications/:id", component: ApplicationPage, props: true },
+    // The house, room and knock pages load when someone opens one, so the landing (where most visits start) doesn't
+    // carry them. The lobby shows the same pages in its window and fetches them with itself (lobby/Inside.vue).
+    { path: "/houses/:id", component: () => import("./pages/HousePage.vue"), props: true },
+    { path: "/houses/:id/rooms/:room", component: () => import("./pages/RoomPage.vue"), props: true },
+    { path: "/applications/:id", component: () => import("./pages/ApplicationPage.vue"), props: true },
     { path: "/login", component: LoginPage, meta: { fullscreen: true } },
     // The style guide (every shared piece in day and night, made-up data, no API), in development builds only:
     // the bundler drops this branch, and the page with it, from a production build.

@@ -14,7 +14,7 @@ import { landingWords as w } from "../components/words";
 import { language, setLang } from "../i18n";
 import { headsOnPicture, setVisiting, windowOnPicture } from "../landing";
 import type { LandingRoom } from "../lobby/landingRoom";
-import { lobbyUi } from "../settings";
+import { lobbyUi, settings } from "../settings";
 import LandingStory from "../components/landing/LandingStory.vue";
 import { storyWords } from "../components/landing/words";
 
@@ -123,15 +123,21 @@ function tryDemo() {
     void router.replace("/");
   };
   if (entering.value) return;
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return walkIn();
+  // Scrolled down into the story, the street's zoom would play out of sight: straight in.
+  if (calm() || window.scrollY > 0) return walkIn();
   entering.value = true;
   window.setTimeout(walkIn, ENTERING_MS);
 }
 
-// Down the page, below the street: what La Coloc sells (LandingStory). The key on the road scrolls there.
+// The site's "Calmer motion" or the system's.
+const calm = () => settings.reduceMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Down the page, below the street: what La Coloc sells (LandingStory). The key on the road scrolls there, and the
+// keyboard follows, so Tab carries on down the story instead of back up the street.
 function showHow() {
-  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  document.getElementById("how")?.scrollIntoView({ behavior: calm ? "auto" : "smooth" });
+  const how = document.getElementById("how");
+  how?.scrollIntoView({ behavior: calm() ? "auto" : "smooth" });
+  how?.focus({ preventScroll: true });
 }
 
 // The name on the wall, as neon tubes: one line per letter. The last C is on its way out, so it's kept apart to blink;
@@ -283,10 +289,12 @@ onBeforeUnmount(() => {
 .entering .foot { opacity: 0; transition: opacity 0.2s linear; }
 
 /* The foot stays on the screen's own edge, on the road, whatever the crop. */
-.foot { position: absolute; z-index: 2; left: 36px; right: 36px; bottom: 10px; display: flex; justify-content: space-between; gap: 16px; font-size: 15px; font-weight: 600; color: #f4efe6; }
+/* Three columns, so the key in the middle never sits on the cities' line, which wraps instead on a narrower screen. */
+.foot { position: absolute; z-index: 2; left: 36px; right: 36px; bottom: 10px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 16px; font-size: 15px; font-weight: 600; color: #f4efe6; }
+.foot > a { justify-self: end; }
 .foot a { color: inherit; }
 /* The way down to the story, in the middle of the road. */
-.down { position: absolute; left: 50%; bottom: 0; translate: -50% 0; display: flex; align-items: center; gap: 8px; min-height: 48px; height: 48px; padding: 0 18px 0 22px; border: 0; border-radius: 24px; background: var(--say-bg); color: var(--say-ink); font: 800 16px/1 var(--font); white-space: nowrap; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4); }
+.down { display: flex; align-items: center; gap: 8px; min-height: 48px; height: 48px; padding: 0 18px 0 22px; border: 0; border-radius: 24px; background: var(--say-bg); color: var(--say-ink); font: 800 16px/1 var(--font); white-space: nowrap; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4); }
 .down:hover:not(:disabled) { background: #ffffff; color: var(--say-ink); }
 .down:focus-visible { outline: 3px solid #ffd21f; outline-offset: 2px; }
 .entering .down { opacity: 0; }
@@ -379,7 +387,7 @@ h2 { margin: 0; font-family: var(--display); }
   .says { order: 2; display: grid; gap: 10px; padding: 16px; }
   .say { position: static; width: 100%; padding: 9px 12px 10px; translate: none; border-radius: var(--r-md); font-size: 16px; opacity: 1; pointer-events: auto; }
   .say::after { display: none; }
-  .foot { position: static; color: var(--title); flex-direction: column; gap: 4px; padding: 0 16px 16px; font-size: 14px; }
+  .foot { position: static; color: var(--title); display: flex; flex-direction: column; gap: 4px; padding: 0 16px 16px; font-size: 14px; }
   .down { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {

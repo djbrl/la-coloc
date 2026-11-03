@@ -710,13 +710,15 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
           <!-- On the Bill tab, with your share still to pay, paying it is the next step. -->
           <button v-if="payButton" type="button" class="primary go" @click="paying = true"><Icon name="bill" :size="20" />{{ w.pay(fcfa(myDue!.due)) }}</button>
           <template v-else-if="inviteFoot">
-            <p v-if="inviteRent" class="less" :aria-label="w.plan.rentFalls(fcfa(inviteRent.now), fcfa(inviteRent.then))">
-              <span class="sums">
+            <p v-if="inviteRent" class="less">
+              <!-- A paragraph can't carry a name, so the sentence is said in words and the drawing is skipped. -->
+              <span class="sr-only">{{ w.plan.rentFalls(fcfa(inviteRent.now), fcfa(inviteRent.then)) }}</span>
+              <span class="sums" aria-hidden="true">
                 <span class="was">{{ bare(inviteRent.now) }}</span>
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 <span>{{ fcfa(inviteRent.then) }}</span>
               </span>
-              <span class="less-word">{{ w.plan.withOneMore }}</span>
+              <span class="less-word" aria-hidden="true">{{ w.plan.withOneMore }}</span>
             </p>
             <ShareHouse :house-id="house.id" :name="house.name" :city="house.city" :word="w.plan.invite" />
           </template>

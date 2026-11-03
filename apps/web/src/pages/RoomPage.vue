@@ -303,11 +303,13 @@ function arrived() {
 }
 // Esc steps back to the menu from a part, unless a window on top of it has its own Esc. On the menu, it's the sheet's.
 // Heard on the way down, before the sheet: focus falls out of the panel when a pressed tile goes, or on a click on a
-// blank spot, and Esc must still step back and not close the window. A text field elsewhere (the chat) keeps its Esc.
+// blank spot, and Esc must still step back and not close the window. Anything else holding the keyboard (the chat, the
+// settings, the bell's card) keeps its Esc.
 function onEsc(e: KeyboardEvent) {
   const t = e.target as Element | null;
   if (e.key !== "Escape" || tab.value === "overview" || t?.closest?.("dialog[open]")) return;
-  if (t?.closest?.("input, textarea") && !panel.value?.$el.contains(t)) return;
+  const own: Element | undefined = panel.value?.$el.closest("[role=dialog]") ?? panel.value?.$el;
+  if (t && t !== document.body && !own?.contains(t)) return;
   e.preventDefault();
   e.stopPropagation();
   backToMenu();
@@ -518,6 +520,9 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .room-page { display: flex; flex-direction: column; min-height: 0; }
 .room-page:not(.embedded) { max-width: calc(640px + 2 * var(--gutter)); margin: 0 auto; padding: 24px 0 64px; }
 .room-page:not(.embedded) .back { align-self: flex-start; margin: 0 var(--gutter) 4px; }
+/* On its own the page has no window around it, so the panel wears the black sign itself (.sign.black and .sign-frame
+   in style.css): without it the band has no colour and the room's name is white on the page. */
+.room-page:not(.embedded) .room-panel { --panel: var(--panel-black); border: 3px solid var(--panel); border-radius: 15px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .room-panel { flex: 1 1 auto; }
 /* A room's name is a project's, often a repo's: it keeps the case it was written in. */
 .room-panel :deep(.panel-head .title) { text-transform: none; }
