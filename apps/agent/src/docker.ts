@@ -6,6 +6,7 @@ import path from "node:path";
 import { PassThrough, type Duplex } from "node:stream";
 import tar from "tar-fs";
 import type { DeployKind } from "@coloc/protocol";
+import { listenersOf, type Reachability, reachability, unreachableMessage } from "./listening";
 import { LABEL, PROJECT_LINK, ROOM_HOME, roomFilter, roomHomeVolume, roomNetwork } from "./room-spec";
 
 export const docker = new Docker();
@@ -249,6 +250,31 @@ export async function waitHealthy(container: Docker.Container, stableMs = 5000, 
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error("did not become healthy in time");
+}
+
+/**
+ * After it's up: waits until the app listens on `port` where the proxy can reach it (listening.ts). Localhost only
+ * fails after a short grace, since waiting won't change it; nothing on the port fails at the end of the wait. Where the
+ * sockets can't be read (Docker on a Mac), it doesn't hold the deploy up.
+ */
+export async function waitReachable(container: Docker.Container, port: number, timeoutMs = 60_000, loopbackGraceMs = 10_000, signal?: AbortSignal): Promise<void> {
+  const start = Date.now();
+  let last: Reachability | null = null;
+  let loopbackSince: number | null = null;
+  while (Date.now() - start < timeoutMs) {
+    signal?.throwIfAborted();
+    const s = (await container.inspect()).State;
+    if (s.OOMKilled) throw new Error("ran out of memory while starting");
+    if (!s.Running) throw new Error(`exited with code ${s.ExitCode}`);
+    const listeners = await listenersOf(s.Pid);
+    if (!listeners) return;
+    last = reachability(listeners, port);
+    if (last.ok) return;
+    if (last.why !== "loopback") loopbackSince = null;
+    else if ((loopbackSince ??= Date.now()) && Date.now() - loopbackSince >= loopbackGraceMs) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(unreachableMessage(last && !last.ok ? last : { ok: false, why: "nothing", others: [] }, port));
 }
 
 // Containers the agent is retiring on purpose, so their "die" event isn't reported as a crash.

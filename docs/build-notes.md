@@ -1311,3 +1311,19 @@ Checked: unit tests with a fake PayDunya (`credit/top-up.test.ts`), a real sandb
 pending from the laptop, and the live endpoints on the droplet (401 logged out, the way back redirects, a notice with a
 wrong hash does nothing). Not yet checked: a completed sandbox payment, which needs a fake PayDunya customer and Jib's login.
 
+## 3 Nov 2026: rooms that nobody can reach, and the audit
+
+A room used to say "live" as soon as its container stayed up for 5 seconds. Jib's `refonte` image did exactly that while
+`nuxt dev` listened on localhost only, so visitors got a 503. Now the caretaker also waits until the app listens on the
+room's port where the proxy can reach it (`agent/src/listening.ts`, `waitReachable` in `docker.ts`). It reads the
+container's sockets from `/proc/<pid>/net/tcp` and `tcp6` on the machine, so nothing is needed inside the image. If the
+port is localhost only (after 10 s), another port (it names it), or nothing (after 60 s), the build fails with that
+sentence and the old version keeps running. On a Mac, where Docker runs in a VM and those files don't exist, it doesn't
+hold anything up. Checked on the droplet with three containers: all addresses passed in 75 ms, localhost only failed
+after 5 s, port 8080 instead of 3000 failed naming 8080.
+
+`npm audit --omit=dev`: overrides raise `ws` to 8.22.1, `body-parser` to 1.20.9, `qs` to 6.17.1 and `multer` to 2.5.0.
+The lockfile was regenerated for that (86 packages moved within their ranges). 13 findings became 9, and none of those
+is reachable here (docs/todo-jib.md, item 32). All 1278 tests pass; on the droplet the caretakers reconnected and the
+lobby socket answered.
+

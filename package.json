@@ -28,5 +28,11 @@
   },
   "devDependencies": {
     "smee-client": "^5.0.0"
+  },
+  "overrides": {
+    "ws": "^8.22.1",
+    "body-parser": "^1.20.9",
+    "qs": "^6.17.1",
+    "multer": "^2.5.0"
   }
 }

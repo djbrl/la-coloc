@@ -25,8 +25,8 @@ The rules changed. `docs/contest-rules.md` is the copy of 3 Nov, with what chang
 
 ## Code and GitHub
 
-11. **What's live is on GitHub.** `paydunya` holds everything on the droplet: `house-room-ui` plus buying credit with PayDunya. `landing-polish` is on GitHub too, but behind.
-12. **Merge `paydunya` into `main`** after that.
+11. **Done: what's live is on GitHub and in `main`.** `main` was fast-forwarded to `paydunya` on 3 Nov, so it now holds everything on the droplet.
+12. **Done: merged into `main`** on 3 Nov.
 13. **Decide whether the repo goes public.** `Djbrl/la-coloc` is still private. Your teammate said on 15 Oct they'd do it.
 
 ## Try on the live site
@@ -37,7 +37,7 @@ The rules changed. `docs/contest-rules.md` is the copy of 3 Nov, with what chang
 
 ## Decide
 
-17. **A room that fails without exiting still says "live".** La Coloc only checks that the container stays up for 5 seconds, and your `refonte` image does exactly this: "live" with a 503 for visitors. I left a suggested task for this. It matters if a juror's project does the same, so I'd do it soon.
+17. **Done: a room that nobody can reach no longer says "live".** Since 3 Nov the caretaker checks that the app listens on the room's port where visitors can reach it. If not, the build fails and says why: localhost only (like `refonte`'s `nuxt dev`), another port (it names it), or nothing at all. The old version keeps running.
 18. **Is port 2222 fine open to everyone for the demo?** It only accepts registered keys. To close it: `ufw delete allow 2222/tcp`.
 19. **Turn off the demo restart before the jury?** It's on (`COLOC_DEMO_RESET=1`), and it most likely cleared your room.
 20. **Uptime alarm during the vote and jury?** Nothing tells you if the site goes down.
@@ -71,7 +71,7 @@ Rooms now have internet, a writable disk and root inside. These are the risks th
 
 30. **The database shares a disk with everything else** (high). Rooms are limited, but images and build cache aren't, and the database lives on the same 59 GB disk. If it fills, the database stops and the whole city with it. To do: an alarm at 80%, regular image and build-cache cleanup, and the database on its own disk.
 31. **No backups** (high). The database and everyone's `/home/your-room` are in one file on one server. To do: a nightly database dump off the server, and tell people `/home/your-room` isn't backed up.
-32. **Dependencies with known holes** (high, unchecked). `npm audit --omit=dev` lists 13 today, 5 high, in `@nestjs/core`, `body-parser`, `multer`, `uuid` and `zod`. I haven't checked whether they can be exploited here. To do: go through them before the public vote.
+32. **Dependencies with known holes** (was high, now checked). On 3 Nov, `ws`, `body-parser`, `qs` and `multer` were raised to fixed versions through npm overrides (same major versions, all tests pass). `npm audit --omit=dev` still lists 9, none reachable here: `@nestjs/core`'s is in server-sent events' `type` and `id`, which are fixed words in our code. `zod` 3's needs a huge array, and requests stop at 100 kB. `uuid` (inside `dockerode`) needs a buffer we never pass, and `file-type` (inside `@nestjs/common`) is only used for file uploads, which we don't take. Fixing those for good means Nest 11 and zod 4: after the contest.
 33. **The setup has only run on DigitalOcean** (medium). Moving Docker onto XFS needs a kernel with XFS and loop mounts. Check it on Datacloud early, since that deployment is mandatory.
 
 ### Stronger walls

@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   removed: vi.fn(async () => undefined),
   clone: vi.fn(),
   healthy: vi.fn(),
+  reachable: vi.fn(),
   ensureHome: vi.fn(async () => "the-home"),
   openHome: vi.fn(async () => undefined),
   link: vi.fn(async () => undefined),
@@ -37,6 +38,7 @@ vi.mock("./docker", () => ({
   retiring: new Set(),
   roomContainers: async () => [],
   waitHealthy: h.healthy,
+  waitReachable: h.reachable,
 }));
 
 import { deploy, removeRoom } from "./deploy";
@@ -54,6 +56,7 @@ beforeEach(() => {
   h.clone.mockResolvedValue({ dir: "/tmp/c", sha: "abc123abc123abc", branch: "main", cleanup: h.cleanup });
   h.build.mockResolvedValue(undefined);
   h.healthy.mockResolvedValue(undefined);
+  h.reachable.mockResolvedValue(undefined);
   h.create.mockResolvedValue({ id: "new", start: async () => undefined });
 });
 
@@ -111,6 +114,18 @@ describe("cancelling a deploy", () => {
     await deploy(cfg, cmd, report, undefined, new AbortController().signal);
     expect(h.route).toHaveBeenCalled();
     expect(said.at(-1)?.status).toBe("live");
+  });
+});
+
+describe("an app nobody can reach", () => {
+  it("fails without routing visitors to it, says why, and keeps the old version", async () => {
+    h.reachable.mockRejectedValue(new Error("listens on localhost only, port 3000, so visitors can't reach it. Make it listen on 0.0.0.0 (often HOST=0.0.0.0)."));
+    const { said, report } = reports();
+    await deploy(cfg, cmd, report);
+    expect(said.at(-1)?.status).toBe("failed");
+    expect(said.at(-1)?.detail).toMatch(/localhost only/);
+    expect(h.route).not.toHaveBeenCalled();
+    expect(h.removed).toHaveBeenCalledWith("new");
   });
 });
 

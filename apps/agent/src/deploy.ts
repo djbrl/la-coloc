@@ -18,6 +18,7 @@ import {
   rootIsRemapped,
   roomContainers,
   waitHealthy,
+  waitReachable,
 } from "./docker";
 import { resolveInside, shallowClone } from "./git";
 import { inspectProject } from "./inspect";
@@ -113,6 +114,8 @@ export async function deploy(cfg: AgentConfig, cmd: DeployCommand, report: Repor
 
     try {
       await waitHealthy(container, undefined, undefined, signal);
+      // Up isn't enough: visitors must reach it on its port, or the room would say live while showing an error.
+      await waitReachable(container, port, undefined, undefined, signal);
     } catch (e) {
       const logs = await lastLogs(container).catch(() => "");
       throw new Error(`${(e as Error).message}${logs ? `\n--- last logs ---\n${logs}` : ""}`);
