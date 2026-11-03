@@ -110,8 +110,15 @@ const nextLobby = computed(() => {
   return null;
 });
 const sheet = ref<"" | "find" | "travel">("");
-// The card your credit opens.
-const creditOpen = ref(false);
+// The card your credit opens. Back from PayDunya's page, the address says `?credit=added` (or `open`): it opens itself,
+// and the parameter goes.
+const creditBack = String(route.query.credit ?? "");
+const creditOpen = ref(creditBack === "added" || creditBack === "open");
+const creditAdded = creditBack === "added";
+if (creditBack) {
+  const { credit: _, ...rest } = route.query;
+  void router.replace({ query: rest });
+}
 const query = ref("");
 // Who's in this lobby when Find opened, for its rows.
 const peopleHere = ref<{ login: string; name: string }[]>([]);
@@ -1462,7 +1469,7 @@ function statsOf(name: string) {
       />
 
       <CharacterCreation v-if="creating && (ready || failed)" @character="(c) => lobby?.setCharacter(c)" />
-      <CreditCard v-if="creditOpen" @close="creditOpen = false" />
+      <CreditCard v-if="creditOpen" :added="creditAdded" @close="creditOpen = false" />
       <Onboarding v-if="welcoming" @done="welcomeDone" />
 
       <KnockSteps

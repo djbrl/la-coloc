@@ -24,7 +24,7 @@ export interface Badge {
 }
 
 // Everyone who has logged in with GitHub. Demo flatmates (seeded) have no GitHub id.
-export type CreditReason = "server" | "rent" | "project" | "review" | "arena";
+export type CreditReason = "server" | "rent" | "project" | "review" | "arena" | "topup";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -118,6 +118,8 @@ fi
 rm -f "$ETC/ssh_host_ed25519_key.pub"
 
 touch "$ETC/github.env"
+# PayDunya's test keys, written by hand (docs/dev.md). Without them, buying credit simply isn't offered.
+touch "$ETC/paydunya.env"
 cat > "$ETC/coloc.env.new" <<SETTINGS
 PORT=4100
 COLOC_PUBLIC_URL=https://$COLOC_DOMAIN
@@ -139,7 +141,7 @@ COLOC_SSH_HOST_KEY_FILE=$ETC/ssh_host_ed25519_key
 COLOC_ROOM_INTERNET=1
 COLOC_ROOM_DISK_MB=1024
 SETTINGS
-cat "$ETC/secrets.env" "$ETC/github.env" >> "$ETC/coloc.env.new"
+cat "$ETC/secrets.env" "$ETC/github.env" "$ETC/paydunya.env" >> "$ETC/coloc.env.new"
 mv "$ETC/coloc.env.new" "$ETC/coloc.env"
 agent_secret=$(sed -n 's/^COLOC_DEV_AGENT_SECRET=//p' "$ETC/secrets.env")
 

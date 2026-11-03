@@ -1292,3 +1292,22 @@ Jib tried SSH and found an empty folder, with the site in `/site`. Asked for: th
 - **Moving the address needed no new storage.** The route file is the record, and it names the container, so a deploy ends the choice by itself.
 
 Caught on screen, not by the tests or the type check: the page crashed reading `tab` before it was declared, and the new line pushed the phone layout sideways.
+
+## 3 Nov 2026: buying credit with PayDunya
+
+Credit can now be bought as well as earned. The credit window shows +2 000, +5 000 and +10 000 FCFA when the server has
+PayDunya keys. A click asks the API for a PayDunya invoice (`POST /api/credit/top-up`) and sends the page to PayDunya's
+checkout, where people pay by mobile money or card. Coming back (`/api/credit/top-up/back`) or PayDunya's own notice
+(`/api/credit/top-up/notice`) both end in the same place (`credit/top-up.ts`): we ask PayDunya's confirm call about the
+invoice and add the credit only if it's completed, for one of the amounts on offer, to the person written in the
+invoice's custom_data. The credit entry's key is the invoice's token, so hearing twice adds nothing. The notice's hash is
+the same on every notice (the SHA-512 of the master key), so it only filters noise; the confirm call decides.
+
+The calls are plain `fetch` (no SDK: PayDunya's npm package is from 2022 and covers less). Test mode unless
+`COLOC_PAYDUNYA_LIVE=1`. PayDunya covers FCFA in Senegal, Côte d'Ivoire, Benin, Togo, Mali, Burkina Faso and Cameroon,
+not anglophone countries. Real money needs an activated business account (NINEA, trade register).
+
+Checked: unit tests with a fake PayDunya (`credit/top-up.test.ts`), a real sandbox invoice created and confirmed as
+pending from the laptop, and the live endpoints on the droplet (401 logged out, the way back redirects, a notice with a
+wrong hash does nothing). Not yet checked: a completed sandbox payment, which needs a fake PayDunya customer and Jib's login.
+

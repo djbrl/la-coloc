@@ -11,6 +11,11 @@ export type Refusal = { message: string; code?: unknown; [blank: string]: unknow
 const fr: Record<string, (r: Refusal) => string> = {
   logInFirst: () => "Connectez-vous d'abord.",
 
+  // Buying credit with PayDunya.
+  topUpClosed: () => "On ne peut pas acheter de crédit ici.",
+  topUpAmount: () => "Choisissez un des montants proposés.",
+  topUpDown: () => "PayDunya ne répond pas. Réessayez dans un instant.",
+
   // Chat: direct messages, a city's room and its board.
   adminsOnly: () => "Seuls les admins de la ville peuvent lire les signalements.",
   noCity: () => "Cette ville n'existe pas.",
