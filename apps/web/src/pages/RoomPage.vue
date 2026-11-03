@@ -1,16 +1,18 @@
 <script setup lang="ts">
 // Your room: the project in it, where its code comes from, its secrets, its logs and its history. It's a Panel
 // (see components/lobby/panel), so in the lobby's sheet it fits the sheet's height and never scrolls the sheet:
-// each tab is made to fit, the long ones (logs, a long history) scroll inside themselves, and anything with more
+// each part is made to fit, the long ones (logs, a long history) scroll inside themselves, and anything with more
 // than a field or two to fill in is a short step flow. On a page of its own the panel just grows.
-// The tabs live in components/room; this page holds the room's data and talks to the API.
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+// It opens on a menu of tiles (RoomOverview.vue), one per part; a part opens in its place, with a key back to the menu.
+// The parts live in components/room; this page holds the room's data and talks to the API.
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import Icon from "../components/lobby/house/Icon.vue";
 import Panel from "../components/lobby/panel/Panel.vue";
 import PanelHead from "../components/lobby/panel/PanelHead.vue";
+import type { IconName } from "../components/lobby/house/icons";
 import PanelTabs, { type Tab as PanelTab } from "../components/lobby/panel/PanelTabs.vue";
-import { explain, roomLine, roomState } from "../components/lobby/panel/words";
+import { bare, explain, roomLine, roomState } from "../components/lobby/panel/words";
 import { TUTORIAL_HOUSE } from "../components/lobby/tutorial/tutorial";
 import RoomCode from "../components/room/RoomCode.vue";
 import RoomHistory from "../components/room/RoomHistory.vue";
@@ -61,6 +63,8 @@ const logsMessage = ref("");
 const logsLoading = ref(false);
 const follow = ref(false);
 let followTimer: number | undefined;
+let tailTimer: number | undefined;
+const TAIL_EVERY_MS = 10_000;
 // No room to show because the core isn't answering (`waiting`: it reloads by itself when the core is back), or
 // because the API answered with something unexpected (`failed`: a button to try again).
 const waiting = ref(false);
@@ -144,6 +148,7 @@ watch(label, (text) => {
 onBeforeUnmount(() => {
   source?.close();
   clearInterval(followTimer);
+  clearInterval(tailTimer);
   clearTimeout(reloadTimer);
 });
 
@@ -192,24 +197,82 @@ watch(follow, (on) => {
   if (on) followTimer = window.setInterval(fetchLogs, 4000);
 });
 
-// The tabs: an icon and a word each. Only the secrets need a line to say what they are.
+// Which part of the room is open: the menu of tiles, or what a tile opened. Only the logs and the history share a tab
+// row. Only the secrets need a line to say what they are.
 type TabKey = "overview" | "code" | "secrets" | "logs" | "history" | "ssh" | "lease";
 const tab = ref<TabKey>("overview");
-const tabs = computed<PanelTab[]>(() => [
-  { key: "overview", icon: "gauge", word: w.tabs.overview },
-  { key: "code", icon: "code", word: w.tabs.code },
-  { key: "secrets", icon: "lock", word: w.tabs.secrets, badge: data.value?.secrets.length || undefined },
+const logTabs = computed<PanelTab[]>(() => [
   { key: "logs", icon: "logs", word: w.tabs.logs },
   { key: "history", icon: "clock", word: w.tabs.history },
-  ...(data.value?.ssh ? [{ key: "ssh", icon: "key" as const, word: w.tabs.ssh }] : []),
-  // For whoever lives here, unless the room has no lease to end (the workshop, an example).
-  ...(data.value?.lease ? [{ key: "lease", icon: "door" as const, word: w.tabs.lease }] : []),
 ]);
-// A "Saved." from one tab shouldn't greet you on the next.
+const inLogs = computed(() => tab.value === "logs" || tab.value === "history");
+const part = computed((): { icon: IconName; word: string } | null => {
+  switch (tab.value) {
+    case "code":
+      return { icon: "code", word: w.tabs.code };
+    case "secrets":
+      return { icon: "lock", word: w.tabs.secrets };
+    case "ssh":
+      return { icon: "key", word: w.tabs.ssh };
+    case "lease":
+      return { icon: "door", word: w.tabs.lease };
+    default:
+      return null;
+  }
+});
+// A "Saved." from one part shouldn't greet you on the next.
 watch(tab, () => (formNote.value = null));
+
+// The focus follows you: to the back key when a part opens, and to its tile when you come back. Set here, and spent
+// once the new part has arrived, so moving between the logs and the history keeps it on their tabs.
+const backKey = ref<HTMLButtonElement | null>(null);
+const panel = ref<{ $el: HTMLElement } | null>(null);
+let focusNext: string | null = null;
+function openPart(to: Exclude<TabKey, "overview">) {
+  focusNext = "back";
+  tab.value = to;
+}
+function backToMenu() {
+  focusNext = inLogs.value ? "logs" : tab.value;
+  fixing.value = false;
+  tab.value = "overview";
+}
+function arrived() {
+  if (focusNext === "back") backKey.value?.focus({ preventScroll: true });
+  else if (focusNext) panel.value?.$el.querySelector<HTMLElement>(`[data-section="${focusNext}"]`)?.focus({ preventScroll: true });
+  focusNext = null;
+}
+// Esc steps back to the menu from a part, unless a window on top of it has its own Esc. On the menu, it's the sheet's.
+// Heard on the way down, before the sheet: focus falls out of the panel when a pressed tile goes, or on a click on a
+// blank spot, and Esc must still step back and not close the window. A text field elsewhere (the chat) keeps its Esc.
+function onEsc(e: KeyboardEvent) {
+  const t = e.target as Element | null;
+  if (e.key !== "Escape" || tab.value === "overview" || t?.closest?.("dialog[open]")) return;
+  if (t?.closest?.("input, textarea") && !panel.value?.$el.contains(t)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  backToMenu();
+}
+onMounted(() => window.addEventListener("keydown", onEsc, true));
+onBeforeUnmount(() => window.removeEventListener("keydown", onEsc, true));
+
+// The Logs tile stays fresh while the menu shows a room that's online.
+watch(
+  () => tab.value === "overview" && data.value?.room.status === "live",
+  (on) => {
+    clearInterval(tailTimer);
+    if (on)
+      tailTimer = window.setInterval(() => {
+        if (document.visibilityState !== "hidden") void fetchLogs();
+      }, TAIL_EVERY_MS);
+  },
+  { immediate: true },
+);
 
 const state = computed(() => (data.value ? roomState(data.value.room) : null));
 const online = computed(() => !!data.value?.room.url && data.value.room.status !== "empty");
+// Up and running, the head's line is simply where it lives. Anything else, it says what's going on.
+const liveAt = computed(() => (online.value && data.value?.room.status === "live" ? data.value.room.url : null));
 // Whose room this is: "Your room", "Awa's room".
 const whose = computed(() => {
   const who = data.value?.room.occupant;
@@ -265,16 +328,21 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 
     <Panel
       v-if="data && state"
+      ref="panel"
       class="room-panel"
       :explain="tab === 'secrets' ? explain.secrets : null"
       :body-id="`tabpanel-${tab}`"
-      :body-labelledby="`tab-${tab}`"
+      :body-labelledby="inLogs ? `tab-${tab}` : undefined"
+      :body-label="part?.word"
     >
       <template #head>
-        <PanelHead :title="title" :state="state" :line="headLine">
+        <PanelHead :title="title" :state="state" :line="liveAt ? null : headLine">
+          <template v-if="liveAt" #line>
+            <a class="lives-at" :href="liveAt" target="_blank" rel="noopener">{{ bare(liveAt) }}<span class="sr-only">{{ w.newTab }}</span></a>
+          </template>
           <template v-if="online" #aside>
-            <a :href="data.room.url!" target="_blank" rel="noopener" class="chunk small">
-              <Icon name="external" :size="16" /> {{ w.open }}<span class="sr-only">{{ w.openProject }}</span>
+            <a :href="data.room.url!" target="_blank" rel="noopener" class="chunk small open-key">
+              <Icon name="external" :size="16" /> <span class="open-word">{{ w.open }}</span><span class="sr-only">{{ w.openProject }}</span>
             </a>
           </template>
         </PanelHead>
@@ -307,11 +375,16 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
         <p class="sr-only" aria-live="polite">{{ w.stateSr(state.word) }}</p>
       </template>
 
-      <template #tabs>
-        <PanelTabs v-model="tab" :tabs="tabs" :label="w.sections" />
+      <!-- In a part: the key back to the menu, and what this part is. -->
+      <template v-if="tab !== 'overview'" #tabs>
+        <div class="part-bar">
+          <button ref="backKey" type="button" class="chunk small to-menu" :aria-label="w.tile.backToRoom" :title="w.tile.backToRoom" @click="backToMenu"><Icon name="back" :size="20" /></button>
+          <PanelTabs v-if="inLogs" v-model="tab" :tabs="logTabs" :label="w.sections" />
+          <h3 v-else-if="part" class="part-word"><Icon :name="part.icon" :size="22" />{{ part.word }}</h3>
+        </div>
       </template>
 
-      <Transition name="fade" mode="out-in">
+      <Transition name="fade" mode="out-in" @after-enter="arrived">
         <div :key="tab" class="tab-body" :class="{ fill: tab === 'logs' }">
           <RoomOverview
             v-if="tab === 'overview'"
@@ -326,9 +399,12 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
             :when="when"
             :coached="coached"
             :show-log="showLog"
+            :logs="logs"
+            :logs-message="logsMessage"
             @log-shown="showLog = false"
             @run="run"
-            @tab="(to) => { fixing = true; tab = to; }"
+            @tab="(to) => { fixing = true; openPart(to); }"
+            @open="openPart"
           />
           <RoomCode
             v-else-if="tab === 'code'"
@@ -372,8 +448,20 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
 .room-page:not(.embedded) { max-width: calc(640px + 2 * var(--gutter)); margin: 0 auto; padding: 24px 0 64px; }
 .room-page:not(.embedded) .back { align-self: flex-start; margin: 0 var(--gutter) 4px; }
 .room-panel { flex: 1 1 auto; }
+/* A room's name is a project's, often a repo's: it keeps the case it was written in. */
+.room-panel :deep(.panel-head .title) { text-transform: none; }
+.lives-at { min-width: 0; font-size: 15px; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* On a phone the name needs the width: the key keeps its icon, and its word for screen readers. */
+@media (max-width: 480px) {
+  .open-key { width: 46px; padding: 0; justify-content: center; }
+  .open-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+.part-bar { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.part-bar > :not(.to-menu) { flex: 1 1 auto; min-width: 0; }
+.room-panel .part-bar .to-menu { flex: none; width: 46px; padding: 0; }
+.part-word { display: flex; align-items: center; gap: 10px; font: 800 19px/1.1 var(--font); text-transform: none; }
 
-/* One tab's content. It grows with what it holds (the body scrolls if that's too much), except the logs, which
+/* One part's content. It grows with what it holds (the body scrolls if that's too much), except the logs, which
    take exactly the body's height so only the log box scrolls. */
 .tab-body { flex: 1 0 auto; display: flex; flex-direction: column; gap: 10px; }
 .tab-body.fill { flex: 1 1 0; min-height: 0; }

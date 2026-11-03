@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // A house's floor plan: the first thing you see when you walk in. The house in numbers along the top (its rooms, how
 // many are free, what the server costs a month), then one tile per room, laid out the same in every tile: whose room
-// it is, the project as the biggest thing, a line about it, and at the bottom what the room costs and how it's doing.
-// Pressing a tile opens the room's page (RoomDetails.vue). A free room is a large plus and its price.
+// it is, then low down the project as the biggest thing with how it's doing beside it, a line about it, and what the
+// room costs. Lived-in rooms get the space and free ones wait in a low row under them (planGrid, crew.ts). Pressing a
+// tile opens the room's page (RoomDetails.vue). A free room is a plus, in the blue of a free window, and its price.
+import { computed } from "vue";
 import type { HouseView, Room } from "../../../types";
 import Avatar from "../../Avatar.vue";
 import { teamNames } from "../team";
@@ -10,6 +12,7 @@ import StatusDot from "../panel/StatusDot.vue";
 import StatusPill from "../panel/StatusPill.vue";
 import { roomState } from "../panel/words";
 import { seeded } from "../../seeded";
+import { planGrid } from "./crew";
 import Icon from "./Icon.vue";
 import { fcfa, houseCost, rentOf } from "./server";
 import { houseWords as w } from "./words";
@@ -31,6 +34,8 @@ const props = defineProps<{
   coached?: boolean;
   taking: boolean;
   takeError: string;
+  // The foot already talks money (your rent, with one more): the numbers along the top step aside.
+  noNumbers?: boolean;
 }>();
 const emit = defineEmits<{ pick: [room: Room]; take: []; more: [] }>();
 
@@ -43,6 +48,18 @@ const trouble = (room: Room) => props.house.status !== "making" && ["warn", "dan
 const project = (room: Room) => room.project ?? seeded(room.projectDescription);
 const about = (room: Room) => (room.project ? seeded(room.projectDescription) : null);
 const count = () => props.rooms.length + (props.take ? 1 : 0) + (props.hidden ? 1 : 0);
+// The workshop's "A room for you" keeps every square the same size: it's the square the quest is about.
+const lived = computed(() => props.rooms.filter((r) => r.occupant));
+const open = computed(() => props.rooms.filter((r) => !r.occupant));
+const grid = computed(() => (props.take ? null : planGrid(lived.value.length, open.value.length + (props.hidden ? 1 : 0))));
+// Lived-in rooms first, when they get the space.
+const shown = computed(() => (grid.value ? [...lived.value, ...open.value] : props.rooms));
+const rows = computed(() => (grid.value ? { gridTemplateRows: `repeat(${grid.value.livedRows}, minmax(140px, 1fr)) repeat(${grid.value.openRows}, 108px)` } : undefined));
+function span(room: Room) {
+  const g = grid.value;
+  return g ? (room.occupant ? g.livedSpan(lived.value.indexOf(room)) : g.openSpan) : 0;
+}
+const wide = (room: Room) => !!room.occupant && span(room) === 12;
 const freeWord = () => (props.knockable ? w.roomForYou : w.plan.freeRoom);
 // What a reader hears on a tile: who and what, and what it costs.
 function said(room: Room): string {
@@ -56,13 +73,13 @@ function said(room: Room): string {
 
 <template>
   <div class="plan">
-    <p class="numbers">
+    <p v-if="!noNumbers" class="numbers">
       <span><strong>{{ house.rooms.length }}</strong> {{ w.plan.rooms(house.rooms.length) }}</span>
       <span v-if="free()"><strong>{{ free() }}</strong> {{ w.plan.free(free()) }}</span>
       <span v-if="houseCost(house)" class="total"><strong>{{ fcfa(houseCost(house)!) }}</strong> {{ w.plan.aMonth }}</span>
     </p>
 
-    <ul class="room-tiles" :class="{ three: count() > 4, tall: count() <= 2 }" :aria-label="w.rooms">
+    <ul class="room-tiles" :class="{ three: !grid && count() > 4, tall: !grid && count() <= 2, spaced: grid }" :style="rows" :aria-label="w.rooms">
       <li v-if="take">
         <button v-if="!coached" type="button" class="cell open" :disabled="taking" @click="emit('take')">
           <span class="plus"><Icon name="plus" :size="40" /></span>
@@ -76,29 +93,34 @@ function said(room: Room): string {
         </div>
       </li>
 
-      <li v-for="room in rooms" :key="room.name" :data-room="room.name">
+      <li v-for="room in shown" :key="room.name" :data-room="room.name" :style="grid ? { gridColumn: `span ${span(room)}` } : undefined">
         <button
           type="button"
           class="cell"
-          :class="{ open: !room.occupant, mine: mine.includes(room.name), lit: lit.includes(room.name) }"
+          :class="{ open: !room.occupant, mine: mine.includes(room.name), lit: lit.includes(room.name), wide: wide(room) }"
           :aria-label="said(room)"
           @click="emit('pick', room)"
         >
           <template v-if="room.occupant">
             <span class="who">
-              <Avatar :person="room.occupant" :size="36" decorative />
+              <Avatar :person="room.occupant" :size="wide(room) ? 52 : 36" decorative />
               <span class="names">
                 <span class="name">{{ mine.includes(room.name) ? w.plan.yours : teamNames(room.occupant, room.team) }}</span>
                 <span class="handle">@{{ room.occupant.login }}</span>
               </span>
+              <span v-if="wide(room) && rent(room)" class="big-rent">
+                <strong>{{ fcfa(rent(room)!) }}</strong>
+                <span>{{ w.plan.aMonth }}</span>
+              </span>
             </span>
-            <span class="what" :class="{ none: !project(room) }">{{ project(room) ?? w.noProject }}</span>
-            <span class="about">{{ about(room) ?? w.plan.noDescription }}</span>
-            <span class="low">
-              <span class="rent">{{ rent(room) ? fcfa(rent(room)!) : "" }}</span>
+            <span class="what-line">
+              <span class="what" :class="{ none: !project(room) }">{{ project(room) ?? w.noProject }}</span>
               <StatusPill v-if="trouble(room)" :state="state(room)" />
               <StatusDot v-else class="dot" :state="state(room)" />
             </span>
+            <span class="about">{{ about(room) ?? w.plan.noDescription }}</span>
+            <span v-if="!wide(room)" class="rent">{{ rent(room) ? fcfa(rent(room)!) : "" }}</span>
+            <Icon v-else name="next" :size="22" class="way-in" />
           </template>
           <template v-else>
             <span class="plus"><Icon name="plus" :size="40" /></span>
@@ -108,7 +130,7 @@ function said(room: Room): string {
         </button>
       </li>
 
-      <li v-if="hidden">
+      <li v-if="hidden" :style="grid ? { gridColumn: `span ${grid.openSpan}` } : undefined">
         <button type="button" class="cell open more" :aria-label="w.moreRooms(hidden)" @click="emit('more')">+{{ hidden }}</button>
       </li>
     </ul>
@@ -124,6 +146,8 @@ function said(room: Room): string {
 
 .room-tiles { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 176px; gap: 8px; align-content: start; }
 .room-tiles.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Lived-in rooms take the height, free ones a low row: its rows come from planGrid. */
+.room-tiles.spaced { grid-template-columns: repeat(12, minmax(0, 1fr)); }
 /* In the lobby's sheet the tiles share its height exactly. On a page of its own the plan grows, at the size above. */
 :global(.page-host .room-tiles) { grid-auto-rows: minmax(112px, 1fr); }
 /* A house of one or two rooms doesn't stretch them into hallways. */
@@ -156,29 +180,39 @@ button.cell { cursor: pointer; }
 button.cell:hover:not(:disabled) { background: var(--fill); }
 button.cell:active:not(:disabled) { transform: none; }
 button.cell:focus-visible { outline: 3px solid var(--ring); outline-offset: -3px; }
-/* Yours: the same tile, ringed in ink. One colour less to read. */
-.cell.mine { box-shadow: inset 0 0 0 3px var(--text); }
 .cell.lit { background: var(--accent-soft); }
 .who { flex: none; display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 4px; }
+/* A room alone across the plan: more to say, so everything's larger, and its rent up beside its tenant. */
+.cell.wide { position: relative; padding: 16px; }
+.wide .who { gap: 12px; }
+.wide .name { font-size: 17px; }
+.wide .handle { font-size: 15px; }
+.wide .what { font-size: 34px; }
+.wide .about { padding-right: 32px; font-size: 15px; }
+.big-rent { flex: none; margin-left: auto; display: grid; justify-items: end; gap: 1px; font-size: 13px; line-height: 1.2; color: var(--muted); }
+.big-rent strong { font: 800 22px/1.1 var(--num); color: var(--text); white-space: nowrap; }
+.way-in { position: absolute; right: 14px; bottom: 14px; }
 .names { min-width: 0; display: grid; }
 .name, .handle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .name { font-size: 15px; font-weight: 700; line-height: 1.15; }
 .mine .name { font-weight: 800; }
 .handle { font-size: 13px; font-weight: 600; line-height: 1.2; color: var(--muted); }
-/* The project is the biggest thing on the tile. */
-.what, .about { flex: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; }
-.what { font-size: 20px; font-weight: 800; line-height: 1.12; -webkit-line-clamp: 2; line-clamp: 2; }
+/* The project is the biggest thing on the tile, low down, with how it's doing right beside it. */
+.what-line { flex: none; display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: auto; }
+.what-line > :not(.what) { flex: none; }
+.what, .about { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; }
+.about { flex: none; }
+.what { flex: 0 1 auto; font-size: 20px; font-weight: 800; line-height: 1.12; -webkit-line-clamp: 2; line-clamp: 2; }
 .what.none { color: var(--muted); }
 .about { font-size: 14px; line-height: 1.2; color: var(--muted); -webkit-line-clamp: 2; line-clamp: 2; }
-.low { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 20px; margin-top: auto; }
-.rent { font: 700 14px/1 var(--num); white-space: nowrap; color: var(--muted); }
+.rent { flex: none; font: 700 14px/1 var(--num); white-space: nowrap; color: var(--muted); }
 .rent.key { font: 800 15px/1 var(--font); color: var(--panel-red); }
 .dot { width: 12px; height: 12px; animation: none; }
 /* A free room: no floor yet, only its outline, and a large plus in the middle. */
 .cell.open { align-items: center; justify-content: center; text-align: center; background: none; box-shadow: inset 0 0 0 2px var(--fill); }
 button.cell.open:hover:not(:disabled) { background: var(--tile); }
 .cell.open.lit { background: var(--accent-soft); }
-.plus { flex: none; display: grid; color: var(--muted); }
+.plus { flex: none; display: grid; color: var(--free); }
 .for { font-size: 16px; font-weight: 800; line-height: 1.15; }
 .more { font: 800 22px/1 var(--num); }
 .error { font-size: 14px; color: var(--danger); }
@@ -195,7 +229,8 @@ button.cell.open:hover:not(:disabled) { background: var(--tile); }
 }
 @media (max-width: 560px) {
   .room-tiles, .room-tiles.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .what { font-size: 17px; }
+  /* One line that runs to its ellipsis, not cut at the first hyphen of a repo's name. */
+  .what { display: block; font-size: 15px; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .cell { transition: none; }

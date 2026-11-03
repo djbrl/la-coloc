@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { evenSplit, fcfa, plans, rentOf, rentOfPerson } from "./server";
+import { evenSplit, fcfa, plans, rentOf, rentOfPerson, rentWithOneMore } from "./server";
+
+describe("one more flatmate", () => {
+  const me = { login: "me" };
+  const them = { login: "them" };
+  const house = (rooms: ({ login: string } | null)[], extra = {}) => ({ monthlyCostFcfa: 12000, rooms: rooms.map((occupant) => ({ occupant })), ...extra });
+
+  it("halves the rent of someone alone", () => {
+    expect(rentWithOneMore(house([me, null, null, null]), "me")).toEqual({ now: 12000, then: 6000 });
+  });
+
+  it("counts every room the tenant rents", () => {
+    expect(rentWithOneMore(house([me, me, null]), "me")).toEqual({ now: 12000, then: 8000 });
+  });
+
+  it("starts from what the bill says they owe", () => {
+    const billed = house([me, them, null], { bill: { lines: [{ login: "me", due: 5500 }] } });
+    expect(rentWithOneMore(billed, "me")).toEqual({ now: 5500, then: 4000 });
+  });
+
+  it("says nothing with no cost, no room here, or no saving", () => {
+    expect(rentWithOneMore(house([me, null], { monthlyCostFcfa: null }), "me")).toBeNull();
+    expect(rentWithOneMore(house([them, null]), "me")).toBeNull();
+    expect(rentWithOneMore(house([me, them, null], { bill: { lines: [{ login: "me", due: 1000 }] } }), "me")).toBeNull();
+  });
+});
 
 describe("the bill", () => {
   it("writes amounts the French way", () => {

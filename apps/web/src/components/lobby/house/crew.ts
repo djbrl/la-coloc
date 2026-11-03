@@ -45,6 +45,8 @@ export type Foot =
   // A full house: ask to join its group chat.
   | { kind: "askChat" }
   | { kind: "say"; text: string }
+  // You live here and rooms are free: bring someone in, and your rent goes down.
+  | { kind: "invite" }
   // Nothing: the one next step is already on screen elsewhere (the workshop's "A room for you" row, or the quest's
   // card), so the foot doesn't say it a second time.
   | { kind: "none" };
@@ -78,8 +80,8 @@ export function footFor(s: Situation): Foot {
   if (v.member) {
     if (v.role === "chef" && s.making) return { kind: "rent", waiting: s.keyMade };
     if (s.making) return { kind: "say", text: houseWords.foot.waitChef };
-    // Your room is on the floor plan: its tile is the way in, so the foot has nothing to add.
-    if (v.room) return { kind: "none" };
+    // Your room is on the floor plan, its tile is the way in. The foot's only news is a free room to fill.
+    if (v.room) return s.freeRooms.length && !s.demo && !s.tutorial ? { kind: "invite" } : { kind: "none" };
     // Their last lease here has ended: they're still on the bill and in the chat for now.
     if (v.leavingUntil) return { kind: "say", text: houseWords.foot.leaving(dayName(v.leavingUntil)) };
     return { kind: "say", text: explain.house };
@@ -179,6 +181,27 @@ export function myRooms(v: Pick<Viewer, "room" | "rooms"> | null | undefined): s
 // How many squares the floor plan shows before folding the rest behind a "+N" square, so the panel fits without
 // scrolling (Jib, 10 10).
 export const ROWS_SHOWN = 8;
+
+// How the floor plan shares its space, on a grid of 12 columns: lived-in rooms hold what people are making, while a
+// free room only has to say it's free. So with two or more squares that are free (or the "+N" square), the lived-in
+// rooms take the height and the free ones wait in a low row under them. Null: every square gets the same size.
+export interface PlanGrid {
+  livedRows: number;
+  openRows: number;
+  livedSpan: (index: number) => number;
+  openSpan: number;
+}
+
+export function planGrid(lived: number, open: number): PlanGrid | null {
+  if (lived < 1 || open < 2) return null;
+  return {
+    livedRows: Math.ceil(lived / 2),
+    openRows: Math.ceil(open / 4),
+    // Two side by side, and the last one alone takes the whole row.
+    livedSpan: (index) => (lived % 2 && index === lived - 1 ? 12 : 6),
+    openSpan: 12 / Math.min(open, 4),
+  };
+}
 
 /**
  * The rooms the list shows while it's folded, in the house's order: your own rooms first in priority, then the free

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HouseView, Person, Room, Viewer } from "../../../types";
-import { canKnock, chatKey, crewOf, foldedRooms, footFor, liveAddress, myRooms, personActions, roomKeys, type Situation } from "./crew";
+import { canKnock, chatKey, crewOf, foldedRooms, footFor, liveAddress, myRooms, personActions, planGrid, roomKeys, type Situation } from "./crew";
 import { houseWords } from "./words";
 
 const person = (login: string): Person => ({ login, name: login[0].toUpperCase() + login.slice(1), avatarUrl: null });
@@ -74,8 +74,25 @@ describe("the foot's one next step", () => {
     expect(myRooms(null)).toEqual([]);
   });
 
-  it("adds nothing for a flatmate: their room's square on the floor plan is the way in", () => {
+  it("adds nothing for a flatmate in a full house: their room's square on the floor plan is the way in", () => {
     expect(footFor(situation({ viewer: viewer({ member: true, role: "flatmate", room: "two" }) }))).toEqual({ kind: "none" });
+  });
+
+  it("offers a flatmate to invite someone while a room is free, except in an example or the workshop", () => {
+    const flatmate = viewer({ member: true, role: "flatmate", room: "two" });
+    expect(footFor(situation({ viewer: flatmate, freeRooms: ["three"] }))).toEqual({ kind: "invite" });
+    expect(footFor(situation({ viewer: flatmate, freeRooms: ["three"], demo: true }))).toEqual({ kind: "none" });
+    expect(footFor(situation({ viewer: flatmate, freeRooms: ["three"], tutorial: true }))).toEqual({ kind: "none" });
+  });
+
+  it("gives lived-in rooms the space once two squares are free", () => {
+    expect(planGrid(4, 0)).toBeNull();
+    expect(planGrid(3, 1)).toBeNull();
+    expect(planGrid(0, 4)).toBeNull();
+    const alone = planGrid(1, 3)!;
+    expect([alone.livedRows, alone.openRows, alone.livedSpan(0), alone.openSpan]).toEqual([1, 1, 12, 4]);
+    const three = planGrid(3, 5)!;
+    expect([three.livedRows, three.openRows, three.livedSpan(0), three.livedSpan(2), three.openSpan]).toEqual([2, 2, 6, 12, 3]);
   });
 
   it("knocks on the only free room, or points at the rows when there are several", () => {

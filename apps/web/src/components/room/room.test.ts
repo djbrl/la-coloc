@@ -13,6 +13,8 @@ import {
   firstLine,
   imageNameOk,
   imageRef,
+  liveVersion,
+  logTail,
   memoryUse,
   neverOnline,
   parsePort,
@@ -232,5 +234,25 @@ describe("a cancelled build", () => {
     expect(buildFailed(undefined)).toBe(false);
     expect(deploymentStep("failed", "Build cancelled.")).toMatchObject({ word: "Cancelled", tone: "warn" });
     expect(deploymentStep("failed", "git clone failed")).toMatchObject({ word: "Failed", tone: "danger" });
+  });
+});
+
+describe("the room's tiles", () => {
+  it("shows the last lines of a log, not the blank ones", () => {
+    expect(logTail("one\ntwo  \n\nthree\nfour\n")).toEqual(["two", "three", "four"]);
+    expect(logTail("")).toEqual([]);
+  });
+
+  it("says what's online, ignoring previews and builds that didn't make it", () => {
+    const now = new Date("2026-11-03T12:00:00Z").getTime();
+    const deployments = [
+      { kind: "preview" as const, status: "live", ref: "fix", updatedAt: "2026-11-03T11:59:00Z" },
+      { kind: "prod" as const, status: "failed", ref: "main", updatedAt: "2026-11-03T11:30:00Z" },
+      { kind: "prod" as const, status: "live", ref: "main", updatedAt: "2026-11-03T09:00:00Z" },
+    ];
+    const live = liveVersion(deployments, now);
+    expect(live?.branch).toBe("main");
+    expect(live?.ago).toContain("3");
+    expect(liveVersion(deployments.slice(0, 2), now)).toBeNull();
   });
 });

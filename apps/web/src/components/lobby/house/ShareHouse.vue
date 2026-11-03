@@ -3,7 +3,8 @@
 // house to someone: copy the link, WhatsApp (a wa.me link with the message ready), and the phone's own share sheet
 // where there is one. The link is the API's share page (shareHouse.ts), so a person lands on "Join <house>" and
 // WhatsApp shows the same words with a picture of its city. On a laptop's own site (localhost) the link opens nowhere else: only the copy, and one line
-// that says so. Esc or a click outside closes the card.
+// that says so. Esc or a click outside closes the card. With a `word`, it's the panel's main button in the foot
+// instead, and the card opens above it.
 import { computed, nextTick, onBeforeUnmount, ref } from "vue";
 import { language } from "../../../i18n";
 import { canShareNatively, whatsappLink } from "../tutorial/share";
@@ -11,7 +12,7 @@ import Icon from "./Icon.vue";
 import { houseShareLink, shareWays } from "./shareHouse";
 import { houseWords as w } from "./words";
 
-const props = defineProps<{ houseId: string; name: string; city: string }>();
+const props = defineProps<{ houseId: string; name: string; city: string; word?: string }>();
 
 const open = ref(false);
 const copied = ref(false);
@@ -67,11 +68,11 @@ async function shareNatively() {
 
 <template>
   <span ref="root" class="share" @keydown.esc.stop="close()">
-    <button ref="key" type="button" class="key" :aria-label="w.share.name(name)" :title="w.share.name(name)" :aria-expanded="open" aria-haspopup="dialog" @click="toggle">
-      <Icon name="share" :size="22" />
+    <button ref="key" type="button" class="key" :class="{ primary: word, big: word }" :aria-label="word ? undefined : w.share.name(name)" :title="w.share.name(name)" :aria-expanded="open" aria-haspopup="dialog" @click="toggle">
+      <Icon name="share" :size="22" />{{ word }}
     </button>
     <Transition name="pop">
-      <div v-if="open" class="card" role="dialog" :aria-label="w.share.name(name)">
+      <div v-if="open" class="card" :class="{ up: word }" role="dialog" :aria-label="w.share.name(name)">
         <p class="link">{{ link }}</p>
         <div class="ways">
           <button type="button" class="way" :class="{ done: copied }" @click="copy">
@@ -95,6 +96,12 @@ async function shareNatively() {
 .key { width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; }
 /* A flat card under the key, on the right edge, over the panel: on the band it must set its own colours. */
 .card { position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; width: min(320px, 80vw); display: grid; gap: 10px; padding: 12px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel), var(--lift); }
+/* The foot's main button, and its card above it. */
+.share .key.big { width: auto; height: auto; min-height: 60px; padding: 0 22px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-size: 20px; white-space: nowrap; }
+.card.up { top: auto; bottom: calc(100% + 8px); }
+@media (max-width: 560px) {
+  .share:has(.big), .share .key.big { width: 100%; }
+}
 .link { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--handle); overflow-wrap: anywhere; }
 .ways { display: flex; flex-wrap: wrap; gap: 6px; }
 .share .way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); box-shadow: var(--quiet-edge); font: 400 15px/1 var(--display); text-decoration: none; }

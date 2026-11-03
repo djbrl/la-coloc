@@ -8,6 +8,7 @@ import type { RoomManage } from "../../types";
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
 import UiNote, { loud, quiet, type Note } from "../UiNote.vue";
+import { sshLine } from "./room";
 import { roomWords as w } from "./words";
 
 const props = defineProps<{ data: RoomManage }>();
@@ -27,10 +28,7 @@ const note = ref<Note | null>(null);
 const pasted = ref("");
 const copied = ref(false);
 
-const line = computed(() => {
-  const s = props.data.ssh!;
-  return `ssh ${s.port === 22 ? "" : `-p ${s.port} `}${s.user}@${s.host}`;
-});
+const line = computed(() => sshLine(props.data.ssh!));
 const running = computed(() => props.data.room.status === "live");
 
 async function copy() {

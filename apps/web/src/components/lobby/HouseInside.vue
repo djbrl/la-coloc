@@ -28,7 +28,7 @@ import PayBill from "./house/PayBill.vue";
 import RentServer from "./house/RentServer.vue";
 import RoomDetails from "./house/RoomDetails.vue";
 import ShareHouse from "./house/ShareHouse.vue";
-import { evenSplit, fcfa, rentOfPerson, type ServerInfo } from "./house/server";
+import { evenSplit, fcfa, rentOfPerson, rentWithOneMore, type ServerInfo } from "./house/server";
 import { houseWords as w } from "./house/words";
 import ListRow from "./panel/ListRow.vue";
 import Panel from "./panel/Panel.vue";
@@ -439,6 +439,11 @@ const footShown = computed(() => {
   if (!["rooms", "people"].includes(shownTab.value)) return false;
   return foot.value.kind !== "none";
 });
+// You live here and a room is free: the foot invites someone, and shows what that does to your rent. It's then the way
+// to share the house, so the head's share key steps aside.
+const inviteFoot = computed(() => foot.value.kind === "invite" && ["rooms", "people"].includes(shownTab.value));
+const inviteRent = computed(() => (house.value && me.value ? rentWithOneMore(house.value, me.value) : null));
+const bare = (amount: number) => fcfa(amount).replace(/\s*FCFA$/, "");
 // A housemate's row: what they make, and what they pay.
 function seatSub(seat: Seat): string {
   // Someone may rent several rooms: the first with a project in it says what they make.
@@ -498,7 +503,7 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
           <div>
             <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
               <!-- The chef of a house being made: copy an invite link. Any other house (not the workshop): share it. -->
-              <template v-if="(chef && making) || shareable" #aside>
+              <template v-if="(chef && making) || (shareable && !inviteFoot)" #aside>
                 <button v-if="chef && making" type="button" class="chip" :aria-label="copied ? w.inviteCopied : w.copyInvite" @click="copyLink">
                   <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? w.copied : w.invite }}</span>
                 </button>
@@ -528,6 +533,7 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
         :coached="coached"
         :taking="taking"
         :take-error="takeError"
+        :no-numbers="inviteFoot"
         @pick="(room) => (openRoom = room.name)"
         @take="takeRoom"
         @more="roomsOpen = true"
@@ -690,6 +696,17 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
         <div class="foot">
           <!-- On the Bill tab, with your share still to pay, paying it is the next step. -->
           <button v-if="payButton" type="button" class="primary go" @click="paying = true"><Icon name="bill" :size="20" />{{ w.pay(fcfa(myDue!.due)) }}</button>
+          <template v-else-if="inviteFoot">
+            <p v-if="inviteRent" class="less" :aria-label="w.plan.rentFalls(fcfa(inviteRent.now), fcfa(inviteRent.then))">
+              <span class="sums">
+                <span class="was">{{ bare(inviteRent.now) }}</span>
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <span>{{ fcfa(inviteRent.then) }}</span>
+              </span>
+              <span class="less-word">{{ w.plan.withOneMore }}</span>
+            </p>
+            <ShareHouse :house-id="house.id" :name="house.name" :city="house.city" :word="w.plan.invite" />
+          </template>
           <RouterLink v-else-if="foot.kind === 'login'" to="/login" class="button primary go"><Icon name="login" :size="20" />{{ w.logInToKnock }}</RouterLink>
           <button v-else-if="footButton" type="button" class="primary go" @click="go"><Icon :name="footButton.icon" :size="20" />{{ footButton.word }}</button>
           <p v-else-if="foot.kind === 'say'" class="say">{{ foot.text }}</p>
@@ -809,6 +826,13 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
 .go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; font-size: 24px; }
 a.go:hover { text-decoration: none; }
 .say { min-height: 50px; display: flex; align-items: center; font-size: 15px; color: var(--muted); }
+/* Your rent with one more flatmate, beside the button that brings them in. */
+.foot :deep(.share) { margin-left: auto; }
+.less { flex: 1 1 200px; min-width: 0; display: grid; gap: 1px; }
+.sums { display: flex; align-items: center; gap: 8px; font: 800 22px/1.15 var(--num); white-space: nowrap; }
+.sums svg { flex: none; color: var(--muted); }
+.was { font-weight: 600; color: var(--muted); }
+.less-word { font-size: 14px; line-height: 1.2; color: var(--muted); }
 @media (max-width: 560px) {
   .lines :deep(.list-row) { min-height: 64px; }
   .part-n { font-size: 44px; }

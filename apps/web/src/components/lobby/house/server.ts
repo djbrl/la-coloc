@@ -70,3 +70,14 @@ export function rentOfPerson(house: RentHouse, login: string): number | null {
   const each = theirs.length ? rentOf(house, theirs[0]) : null;
   return each === null ? null : each * theirs.length;
 }
+
+// What a tenant pays now, and what they'd pay with someone in one more room: why a free room is good news. Null when
+// there's no cost yet, they rent nothing here, or one more person wouldn't lower it.
+export function rentWithOneMore(house: RentHouse, login: string): { now: number; then: number } | null {
+  const cost = houseCost(house);
+  const now = rentOfPerson(house, login);
+  const theirs = house.rooms.filter((r) => r.occupant?.login === login).length;
+  if (!cost || !now || !theirs) return null;
+  const then = evenSplit(cost, house.rooms.filter((r) => r.occupant).length + 1) * theirs;
+  return then < now ? { now, then } : null;
+}

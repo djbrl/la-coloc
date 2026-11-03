@@ -67,6 +67,24 @@ export function span(ms: number): string {
   return w.days(Math.round(hours / 24));
 }
 
+/** The one line to type to get in. */
+export const sshLine = (s: NonNullable<RoomManage["ssh"]>) => `ssh ${s.port === 22 ? "" : `-p ${s.port} `}${s.user}@${s.host}`;
+
+/** The last lines of a log, for the Logs tile: blank ones don't count. */
+export function logTail(text: string, count = 3): string[] {
+  return text
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter(Boolean)
+    .slice(-count);
+}
+
+/** What's online, for the Code tile: its branch, and how long ago it went up. Null when nothing has been online. */
+export function liveVersion(deployments: Pick<Deployment, "kind" | "status" | "ref" | "updatedAt">[], now = Date.now()): { branch: string; ago: string } | null {
+  const up = deployments.find((d) => d.kind === "prod" && d.status === "live");
+  return up ? { branch: refWord(up.ref), ago: w.tile.updated(span(now - new Date(up.updatedAt).getTime())) } : null;
+}
+
 /** "half a CPU", "1 CPU", "2 CPUs": a room's share of the processor. */
 export const cpuShare = (cpus: number) => w.cpuShare(cpus);
 
