@@ -52,7 +52,16 @@ export function runAs(imageUser: string | undefined): string | undefined {
 export const ROOM_CAPS = ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID", "KILL", "NET_BIND_SERVICE"];
 
 // What's kept when a new version replaces the old one. Under /home, not over it: an image may keep its app in /home/node.
-export const ROOM_HOME = "/home/room";
+export const ROOM_HOME = "/home/your-room";
+// In there, a link to the running code. The code stays in the image (it can't be copied for every stack, and would eat
+// the kept disk), so this one entry is replaced by each deploy while the rest of the folder stays.
+export const PROJECT_LINK = "project";
+
+// Where a running container has its kept files. Read from the container, because one started before the folder was
+// renamed keeps its old mount until its next deploy.
+export function roomHomeOf(mounts: { Name?: string; Destination: string }[] | undefined): string | undefined {
+  return mounts?.find((m) => m.Name?.startsWith("coloc-home-"))?.Destination;
+}
 
 // Named after who lives there, so the next tenant gets an empty one by construction, even if a lease ended while the
 // server was off and nothing has cleared the old one yet.

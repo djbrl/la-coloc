@@ -2,10 +2,10 @@
 // (Traefik) watches, so the proxy needs no access to Docker at all.
 import type { DeployKind } from "@coloc/protocol";
 import type Docker from "dockerode";
-import { mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentConfig } from "./config";
-import { docker, ensureRoomNetwork } from "./docker";
+import { docker, ensureRoomNetwork, roomContainers } from "./docker";
 import { LABEL, isRoomNetwork, roomFilter, roomRoute } from "./room-spec";
 
 // One file per room, named after the house too: several caretakers may share one proxy folder (in development
@@ -28,6 +28,25 @@ export async function routeTo(cfg: AgentConfig, room: string, kind: DeployKind, 
   await writeFile(tmp, JSON.stringify(roomRoute(room, kind, cfg.houseDomain, container, port), null, 2));
   await rename(tmp, file);
   await new Promise((r) => setTimeout(r, cfg.routeSettleMs));
+}
+
+/** The port a room's address leads to right now, and the container it's on. Null: no route, or one this can't read. */
+export async function routedTo(cfg: AgentConfig, room: string, kind: DeployKind): Promise<{ container: string; port: number } | null> {
+  try {
+    const route = JSON.parse(await readFile(routeFile(cfg, room, kind), "utf8")) as { http: { services: Record<string, { loadBalancer: { servers: { url: string }[] } }> } };
+    const url = new URL(Object.values(route.http.services)[0].loadBalancer.servers[0].url);
+    return { container: url.hostname, port: Number(url.port) };
+  } catch {
+    return null;
+  }
+}
+
+/** The room's address goes back to the port its project was deployed on, if something had moved it. */
+export async function backToProject(cfg: AgentConfig, room: string): Promise<void> {
+  const [c] = (await roomContainers(cfg.houseId, room, "prod")).filter((x) => x.State === "running").sort((a, b) => b.Created - a.Created);
+  const port = Number(c?.Labels[LABEL.port]);
+  if (!port) return;
+  if ((await routedTo(cfg, room, "prod"))?.port !== port) await routeTo(cfg, room, "prod", c.Names[0].replace(/^\//, ""), port);
 }
 
 export async function unroute(cfg: AgentConfig, room: string, kind: DeployKind): Promise<void> {
@@ -64,7 +83,11 @@ export async function syncRoutes(cfg: AgentConfig): Promise<void> {
     const network = c.HostConfig?.NetworkMode;
     await ensureRoomNetwork(cfg.houseId, room, cfg.proxyContainer, isRoomNetwork(network) ? network : undefined);
     wanted.add(routeName(cfg.houseId, room, kind));
-    const route = roomRoute(room, kind, cfg.houseDomain, c.Names[0].replace(/^\//, ""), port);
+    const name = c.Names[0].replace(/^\//, "");
+    // Someone pointed the address at another port of this same container: that's still their choice. A new container
+    // has a new name, so a deploy ends it by itself.
+    const now = await routedTo(cfg, room, kind);
+    const route = roomRoute(room, kind, cfg.houseDomain, name, now?.container === name ? now.port : port);
     await writeFile(routeFile(cfg, room, kind), JSON.stringify(route, null, 2));
   }
   // Drop this house's stale files, and any file from before routes were named after their house.

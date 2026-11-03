@@ -28,6 +28,7 @@ export const NO_SITE = "The build finished but made no website";
 // A tiny web server for a folder of files. Unknown paths get index.html, so a single-page app's links work.
 const SERVE_FILES = `FROM busybox:1.36
 RUN echo "E404:/site/index.html" > /etc/httpd.conf
+WORKDIR /site
 COPY SITE /site
 CMD exec httpd -f -p "\${PORT:-3000}" -h /site -c /etc/httpd.conf`;
 

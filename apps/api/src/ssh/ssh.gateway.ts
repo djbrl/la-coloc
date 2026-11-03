@@ -197,7 +197,7 @@ export class SshGateway implements OnModuleInit, OnModuleDestroy {
           if (reason === "gone") return say(LOST, 1);
           end(code ?? 0);
         },
-      });
+      }, who.userId);
     } catch {
       say(OFFLINE, 1);
       return null;

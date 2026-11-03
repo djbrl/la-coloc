@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOBODY, ROOM_CAPS, isRoomNetwork, roomHomeVolume, resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetwork, roomNetworks, roomRoute, runAs } from "./room-spec";
+import { NOBODY, ROOM_CAPS, isRoomNetwork, roomHomeVolume, resolvePort, roomContainerSpec, roomFilter, roomHost, roomNetwork, roomNetworks, roomRoute, runAs, roomHomeOf } from "./room-spec";
 
 const input = {
   houseId: "sacre-coeur",
@@ -38,7 +38,7 @@ describe("room walls", () => {
     expect(room.HostConfig?.ReadonlyRootfs).toBe(false);
     expect(room.HostConfig?.StorageOpt).toEqual({ size: "1024m" });
     expect(room.HostConfig?.Tmpfs).toBeUndefined();
-    expect(room.HostConfig?.Binds).toEqual(["coloc-home-sacre-coeur--jib--abc:/home/room"]);
+    expect(room.HostConfig?.Binds).toEqual(["coloc-home-sacre-coeur--jib--abc:/home/your-room"]);
     expect(room.User).toBeUndefined();
     expect(room.HostConfig?.CapDrop).toEqual(["ALL"]);
     expect(room.HostConfig?.CapAdd).toEqual(ROOM_CAPS);
@@ -124,5 +124,17 @@ describe("hosts and ports", () => {
     expect(resolvePort(8080, { "3000/tcp": {} })).toBe(8080);
     expect(resolvePort(undefined, { "5173/tcp": {} })).toBe(5173);
     expect(resolvePort(undefined, undefined)).toBe(3000);
+  });
+});
+
+describe("where a container has its kept files", () => {
+  it("comes from the container, so one from before the rename still finds them", () => {
+    expect(roomHomeOf([{ Name: "coloc-home-h--r--u", Destination: "/home/room" }])).toBe("/home/room");
+    expect(roomHomeOf([{ Name: "coloc-home-h--r--u", Destination: "/home/your-room" }])).toBe("/home/your-room");
+  });
+
+  it("isn't some other volume", () => {
+    expect(roomHomeOf([{ Name: "data", Destination: "/data" }])).toBeUndefined();
+    expect(roomHomeOf(undefined)).toBeUndefined();
   });
 });

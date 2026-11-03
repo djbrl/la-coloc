@@ -4,7 +4,7 @@
 import type { AgentToApi, ShellOpen } from "@coloc/protocol";
 import { PassThrough, type Duplex } from "node:stream";
 import { docker, roomContainers } from "./docker";
-import { ROOM_HOME, roomFilter } from "./room-spec";
+import { roomFilter, roomHomeOf } from "./room-spec";
 
 // How much output can be on its way to the person before a very chatty command is made to wait for them: it's on the
 // other side of a slow connection, and nothing in between should hold more than this.
@@ -60,6 +60,7 @@ export class Shells {
       if (!running) return exit({ reason: "not_running" });
       const container = docker.getContainer(running.Id);
       const tty = !!cmd.tty;
+      const home = roomHomeOf(running.Mounts);
       const exec = await container.exec({
         Cmd: shellCommand(shellId, cmd.command),
         AttachStdin: true,
@@ -67,7 +68,9 @@ export class Shells {
         AttachStderr: true,
         Tty: tty,
         // Where its kept files are, or else the only place it can write, so history and the like have somewhere to go.
-        Env: [`HOME=${running.Mounts?.some((m) => m.Destination === ROOM_HOME) ? ROOM_HOME : "/tmp"}`, ...(cmd.tty ? [`TERM=${cmd.tty.term}`] : [])],
+        Env: [`HOME=${home ?? "/tmp"}`, ...(cmd.tty ? [`TERM=${cmd.tty.term}`] : [])],
+        // In your room when you arrive. With no kept files, wherever the image starts.
+        ...(home ? { WorkingDir: home } : {}),
       });
       // ConsoleSize: a command as quick as `stty size` must already see the right one. A resize that early comes too late.
       const size = cmd.tty ? { ConsoleSize: [cmd.tty.rows, cmd.tty.cols] } : {};

@@ -107,6 +107,11 @@ export const icons = {
   bolt: "M13 2L4 14h7l-1 8 9-12h-7z",
   // A map folded in three: the map.
   map: "M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15",
+  // A folder and a sheet of paper: what's in a room.
+  folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  file: "M6 3h8l4 4v14H6z M14 3v4h4",
+  // A prompt on a screen: someone's in over SSH, or started something there.
+  prompt: "M3 5h18v14H3z M7 10l3 2-3 2 M12 15h5",
   // A keyboard: every key.
   keyboard: "M3 6h18v12H3z M7 10h.01 M11 10h.01 M15 10h.01 M7 14h10",
 } as const;

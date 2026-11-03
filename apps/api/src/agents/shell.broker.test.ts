@@ -10,6 +10,44 @@ const setup = () => {
   return { sent, agents, broker, events };
 };
 
+describe("who's in a room", () => {
+  it("counts each person once, in their own room only", () => {
+    const { broker, events } = setup();
+    broker.open("a", "room", {}, events, "awa");
+    broker.open("a", "room", {}, events, "awa");
+    broker.open("a", "room", {}, events, "moussa");
+    broker.open("a", "other", {}, events, "fatou");
+    broker.open("b", "room", {}, events, "ali");
+    expect(broker.inRoom("a", "room")).toEqual(["awa", "moussa"]);
+  });
+
+  it("forgets them when they leave, or when the line drops", () => {
+    const { broker, events } = setup();
+    const first = broker.open("a", "room", {}, events, "awa");
+    const second = broker.open("a", "room", {}, events, "awa");
+    first.close();
+    expect(broker.inRoom("a", "room")).toEqual(["awa"]);
+    second.close();
+    expect(broker.inRoom("a", "room")).toEqual([]);
+    broker.open("a", "room", {}, events, "awa");
+    broker.houseGone("a");
+    expect(broker.inRoom("a", "room")).toEqual([]);
+  });
+
+  it("tells the house's pages only when the people change", () => {
+    const { broker, events } = setup();
+    const told: string[] = [];
+    broker.peopleChanged.subscribe((h) => told.push(h));
+    const first = broker.open("a", "room", {}, events, "awa");
+    const second = broker.open("a", "room", {}, events, "awa");
+    expect(told).toEqual(["a"]);
+    first.close();
+    expect(told).toEqual(["a"]);
+    second.close();
+    expect(told).toEqual(["a", "a"]);
+  });
+});
+
 describe("the shell broker", () => {
   it("passes output only from the house the shell belongs to", () => {
     const { sent, broker, events } = setup();

@@ -3,9 +3,10 @@ import Docker from "dockerode";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { PassThrough, type Duplex } from "node:stream";
 import tar from "tar-fs";
 import type { DeployKind } from "@coloc/protocol";
-import { LABEL, ROOM_HOME, roomFilter, roomHomeVolume, roomNetwork } from "./room-spec";
+import { LABEL, PROJECT_LINK, ROOM_HOME, roomFilter, roomHomeVolume, roomNetwork } from "./room-spec";
 
 export const docker = new Docker();
 
@@ -67,6 +68,51 @@ export async function openRoomHome(container: Docker.Container): Promise<void> {
   } finally {
     await rm(empty, { recursive: true, force: true });
   }
+}
+
+/**
+ * Puts the running code in the room's folder, as a link. A real file or folder someone made under that name is left
+ * alone. An image with no shell or no folder of its own gets no link, and nobody could look at it anyway.
+ */
+export async function linkProject(container: Docker.Container, folder: string | undefined): Promise<void> {
+  if (!folder || folder === "/") return;
+  const link = `${ROOM_HOME}/${PROJECT_LINK}`;
+  await readExec(container, ["/bin/sh", "-c", '[ -e "$1" ] && [ ! -L "$1" ] || ln -sfn "$2" "$1"', "coloc-link", link, folder]).catch(() => undefined);
+}
+
+/**
+ * Runs a command in a room and reads what it prints, up to a limit and for a limited time. The room's own files and
+ * programs answer, so the answer is only as true as the room wants it to be: it's for showing the room's own people.
+ */
+export async function readExec(container: Docker.Container, cmd: string[], limits = { bytes: 256 * 1024, ms: 5000 }): Promise<string> {
+  const exec = await container.exec({ Cmd: cmd, AttachStdout: true, AttachStderr: true });
+  const stream = (await exec.start({ hijack: true, stdin: false })) as unknown as Duplex;
+  return new Promise((resolve, reject) => {
+    const out = new PassThrough();
+    const chunks: Buffer[] = [];
+    let size = 0;
+    const timer = setTimeout(() => {
+      stream.destroy();
+      reject(new Error("The room took too long to answer."));
+    }, limits.ms);
+    const done = () => {
+      clearTimeout(timer);
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    };
+    out.on("data", (data: Buffer) => {
+      chunks.push(data);
+      size += data.length;
+      if (size >= limits.bytes) {
+        stream.destroy();
+        done();
+      }
+    });
+    stream.on("end", done);
+    stream.on("close", done);
+    stream.on("error", done);
+    // Its complaints go nowhere: a command with no output says enough.
+    docker.modem.demuxStream(stream, out, new PassThrough().resume());
+  });
 }
 
 /** The room is free: nothing of its last occupant stays on the machine. */
@@ -160,9 +206,9 @@ export async function pullImage(ref: string, onLine: (line: string) => void, sig
   }
 }
 
-export async function imageConfig(tag: string): Promise<{ exposedPorts?: Record<string, unknown>; user?: string }> {
+export async function imageConfig(tag: string): Promise<{ exposedPorts?: Record<string, unknown>; user?: string; workingDir?: string }> {
   const info = await docker.getImage(tag).inspect();
-  return { exposedPorts: info.Config?.ExposedPorts, user: info.Config?.User };
+  return { exposedPorts: info.Config?.ExposedPorts, user: info.Config?.User, workingDir: info.Config?.WorkingDir };
 }
 
 // This house's containers for one room. Another caretaker on the same machine may have a room with the same name.

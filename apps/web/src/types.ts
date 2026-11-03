@@ -336,6 +336,28 @@ export interface ServerConfig {
 }
 
 // The room page: GET /api/houses/:id/rooms/:room/manage (the room's flatmate, or the chef).
+// What's inside a room, read from inside it (agent: inside.ts). `started`: someone started it by hand, not the project.
+export interface RoomEntry {
+  name: string;
+  kind: "folder" | "file" | "link";
+  kb?: number;
+  stack?: string;
+  project?: boolean;
+}
+export interface RoomProcess {
+  command: string | null;
+  port?: number;
+  localOnly?: boolean;
+  started: boolean;
+}
+export interface RoomInside {
+  home: { path: string; usedKb: number; limitMb?: number; entries: RoomEntry[]; more: number } | null;
+  running: RoomProcess[];
+  projectPort: number | null;
+  addressPort: number | null;
+}
+export type RoomInsideTrouble = "not_running" | "no_shell" | "failed";
+
 export interface RoomManage {
   // `chef`: you run the house, even when this is your own room and `as` says flatmate (an older API leaves it out).
   house: { id: string; name: string; domain: string; agentOnline: boolean; strictReviews: boolean; chef?: boolean };
@@ -343,7 +365,10 @@ export interface RoomManage {
   // house (update and restart only).
   as: "flatmate" | "chef" | "teammate";
   // How to SSH in. Null: this server has no SSH, or a shell isn't for you (a chef, an example room).
-  ssh?: { host: string; port: number; user: string } | null;
+  // `people`: who has a shell in this room right now.
+  ssh?: { host: string; port: number; user: string; people?: Person[] } | null;
+  // The Inside tab: what's in the room, for those who could open a shell in it.
+  inside?: boolean;
   // The Lease tab, for the occupant of a room that has a lease to end: their part of this month's bill (null: the house
   // has no bill yet), how many rooms they rent in this house, and when rent stops if they end it now.
   lease?: { share: number | null; rooms: number; until: string } | null;

@@ -14,11 +14,12 @@ const h = vi.hoisted(() => ({
   healthy: vi.fn(),
   ensureHome: vi.fn(async () => "the-home"),
   openHome: vi.fn(async () => undefined),
+  link: vi.fn(async () => undefined),
   removeHomes: vi.fn(async () => undefined),
 }));
 vi.mock("./git", () => ({ shallowClone: h.clone, resolveInside: (root: string) => root }));
 vi.mock("./recipe", () => ({ ensureDockerfile: async () => undefined }));
-vi.mock("./proxy", () => ({ routeTo: h.route, unroute: vi.fn(), unrouteRoom: vi.fn() }));
+vi.mock("./proxy", () => ({ backToProject: vi.fn(), routeTo: h.route, unroute: vi.fn(), unrouteRoom: vi.fn() }));
 vi.mock("./docker", () => ({
   buildImage: h.build,
   pullImage: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("./docker", () => ({
   ensureRoomHome: h.ensureHome,
   ensureRoomNetwork: vi.fn(async () => undefined),
   openRoomHome: h.openHome,
+  linkProject: h.link,
   removeRoomHomes: h.removeHomes,
   rootIsRemapped: async () => true,
   imageConfig: async () => ({}),
@@ -119,9 +121,14 @@ describe("a room's kept files", () => {
   it("are there for the occupant, opened before the app starts", async () => {
     await deploy(server, { ...cmd, occupant: "user-1" }, reports().report);
     expect(h.ensureHome).toHaveBeenCalledWith("h", "awa", "user-1", 1024);
-    expect(created().HostConfig.Binds).toEqual(["the-home:/home/room"]);
+    expect(created().HostConfig.Binds).toEqual(["the-home:/home/your-room"]);
     expect(created().HostConfig.ReadonlyRootfs).toBe(false);
     expect(h.openHome).toHaveBeenCalledOnce();
+  });
+
+  it("get a link to the running code, once it's running", async () => {
+    await deploy(server, { ...cmd, occupant: "user-1" }, reports().report);
+    expect(h.link).toHaveBeenCalledOnce();
   });
 
   it("aren't given to a pull request's preview, which still gets a limited disk", async () => {

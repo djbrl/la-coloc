@@ -1280,3 +1280,15 @@ Jib's point after SSH shipped: we rent out a room of a server, not a deploy butt
 
 **Known limits:** `df` on `/home/room` shows the whole pool, not 1 GB, though the limit holds. If a lease ends while a server is off and its containers are already gone, the old volume stays until someone empties that room again. The next tenant still can't see it. Jib's `42dsy/bount-dev:refonte` no longer fails on the disk, but `nuxt dev` only listens on localhost and used 245 of 256 MB, so visitors got a 503 while the room said "live".
 
+## 2 Nov: your-room, and seeing inside without going in
+
+Jib tried SSH and found an empty folder, with the site in `/site`. Asked for: the site in `your-room`, the folder's contents visible without SSH, who's connected as a stat, and a way to start something from SSH and have it show outside.
+
+- **The folder is `/home/your-room`, and you arrive in it.** Same volume name, so kept files follow on the room's next deploy. A project that wrote the old path in its code has to change it.
+- **The code is linked in, not copied.** `project` points at the image's folder. Copying would use up the kept 1 GB and can't work for an image we didn't build. Said plainly in the SSH tab: it's replaced by each deploy.
+- **The Inside tab reads from inside the room,** with a script that needs only `/bin/sh` and `/proc`. Tried for real on busybox and node:22-slim in throwaway containers on the rehearsal server before writing the parser, then the built agent code against real Docker: link, kept real folder, `nohup` process seen as started by hand, refused ports, route moved and back.
+- **Telling what was started from the project:** `docker exec` gives its process a new session id. Checked rather than assumed, including after the shell that started it has left.
+- **Probing only while someone looks.** On a small server, a script in every room all the time wasn't worth it, so the city and the floor plan don't know what's running. The room page does.
+- **Moving the address needed no new storage.** The route file is the record, and it names the container, so a deploy ends the choice by itself.
+
+Caught on screen, not by the tests or the type check: the page crashed reading `tab` before it was declared, and the new line pushed the phone layout sideways.

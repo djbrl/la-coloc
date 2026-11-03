@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { AgentRegistry } from "../agents/agent.registry";
 import { LogsBroker } from "../agents/logs.broker";
+import { ShellBroker } from "../agents/shell.broker";
 import type { AuthService } from "../auth/auth.service";
 import { DoorbellService } from "../doorbell/doorbell.service";
 import { HousesService } from "../houses/houses.service";
@@ -52,7 +53,7 @@ beforeEach(async () => {
   controller = new NotificationsController(service, auth);
   const agents = { isOnline: () => true, send: (_: string, cmd: ApiToAgent) => sent.push(cmd) } as unknown as AgentRegistry;
   const box = new SecretBox(randomBytes(32).toString("base64"));
-  roomsController = new RoomsController(new RoomsService(db, houses, box), new RoomDeployer(db, houses, agents, box, null), houses, agents, new LogsBroker(agents), auth);
+  roomsController = new RoomsController(new RoomsService(db, houses, box), new RoomDeployer(db, houses, agents, box, null), houses, agents, new LogsBroker(agents), auth, new ShellBroker(agents));
   for (const u of await db.query.users.findMany()) ids[u.login] = u.id;
   // Sacré-Cœur's three logged in with GitHub: real people, not examples.
   for (const [login, githubId] of [["jib", 201], ["awa", 202], ["moussa", 203]] as const) await db.update(users).set({ githubId }).where(eq(users.id, ids[login]));

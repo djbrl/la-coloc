@@ -1,9 +1,9 @@
 // A room, as its flatmate manages it: build settings, secrets, history.
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
-import { type Db, deployments, memberships, repos, roomSecrets, roomTeammates, rooms } from "@coloc/db";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { type Db, deployments, houses, memberships, repos, roomSecrets, roomTeammates, rooms, users } from "@coloc/db";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { DB } from "../db/db.module";
-import { HousesService } from "../houses/houses.service";
+import { HousesService, person } from "../houses/houses.service";
 import { monthEnd, monthOf } from "../houses/money";
 import { SECRETS } from "./room-deployer";
 import { checkSecret, MAX_SECRETS, type SecretBox } from "./secrets";
@@ -68,6 +68,24 @@ export class RoomsService {
     throw new ForbiddenException("This isn't your room.");
   }
 
+  /**
+   * The room, if `userId` could open a shell in it: what's inside is for them alone, not the chef, who only updates and
+   * restarts. Command lines and file names can say more than a project's page does. An example room has nothing inside.
+   */
+  async enterable(houseId: string, roomName: string, userId: string) {
+    const { room, as } = await this.manageable(houseId, roomName, userId);
+    const [house] = await this.db.select({ demo: houses.demo }).from(houses).where(eq(houses.id, houseId));
+    if (as === "chef" || room.demo || house?.demo) throw new ForbiddenException("This isn't your room.");
+    return room;
+  }
+
+  /** As they'd appear on the room's page: for showing who's in a room. */
+  async peopleByIds(ids: string[]) {
+    if (!ids.length) return [];
+    const found = await this.db.select().from(users).where(inArray(users.id, ids));
+    return found.map((u) => person(u)!);
+  }
+
   /** Everything the room page shows. Secret values never leave: only their names. */
   async view(houseId: string, roomName: string, userId: string) {
     const { room, as } = await this.manageable(houseId, roomName, userId);
@@ -90,6 +108,8 @@ export class RoomsService {
       as,
       // The SSH tab, for those a shell would open to (SshService). Not the chef, and not an example room.
       ssh: as !== "chef" && !room.demo && !house!.demo && sshAddress() ? { ...sshAddress()!, user: `${room.name}.${houseId}` } : null,
+      // The Inside tab, for the same people (enterable), with or without SSH on this server.
+      inside: as !== "chef" && !room.demo && !house!.demo,
       // For the occupant, unless the room has no lease to end (the workshop, an example): the Lease tab's numbers.
       lease:
         as === "flatmate" && !room.demo && !house!.demo && !house!.tutorial

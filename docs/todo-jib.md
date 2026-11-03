@@ -68,7 +68,7 @@ Rooms now have internet, a writable disk and root inside. These are the risks th
 ### Could take the city down
 
 30. **The database shares a disk with everything else** (high). Rooms are limited, but images and build cache aren't, and the database lives on the same 59 GB disk. If it fills, the database stops and the whole city with it. To do: an alarm at 80%, regular image and build-cache cleanup, and the database on its own disk.
-31. **No backups** (high). The database and everyone's `/home/room` are in one file on one server. To do: a nightly database dump off the server, and tell people `/home/room` isn't backed up.
+31. **No backups** (high). The database and everyone's `/home/your-room` are in one file on one server. To do: a nightly database dump off the server, and tell people `/home/your-room` isn't backed up.
 32. **Dependencies with known holes** (high, unchecked). `npm audit --omit=dev` lists 13 today, 5 high, in `@nestjs/core`, `body-parser`, `multer`, `uuid` and `zod`. I haven't checked whether they can be exploited here. To do: go through them before the public vote.
 33. **The setup has only run on DigitalOcean** (medium). Moving Docker onto XFS needs a kernel with XFS and loop mounts. Check it on Datacloud early, since that deployment is mandatory.
 
@@ -81,7 +81,7 @@ Rooms now have internet, a writable disk and root inside. These are the risks th
 ### Small gaps
 
 37. **Who did what** (low). Logins are logged with the person and the room, but not their address, and shell contents aren't logged on purpose. After an abuse report you'd know who logged in, not what they ran. Decide whether that's enough.
-38. **A room can't see its disk use** (low). `df` on `/home/room` shows the whole pool rather than 1 GB, though the limit holds, and the room page shows no disk use.
+38. **A room can't see its disk use** (low). `df` on `/home/your-room` shows the whole pool rather than 1 GB, though the limit holds. The room page's Inside tab shows the real use of that folder, not of the rest of the disk.
 39. **A lease that ends while the server is off** (low). If the containers are already gone too, the old files stay on disk until someone empties that room again. The next tenant can't see them, but they use space and should go. To do: report kept volumes in the caretaker's snapshot.
 40. **Laptop and server now differ** (low). A laptop's rooms stay sealed and read-only, so something can pass locally and behave differently on the server, or the other way round.
 

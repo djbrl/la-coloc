@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { explain } from "../lobby/panel/words";
+import type { RoomInside } from "../../types";
 import {
+  addressDead,
+  sizeWord,
+  startedByHand,
   buildFailed,
   buildTrouble,
   canChangeCode,
@@ -232,5 +236,28 @@ describe("a cancelled build", () => {
     expect(buildFailed(undefined)).toBe(false);
     expect(deploymentStep("failed", "Build cancelled.")).toMatchObject({ word: "Cancelled", tone: "warn" });
     expect(deploymentStep("failed", "git clone failed")).toMatchObject({ word: "Failed", tone: "danger" });
+  });
+});
+
+describe("what's inside a room", () => {
+  const inside = (over: Partial<RoomInside>): RoomInside => ({ home: null, running: [], projectPort: 3000, addressPort: 3000, ...over });
+
+  it("says a size the way people read it", () => {
+    expect(sizeWord(4)).toBe("4 KB");
+    expect(sizeWord(5 * 1024)).toBe("5.0 MB");
+    expect(sizeWord(312 * 1024)).toBe("312 MB");
+  });
+
+  it("notices when the address leads to a port nothing listens on", () => {
+    expect(addressDead(null)).toBe(false);
+    expect(addressDead(inside({ running: [{ command: "node", port: 3000, started: false }] }))).toBe(false);
+    expect(addressDead(inside({ addressPort: 8000, running: [{ command: "node", port: 3000, started: false }] }))).toBe(true);
+    expect(addressDead(inside({ running: [{ command: "node", port: 3000, localOnly: true, started: false }] }))).toBe(true);
+  });
+
+  it("picks out what someone started by hand", () => {
+    const started = { command: "python3 -m http.server", port: 8000, started: true };
+    expect(startedByHand(inside({ running: [{ command: "node", port: 3000, started: false }, started] }))).toEqual([started]);
+    expect(startedByHand(null)).toEqual([]);
   });
 });

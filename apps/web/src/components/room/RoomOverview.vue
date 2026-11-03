@@ -3,15 +3,16 @@
 // three numbers, and the one thing to do next: upload a project, put it online or update it. A failed build says why
 // and what to do; a house whose server isn't connected says only that.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import Avatar from "../Avatar.vue";
 import Icon from "../lobby/house/Icon.vue";
 import StatusDot from "../lobby/panel/StatusDot.vue";
 import { bare, explain, roomState } from "../lobby/panel/words";
 import UiNote, { type Note } from "../UiNote.vue";
 import UiSteps from "../UiSteps.vue";
-import type { RoomManage } from "../../types";
+import type { RoomInside, RoomManage } from "../../types";
 import BuildLog from "./BuildLog.vue";
 import RoomServerOff from "./RoomServerOff.vue";
-import { buildFailed, buildTrouble, canRestart, memoryUse, roomSentence, type SettingsForm, updateTile } from "./room";
+import { addressDead, buildFailed, buildTrouble, canRestart, memoryUse, roomSentence, type SettingsForm, startedByHand, updateTile } from "./room";
 import { roomWords as w } from "./words";
 import { seeded } from "../seeded";
 
@@ -32,10 +33,16 @@ const props = defineProps<{
   coached?: boolean;
   // A build was just started, from here or from the Code tab: its log window opens.
   showLog?: boolean;
+  // What's inside the room, if anyone has looked (the page does, while this tab is open).
+  inside?: RoomInside | null;
 }>();
-const emit = defineEmits<{ run: [what: "redeploy" | "restart"]; tab: [to: "code"]; logShown: [] }>();
+const emit = defineEmits<{ run: [what: "redeploy" | "restart"]; tab: [to: "code"]; inside: []; logShown: [] }>();
 
 const state = computed(() => roomState(props.data.room));
+const sshPeople = computed(() => props.data.ssh?.people ?? []);
+const sshWho = computed(() => w.inside.who(sshPeople.value.map((p) => p.name ?? p.login).join(", ")));
+const started = computed(() => startedByHand(props.inside ?? null));
+const dead = computed(() => addressDead(props.inside ?? null));
 const said = computed(() => roomSentence(props.data.room, props.data.deployments));
 const memory = computed(() => memoryUse(props.data.room.usage));
 const tile = computed(() => updateTile(props.data.room.status, props.data.deployments));
@@ -126,7 +133,19 @@ async function finish() {
       <li><StatusDot :state="state" class="dot-here" /><strong>{{ state.word }}</strong></li>
       <li><strong>{{ memory ? `${memory.mb} / ${data.room.limits.memoryMb}` : data.room.limits.memoryMb }} {{ w.mb }}</strong> {{ w.statMemory }}</li>
       <li><strong>{{ data.room.limits.cpus }}</strong> {{ w.statCpu }}</li>
+      <li v-if="data.ssh" :title="sshPeople.length ? sshWho : undefined">
+        <Avatar v-for="p in sshPeople.slice(0, 3)" :key="p.login" :person="p" :size="22" decorative />
+        <strong>{{ sshPeople.length }}</strong> {{ w.inside.connected }}
+        <span v-if="sshPeople.length" class="sr-only">{{ sshWho }}</span>
+      </li>
     </ul>
+    <!-- Something started by hand is running, or the address leads nowhere now: only then, and one tap from the Inside tab. -->
+    <button v-if="!step && (dead || started.length)" type="button" class="also" :class="{ dead }" @click="emit('inside')">
+      <Icon :name="dead ? 'warn' : 'prompt'" :size="20" />
+      <span v-if="dead">{{ w.inside.nothingThere }}</span>
+      <span v-else>{{ w.inside.alsoRunning }} <code>{{ started.map((r) => r.command ?? `:${r.port}`).join(", ") }}</code></span>
+      <span class="see">{{ w.inside.see }} <span aria-hidden="true">›</span></span>
+    </button>
     <!-- A line about the project, as it shows on the house page and in the city. -->
     <div v-if="!step" class="project">
       <p class="about" :class="{ unset: !data.settings.projectDescription }">{{ seeded(data.settings.projectDescription) || w.noLine }}</p>
@@ -176,17 +195,23 @@ async function finish() {
 </template>
 
 <style scoped>
-.overview { display: grid; gap: 12px; align-content: start; }
+.overview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
 
 .project { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .about { min-width: 0; font-size: 16px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .unset { color: var(--muted); }
 
 /* The numbers: three tiles side by side, the state first. */
-.stats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1.3fr 1fr 0.8fr; gap: 8px; }
+.stats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .stats li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-height: 58px; padding: 8px 12px; border-radius: var(--r-md); background: var(--tile); font-size: 14px; color: var(--muted); }
 .stats strong { font-size: 16px; font-weight: 800; color: var(--text); white-space: nowrap; }
 .dot-here { flex: none; }
+.also { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--r-md); background: var(--surface-2, var(--surface)); color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.also.dead { background: var(--danger-soft); }
+.also :deep(svg) { flex: none; }
+.also > span:not(.see) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.also code { font-size: 14px; }
+.see { flex: none; font-weight: 700; color: var(--accent); }
 .address { display: grid; gap: 4px; font: 600 15px/1.3 var(--num); overflow-wrap: anywhere; }
 .address a { color: var(--accent); }
 
@@ -203,6 +228,6 @@ async function finish() {
 .restart { flex: none; min-height: 60px; }
 @media (max-width: 480px) {
   .stats { grid-template-columns: 1fr 1fr; }
-  .stats li:first-child { grid-column: 1 / -1; min-height: 44px; }
+  .stats li:first-child, .stats li:nth-child(4) { grid-column: 1 / -1; min-height: 44px; }
 }
 </style>

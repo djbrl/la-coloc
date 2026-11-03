@@ -44,7 +44,7 @@ African exchange platform built for devs by devs*.
 - Each room has a fixed amount of memory and CPU. If one project eats all its memory, only that room restarts; its
   neighbours never notice.
 - A room is a small server of your own. Your project can reach the internet, but not the other rooms or the server
-  itself, and it can't send email directly. It has 1 GB of disk, and `/home/room` adds 1 GB that survives new versions.
+  itself, and it can't send email directly. It has 1 GB of disk, and `/home/your-room` adds 1 GB that survives new versions.
   Builds take turns, one at a time per house.
 - A room's code comes from a GitHub repo (`https://` only). Only the flatmate who lives there chooses which repo,
   branch and folder, since the build gets the room's secret keys; the chef can still update or restart it. Deploys
@@ -171,7 +171,7 @@ comes back without a reload when the database returns.
 
 A room's SSH tab gives you one line to copy. It opens a shell inside your running project, so you can look at what went wrong and fix it there: edit a file, install a tool, restart something. `nohup` and `tmux` keep things running after you log out.
 
-Putting a new version online ends the shell and resets everything except `/home/room`, which is also where `~` points. Files there stay yours until you end the lease, when they're deleted. So a fix that should last belongs in your code.
+Putting a new version online ends the shell and resets everything except `/home/your-room`, which is where you arrive and where `~` points. `project` in there is a link to the running code, replaced by each deploy. The room page's Inside tab shows that folder and what's running without going in, and can put something you started on a port at the room's address. Files there stay yours until you end the lease, when they're deleted. So a fix that should last belongs in your code.
 
 It opens with your SSH keys: a GitHub account starts with the ones GitHub lists, or you paste one. The room's occupant and their teammates can get in. The chef can't, since a room is its occupant's own.
 

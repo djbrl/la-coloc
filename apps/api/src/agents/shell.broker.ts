@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { ShellExit, ShellOpen, ShellOutput } from "@coloc/protocol";
 import { randomUUID } from "node:crypto";
+import { Subject } from "rxjs";
 import { AgentRegistry } from "./agent.registry";
 
 export interface ShellEvents {
@@ -24,15 +25,19 @@ const INPUT_BYTES = 48 * 1024;
 // shell belongs to, so one house's caretaker can't write to another house's shell.
 @Injectable()
 export class ShellBroker {
-  private shells = new Map<string, { houseId: string; events: ShellEvents }>();
+  private shells = new Map<string, { houseId: string; room: string; userId?: string; events: ShellEvents }>();
+  // Someone came into a room or left its last shell: the id of the house, for its open pages.
+  readonly peopleChanged = new Subject<string>();
 
   constructor(private readonly agents: AgentRegistry) {}
 
   /** Throws when the house's caretaker is offline. */
-  open(houseId: string, room: string, opts: Pick<ShellOpen, "command" | "tty">, events: ShellEvents): Shell {
+  open(houseId: string, room: string, opts: Pick<ShellOpen, "command" | "tty">, events: ShellEvents, userId?: string): Shell {
     const shellId = randomUUID();
     this.agents.send(houseId, { type: "shell_open", shellId, room, ...opts });
-    this.shells.set(shellId, { houseId, events });
+    const before = this.inRoom(houseId, room).length;
+    this.shells.set(shellId, { houseId, room, userId, events });
+    if (this.inRoom(houseId, room).length !== before) this.peopleChanged.next(houseId);
     // The line can drop at any moment: then houseGone has told the person, and there's nothing left to tell the caretaker.
     const send = (cmd: Parameters<AgentRegistry["send"]>[1]) => {
       if (!this.shells.has(shellId)) return;
@@ -53,9 +58,23 @@ export class ShellBroker {
       ack: (bytes) => send({ type: "shell_ack", shellId, bytes }),
       close: () => {
         send({ type: "shell_close", shellId });
-        this.shells.delete(shellId);
+        this.forget(shellId);
       },
     };
+  }
+
+  /** Who has a shell in this room right now: each person once. */
+  inRoom(houseId: string, room: string): string[] {
+    const here = [...this.shells.values()].filter((s) => s.houseId === houseId && s.room === room && s.userId);
+    return [...new Set(here.map((s) => s.userId!))];
+  }
+
+  private forget(shellId: string) {
+    const shell = this.shells.get(shellId);
+    if (!shell) return;
+    const before = this.inRoom(shell.houseId, shell.room).length;
+    this.shells.delete(shellId);
+    if (this.inRoom(shell.houseId, shell.room).length !== before) this.peopleChanged.next(shell.houseId);
   }
 
   output(houseId: string, msg: ShellOutput) {
@@ -74,7 +93,7 @@ export class ShellBroker {
 
   private finish(shellId: string, code: number | undefined, reason: Parameters<ShellEvents["exit"]>[1]) {
     const shell = this.shells.get(shellId);
-    this.shells.delete(shellId);
+    this.forget(shellId);
     shell?.events.exit(code, reason);
   }
 }

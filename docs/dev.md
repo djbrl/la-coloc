@@ -375,7 +375,7 @@ It puts `examples/hello` in Jib's room and `examples/memory-hog` in Moussa's 128
 | `COLOC_USAGE_INTERVAL_MS` | `30000` | How often it measures CPU and memory |
 | `COLOC_PROXY_CONTAINER`, `COLOC_ROUTE_SETTLE_MS` | `coloc-traefik`, `2000` | Traefik's container, and how long to wait for it to follow a new route |
 | `COLOC_ROOM_INTERNET` | off: rooms are sealed | `1`: rooms can reach the internet (never the other rooms) |
-| `COLOC_ROOM_DISK_MB` | off: rooms are read-only, and run as nobody | Writable disk of this size, and kept files in `/home/room` of this size. Needs Docker on XFS with quotas, which `deploy/setup.sh` sets up |
+| `COLOC_ROOM_DISK_MB` | off: rooms are read-only, and run as nobody | Writable disk of this size, and kept files in `/home/your-room` of this size. Needs Docker on XFS with quotas, which `deploy/setup.sh` sets up |
 | `COLOC_BUILD_OFFLINE` | off | `1`: builds get no network |
 | `COLOC_BUILD_SLOTS` | `1` | How many builds run at once on this house |
 | `COLOC_ALLOW_LOCAL_REPOS` | off | Build from `file://` folders: a comma list of exact addresses, or `1` for any. **Development only** |
