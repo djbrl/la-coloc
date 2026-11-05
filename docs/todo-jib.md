@@ -11,7 +11,7 @@ The rules changed. `docs/contest-rules.md` is the copy of 3 Nov, with what chang
 
 ## Needed to submit
 
-3. **Deploy on Datacloud with at least one product bought there** (Art. 6). Without that, the entry isn't admissible. The 40% promo code applies until submissions close, but not to a VPS outside Dakar (Art. 8). `deploy/` should work on any fresh Ubuntu 24.04 server, but it has only run on the DigitalOcean rehearsal. I can do the deploy once there's a server and SSH access.
+3. **Done: the city runs on Datacloud** (Art. 6). Since 5 Nov it is at https://coloc.194-62-97-180.sslip.io, on `server-djibril-sy-cadev-06` (194.62.97.180, Madrid, 1 core / 2 GB / 30 GB), and the Cadev project page links there. The purchase (`vps-cadev-032`) validated the "Produit Systalink actif" step. The droplet's database moved over whole. Update: `COLOC_SSH="ssh -i ~/.ssh/coloc_datacloud.pem -o IdentitiesOnly=yes" deploy/push.sh 194.62.97.180`.
 4. **Make the AI declaration at submission** (tools used, parts concerned). `docs/ai-usage.md` has the content.
 5. **Make the ownership declaration at submission:** the project was made outside any job, client or school work.
 6. **Check `docs/licences.md` still holds when you submit.** `npm run licences:check` passed today.
@@ -25,7 +25,7 @@ The rules changed. `docs/contest-rules.md` is the copy of 3 Nov, with what chang
 
 ## Code and GitHub
 
-11. **Done: what's live is on GitHub and in `main`.** `main` was fast-forwarded to `paydunya` on 3 Nov, so it now holds everything on the droplet.
+11. **Done: what's live is on GitHub and in `main`.** `main` was fast-forwarded to `paydunya` on 3 Nov, so it now holds everything that went live (now on Datacloud).
 12. **Done: merged into `main`** on 3 Nov.
 13. **Decide whether the repo goes public.** `Djbrl/la-coloc` is still private. Your teammate said on 15 Oct they'd do it.
 
@@ -44,7 +44,7 @@ The rules changed. `docs/contest-rules.md` is the copy of 3 Nov, with what chang
 
 ## When the rehearsal ends
 
-21. **Delete the droplet `la-coloc-rehearsal`.** It costs $24 a month until deleted.
+21. **Done: the droplet `la-coloc-rehearsal` is deleted** (5 Nov). Its database moved to Datacloud first; the last copy is in `~/coloc-backups`.
 22. **Point the GitHub App's webhook back to smee** for laptop development. This needs your passkey.
 
 ## Worth remembering
@@ -70,9 +70,9 @@ Rooms now have internet, a writable disk and root inside. These are the risks th
 ### Could take the city down
 
 30. **The database shares a disk with everything else** (high). Rooms are limited, but images and build cache aren't, and the database lives on the same 59 GB disk. If it fills, the database stops and the whole city with it. Since 3 Nov, every 15 minutes `coloc-disk-check` looks at both disks: at 80% it logs a warning (`journalctl -p warning -u coloc-disk-check`) and clears build cache older than a day and images nothing uses. With `COLOC_ALERT_URL` set it also posts to a phone (item 20). Build cache older than a week goes every Sunday. Still to do: the database on its own disk.
-31. **No backups** (high). The database and everyone's `/home/your-room` are in one file on one server. Since 3 Nov, `coloc-backup` dumps the database every night at 03:30 into `/var/backups/coloc` on the root disk, outside Docker's, and keeps 7. A copy only leaves the server when you run `deploy/pull-backup.sh 138.68.78.148` from your laptop (restore line in that file): do it before the jury. Still to do: tell people `/home/your-room` isn't backed up, and copy dumps off the server by themselves.
+31. **No backups** (high). The database and everyone's `/home/your-room` are in one file on one server. Since 3 Nov, `coloc-backup` dumps the database every night at 03:30 into `/var/backups/coloc` on the root disk, outside Docker's, and keeps 7. A copy only leaves the server when you run `COLOC_SSH="ssh -i ~/.ssh/coloc_datacloud.pem -o IdentitiesOnly=yes" deploy/pull-backup.sh 194.62.97.180` from your laptop (restore line in that file): do it before the jury. Still to do: tell people `/home/your-room` isn't backed up, and copy dumps off the server by themselves.
 32. **Dependencies with known holes** (was high, now checked). On 3 Nov, `ws`, `body-parser`, `qs` and `multer` were raised to fixed versions through npm overrides (same major versions, all tests pass). `npm audit --omit=dev` still lists 9, none reachable here: `@nestjs/core`'s is in server-sent events' `type` and `id`, which are fixed words in our code. `zod` 3's needs a huge array, and requests stop at 100 kB. `uuid` (inside `dockerode`) needs a buffer we never pass, and `file-type` (inside `@nestjs/common`) is only used for file uploads, which we don't take. Fixing those for good means Nest 11 and zod 4: after the contest.
-33. **The setup has only run on DigitalOcean** (medium). Moving Docker onto XFS needs a kernel with XFS and loop mounts. Since 3 Nov `deploy/setup.sh` checks these first and stops before changing anything, one sentence per missing piece: root, systemd, a real VM (not a container), apt, ufw, OpenSSH, XFS, a loop device, and at least 20 GB for Docker's disk. It passes on the DigitalOcean server. Run it on Datacloud early, since that deployment is mandatory.
+33. **Done: the setup ran on Datacloud too** (5 Nov, Docker's disk 21 GB there). Moving Docker onto XFS needs a kernel with XFS and loop mounts. Since 3 Nov `deploy/setup.sh` checks these first and stops before changing anything, one sentence per missing piece: root, systemd, a real VM (not a container), apt, ufw, OpenSSH, XFS, a loop device, and at least 20 GB for Docker's disk. It passed on both servers.
 
 ### Stronger walls
 

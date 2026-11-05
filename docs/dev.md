@@ -280,7 +280,7 @@ The site and the API change together: deploy the site again whenever you restart
 and the rooms. It copies this checkout as it is on disk, so nothing needs to be committed first.
 
 ```bash
-COLOC_SSH="ssh -i ~/.ssh/coloc_droplet" deploy/push.sh <server ip>
+COLOC_SSH="ssh -i ~/.ssh/coloc_datacloud.pem -o IdentitiesOnly=yes" deploy/push.sh 194.62.97.180
 ```
 
 Run it again to update: data and keys stay, and only an empty city gets seeded. Without a domain the city is at

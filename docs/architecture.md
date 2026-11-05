@@ -270,7 +270,6 @@ A good hour of reading: `packages/protocol/src/index.ts` → `apps/agent/src/roo
 
 Planned at the start, not in the code. Each is on [TODO.md](../TODO.md) or was cut:
 
-- The real server on Datacloud: `deploy/` has only run on a DigitalOcean droplet so far.
 - A database per room (the "kitchen"), backups, showing a room how much disk it uses, and a second address for a second project in a room.
 - A job queue (pg-boss) and timed jobs: webhooks are handled straight away, and a few timers do the rest.
 - Real payment and a real hosting provider: `houses/payment.ts` simulates the first, `houses/landlord.ts` stands in for the second.
