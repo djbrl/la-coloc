@@ -39,13 +39,13 @@ export function useTutorial() {
   const waiting = computed(() => core.state === "down");
 
   // The workshop, shaped like a house in the city list, so the engine, the cards and the minimap draw it as any
-  // other house. Before the API answers it's a plain "L'Atelier" with no rooms.
+  // other house. Before the API answers it's a plain "La Coloc" with no rooms.
   const house = computed<CityHouse>(() => {
     const s = machine.state;
     const v = view.value;
     return {
       id: TUTORIAL_HOUSE,
-      name: v?.name ?? s?.house.name ?? "L'Atelier",
+      name: v?.name ?? s?.house.name ?? "La Coloc",
       city: s?.house.city ?? v?.city ?? "Atelier",
       country: v?.country ?? "",
       tagline: v?.tagline ?? tutorialWords.workshopTagline,

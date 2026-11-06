@@ -82,7 +82,7 @@ function coachAt(step: "go" | "project" | "launch" | "open" | "share", status = 
   m.step = step;
   m.stamps = ["arrive", "find", "keys"];
   m.state = {
-    house: { id: "atelier", name: "L'Atelier", city: "Dakar", agentOnline: true },
+    house: { id: "atelier", name: "La Coloc", city: "Dakar", agentOnline: true },
     room: { name: "awa", status, url: "https://awa.atelier.coloc.dev" },
     sample: { repo: "", path: "" },
     github: { installUrl: "https://github.com/apps/la-coloc-dev/installations/new", linked: false },

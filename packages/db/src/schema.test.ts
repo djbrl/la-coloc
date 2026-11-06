@@ -1,5 +1,8 @@
-import { eq } from "drizzle-orm";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { MIGRATIONS_DIR } from "./index";
 import { arenaAwards, arenaChallenges, arenaSubmissions, houses, rooms, users } from "./schema";
 import { testDb } from "./testing";
 
@@ -37,5 +40,19 @@ describe("schema", () => {
     await db.delete(arenaChallenges);
     const [after] = await db.select().from(users).where(eq(users.id, awa.id));
     expect(after.wornAwardId).toBeNull();
+  });
+
+  // Migration 0025, run again over a city seeded before it: the live database already has the workshop.
+  it("renames the workshop to La Coloc, and nothing else, as many times as it runs", async () => {
+    const db = await testDb();
+    const rename = readFileSync(path.join(MIGRATIONS_DIR, "0025_workshop_named_la_coloc.sql"), "utf8");
+    await db.insert(houses).values([
+      { id: "atelier", name: "L'Atelier", city: "Dakar", country: "SN", domain: "atelier.coloc.dev" },
+      { id: "other", name: "L'Atelier", city: "Lomé", country: "TG", domain: "other.coloc.dev" },
+    ]);
+    await db.execute(sql.raw(rename));
+    await db.execute(sql.raw(rename));
+    const names = Object.fromEntries((await db.select().from(houses)).map((h) => [h.id, h.name]));
+    expect(names).toEqual({ atelier: "La Coloc", other: "L'Atelier" });
   });
 });

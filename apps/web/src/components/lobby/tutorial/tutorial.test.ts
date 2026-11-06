@@ -10,7 +10,7 @@ import { type Action, CHAPTER_OF, CHAPTERS, HOUSE_CARDS, resumeStep, SETUP, stag
 // What GET /api/tutorial says: a room (or not), GitHub linked (or not), the furthest chapter reached.
 function state(room: { status: string } | null, opts: { linked?: boolean; chapter?: string | null } = {}): TutorialState {
   return {
-    house: { id: TUTORIAL_HOUSE, name: "L'Atelier", city: "Dakar", agentOnline: true },
+    house: { id: TUTORIAL_HOUSE, name: "La Coloc", city: "Dakar", agentOnline: true },
     room: room ? { name: "jib", status: room.status, url: room.status === "live" ? "http://jib.atelier.coloc.localhost:8000" : null } : null,
     sample: { repo: "sample", path: "." },
     github: { installUrl: "https://github.com/apps/la-coloc-dev/installations/new", linked: !!opts.linked, repo: opts.linked ? "jib/portfolio" : null },
@@ -255,13 +255,25 @@ describe("the quest", () => {
     });
   });
 
-  it("moves on from the address only once the live room was opened", () => {
+  it("moves on from the address once the live room was opened", () => {
     const m = new TutorialMachine();
     m.start();
     playTo(m, "open");
-    m.send({ type: "next" });
+    m.send({ type: "skip" });
     expect(m.step).toBe("open");
     m.send({ type: "opened" });
+    expect(m.step).toBe("share");
+  });
+
+  it("moves on from the address with Next, without opening it, while the room is live", () => {
+    const m = new TutorialMachine();
+    m.start();
+    playTo(m, "open");
+    said(m, "building");
+    m.send({ type: "next" });
+    expect(m.step).toBe("open");
+    said(m, "live");
+    m.send({ type: "next" });
     expect(m.step).toBe("share");
   });
 

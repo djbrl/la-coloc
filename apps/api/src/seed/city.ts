@@ -1,5 +1,5 @@
-// The development city. Sacré-Cœur is the house our local agent actually runs (see docs/dev.md), and L'Atelier
-// is the workshop where newcomers take the tutorial (a second agent runs it, with the same secret).
+// The development city. Sacré-Cœur is the house our local agent actually runs (see docs/dev.md), and the workshop
+// (shown as "La Coloc", slug `atelier`) is where newcomers take the tutorial (a second agent runs it, with the same secret).
 // Every other house is a demo house: flagged `demo`, labelled as such in the UI, with made-up flatmates
 // who have no GitHub account. They exist so the city isn't empty on screen.
 import {
@@ -103,7 +103,7 @@ export const CITY: SeedHouse[] = [
     // data, but a newcomer never sees them, nor anyone else's room: the workshop shows each newcomer only themselves
     // (HousesService.view). Its channel says hello by itself, so it has no seeded lines.
     id: "atelier",
-    name: "L'Atelier",
+    name: "La Coloc",
     city: "Dakar",
     country: "SN",
     tagline: "Where newcomers take their first room.",
@@ -267,7 +267,7 @@ const NAMES: Record<string, string> = {
 const displayName = (login: string) => NAMES[login] ?? login.charAt(0).toUpperCase() + login.slice(1);
 
 export interface SeedOptions {
-  // The secret of the real houses' agents (Sacré-Cœur and L'Atelier share it).
+  // The secret of the real houses' agents (Sacré-Cœur and the workshop share it).
   agentSecret: string;
   domain: (houseId: string) => string;
   // Plant a month of life too (reviews, chat, notes, deploy history, payments; see life.ts). The dev seed and the

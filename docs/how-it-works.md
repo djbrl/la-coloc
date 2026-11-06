@@ -115,7 +115,7 @@ A newcomer plays a short **quest** on a quiet street before seeing the city. A t
 chapters, and each one moves on by itself when the game sees it done:
 
 1. **Arrive:** walk.
-2. **Find a home:** follow a light to L'Atelier, the newcomers' **workshop** house.
+2. **Find a home:** follow a light to La Coloc, the newcomers' **workshop** house.
 3. **Get the keys:** a free room there becomes yours, named after you.
 4. **Bring a project:** a ready-made "I just moved in" page in one press, or one of your own repos, picked from a list
    once the GitHub App is installed.

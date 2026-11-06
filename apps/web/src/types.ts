@@ -153,7 +153,7 @@ export interface HouseView {
   server: { plan: "small" | "medium" | "large" | null; keyMade: boolean } | null;
   // How people pay where the house is (an older API leaves it out).
   operators?: string[];
-  // The tutorial's workshop (L'Atelier): a newcomer without a room there takes one from the house view.
+  // The tutorial's workshop (La Coloc): a newcomer without a room there takes one from the house view.
   tutorial?: boolean;
   // Public: reviews given and received per flatmate.
   ledger: { login: string; given: number; received: number }[];

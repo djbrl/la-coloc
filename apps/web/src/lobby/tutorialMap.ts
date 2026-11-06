@@ -1,6 +1,6 @@
 // The tutorial's neighbourhood, made by hand rather than generated: one street to learn on. You start on a small
 // paved square at the west end; the street runs east between tree lots and a park, with a lamp every ten units;
-// the workshop (L'Atelier) stands at the far east end, its front on the street, a few seconds' walk away. Nothing
+// the workshop (La Coloc) stands at the far east end, its front on the street, a few seconds' walk away. Nothing
 // here is for rent. It has the same shape `generateNeighbourhood` returns, so the lobby draws it unchanged.
 import { type Block, type Facing, type Neighbourhood, type Plot, PLOT, ROAD, SKYLINE_VARIANTS } from "./neighbourhood";
 

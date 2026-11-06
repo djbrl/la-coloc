@@ -8,9 +8,9 @@
 //   1 arrive   the camera shows you the house down the street, then you walk there, learning the arrows on the way
 //   2 find     go in, take the free room
 //   3 keys     the room is yours: keys, your name on the door
-//   4 project  bring your project: a ready-made starter in one press, or your own repo from GitHub
+//   4 project  deploy a project: a ready-made starter in one press, or your own repo from GitHub
 //   5 launch   watch it build, as a show: the crane, four plain stages, fireworks
-//   6 open     your address, big, one press to open it
+//   6 open     your address, big: copy it, open it, or go on
 //   7 share    copy it, send it on WhatsApp, scan it with your phone
 //   8 house    meet the house, one tab at a time: who lives here, its channel, reviews, news, the bill; then "Well done"
 // After it the real city, with its welcome and two cards: the map and the list of keys.
@@ -328,7 +328,8 @@ export class TutorialMachine {
         if (isLive(this.state) && (this.sawBuild || !this.liveAtLaunch)) this.launched = true;
         return;
       case "open":
-        if (e.type === "opened" && isLive(this.state)) this.enter("share");
+        // Opening the address in a new tab, or "Next" without opening it.
+        if ((e.type === "opened" || e.type === "next") && isLive(this.state)) this.enter("share");
         return;
       case "share":
         if (e.type === "shared" || e.type === "skip") this.enter("house");
