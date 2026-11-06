@@ -55,6 +55,9 @@ const SPEED = 6; // units per second
 // A dash (Shift): an instant hop forward, a burst at 4.5 times the speed, then a breather before the next one.
 // Lengths in units, times in seconds.
 const DASH = { hop: 0.9, speed: 4.5, length: 0.14, cooldown: 0.35 };
+// Moves arrive ten times a second, so a walker covers well under a unit between two and a dash a few more. A gap this
+// big means a jump; it's also lenient enough for a second of lag.
+const TELEPORTED = 8;
 const PUFF_TIME = 0.3; // how long the dust at your feet lasts
 const HOVER_EVERY = 60; // milliseconds between two looks at what's under the mouse
 const MAP_EVERY = 200; // milliseconds between two reports to the minimap
@@ -1103,6 +1106,12 @@ export class Lobby {
     r.goal.set(x, 0, z);
     r.ry = ry;
     r.moving = moving;
+    // Farther than anyone walks or dashes between two frames: they jumped (to a house, to the Arena), so they appear
+    // there rather than racing across the city.
+    if (r.avatar.position.distanceTo(r.goal) > TELEPORTED) {
+      r.avatar.position.copy(r.goal);
+      r.avatar.rotation.y = ry;
+    }
   }
 
   emoteRemote(login: string, name: Emote) {

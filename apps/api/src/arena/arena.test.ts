@@ -18,7 +18,7 @@ import { HousesService } from "../houses/houses.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { seedCity } from "../seed/city";
 import { ArenaController } from "./arena.controller";
-import { ArenaService, SUBMISSIONS } from "./arena.service";
+import { ArenaService, judgedLabel, SUBMISSIONS } from "./arena.service";
 import { CATALOGUE } from "./catalogue";
 import { arenaRepo, parsePrUrl, scoreOf } from "./scoring";
 import { cityIndex, entryFor, isoDate, weekStartOf } from "./weeks";
@@ -362,6 +362,41 @@ describe("GitHub's webhooks", () => {
     expect(rows.every((r) => r.userId === ids.fatou && r.state === "open")).toBe(true);
     // Labelled later: updated, nothing added twice.
     expect(await arena.handle("pull_request", event("labeled", pr(11, { labels: ["arena:low"] })))).toBe("arena: #11 updated 1, added 0");
+  });
+
+  it("read a grade from a judge's comment and put it on as a label", async () => {
+    const calls: unknown[][] = [];
+    const github = { relabel: async (...a: unknown[]) => void calls.push(a) };
+    const judged = new ArenaService(db, chat, github as never);
+    (judged as unknown as { judges: Set<string> }).judges = new Set(["djbrl"]);
+    const comment = (body: string, by = "Djbrl", extra: object = {}) =>
+      ({
+        action: "created",
+        installation: { id: 7 },
+        repository: { id: 1, full_name: "Djbrl/la-coloc-arena" },
+        issue: { number: 2, pull_request: {}, labels: [{ name: "arena:low" }, { name: "bug" }] },
+        comment: { body, user: { login: by, id: 1 } },
+        ...extra,
+      }) as never;
+    expect(await judged.handle("issue_comment", comment("LGTM arena:critical"))).toBe("arena: #2 labelled arena:critical by Djbrl");
+    // The old grade comes off; labels that aren't grades stay.
+    expect(calls).toEqual([[7, "Djbrl/la-coloc-arena", 2, "arena:critical", ["arena:low"]]]);
+    // Not a judge, no grade in it, an issue rather than a pull request, another repo: nothing happens.
+    expect(await judged.handle("issue_comment", comment("arena:critical", "slater1994"))).toBe("ignored");
+    expect(await judged.handle("issue_comment", comment("LGTM"))).toBe("ignored");
+    expect(await judged.handle("issue_comment", comment("arena:high", "Djbrl", { issue: { number: 3 } }))).toBe("ignored");
+    expect(await judged.handle("issue_comment", comment("arena:high", "Djbrl", { repository: { id: 2, full_name: "someone/else" } }))).toBe("ignored");
+    expect(await judged.handle("issue_comment", comment("arena:high", "Djbrl", { action: "deleted" }))).toBe("ignored");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("find the grade in a comment, the last one if there are several", () => {
+    expect(judgedLabel("LGTM arena:critical")).toBe("arena:critical");
+    expect(judgedLabel("Arena:HIGH, nice")).toBe("arena:high");
+    expect(judgedLabel("arena:low... actually arena:medium")).toBe("arena:medium");
+    expect(judgedLabel("arena:criticality")).toBeNull();
+    expect(judgedLabel("not-arena:low")).toBeNull();
+    expect(judgedLabel("arena: critical")).toBeNull();
   });
 
   it("is closed to its judges, who merge and label its pull requests", async () => {

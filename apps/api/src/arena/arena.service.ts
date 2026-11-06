@@ -39,6 +39,15 @@ export const SUBMISSIONS = { count: 5, perMs: 3_600_000 };
 export const RECHECK_MS = 5 * 60_000;
 // How many people the leaderboard shows.
 export const LEADERBOARD = 10;
+// The labels a judge may write in a comment to grade a pull request (arena/catalogue.ts gives their points).
+const JUDGED = /^arena:(low|medium|high|critical|entry)$/;
+
+/** The arena label a judge's comment names, if any ("LGTM arena:critical" → "arena:critical"). The last one wins. */
+export function judgedLabel(body: string): string | null {
+  const all = [...body.toLowerCase().matchAll(/(?:^|[^\w:-])(arena:(?:low|medium|high|critical|entry))(?![\w-])/g)];
+  return all.length ? all[all.length - 1][1] : null;
+}
+
 // PR actions that can change what a submission is worth.
 const PR_ACTIONS = new Set(["opened", "reopened", "closed", "edited", "labeled", "unlabeled", "synchronize", "ready_for_review"]);
 
@@ -336,6 +345,7 @@ export class ArenaService {
    * haven't yet. Anything else is "ignored". The controller has already checked GitHub's signature.
    */
   async handle(event: string, payload: GhEvent): Promise<string> {
+    if (event === "issue_comment") return this.judgeSays(payload);
     if (event !== "pull_request" || !PR_ACTIONS.has(payload.action ?? "")) return "ignored";
     if (payload.repository?.full_name.toLowerCase() !== this.repo.fullName) return "ignored";
     const facts = payload.pull_request ? readPull(payload.pull_request) : null;
@@ -393,6 +403,23 @@ export class ArenaService {
     for (const city of cities) this.changed(city);
     if (!existing.length && !added) return "ignored";
     return `arena: #${facts.number} updated ${existing.length}, added ${added}`;
+  }
+
+  /**
+   * A judge's comment on an arena pull request that names a label ("LGTM arena:critical") puts that label on it, as if
+   * they had added it by hand: judges kept writing the grade in a comment and wondering where the points went. The
+   * label then comes back as a pull_request.labeled event, which scores it like any other. Other arena labels come
+   * off, so a judge can change their mind (the score takes the highest label there is).
+   */
+  private async judgeSays(payload: GhEvent): Promise<string> {
+    if (payload.action !== "created" && payload.action !== "edited") return "ignored";
+    if (payload.repository?.full_name.toLowerCase() !== this.repo.fullName || !payload.issue?.pull_request) return "ignored";
+    if (!payload.comment || !this.judges.has(payload.comment.user.login.toLowerCase())) return "ignored";
+    const label = judgedLabel(payload.comment.body);
+    if (!label || !this.github || !payload.installation) return "ignored";
+    const others = (payload.issue.labels ?? []).map((l) => l.name).filter((n) => n !== label && JUDGED.test(n));
+    await this.github.relabel(payload.installation.id, payload.repository.full_name, payload.issue.number, label, others);
+    return `arena: #${payload.issue.number} labelled ${label} by ${payload.comment.user.login}`;
   }
 
   // ---- Inside ----

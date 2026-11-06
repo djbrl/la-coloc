@@ -101,6 +101,14 @@ export class GithubAppClient {
     return id;
   }
 
+  /** Puts a label on an issue or pull request and takes the others in `remove` off (those already gone don't matter). */
+  async relabel(installationId: number, repo: string, issue: number, add: string, remove: string[]): Promise<void> {
+    await this.call(installationId, "POST", `/repos/${repo}/issues/${issue}/labels`, { labels: [add] });
+    for (const name of remove) {
+      await this.call(installationId, "DELETE", `/repos/${repo}/issues/${issue}/labels/${encodeURIComponent(name)}`, undefined).catch(() => undefined);
+    }
+  }
+
   async comment(installationId: number, repo: string, issue: number, text: string): Promise<void> {
     await this.call(installationId, "POST", `/repos/${repo}/issues/${issue}/comments`, { body: text });
   }

@@ -59,6 +59,9 @@ export interface GhEvent {
     labels?: { name: string }[];
   };
   review?: { state: string; user: GhUser };
+  // issue_comment: a comment on an issue or a pull request (`pull_request` is set on the issue for the latter).
+  issue?: { number: number; pull_request?: unknown; labels?: { name: string }[] };
+  comment?: { body: string; user: GhUser };
 }
 
 @Injectable()
