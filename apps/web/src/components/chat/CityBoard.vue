@@ -236,13 +236,17 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
 
     <!-- The list. -->
     <template v-else>
-      <div class="head">
-        <h3 class="sr-only">{{ w.boardTitle(chatSheet.city) }}</h3>
-        <span class="grow" />
-        <button v-if="me" type="button" class="new primary" @click="startPost"><Icon name="plus" :size="16" />{{ w.newPost }}</button>
+      <h3 class="sr-only">{{ w.boardTitle(chatSheet.city) }}</h3>
+      <!-- Nothing posted yet: one line on a soft tile, and the way to post the first one. -->
+      <div v-if="!posts.length" class="empty">
+        <p class="empty-line">{{ w.noPosts(chatSheet.city) }}</p>
+        <button v-if="me" type="button" class="primary first" @click="startPost"><Icon name="plus" :size="18" />{{ w.newPost }}</button>
       </div>
-      <p v-if="!posts.length" class="soft empty">{{ w.noPosts(chatSheet.city) }}</p>
-      <ul v-else ref="listEl" class="lines">
+      <div v-else-if="me" class="head">
+        <span class="grow" />
+        <button type="button" class="new primary" @click="startPost"><Icon name="plus" :size="16" />{{ w.newPost }}</button>
+      </div>
+      <ul v-if="posts.length" ref="listEl" class="lines">
         <ListRow v-for="p in posts" :key="p.id" :title="stripBidi(p.title)" class="entry">
           <template #lead><span class="lead-tag" :title="w.tags[p.tag]"><Icon :name="tagIcon[p.tag]" :size="18" /></span></template>
           <span class="sub"><span class="sr-only">{{ w.tags[p.tag] }}. </span>{{ w.by(nameOf(p), noteWhen(p.activeAt)) }}</span>
@@ -259,35 +263,44 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
 
 <style scoped>
 .board { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-.head { flex: none; display: flex; align-items: center; gap: 8px; min-height: 46px; }
+.head { flex: none; display: flex; align-items: center; gap: 8px; min-height: 40px; }
 .head h3 { flex: 1; min-width: 0; margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grow { flex: 1; }
-.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 46px; height: 46px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
-.icon-key:hover:not(:disabled) { background: var(--fill); color: var(--text); }
-.icon-key.sure { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
-.new { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; font-size: 14px; --lip: 2px; }
-.tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.empty { margin: 0; padding: 8px 2px; }
+/* The post's keys: small grey keys with their lip, an icon each (a word only while asking). */
+.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; min-height: 0; padding: 0 9px 3px; border-radius: 10px; background: var(--sunken); color: var(--text); box-shadow: inset 0 -3px 0 var(--quiet-lip); font-size: 14px; font-weight: 800; }
+.icon-key:hover:not(:disabled) { background: var(--fill); }
+.icon-key.sure { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+/* The main button, small at the list's top: 40px with a 3px lip. */
+.new { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px 3px; border-radius: 10px; font-size: 14px; --lip: 3px; }
+/* What the post is about: a word on the soft grey, its icon before it. */
+.tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: var(--r-pill); background: var(--sunken); color: var(--text); font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* Nothing posted yet: one line on a soft tile, and the first post's button. */
+.empty { display: grid; justify-items: center; gap: 12px; padding: 28px 12px; border-radius: var(--tile-r); background: var(--tile); text-align: center; }
+.empty-line { margin: 0; font-size: 15px; font-weight: 600; color: var(--muted); }
+.first { display: inline-flex; align-items: center; gap: 8px; }
 .visitor { flex: none; margin: 0; text-align: center; }
 .lines { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 2px; display: grid; gap: 6px; align-content: start; }
 .lines :deep(.list-row) { min-height: 50px; padding: 2px 10px; gap: 10px; }
-.lead-tag { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--tile); color: var(--accent); }
-.replies-count { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font: 600 14px/1 var(--num); }
+.lines :deep(.list-row .title) { font-size: 15px; }
+.lines :deep(.list-row .sub) { font-size: 13px; }
+.lead-tag { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; background: var(--tile); color: var(--text); }
+.replies-count { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font: 800 13px/1 var(--num); font-variant-numeric: tabular-nums; }
 .open { width: 32px; padding: 0 !important; justify-content: center; background: none; box-shadow: none; color: var(--muted); }
 .entry { position: relative; cursor: pointer; }
 .entry .open::after { content: ""; position: absolute; inset: 0; }
-/* The post itself: its title, who and when, and its words as written. */
-.post { flex: none; display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--r-md); background: var(--tile); max-height: 40%; overflow-y: auto; }
+/* The post itself: its title, who and when, and its words as written, on a soft tile. */
+.post { flex: none; display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); max-height: 40%; overflow-y: auto; }
 .post h3 { margin: 0; font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
 .by { margin: 0; display: flex; align-items: center; gap: 6px; }
 .text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
 .text a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-/* Writing a post: the tags as a wrap of small radio keys, then the two fields and the button. */
+/* Writing a post: the tags on a grey rail (the chosen one in white, as a tab), then the two fields and the button. */
 .compose { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
-.tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.tag-pick { display: inline-flex; align-items: center; gap: 5px; min-height: 46px; padding: 0 10px; border-radius: var(--r-pill); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; }
-.tag-pick[aria-checked="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
-.compose input, .compose textarea { width: 100%; border-radius: var(--r-md); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: var(--tile-r); background: var(--sunken); }
+.tag-pick { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 0 10px; border-radius: 10px; background: transparent; color: var(--muted); box-shadow: none; font: 800 14px/1.1 var(--font); }
+.tag-pick:hover:not(:disabled) { background: transparent; color: var(--text); }
+.tag-pick[aria-checked="true"], .tag-pick[aria-checked="true"]:hover:not(:disabled) { background: var(--surface); color: var(--text); box-shadow: 0 2px 0 rgba(23, 21, 26, 0.14); }
+.compose input, .compose textarea { width: 100%; border-radius: 12px; }
 .compose textarea { resize: vertical; min-height: 96px; font: inherit; }
 .compose > .primary { align-self: flex-end; }
 </style>

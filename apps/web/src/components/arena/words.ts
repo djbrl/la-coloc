@@ -1,5 +1,5 @@
-// The arena's words, in English and French (see i18n.ts): its window (ArenaPanel.vue: the challenge, the three steps
-// to take part and the prizes, then the leaderboard and the room behind tabs), the badge
+// The arena's words, in English and French (see i18n.ts): its window (ArenaPanel.vue: the prize and the time left, the
+// challenge, then how to take part and the rules folded; the leaderboard and the room behind tabs), the badge
 // chip next to names (BadgeChip.vue), the HUD's way in, and the settings row that picks the title you wear. What the
 // API writes itself (a challenge's title, summary and rules, a badge's title) comes in both languages from the API.
 // The French says "vous", and keeps a title's own words as they are.
@@ -16,6 +16,8 @@ export const arenaWords = defineWords(
     close: "Close the arena (Esc)",
     tabsLabel: "The arena",
     tabs: { challenge: "Challenge", board: "Leaderboard", room: "Room" },
+    // The head's line, under the challenge's title.
+    weekly: "This week's challenge.",
     kinds: { bounty: "Bug bounty", hackathon: "Hackathon", challenge: "Coding challenge" },
 
     ended: "Ended",
@@ -29,7 +31,12 @@ export const arenaWords = defineWords(
     secondsLeft: (s: number) => `${s}s left`,
     endsAt: (when: string) => `Ends ${when}`,
 
-    // The stats, as icons with numbers; these are their hidden names.
+    // What it pays and who's in, at the top of the tab: numbers, the words small under them.
+    andTitle: (title: string) => `and the title “${title}” for first place`,
+    forFirst: "for first place",
+    entrants: (n: number) => `${n} taking part`,
+    here: (n: number) => `${n} here`,
+    // The stats' hidden names.
     entrantsName: (n: number) => `${plural(n, "person", "people")} taking part`,
     crowdName: (n: number) => `${plural(n, "person", "people")} in the arena now`,
 
@@ -44,9 +51,13 @@ export const arenaWords = defineWords(
     notOpen: "The repo isn't public yet.",
     notOpenTitle: "Opening soon",
 
-    // Taking part: three steps, then how it's graded.
+    // Taking part: the folds under the main button, three steps, then how it's graded.
     stepsName: "How to take part",
-    joinStep: "Join",
+    stepsMeta: (n: number) => `${n} steps`,
+    rulesPoints: "Rules and points",
+    pointsRange: (low: number, high: number) => (low === high ? `${low} pts` : `${low} to ${high} pts`),
+    forkStep: "Fork the challenge's folder",
+    scoreLine: "Merged before the challenge ends, it scores points.",
     joined: "Joined",
     prStep: "Open a pull request",
     autoStep: "Picked up automatically",
@@ -59,7 +70,6 @@ export const arenaWords = defineWords(
 
     // The payout.
     prizesName: "Prizes",
-    podium: "Podium",
     prizeName: (place: string, amount: string | null, title: string | null) =>
       `${place} place: ${[amount, title ? `the title ${title}` : "a podium badge"].filter(Boolean).join(" and ")}`,
 
@@ -82,6 +92,8 @@ export const arenaWords = defineWords(
     boardName: "This week's top ten",
     championName: (name: string) => `Last week's winner: ${name}`,
     nobody: "No scores yet.",
+    nobodyLine: "This week's top ten shows here.",
+    lastWinner: "Last week's winner",
     placeName: (n: number) => `Place ${n}`,
     prs: (n: number) => `${n} PR`,
     prsName: (n: number) => plural(n, "pull request", "pull requests"),
@@ -115,6 +127,7 @@ export const arenaWords = defineWords(
     close: "Fermer l'arène (Échap)",
     tabsLabel: "L'arène",
     tabs: { challenge: "Défi", board: "Classement", room: "Salon" },
+    weekly: "Le défi de la semaine.",
     kinds: { bounty: "Chasse aux bugs", hackathon: "Hackathon", challenge: "Défi de code" },
 
     ended: "Terminé",
@@ -127,6 +140,10 @@ export const arenaWords = defineWords(
     secondsLeft: (s) => `Encore ${s} s`,
     endsAt: (when) => `Se termine le ${when}`,
 
+    andTitle: (title) => `et le titre « ${title} » pour la première place`,
+    forFirst: "pour la première place",
+    entrants: (n) => `${n} en lice`,
+    here: (n) => `${n} sur place`,
     entrantsName: (n) => `${pluriel(n, "personne", "personnes")} en lice`,
     crowdName: (n) => `${pluriel(n, "personne", "personnes")} dans l'arène en ce moment`,
 
@@ -141,7 +158,11 @@ export const arenaWords = defineWords(
     notOpenTitle: "Bientôt ouvert",
 
     stepsName: "Comment participer",
-    joinStep: "Inscrivez-vous",
+    stepsMeta: (n) => `${n} étapes`,
+    rulesPoints: "Règles et points",
+    pointsRange: (low, high) => (low === high ? `${low} pts` : `${low} à ${high} pts`),
+    forkStep: "Forkez le dossier du défi",
+    scoreLine: "Mergée avant la fin du défi, elle marque des points.",
     joined: "Inscrit·e",
     prStep: "Ouvrez une pull request",
     autoStep: "Prise en compte automatiquement",
@@ -153,7 +174,6 @@ export const arenaWords = defineWords(
     mineChipName: (n, pts) => `${pluriel(n, "pull request envoyée", "pull requests envoyées")}, ${pts} points. Les voir dans le classement`,
 
     prizesName: "Prix",
-    podium: "Podium",
     prizeName: (place, amount, title) => `${place} place : ${[amount, title ? `le titre « ${title} »` : "un badge de podium"].filter(Boolean).join(" et ")}`,
 
     join: "Participer",
@@ -174,6 +194,8 @@ export const arenaWords = defineWords(
     boardName: "Le top 10 de la semaine",
     championName: (name) => `Vainqueur de la semaine dernière : ${name}`,
     nobody: "Pas encore de score.",
+    nobodyLine: "Le top 10 de la semaine s'affiche ici.",
+    lastWinner: "Vainqueur de la semaine dernière",
     placeName: (n) => (n === 1 ? "1re place" : `${n}e place`),
     prs: (n) => `${n} PR`,
     prsName: (n) => pluriel(n, "pull request", "pull requests"),

@@ -1,24 +1,26 @@
 <script setup lang="ts">
 // The house's news: the notes it pins on its board by itself when something happens in a room (a new version
 // online, an app that crashed, a review gone late, a thank-you). The API calls the board "the fridge"; people see
-// "news". Each note is one panel row: an icon for its kind, the note's own words as the main line (it's the
-// content, so it gets two lines), and when it was pinned on the right. The room isn't repeated under it: the note
-// already names the flatmate ("awa's app crashed"), and a row of two lines stays as short as the other rows.
+// "news". Quiet lines, grouped by day (Jib, 6 Nov: no stacked cards, no colour-coded rows, no counters on top): one
+// symbol each (done, broken, or waiting for you), the note's first sentence as its line and the rest under it, how
+// many times it happened at the end of that, and when on the right. The room isn't repeated: the note already names
+// the flatmate ("awa's app crashed").
 //
-// `compact` (the lobby's house panel, whose summary line already says what the board is and when it's empty) draws
-// just the rows. Without it, on a page of its own, it brings its own heading and explanation.
-// How a note looks and when it was pinned, in words, are decided in lobby/house/notes.ts (tested there).
+// `compact` (the lobby's house panel) draws just the lines. Without it, on a page of its own, it brings its own
+// heading and explanation. How a note looks and when it was pinned, in words, are decided in lobby/house/notes.ts
+// (tested there).
+import { computed } from "vue";
 import { locale } from "../i18n";
 import type { FridgeNote } from "../types";
-import Icon from "./lobby/house/Icon.vue";
-import { noteLook, noteWhen, notesSummary } from "./lobby/house/notes";
+import { byDay, noteMark, noteWhen, notesSummary, splitNote } from "./lobby/house/notes";
 import { noteText } from "./said";
-import ListRow from "./lobby/panel/ListRow.vue";
 import { explain } from "./lobby/panel/words";
 import { commonWords as w } from "./words";
 
-defineProps<{ notes: FridgeNote[]; compact?: boolean }>();
+const props = defineProps<{ notes: FridgeNote[]; compact?: boolean }>();
 
+const days = computed(() => byDay(props.notes));
+const parts = (n: FridgeNote) => splitNote(noteText(n));
 // The full date and time, for the pointer's tooltip on the short "14:02" or "Yesterday".
 const fullWhen = (iso: string) => new Date(iso).toLocaleString(locale(), { dateStyle: "long", timeStyle: "short" });
 </script>
@@ -28,44 +30,41 @@ const fullWhen = (iso: string) => new Date(iso).toLocaleString(locale(), { dateS
     <template v-if="!compact">
       <h2>{{ w.newsTitle }}</h2>
       <p class="muted intro">{{ explain.fridge }}</p>
-      <p v-if="!notes.length" class="muted">{{ notesSummary(notes) }}</p>
     </template>
-    <ul v-if="notes.length" class="plain notes">
-      <ListRow v-for="n in notes" :key="n.id" :title="noteText(n)">
-        <template #lead>
-          <span class="kind" :class="noteLook(n.tone).colour">
-            <Icon :name="noteLook(n.tone).icon" :size="20" />
-            <span class="sr-only">{{ w.tone[n.tone] }}</span>
+    <p v-if="!notes.length" class="none">{{ notesSummary(notes) }}</p>
+    <section v-for="d in days" :key="d.day" class="day" :aria-label="d.day">
+      <h3 class="label" aria-hidden="true">{{ d.day }}</h3>
+      <ul class="plain">
+        <li v-for="n in d.notes" :key="n.id" class="note">
+          <span class="status-mark" :class="noteMark(n.tone)">
+            <svg v-if="noteMark(n.tone) === 'ok'" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            <svg v-else-if="noteMark(n.tone) === 'fail'" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+            <span class="sr-only">{{ w.tone[n.tone] }}.</span>
           </span>
-        </template>
-        <template #meta>
-          <span v-if="n.count > 1" :aria-label="w.times(n.count)">×{{ n.count }}</span>
+          <span class="text">
+            <span class="head">{{ parts(n).head }}</span>
+            <span v-if="parts(n).rest || n.count > 1" class="rest">{{ parts(n).rest }}<template v-if="n.count > 1">{{ parts(n).rest ? " · " : "" }}{{ w.times(n.count) }}</template></span>
+          </span>
           <time :datetime="n.at" :title="fullWhen(n.at)">{{ noteWhen(n.at) }}</time>
-        </template>
-      </ListRow>
-    </ul>
+        </li>
+      </ul>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.news { display: grid; gap: 6px; align-content: start; min-width: 0; }
-.news.page { gap: 8px; }
-.intro { margin-bottom: 8px; }
+.news { display: grid; gap: 20px; align-content: start; min-width: 0; padding-top: 6px; }
+.news.page { gap: 16px; padding-top: 0; }
+.intro { margin-bottom: 4px; }
+.none { font-size: 15px; font-weight: 600; color: var(--muted); }
+.day { display: grid; min-width: 0; }
+.label { padding-bottom: 2px; font-family: var(--font); }
 .plain { list-style: none; margin: 0; padding: 0; }
-.notes { display: grid; gap: 4px; line-height: 1.3; }
-/* The note is the content: its words get up to two lines instead of the row title's one, a touch lighter. */
-.notes :deep(.title) {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  white-space: normal;
-  font-size: 14px;
-  font-weight: 600;
-}
-/* The note's kind, as its icon in a soft disc of its colour where a face would be. */
-.kind { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--fill); color: var(--muted); }
-.kind.live { background: var(--live-soft); color: var(--live); }
-.kind.warn { background: var(--warn-soft); color: var(--warn); }
-.kind.danger { background: var(--danger-soft); color: var(--danger); }
+/* A line: the symbol, the words, when. Air between lines, never a box or a colour behind them. */
+.note { display: flex; align-items: flex-start; gap: 12px; min-width: 0; padding: 10px 0; }
+.note .status-mark { margin-top: 1px; }
+.text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.head { font-size: 15px; font-weight: 600; line-height: 21px; color: var(--text); overflow-wrap: anywhere; }
+.rest { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); overflow-wrap: anywhere; }
+time { flex: none; font-size: 13px; font-weight: 600; line-height: 21px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 </style>

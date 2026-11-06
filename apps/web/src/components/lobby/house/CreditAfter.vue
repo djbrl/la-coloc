@@ -23,10 +23,10 @@ const short = computed(() => shortBy(credit.value, props.price));
 </template>
 
 <style scoped>
+/* A row on the soft paper: your credit now, an arrow, what's left. Short of it: one line saying how much. */
 .after { display: grid; gap: 6px; }
-.sums { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--r-md); background: var(--tile); font: 600 15px/1.2 var(--num); font-variant-numeric: tabular-nums; }
-.sums strong { font-weight: 800; }
-.to { color: var(--muted); }
-.short { margin: 0; font-size: 15px; line-height: 1.35; }
+.sums { display: flex; align-items: center; gap: 8px; min-height: 40px; margin: 0; padding: 0 14px; border-radius: 12px; background: var(--tile); font-size: 15px; font-weight: 600; line-height: 22px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sums strong { font-weight: 800; color: var(--text); }
+.short { margin: 0; font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
 .short strong { color: var(--danger); }
 </style>

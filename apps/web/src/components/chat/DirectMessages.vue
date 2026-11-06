@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The Messages tab: your conversations as dense rows (a face, a name, the last line, and how many you haven't read),
+// The Messages tab: your conversations as dense rows (a face, a name, the last line, and a dot when some are unread),
 // the most recent first; or, once one is picked, the conversation itself, with its composer. A new message comes
 // as a nudge on the lobby's live line (chatPing), and the open conversation fetches itself again.
 import { computed, nextTick, ref, watch } from "vue";
@@ -120,7 +120,10 @@ async function toggleBlock() {
 
     <!-- The list. -->
     <template v-else>
-      <p v-if="!conversations.items.length" class="soft empty">{{ w.noConversations }}</p>
+      <div v-if="!conversations.items.length" class="empty">
+        <p class="empty-line">{{ w.noConversations }}</p>
+        <p class="empty-hint">{{ w.noConversationsHint }}</p>
+      </div>
       <ul v-else ref="listEl" class="lines">
         <ListRow v-for="c in conversations.items" :key="c.with.login" :title="c.with.name ?? c.with.login" class="entry" :class="{ unread: c.unread > 0 }">
           <template #lead><Avatar :person="c.with" :size="46" decorative /></template>
@@ -130,7 +133,7 @@ async function toggleBlock() {
             <span>{{ noteWhen(c.last.at) }}</span>
           </template>
           <template #end>
-            <span v-if="c.unread" class="count" role="img" :aria-label="w.unread(c.unread)">{{ c.unread > 9 ? "9+" : c.unread }}</span>
+            <span v-if="c.unread" class="count" role="img" :aria-label="w.unread(c.unread)" />
             <button type="button" class="open" :aria-label="w.with(c.with.name ?? c.with.login)" @click="chatSheet.with = c.with.login"><Icon name="next" :size="16" /></button>
           </template>
         </ListRow>
@@ -144,18 +147,24 @@ async function toggleBlock() {
 .head { flex: none; display: flex; align-items: center; gap: 10px; }
 .head h3 { flex: 1; min-width: 0; margin: 0; font: 800 18px/1.2 var(--font); text-transform: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .head .worn { margin-left: 8px; }
-.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 46px; height: 46px; min-height: 0; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--muted); font-size: 14px; font-weight: 600; }
-.icon-key:hover:not(:disabled) { background: var(--fill); color: var(--text); }
-.icon-key.sure { background: var(--sticker); color: var(--ink); box-shadow: none; }
+/* The conversation's keys: small grey keys with their lip, an icon each (a word only while asking). */
+.icon-key { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; min-height: 0; padding: 0 9px 3px; border-radius: 10px; background: var(--sunken); color: var(--text); box-shadow: inset 0 -3px 0 var(--quiet-lip); font-size: 14px; font-weight: 800; }
+.icon-key:hover:not(:disabled) { background: var(--fill); }
+.icon-key.sure { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 .icon-key.on { color: var(--danger); }
-.empty { margin: 0; padding: 8px 2px; }
+/* Nothing yet: one line on a soft tile, and where a conversation starts. */
+.empty { display: grid; justify-items: center; gap: 8px; padding: 28px 12px; border-radius: var(--tile-r); background: var(--tile); text-align: center; }
+.empty-line { margin: 0; font-size: 15px; font-weight: 600; color: var(--muted); }
+.empty-hint { margin: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
 .lines { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 0 6px; display: grid; align-content: start; }
-.lines :deep(.list-row) { min-height: 62px; }
+.lines :deep(.list-row) { min-height: 58px; }
+.lines :deep(.list-row .title) { font-size: 15px; }
+.lines :deep(.list-row .sub) { font-size: 13px; }
 .handle { font-weight: 600; color: var(--handle); }
-/* Unread: the name and the last line in full weight. */
+/* Unread: the name and the last line in full weight, and a small red dot. */
 .entry.unread :deep(.title) { font-weight: 800; }
 .entry.unread .sub { color: var(--text); }
-.count { min-width: 22px; height: 22px; padding: 0 5px; border-radius: var(--r-xs); background: var(--sticker); color: var(--ink); font: 800 14px/22px var(--font); text-align: center; }
+.count { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 .open { width: 32px; padding: 0 !important; justify-content: center; background: none; box-shadow: none; color: var(--muted); }
 /* The whole row answers a click, not only the arrow. */
 .entry { position: relative; cursor: pointer; }

@@ -26,7 +26,8 @@ const props = defineProps<{
   // Sent here to sort out a failed build or upload a project: open on the flow straight away.
   fixing?: boolean;
 }>();
-const emit = defineEmits<{ run: [what: "redeploy"]; fixed: [] }>();
+// `flow`: off the facts and into choosing or reading a project, which has its own main button: the panel's foot steps aside.
+const emit = defineEmits<{ run: [what: "redeploy"]; fixed: []; flow: [on: boolean] }>();
 
 type Stack = keyof typeof w.stacks;
 type Flag = keyof typeof w.flags;
@@ -50,6 +51,10 @@ const canChange = computed(() => canChangeCode(props.data));
 const hasCode = computed(() => !!props.data.github || !!props.data.settings.source);
 
 const screen = ref<"facts" | "pick" | "reading" | "found">("facts");
+watch(screen, (s) => emit("flow", s !== "facts"));
+// Under the facts, what a merge does: with the GitHub App linked, a merge to the default branch updates the room, after
+// a flatmate's approval when the house is strict.
+const mergeNote = computed(() => (props.data.github ? `${w.mergeUpdates}${props.data.house.strictReviews ? w.onceApproved : ""}.` : null));
 const route = ref<Route>("github");
 // The field open under the list, if any. With GitHub off it's the way in.
 const typing = ref<"" | "repo" | "image">("");
@@ -226,7 +231,9 @@ onMounted(() => {
 });
 // Leaving the tab mid-flow drops what was typed, so it can't ride along with the next save.
 onBeforeUnmount(() => {
-  if (screen.value !== "facts") props.reset();
+  if (screen.value === "facts") return;
+  props.reset();
+  emit("flow", false);
 });
 </script>
 
@@ -249,8 +256,9 @@ onBeforeUnmount(() => {
           </dd>
         </div>
       </dl>
+      <p v-if="mergeNote && !noMerges" class="info-note"><Icon name="info" :size="16" /><span>{{ mergeNote }}</span></p>
       <div v-if="serverUp && canChange" class="bar">
-        <button ref="startButton" type="button" class="chunk" @click="choose">
+        <button ref="startButton" type="button" class="chunk small" @click="choose">
           <Icon name="code" :size="16" /> {{ hasCode ? w.changeProject : w.uploadProject }}
         </button>
       </div>
@@ -345,23 +353,24 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.code { display: grid; gap: 10px; align-content: start; min-height: 0; }
+.code { display: grid; gap: 16px; align-content: start; min-height: 0; }
+/* The facts: a soft row each, what it is on the left, its value on the right in one line. */
 .facts { display: grid; gap: 6px; margin: 0; }
-.fact { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 46px; padding: 0 14px; border-radius: var(--r-md); background: var(--tile); }
-.fact.bad { background: var(--danger-soft); }
-dt { flex: none; font-size: 14px; font-weight: 600; color: var(--muted); }
-dd { margin: 0; min-width: 0; font-size: 15px; font-weight: 700; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fact { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 40px; padding: 0 14px; border-radius: 12px; background: var(--tile); }
+dt { flex: none; font: 600 15px/22px var(--font); color: var(--muted); }
+dd { margin: 0; min-width: 0; font: 800 15px/22px var(--font); font-variant-numeric: tabular-nums; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+dd .mono, dd a.mono { font: 500 13px/22px var(--code); }
 dd a { color: var(--accent); }
-dd.unset { color: var(--muted); font-weight: 400; }
+dd.unset { color: var(--muted); font-weight: 600; }
 /* The repo with its "doesn't update on merge" line under it: two lines, so the row grows. */
 .fact.tall { padding-block: 8px; }
 .fact.tall dd { display: grid; justify-items: end; gap: 2px; }
-.merges { font-size: 13px; font-weight: 600; color: var(--muted); white-space: normal; }
+.merges { font: 600 13px/18px var(--font); color: var(--muted); white-space: normal; }
 .bar { display: flex; gap: 8px; }
 
 /* One screen at a time, in one column, with its buttons at the bottom. */
-.setup { display: grid; gap: 10px; align-content: start; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
-h3 { margin: 0; font: 400 22px/1.15 var(--display); }
+.setup { display: grid; gap: 12px; align-content: start; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+h3 { margin: 0; font: 800 19px/1.2 var(--display); }
 .typed { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .typed label { flex: 1 1 240px; display: grid; gap: 4px; min-width: 0; }
 .others { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -369,10 +378,10 @@ h3 { margin: 0; font: 400 22px/1.15 var(--display); }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 /* Reading: a plain line and three dots that take turns. */
-.reading { display: flex; align-items: center; gap: 12px; min-height: 96px; padding: 0 14px; border-radius: var(--r-md); background: var(--tile); font-size: 17px; font-weight: 700; }
+.reading { display: flex; align-items: center; gap: 12px; min-height: 96px; padding: 0 14px; border-radius: var(--tile-r); background: var(--tile); font: 800 16px/1.3 var(--font); }
 .reading p { margin: 0; }
 .dots { display: flex; gap: 6px; }
-.dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-fill); animation: dot 1.2s var(--ease) infinite; }
+.dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); animation: dot 1.2s var(--ease) infinite; }
 .dots span:nth-child(2) { animation-delay: 0.2s; }
 .dots span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes dot {
@@ -391,19 +400,20 @@ h3 { margin: 0; font: 400 22px/1.15 var(--display); }
 
 .found { display: grid; gap: 8px; }
 .port { display: flex; align-items: center; gap: 10px; overflow: visible; }
-.from { color: var(--muted); font-size: 13px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
-.port input { flex: none; width: 84px; min-height: 36px; padding: 0 8px; font: 700 14px/1 var(--num); text-align: right; }
+.from { color: var(--muted); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.port input { flex: none; width: 84px; min-height: 32px; padding: 0 8px; background: var(--surface); font: 700 14px/1 var(--num); text-align: right; }
 .said { margin: 0; font-size: 14px; color: var(--muted); }
-.flag { display: flex; gap: 8px; margin: 0; padding: 8px 12px; border-radius: var(--r-sm); background: var(--danger-soft); font-size: 14px; line-height: 1.3; }
-.flag :deep(svg) { flex: none; margin-top: 1px; }
+/* What might get in its way: a soft tile each, its warning sign the only mark. */
+.flag { display: flex; gap: 8px; margin: 0; padding: 8px 12px; border-radius: 12px; background: var(--tile); font: 600 14px/1.3 var(--font); }
+.flag :deep(svg) { flex: none; margin-top: 1px; color: var(--danger); }
 .folders { display: flex; flex-wrap: wrap; gap: 6px; }
-.head { margin: 4px 0 0; font-size: 14px; font-weight: 700; }
+.head { margin: 4px 0 0; font-size: 14px; font-weight: 800; }
 .settings { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.settings li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 0 6px 0 14px; border-radius: var(--r-md); background: var(--tile); }
+.settings li { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 0 6px 0 14px; border-radius: 12px; background: var(--tile); }
 .name { min-width: 0; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
-.settings input { flex: 0 1 45%; min-width: 90px; min-height: 34px; padding: 0 8px; font-size: 14px; }
+.settings input { flex: 0 1 45%; min-width: 90px; min-height: 34px; padding: 0 8px; background: var(--surface); font-size: 14px; }
 .set { display: inline-flex; align-items: center; gap: 4px; padding-right: 8px; color: var(--live); font-size: 14px; font-weight: 700; }
 
-.nav { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; background: var(--surface); }
-.next { min-height: 46px; padding: 0 16px; white-space: nowrap; }
+.nav { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; background: var(--surface); }
+.next { flex: 0 1 auto; white-space: nowrap; }
 </style>

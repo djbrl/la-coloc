@@ -1,13 +1,16 @@
 <script setup lang="ts">
-// The sign every lobby card sits in: a red title band with its X, a white body. It reads like a game's interaction
+// The card every lobby card sits in (carte blanche): an icon tile, a title and one line, its X, then the body. It reads like a game's interaction
 // menu rather than a web page: a few facts, then chunky buttons (one primary, the others as tiles).
 // It floats over the city without blocking it
 // (no scrim, no focus trap), pops in, lands focus on its main action when it opens, and keeps Enter to itself:
 // Enter presses the focused button, and must not also reach the lobby, which would read it as E.
 import { onMounted, ref } from "vue";
+import Icon from "./house/Icon.vue";
+import type { IconName } from "./house/icons";
 
-// `label` names the dialog for a screen reader; `title` and `sub` are on the band (a large band on a house's card).
-defineProps<{ label: string; title: string; sub?: string; large?: boolean; closeName: string }>();
+// `label` names the dialog for a screen reader; `title` and `sub` are in the card's head (a large head on a house's
+// card), after `icon` in its soft red tile.
+defineProps<{ label: string; title: string; sub?: string; large?: boolean; closeName: string; icon?: IconName }>();
 const emit = defineEmits<{ close: [] }>();
 const root = ref<HTMLElement | null>(null);
 
@@ -29,6 +32,7 @@ function onKey(e: KeyboardEvent) {
   <section ref="root" class="card sign" role="dialog" :aria-label="label" @keydown="onKey">
     <div class="sign-frame">
       <header class="sign-band" :class="{ large }">
+        <span v-if="icon" class="chip"><Icon :name="icon" :size="22" /></span>
         <h2>{{ title }}</h2>
         <p v-if="sub || $slots.sub" class="sign-sub"><slot name="sub">{{ sub }}</slot></p>
         <button class="sign-x" :aria-label="closeName" @click="emit('close')"><span aria-hidden="true">X</span></button>
@@ -52,7 +56,7 @@ function onKey(e: KeyboardEvent) {
   from { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
 /* The cards fill the slot, so their shared styles live here, reached with :deep. */
-.card :deep(.sign-sub .status-dot) { display: inline-block; margin-left: 6px; vertical-align: -1px; box-shadow: 0 0 0 2px var(--on-panel); }
+.card :deep(.sign-sub .status-dot) { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: 0; }
 .card :deep(p) { margin: 0; font-size: 16px; line-height: 1.25; }
 .card :deep(.soft) { color: var(--muted); }
 .card :deep(.small) { font-size: 14px; }
@@ -67,27 +71,27 @@ function onKey(e: KeyboardEvent) {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 50px;
-  padding: 0 14px;
+  min-height: 48px;
+  padding: 0 14px var(--lip);
   border: 0;
-  border-radius: var(--r-md);
-  background: transparent;
+  border-radius: 12px;
+  background: var(--sunken);
   color: var(--text);
   box-shadow: var(--quiet-edge);
-  font: 400 18px/1.1 var(--display);
+  font: 800 16px/1.2 var(--display);
   text-decoration: none;
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
-/* The main one, in the sign's red and 60px tall. Pressed, it sinks a little. */
-.card :deep(.big.primary) { min-height: 60px; background: var(--accent-fill); color: var(--on-accent); box-shadow: none; font-size: 24px; }
-.card :deep(.big:hover:not(:disabled)) { background: var(--tile); text-decoration: none; }
+/* The main one, red with its darker lip, the same height as the others (one family). Pressed, it sinks onto its lip. */
+.card :deep(.big.primary) { background: var(--accent-fill); color: var(--on-accent); box-shadow: inset 0 calc(-1 * var(--lip)) 0 var(--accent-lip); }
+.card :deep(.big:hover:not(:disabled)) { background: var(--fill); text-decoration: none; }
 .card :deep(.big.primary:hover:not(:disabled)) { background: var(--accent-fill-hover); }
-.card :deep(.big:active:not(:disabled)) { transform: translateY(1px); }
+.card :deep(.big:active:not(:disabled)) { transform: translateY(2px); box-shadow: inset 0 calc(-1 * var(--lip-pressed)) 0 var(--quiet-lip); }
+.card :deep(.big.primary:active:not(:disabled)) { box-shadow: inset 0 calc(-1 * var(--lip-pressed)) 0 var(--accent-lip); }
 .card :deep(.big:disabled) { opacity: 0.42; cursor: not-allowed; }
-/* A tile: an icon and its word. The first of them is on ink, as the mockups' Message. */
-.card :deep(.tile) { flex: 1 1 auto; padding: 0 10px; font-size: 15px; }
-.card :deep(.tile:first-child:not(:disabled)), .card :deep(.tile:first-child:not(:disabled):hover) { background: var(--text); color: var(--surface); box-shadow: none; }
+/* A tile: an icon and its word, grey like every second button. */
+.card :deep(.tile) { flex: 1 1 0; min-width: 0; padding: 0 10px var(--lip); font-size: 15px; }
 .card :deep(.big svg) { flex: none; }
 @media (max-width: 520px) {
   .card { width: 100%; max-height: 74dvh; padding-bottom: max(7px, env(safe-area-inset-bottom)); }

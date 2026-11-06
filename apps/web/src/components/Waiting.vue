@@ -38,9 +38,11 @@ onBeforeUnmount(() => clearTimeout(timer));
 </template>
 
 <style scoped>
-.waiting { margin: auto; display: grid; justify-items: center; align-content: center; gap: 10px; padding: 28px 16px; text-align: center; max-width: 360px; }
-.icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--fill); color: var(--muted); }
-.said { font-size: 19px; font-weight: 600; line-height: 1.25; }
-.line { font-size: 14px; line-height: 1.4; color: var(--muted); }
-.chunk { margin-top: 6px; min-height: 50px; padding: 0 22px; font-size: 16px; font-weight: 600; }
+/* A calm wait in the middle of the card: the sign in a grey tile, one line at 17, one muted line, one red button. */
+.waiting { margin: auto; display: grid; justify-items: center; align-content: center; gap: 8px; padding: 28px 16px; text-align: center; max-width: 360px; }
+.icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 4px; border-radius: 12px; background: var(--tile); color: var(--muted); }
+.icon svg { width: 22px; height: 22px; }
+.said { font-size: 17px; font-weight: 800; line-height: 22px; }
+.line { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
+.chunk { margin-top: 8px; padding-left: 22px; padding-right: 22px; }
 </style>

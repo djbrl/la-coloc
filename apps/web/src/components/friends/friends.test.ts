@@ -81,8 +81,8 @@ describe("friends under the bell", () => {
     read: false,
   };
 
-  it("offers to add or say no to a request, then says how it ended", () => {
-    expect(noticeRow(base)).toEqual({ title: "Sam wants to be friends", sub: null, actions: ["accept", "decline"], acceptWord: "Add" });
+  it("offers to accept or say no to a request, then says how it ended", () => {
+    expect(noticeRow(base)).toEqual({ title: "Sam wants to be friends", sub: null, actions: ["accept", "decline"], acceptWord: "Accept" });
     expect(noticeRow({ ...base, state: "accepted" })).toMatchObject({ sub: "You're friends.", actions: [] });
     expect(noticeRow({ ...base, state: "declined" })).toMatchObject({ sub: "You said no.", actions: [] });
     expect(noticeRow({ ...base, state: "withdrawn" })).toMatchObject({ sub: "They took it back.", actions: [] });

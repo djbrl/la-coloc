@@ -1,32 +1,33 @@
 <script setup lang="ts">
-// The arena's leaderboard: last week's champion on top with the title they won, then this week's top ten as dense
-// rows (place, face, name, the title they wear, points, pull requests), yours lit like a pinned entry.
+// The arena's leaderboard: last week's winner in one tile on top (their face, their name, the title they won), then
+// this week's top ten as dense rows (place, face, name, the title they wear, points, pull requests), yours lit like a
+// pinned entry. Nobody scored yet: one quiet line where the rows will be.
+import { computed } from "vue";
 import type { ArenaView } from "../../types";
 import Avatar from "../Avatar.vue";
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
-import { medal } from "./arena";
+import { badgeWords } from "./arena";
 import BadgeChip from "./BadgeChip.vue";
 import { arenaWords as w } from "./words";
 
-defineProps<{ view: ArenaView; me: string | null }>();
+const props = defineProps<{ view: ArenaView; me: string | null }>();
 
 const nameOf = (p: { name: string | null; login: string }) => p.name ?? p.login;
+// The winner's title in plain words beside "Last week's winner"; its full story (place, city, week) on hover.
+const won = computed(() => (props.view.champion ? badgeWords(props.view.champion.badge) : null));
 </script>
 
 <template>
   <div class="board">
-    <ul v-if="view.champion" class="lines">
-      <ListRow :title="nameOf(view.champion.person)" class="champion">
-        <template #lead>
-          <span class="face" role="img" :aria-label="w.championName(nameOf(view.champion.person))">
-            <Avatar :person="view.champion.person" :size="46" decorative />
-            <span class="crown" aria-hidden="true"><Icon name="crown" :size="14" /></span>
-          </span>
-        </template>
-        <span class="sub"><BadgeChip :badge="view.champion.badge" /></span>
-      </ListRow>
-    </ul>
+    <div v-if="view.champion && won" class="champion" role="group" :aria-label="w.championName(nameOf(view.champion.person))">
+      <Avatar :person="view.champion.person" :size="40" decorative />
+      <span class="text">
+        <span class="name">{{ nameOf(view.champion.person) }}</span>
+        <span class="sub" :title="won.name">{{ w.lastWinner }} · {{ won.text }}</span>
+      </span>
+      <Icon name="trophy" :size="20" class="cup" />
+    </div>
 
     <ol v-if="view.leaderboard.length" class="lines" :aria-label="w.boardName">
       <ListRow
@@ -37,51 +38,56 @@ const nameOf = (p: { name: string | null; login: string }) => p.name ?? p.login;
       >
         <template #lead>
           <span class="face">
-            <Avatar :person="r.person" :size="46" decorative />
-            <span class="place" :class="i < 3 ? medal(i + 1) : null" role="img" :aria-label="w.placeName(i + 1)">{{ i + 1 }}</span>
+            <Avatar :person="r.person" :size="40" decorative />
+            <span class="place" role="img" :aria-label="w.placeName(i + 1)">{{ i + 1 }}</span>
           </span>
         </template>
         <span v-if="r.person.badge" class="sub"><BadgeChip :badge="r.person.badge" /></span>
-        <span v-else-if="r.person.login !== nameOf(r.person)" class="sub handle">@{{ r.person.login }}</span>
+        <span v-else-if="r.person.login !== nameOf(r.person)" class="sub">@{{ r.person.login }}</span>
         <template #meta>
           <span class="pts">{{ w.points(r.points) }}</span>
-          <span role="img" :aria-label="w.prsName(r.prs)">{{ w.prs(r.prs) }}</span>
+          <span class="prs" role="img" :aria-label="w.prsName(r.prs)">{{ w.prs(r.prs) }}</span>
         </template>
       </ListRow>
     </ol>
-    <p v-else class="nobody">
-      <Icon name="trophy" :size="22" />
-      <span>{{ w.nobody }}</span>
-    </p>
+    <div v-else class="nobody">
+      <Icon name="trophy" :size="26" />
+      <p class="said">{{ w.nobody }}</p>
+      <p>{{ w.nobodyLine }}</p>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .board { display: flex; flex-direction: column; gap: 6px; }
+/* Last week's winner: one row on a grey tile, the trophy at its end in the text's colour. */
+.champion { flex: none; display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--tile-r); background: var(--tile); }
+.text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.name { font-size: 15px; font-weight: 800; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.champion .sub { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cup { flex: none; color: var(--text); }
 .lines { flex: none; display: grid; margin: 0; padding: 0; list-style: none; }
-.lines :deep(.list-row) { min-height: 60px; }
-.champion { background: var(--sticker); color: var(--ink); box-shadow: -6px 0 0 var(--sticker), 6px 0 0 var(--sticker); }
 .face { position: relative; display: grid; place-items: center; }
-.crown { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-xs); background: var(--ink); color: var(--sticker); }
+/* The place, a small white number on the face's corner: the same for everyone, the number says it. */
 .place {
   position: absolute;
   right: -6px;
   bottom: -4px;
-  min-width: 22px;
-  height: 22px;
+  min-width: 20px;
+  height: 20px;
   padding: 0 4px;
-  border-radius: var(--r-xs);
-  background: var(--fill);
+  border-radius: 10px;
+  background: var(--surface);
   color: var(--text);
-  box-shadow: 0 0 0 2px var(--surface);
-  font: 800 14px/22px var(--font);
+  box-shadow: 0 0 0 2px var(--tile);
+  font: 800 12px/20px var(--font);
   text-align: center;
 }
-.place.gold { background: #f2c14e; color: #3d2a00; }
-.place.silver { background: #c9d1db; color: #1f2933; }
-.place.bronze { background: #e3a275; color: #3b1f0b; }
-.sub { display: flex; min-width: 0; padding-top: 2px; }
-.handle { font-size: 14px; font-weight: 600; color: var(--handle); }
-.pts { color: var(--text); font-size: 18px; font-weight: 800; }
-.nobody { margin: auto; display: grid; justify-items: center; gap: 10px; max-width: 320px; padding: 24px 0; color: var(--muted); text-align: center; font-size: 15px; line-height: 1.3; }
+.lines .sub { display: flex; min-width: 0; padding-top: 2px; }
+.pts { color: var(--text); font-size: 15px; font-weight: 800; }
+.prs { color: var(--muted); font-weight: 600; }
+/* Nobody scored yet: a quiet trophy and two short lines, in the middle of the space. */
+.nobody { margin: auto; display: grid; justify-items: center; gap: 6px; max-width: 320px; padding: 28px 0 20px; color: var(--muted); text-align: center; font-size: 13px; font-weight: 600; line-height: 18px; }
+.nobody p { margin: 0; }
+.nobody .said { color: var(--text); font-size: 15px; font-weight: 800; line-height: 20px; }
 </style>

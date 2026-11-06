@@ -1,21 +1,20 @@
 <script setup lang="ts">
-// The room's front page, built like a pause menu: a line about the project (and a short flow to name and describe it),
-// a tile per part of the room saying how it's doing and opening it, and the one thing to do next: upload a project,
-// put it online or update it. A failed build says why and what to do; a house whose server isn't connected says only
-// that.
+// The room's first tab: a line about the project (and a short flow to name and describe it), what it uses in numbers,
+// one line per part saying how it's doing (each with its one symbol), and the log's last lines folded under them. The
+// one thing to do next (upload a project, put it online, update it) is the panel's foot, on RoomPage. A failed build
+// says why and what to do; a house whose server isn't connected says only that.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
-import Avatar from "../Avatar.vue";
 import Icon from "../lobby/house/Icon.vue";
-import StatusDot from "../lobby/panel/StatusDot.vue";
-import { bare, explain, roomState } from "../lobby/panel/words";
+import { bare } from "../lobby/panel/words";
 import { fcfa } from "../lobby/house/server";
 import { locale } from "../../i18n";
 import UiNote, { type Note } from "../UiNote.vue";
 import UiSteps from "../UiSteps.vue";
 import type { RoomInside, RoomManage } from "../../types";
-import BuildLog from "./BuildLog.vue";
+import RoomFold from "./RoomFold.vue";
+import RoomMark from "./RoomMark.vue";
 import RoomServerOff from "./RoomServerOff.vue";
-import { addressDead, buildFailed, buildTrouble, canRestart, liveVersion, logTail, memoryUse, refWord, roomSentence, type SettingsForm, sshLine, startedByHand, updateTile } from "./room";
+import { addressDead, buildFailed, buildTrouble, liveVersion, logTail, memoryUse, refWord, roomSentence, type SettingsForm, sshLine, startedByHand, stateWords } from "./room";
 import { roomWords as w } from "./words";
 import { seeded } from "../seeded";
 
@@ -29,23 +28,16 @@ const props = defineProps<{
   save: () => Promise<boolean>;
   // Puts the form back to what's saved (after a Cancel).
   reset: () => void;
-  action: "" | "redeploy" | "restart";
-  actionNote: Note | null;
-  when: (iso: string) => string;
-  // The tutorial's coach is up and has its own "Put it online": this panel's tile steps back to a plain one.
-  coached?: boolean;
-  // A build was just started, from here or from the Code tab: its log window opens.
-  showLog?: boolean;
-  // What the room printed, for the Logs tile, and why there's nothing to show if so.
+  // What the room printed, for the log's last lines, and why there's nothing to show if so.
   logs: string;
   logsMessage: string;
-  // What's inside the room, if anyone has looked (the page does, while the menu or the Inside part is open).
+  // What's inside the room, if anyone has looked (the page does, while this tab or the Inside tab is open).
   inside?: RoomInside | null;
 }>();
-// `tab`: sent to the Code part to fix or upload something. `open`: a tile was pressed.
-const emit = defineEmits<{ run: [what: "redeploy" | "restart"]; tab: [to: "code"]; open: [part: "code" | "logs" | "secrets" | "ssh" | "lease" | "inside"]; logShown: [] }>();
+// `tab`: sent to the Code tab to fix or upload something. `log`: open the build's log window. `flow`: the naming flow
+// is up (it has its own main button, so the panel's foot steps aside).
+const emit = defineEmits<{ tab: [to: "code"]; log: []; flow: [on: boolean] }>();
 
-const state = computed(() => roomState(props.data.room));
 const sshPeople = computed(() => props.data.ssh?.people ?? []);
 const sshWho = computed(() => w.inside.who(sshPeople.value.map((p) => p.name ?? p.login).join(", ")));
 const started = computed(() => startedByHand(props.inside ?? null));
@@ -54,11 +46,7 @@ const said = computed(() => roomSentence(props.data.room, props.data.deployments
 const memory = computed(() => memoryUse(props.data.room.usage));
 const version = computed(() => liveVersion(props.data.deployments));
 const tail = computed(() => logTail(props.logs));
-const tile = computed(() => updateTile(props.data.room.status, props.data.deployments));
-// Update says what it builds from, in small under it: "from main".
-const from = computed(() => (tile.value.verb === w.update && !noCode.value ? w.fromBranch(refWord(props.data.settings.branch ?? "default")) : null));
 const about = computed(() => seeded(props.data.settings.projectDescription));
-const restartable = computed(() => canRestart(props.data.room.status, props.data.deployments));
 const serverUp = computed(() => props.data.house.agentOnline);
 // No code to build yet: uploading a project is the next step.
 const noCode = computed(() => !props.data.settings.source && !props.data.github);
@@ -66,20 +54,20 @@ const noCode = computed(() => !props.data.settings.source && !props.data.github)
 const lastBuild = computed(() => props.data.deployments.find((d) => d.kind === "prod"));
 const failed = computed(() => buildFailed(lastBuild.value));
 const trouble = computed(() => w.trouble[buildTrouble(lastBuild.value?.detail)]);
-const logOpen = ref(false);
-const building = computed(() => ["queued", "cloning", "building", "starting"].includes(lastBuild.value?.status ?? ""));
-watch(
-  () => props.showLog,
-  (show) => {
-    if (!show) return;
-    logOpen.value = true;
-    emit("logShown");
-  },
-  { immediate: true },
-);
+
+// The first line: how the room is doing, with its symbol. Online is done (a failed build with the version before it
+// still up says so above, in its own tile); a room whose build failed is a cross; anything else (never built,
+// building, stopped) is the quiet dot, the words saying which.
+const stateSaid = computed(() => stateWords(props.data.room.status, props.data.deployments));
+const stateMark = computed(() => (props.data.room.status === "live" ? "ok" : props.data.room.status === "failed" ? "fail" : "none"));
+// The code's line: what's online and since when, or the branch it would build, or that there's no project yet.
+const codeTitle = computed(() => (noCode.value ? w.tile.noCode : w.codeLine(version.value?.branch ?? refWord(props.data.settings.branch ?? "default"))));
+const codeEnd = computed(() => version.value?.ago ?? (noCode.value ? "" : w.tile.notOnline));
+const lease = computed(() => (props.data.lease && props.data.lease.share !== null ? props.data.lease.share : null));
 
 // Naming the project: two questions in place of the block, then back to it.
 const step = ref(0);
+watch(step, (s) => emit("flow", s > 0));
 const editButton = ref<HTMLButtonElement | null>(null);
 
 function startEdit() {
@@ -99,7 +87,9 @@ function cancel() {
 
 // Leaving the tab mid-flow drops what was typed, so it can't ride along with the next save.
 onBeforeUnmount(() => {
-  if (step.value) props.reset();
+  if (!step.value) return;
+  props.reset();
+  emit("flow", false);
 });
 
 async function finish() {
@@ -116,9 +106,9 @@ async function finish() {
 
     <!-- The last build failed: what to do about it, the log, and a way to change the code. -->
     <div v-else-if="!step && failed" class="trouble" role="status">
-      <p><Icon name="warn" :size="18" /><span>{{ trouble }}</span></p>
+      <p><RoomMark kind="fail" /><span>{{ trouble }}</span></p>
       <div class="trouble-keys">
-        <button type="button" class="chunk small" @click="logOpen = true">{{ w.seeLog }}</button>
+        <button type="button" class="chunk small" @click="emit('log')">{{ w.seeLog }}</button>
         <button type="button" class="chunk small" @click="emit('tab', 'code')">{{ w.fixSetup }}</button>
       </div>
     </div>
@@ -134,76 +124,63 @@ async function finish() {
       <button v-else ref="editButton" type="button" class="add-line" :title="w.editProject" @click="startEdit"><Icon name="edit" :size="16" />{{ w.addLine }}</button>
     </div>
 
-    <!-- The room's menu: each tile says how that part is doing, and opens it. Resources has nothing to open. -->
-    <ul v-if="!step" class="tiles" :aria-label="w.sections">
-      <li>
-        <button type="button" class="tile" data-section="code" @click="emit('open', 'code')">
-          <span class="word"><Icon name="code" :size="22" />{{ w.tabs.code }}</span>
-          <span class="low">
-            <strong>{{ version?.branch ?? (noCode ? w.tile.noCode : refWord(data.settings.branch ?? "default")) }}</strong>
-            <small>{{ version?.ago ?? w.tile.notOnline }}</small>
-          </span>
-        </button>
+    <!-- What it uses, in numbers: memory against its share, the processor, and the rent it pays for that share. -->
+    <ul v-if="!step" class="stats">
+      <li class="stat">
+        <strong>{{ memory ? memory.mb : data.room.limits.memoryMb }} {{ w.mb }}</strong>
+        <span>{{ memory ? w.tile.ofMb(data.room.limits.memoryMb) : w.statMemory }}</span>
       </li>
-      <li>
-        <button type="button" class="tile dark" data-section="logs" @click="emit('open', 'logs')">
-          <span class="word"><StatusDot :state="state" class="dot-here" />{{ w.tabs.logs }}</span>
-          <span class="tail">
-            <span v-for="(l, i) in tail" :key="i">{{ l }}</span>
-            <span v-if="!tail.length">{{ logsMessage || w.tile.noLogs }}</span>
-          </span>
-        </button>
+      <li class="stat">
+        <strong>{{ data.room.limits.cpus.toLocaleString(locale()) }}</strong>
+        <span>{{ w.cpuMax }}</span>
       </li>
-      <li v-if="data.ssh">
-        <button type="button" class="tile" data-section="ssh" :title="sshPeople.length ? sshWho : undefined" @click="emit('open', 'ssh')">
-          <span class="word">
-            <Icon name="key" :size="22" />{{ w.tabs.ssh }}
-            <!-- Whoever is in over SSH right now: their faces. -->
-            <span v-if="sshPeople.length" class="faces">
-              <Avatar v-for="p in sshPeople.slice(0, 3)" :key="p.login" :person="p" :size="24" decorative />
-              <span class="sr-only">{{ sshWho }}</span>
-            </span>
-          </span>
-          <span class="low">
-            <strong>{{ w.tile.server }}</strong>
-            <code>{{ sshLine(data.ssh) }}</code>
-          </span>
-        </button>
-      </li>
-      <!-- How full the room is. Where it can be looked inside, the tile opens that, and says when the address leads
-           nowhere or something started by hand is running. -->
-      <li>
-        <component :is="data.inside ? 'button' : 'div'" :type="data.inside ? 'button' : undefined" class="tile" :class="{ still: !data.inside, dead }" :data-section="data.inside ? 'inside' : undefined" @click="data.inside && emit('open', 'inside')">
-          <span class="word"><Icon :name="data.inside ? 'folder' : 'gauge'" :size="22" />{{ data.inside ? w.tabs.inside : w.tile.resources }}</span>
-          <span class="low">
-            <!-- What it uses, big; what it may use, in small words beside and under it. -->
-            <strong v-if="memory">{{ memory.mb }} {{ w.mb }} <span class="of">{{ w.tile.ofMb(data.room.limits.memoryMb) }}</span></strong>
-            <strong v-else>{{ data.room.limits.memoryMb }} {{ w.mb }}</strong>
-            <span v-if="memory" class="bar" aria-hidden="true"><span :style="{ width: `${memory.pct}%` }"></span></span>
-            <small v-if="dead" class="warn-line">{{ w.inside.nothingThere }}</small>
-            <small v-else-if="started.length">{{ w.inside.alsoRunning }} <code>{{ started.map((r) => r.command ?? `:${r.port}`).join(", ") }}</code></small>
-            <small v-else>{{ w.tile.cpuMax(data.room.limits.cpus.toLocaleString(locale())) }}</small>
-          </span>
-        </component>
-      </li>
-      <li>
-        <button type="button" class="tile" data-section="secrets" @click="emit('open', 'secrets')">
-          <span class="word"><Icon name="lock" :size="22" />{{ w.tabs.secrets }}</span>
-          <span class="low"><strong>{{ data.secrets.length ? w.tile.secrets(data.secrets.length) : w.tile.noSecrets }}</strong></span>
-        </button>
-      </li>
-      <li v-if="data.lease">
-        <button type="button" class="tile" data-section="lease" @click="emit('open', 'lease')">
-          <span class="word"><Icon name="door" :size="22" />{{ w.tabs.lease }}</span>
-          <span class="low">
-            <strong>{{ data.lease.share === null ? w.tile.noBill : fcfa(data.lease.share) }}</strong>
-            <!-- The rent buys a share of the house's server, not 256 MB on its own. A phone's tile only says "a month". -->
-            <small v-if="data.lease.share !== null" class="share-line">{{ w.tile.shareOfServer }}</small>
-            <small v-if="data.lease.share !== null" class="a-month">{{ w.tile.aMonth }}</small>
-          </span>
-        </button>
+      <li v-if="lease !== null" class="stat">
+        <strong>{{ fcfa(lease) }}</strong>
+        <span>{{ w.tile.shareOfServer }}</span>
       </li>
     </ul>
+
+    <!-- One line per part, each with its one symbol: how it's running, its code, what's inside, its secrets, SSH. -->
+    <ul v-if="!step" class="st-lines">
+      <li class="st-line">
+        <RoomMark :kind="stateMark" />
+        <span class="st-text"><span class="st-title">{{ stateSaid }}</span></span>
+      </li>
+      <li class="st-line">
+        <RoomMark :kind="version ? 'ok' : 'none'" />
+        <span class="st-text"><span class="st-title">{{ codeTitle }}</span></span>
+        <span v-if="codeEnd" class="st-end">{{ codeEnd }}</span>
+      </li>
+      <!-- The address leads nowhere, or something started by hand is running: the Inside tab's news, here too. -->
+      <li v-if="dead" class="st-line">
+        <RoomMark kind="fail" />
+        <span class="st-text"><span class="st-title">{{ w.inside.nothingThere }}</span></span>
+      </li>
+      <li v-else-if="started.length" class="st-line">
+        <RoomMark kind="none" />
+        <span class="st-text"><span class="st-title">{{ w.inside.alsoRunning }}</span></span>
+        <code class="st-end">{{ started.map((r) => r.command ?? `:${r.port}`).join(", ") }}</code>
+      </li>
+      <li class="st-line">
+        <RoomMark :kind="data.secrets.length ? 'ok' : 'none'" />
+        <span class="st-text"><span class="st-title">{{ w.tabs.secrets }}</span></span>
+        <span class="st-end">{{ data.secrets.length ? w.tile.secrets(data.secrets.length) : w.tile.noSecrets }}</span>
+      </li>
+      <li v-if="data.ssh" class="st-line" :title="sshPeople.length ? sshWho : undefined">
+        <RoomMark :kind="sshPeople.length ? 'ok' : 'none'" />
+        <span class="st-text"><span class="st-title">{{ w.tabs.ssh }}</span></span>
+        <span v-if="sshPeople.length" class="st-end">{{ sshWho }}</span>
+        <code v-else class="st-end">{{ sshLine(data.ssh) }}</code>
+      </li>
+    </ul>
+
+    <!-- What the room printed last, folded open: it's the quickest way to see it's alive. -->
+    <RoomFold v-if="!step" :title="w.lastLog" open>
+      <div class="tail">
+        <span v-for="(l, i) in tail" :key="i">{{ l }}</span>
+        <span v-if="!tail.length" class="no-log">{{ logsMessage || w.tile.noLogs }}</span>
+      </div>
+    </RoomFold>
 
     <div v-if="step" class="flow">
       <UiSteps :step="step" :total="2" focus-on-mount>
@@ -229,116 +206,35 @@ async function finish() {
       </UiSteps>
     </div>
 
-    <!-- The one thing to do next, and restarting beside it once there's something to restart. -->
-    <div v-if="!step && serverUp" class="acts">
-      <button v-if="noCode" type="button" class="primary go" :class="{ quiet: coached }" @click="emit('tab', 'code')"><Icon name="code" :size="20" />{{ w.uploadProject }}</button>
-      <button v-else-if="building" type="button" class="primary go" :class="{ quiet: coached }" @click="logOpen = true"><Icon name="code" :size="20" />{{ w.watchBuild }}</button>
-      <button v-else type="button" class="primary go" :class="{ quiet: coached }" :disabled="action !== ''" :title="tile.hint" @click="emit('run', 'redeploy')">
-        <Icon :name="tile.icon" :size="20" /><span class="go-text">
-          <span class="go-word">{{ action === "redeploy" ? w.starting : failed ? w.buildAgain : tile.verb }}</span>
-          <small v-if="from && action !== 'redeploy' && !failed" class="go-from">{{ from }}</small>
-        </span>
-      </button>
-      <button v-if="restartable" type="button" class="chunk restart" :disabled="action !== ''" :title="explain.restart" @click="emit('run', 'restart')">
-        <Icon name="power" :size="18" />{{ action === "restart" ? w.restarting : w.restart }}
-      </button>
-    </div>
-
-    <BuildLog
-      v-if="logOpen"
-      :house-id="data.house.id"
-      :room="data.room.name"
-      :url="data.room.url"
-      :other-word="w.fixSetup"
-      :refusal="actionNote?.error ? actionNote.text : ''"
-      :retrying="action === 'redeploy'"
-      @close="logOpen = false"
-      @retry="emit('run', 'redeploy')"
-      @other="logOpen = false; emit('tab', 'code')"
-    />
-    <UiNote :note="actionNote" />
     <UiNote v-if="!step" :note="formNote" />
   </div>
 </template>
 
 <style scoped>
-/* It takes the whole body: the tiles share what's left between the project's line and the keys. */
-.overview { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.overview { display: flex; flex-direction: column; gap: 16px; }
 
 .project { flex: none; display: flex; align-items: center; gap: 10px; min-height: 40px; }
-.about { flex: 1 1 auto; min-width: 0; font-size: 15px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.about { flex: 1 1 auto; min-width: 0; font: 600 15px/21px var(--font); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .preview { flex: 0 1 auto; min-width: 0; font: 600 14px/1.2 var(--num); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* A small chore, so a small key. */
-.pencil { flex: none; width: 40px; height: 40px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-md); background: none; box-shadow: none; color: var(--muted); }
+/* A small chore, so a small key, with no lip. */
+.pencil { flex: none; width: 40px; height: 40px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 10px; background: none; box-shadow: none; color: var(--muted); }
 .pencil:hover:not(:disabled) { background: var(--tile); color: var(--text); }
-.add-line { order: -1; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; margin-left: -10px; margin-right: auto; border-radius: var(--r-md); background: none; box-shadow: none; color: var(--muted); font: 600 15px/1 var(--font); }
+.add-line { order: -1; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; margin-left: -10px; margin-right: auto; border-radius: 10px; background: none; box-shadow: none; color: var(--muted); font: 600 15px/1 var(--font); }
 .add-line:hover:not(:disabled) { background: var(--tile); color: var(--text); }
 
-/* The menu: two across, the rows sharing the height, and a last tile alone takes the whole row. */
-.tiles { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(104px, 1fr); gap: 8px; }
-.tiles > li { min-width: 0; display: flex; }
-.tiles > li:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.tile { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 6px; padding: 12px 14px; border: 0; border-radius: var(--r-md); background: var(--tile); box-shadow: none; color: var(--text); font: inherit; text-align: left; overflow: hidden; transition: background-color var(--dur-fast) var(--ease); }
-button.tile { cursor: pointer; }
-button.tile:hover:not(:disabled) { background: var(--fill); }
-button.tile:active:not(:disabled) { transform: none; }
-button.tile:focus-visible { outline: 3px solid var(--ring); outline-offset: -3px; }
-.word { flex: none; display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; line-height: 1.1; }
-.word :deep(svg) { flex: none; }
-.low { min-width: 0; display: grid; gap: 2px; }
-.low strong { font: 800 21px/1.15 var(--num); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.low strong .of { font: 600 14px/1 var(--font); color: var(--muted); }
-.low small { font-size: 14px; line-height: 1.2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.low code { font-size: 12px; line-height: 1.3; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar { display: block; height: 6px; margin: 3px 0; border-radius: 3px; background: var(--fill); overflow: hidden; }
-.bar span { display: block; min-width: 6px; height: 100%; border-radius: 3px; background: var(--live); }
-/* The logs read like logs. */
-.tile.dark { background: var(--ink); color: var(--on-panel); }
-button.tile.dark:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 86%, white); }
-.dark .word { gap: 16px; padding-left: 5px; }
-.tail { min-width: 0; display: grid; gap: 2px; font: 500 12px/1.3 var(--code); }
+/* Code in a line's end: the start command someone typed, the SSH line. */
+code.st-end { font: 500 13px/18px var(--code); }
+/* The log's last lines, as the log prints them. */
+.tail { min-width: 0; display: grid; gap: 2px; padding: 12px 14px; border-radius: 10px; background: var(--surface); font: 500 13px/20px var(--code); }
 .tail span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dot-here { flex: none; }
-/* The address leads nowhere: the Inside tile says so, in red. */
-.tile.dead { background: var(--danger-soft); }
-button.tile.dead:hover:not(:disabled) { background: color-mix(in srgb, var(--danger-soft) 80%, var(--danger)); }
-.low small.warn-line { color: var(--danger); font-weight: 700; }
-.low small code { font-size: 13px; color: var(--text); }
-/* Whoever is in over SSH: their faces, overlapping, at the end of the tile's word. */
-.faces { margin-left: auto; display: inline-flex; }
-.faces > :deep(*) + :deep(*) { margin-left: -8px; }
-.faces :deep(img), .faces :deep(.avatar) { box-shadow: 0 0 0 2px var(--tile); }
+.tail .no-log { font-family: var(--font); font-weight: 600; color: var(--muted); }
 
-/* A failed build: what to do, the log, another try. */
-.trouble { flex: none; display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--r-md); background: var(--danger-soft); }
-.trouble p { display: flex; gap: 8px; font-size: 15px; line-height: 1.35; }
-.trouble p :deep(svg) { flex: none; margin-top: 1px; color: var(--danger); }
+/* A failed build: what to do, the log, another try. A soft tile; the cross is its only colour. */
+.trouble { flex: none; display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
+.trouble p { display: flex; gap: 10px; font: 600 15px/21px var(--font); }
+.trouble p > .status-mark { margin-top: -1px; }
 .trouble-keys { display: flex; flex-wrap: wrap; gap: 8px; }
-
-.acts { flex: none; display: flex; gap: 8px; }
-.go { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; font-size: 20px; }
-.go :deep(svg) { flex: none; }
-.go-text { min-width: 0; display: grid; justify-items: start; }
-.go-word, .go-from { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.go-from { font: 600 13px/1.2 var(--font); opacity: 0.85; }
-.low small.a-month { display: none; }
-/* The quest's coach has its own button up: this one steps back. */
-.go.quiet { background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
-.restart { flex: none; min-height: 56px; }
-/* A phone's sheet is short: everything tightens, and the memory's bar goes, so the menu still fits without a scroll. */
 @media (max-width: 480px) {
-  .tiles { grid-auto-rows: minmax(84px, 1fr); gap: 6px; }
-  .tile { gap: 4px; padding: 8px 12px; }
-  .word { font-size: 16px; }
-  .low strong { font-size: 18px; }
-  .bar { display: none; }
-  .go, .restart { min-height: 48px; padding: 0 10px; gap: 6px; font-size: 16px; }
-  .go { flex: 1 1 0; min-width: 0; white-space: nowrap; }
-  .go-from { font-size: 12px; }
-  .low small.share-line { display: none; }
-  .low small.a-month { display: block; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tile { transition: none; }
+  .overview { gap: 12px; }
 }
 </style>

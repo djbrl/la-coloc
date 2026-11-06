@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // The room's Secrets tab: one row per secret, by name only (values are never shown again), and a three-step flow
-// to add one: its name, its value, then a last look. While adding, the flow takes the list's place, so it fits.
-import { computed, nextTick, reactive, ref } from "vue";
+// to add one: its name, its value, then a last look. While adding, the flow takes the list's place, so it fits. With
+// none yet, one soft tile says so, with the key to add one in it.
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
 import UiNote, { loud, quiet, type Note } from "../UiNote.vue";
@@ -11,6 +12,8 @@ import type { RoomManage } from "../../types";
 import { secretName as normalise, secretNameOk } from "./room";
 import { roomWords as w } from "./words";
 
+// `flow`: adding a secret, whose steps have their own main button: the panel's foot steps aside meanwhile.
+const emit = defineEmits<{ flow: [on: boolean] }>();
 const props = defineProps<{
   data: RoomManage;
   // The room's API address: {base}/secrets/:name.
@@ -24,6 +27,7 @@ const root = ref<HTMLElement | null>(null);
 const secret = reactive({ name: "", value: "" });
 const secretNote = ref<Note | null>(null);
 const secretStep = ref(0);
+watch(secretStep, (s) => emit("flow", s > 0));
 const secretError = ref("");
 const savingSecret = ref(false);
 const addButton = ref<HTMLButtonElement | null>(null);
@@ -109,32 +113,44 @@ async function deleteSecret(name: string) {
 
 <template>
   <div ref="root" class="secrets">
-    <p v-if="!data.secretsEnabled" class="off"><Icon name="warn" :size="16" /> {{ w.secretsOff }}</p>
+    <p v-if="!data.secretsEnabled" class="info-note"><Icon name="warn" :size="16" /><span>{{ w.secretsOff }}</span></p>
 
     <template v-if="!secretStep">
-      <!-- Add sits above the list, so it's in view however many secrets there are. -->
-      <div class="bar">
-        <button ref="addButton" type="button" class="chunk" :disabled="!data.secretsEnabled" @click="startSecret">
-          <Icon name="plus" :size="16" /> {{ w.addSecret }}
-        </button>
-      </div>
-      <UiNote :note="secretNote" />
-      <ul v-if="data.secrets.length" class="row-list">
-        <ListRow v-for="s in data.secrets" :key="s.name" :title="s.name" class="secret">
-          <template #lead><span class="lock"><Icon name="lock" :size="18" /></span></template>
-          <span class="sub" :class="{ asking: confirming === s.name }">{{ confirming === s.name ? w.removeAsk : w.setAt(when(s.updatedAt)) }}</span>
-          <template #end>
-            <template v-if="confirming === s.name">
-              <button type="button" class="chunk small danger" :data-secret="s.name" data-act="confirm" @click="deleteSecret(s.name)">{{ w.remove }}</button>
-              <button type="button" class="chunk small" :data-secret="s.name" data-act="keep" @click="keep(s.name)">{{ w.keep }}</button>
+      <template v-if="data.secrets.length">
+        <!-- Add sits above the list, so it's in view however many secrets there are. -->
+        <div class="bar">
+          <button ref="addButton" type="button" class="chunk small" :disabled="!data.secretsEnabled" @click="startSecret">
+            <Icon name="plus" :size="16" /> {{ w.addSecret }}
+          </button>
+        </div>
+        <UiNote :note="secretNote" />
+        <ul class="row-list">
+          <ListRow v-for="s in data.secrets" :key="s.name" :title="s.name" class="secret">
+            <template #lead><span class="lock"><Icon name="lock" :size="18" /></span></template>
+            <span class="sub" :class="{ asking: confirming === s.name }">{{ confirming === s.name ? w.removeAsk : w.setAt(when(s.updatedAt)) }}</span>
+            <template #end>
+              <template v-if="confirming === s.name">
+                <button type="button" class="chunk small danger" :data-secret="s.name" data-act="confirm" @click="deleteSecret(s.name)">{{ w.remove }}</button>
+                <button type="button" class="chunk small" :data-secret="s.name" data-act="keep" @click="keep(s.name)">{{ w.keep }}</button>
+              </template>
+              <button v-else type="button" class="chunk small" :data-secret="s.name" data-act="remove" :aria-label="w.removeName(s.name)" @click="ask(s.name)">
+                {{ w.remove }}
+              </button>
             </template>
-            <button v-else type="button" class="chunk small" :data-secret="s.name" data-act="remove" :aria-label="w.removeName(s.name)" @click="ask(s.name)">
-              {{ w.remove }}
-            </button>
-          </template>
-        </ListRow>
-      </ul>
-      <p v-else class="empty">{{ w.noSecrets }}</p>
+          </ListRow>
+        </ul>
+      </template>
+      <template v-else>
+        <UiNote :note="secretNote" />
+        <div class="none-yet">
+          <span class="none-icon" aria-hidden="true"><Icon name="key" :size="20" /></span>
+          <strong>{{ w.noSecrets }}</strong>
+          <button ref="addButton" type="button" class="chunk small" :disabled="!data.secretsEnabled" @click="startSecret">
+            <Icon name="plus" :size="16" /> {{ w.addSecret }}
+          </button>
+        </div>
+      </template>
+      <p class="info-note"><Icon name="info" :size="16" /><span>{{ w.valueHint }}</span></p>
     </template>
 
     <div v-else class="flow">
@@ -196,13 +212,12 @@ async function deleteSecret(name: string) {
 </template>
 
 <style scoped>
-.secrets { display: grid; gap: 10px; align-content: start; }
-.secret :deep(.title) { font-family: var(--code); font-size: 14px; }
-.lock { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--fill); color: var(--muted); }
+.secrets { display: grid; gap: 16px; align-content: start; }
+.secret :deep(.title) { font-family: var(--code); font-size: 14px; font-weight: 500; }
+.lock { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--tile); color: var(--muted); }
 .asking { color: var(--danger) !important; }
-.off { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--danger); }
-.empty { padding: 18px 16px; border-radius: var(--r-lg); background: var(--tile); font-size: 14px; color: var(--muted); }
 .bar { display: flex; gap: 8px; }
-/* The note line keeps its live region in the page, but takes no room until it says something. */
+/* The note line keeps its live region in the page, but takes no room (nor the gap after it) until it says something. */
 .secrets :deep(.note-line) { min-height: 0; }
+.secrets :deep(.note-line:empty) { margin-bottom: -16px; }
 </style>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // Inside a house, built like a game's pause menu rather than a page, on the lobby's Panel: the house's name and
 // state, the tabs, one tab's body, and in the foot the one next step. It opens on the floor plan (FloorPlan.vue);
-// a room pressed there, or a housemate's arrow, opens that room's page in its place (RoomDetails.vue). Everything fits the sheet without scrolling; only the body scrolls, inside itself, when a list
-// or the chat is longer than the space. The house view arrives from the API and keeps arriving over its stream, as on
+// a room pressed there, or a housemate's arrow, opens that room's page in its place (RoomDetails.vue). Everything fits
+// the sheet without scrolling; only the body scrolls, inside itself, when a list or the chat is longer than the space.
+// The look is carte blanche (style.css): the tabs open on numbers rather than sentences (stats tiles), lists are quiet
+// lines with one symbol each, and what most people don't need first waits in a fold. The house view arrives from the API and keeps arriving over its stream, as on
 // HousePage.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
@@ -18,26 +20,24 @@ import FridgeDoor from "../FridgeDoor.vue";
 import KnockSteps from "../KnockSteps.vue";
 import UiNote, { loud, type Note } from "../UiNote.vue";
 import Waiting from "../Waiting.vue";
-import { dueOf, dueWords, reviewSummary, reviewTitle, splitReviews } from "./house/chores";
+import { dueOf, dueWords, reviewTitle, splitReviews } from "./house/chores";
 import { canKnock, chatKey, crewOf, foldedRooms, footFor, myRooms, personActions, type RoomKey, ROWS_SHOWN, type Seat, type Situation } from "./house/crew";
 import FloorPlan from "./house/FloorPlan.vue";
-import { billHead, type BillLine, lineWords, linesYoursFirst, reviewsLine, ruleLine, tontineLine, toPay } from "./house/exchange";
+import { type BillLine, lineWords, linesYoursFirst, ruleLine, tontineLine, toPay } from "./house/exchange";
 import { exampleBill, exampleReviews } from "./house/examples";
 import Icon from "./house/Icon.vue";
-import { notesSummary } from "./house/notes";
+import { notesThisWeek } from "./house/notes";
 import PayBill from "./house/PayBill.vue";
 import RentServer from "./house/RentServer.vue";
 import RoomDetails from "./house/RoomDetails.vue";
 import ShareHouse from "./house/ShareHouse.vue";
-import { evenSplit, fcfa, OPERATORS, rentOfPerson, rentWithOneMore, type ServerInfo } from "./house/server";
+import { evenSplit, fcfa, houseCost, OPERATORS, rentOfPerson, rentWithOneMore, type ServerInfo } from "./house/server";
 import { houseWords as w } from "./house/words";
 import ListRow from "./panel/ListRow.vue";
 import Panel from "./panel/Panel.vue";
 import PanelHead from "./panel/PanelHead.vue";
 import PanelTabs, { type Tab } from "./panel/PanelTabs.vue";
-import StatusPill from "./panel/StatusPill.vue";
-import StatusDot from "./panel/StatusDot.vue";
-import { explain, houseState, houseTrouble, roomLine, roomState } from "./panel/words";
+import { explain, houseState, houseTrouble } from "./panel/words";
 import type { Place } from "./place";
 import { seeded } from "../seeded";
 
@@ -174,12 +174,10 @@ const tontine = computed(() => house.value?.tontine ?? null);
 const tontineText = computed(() => tontineLine(tontine.value, me.value));
 // The faces in turn order: whose turn it is, then the next few.
 const turnFaces = computed(() => (tontine.value?.current ? [tontine.value.current, ...tontine.value.line.slice(0, 4)] : []));
-const reviewsText = computed(() => {
-  const h = house.value;
-  if (!h) return "";
-  const n = h.reviewsThisMonth;
-  return typeof n === "number" ? `${reviewsLine(n)} ${ruleLine(!!h.rules.strictReviews)}` : ruleLine(!!h.rules.strictReviews);
-});
+// The house's review rule, said where the reviews are (the chef's switch sits at its end).
+const ruleText = computed(() => ruleLine(!!house.value?.rules.strictReviews));
+// What a review takes off the rent, as the tab's number: "−500 FCFA" (a true minus).
+const perReview = computed(() => `\u2212${fcfa(house.value?.bill?.reviewCredit ?? 500)}`);
 
 // A guest let into the chat from outside a full house reads and writes the channel, and nothing else of the house.
 const chatGuest = computed(() => !member.value && viewer.value?.guest === "accepted");
@@ -206,7 +204,8 @@ const tabs = computed((): Tab[] => [
               { key: "channel", icon: "chat", word: w.tabs.channel },
               { key: "chores", icon: "check", word: w.tabs.chores, badge: myChores.value.length || undefined, alert: myChores.value.some((c) => c.late) },
             ]),
-        { key: "fridge", icon: "pin", word: w.tabs.fridge, badge: notes.value.length || undefined },
+        // A dot (PanelTabs draws a badge as a dot) while there's news from this week, not a count of every note.
+        { key: "fridge", icon: "pin", word: w.tabs.fridge, badge: notesThisWeek(notes.value) || undefined },
         { key: "bill", icon: "bill", word: w.tabs.bill },
       ]
     : chatGuest.value
@@ -229,29 +228,8 @@ watch(
 // A tab that isn't offered (yet, or to you) shows the floor plan.
 const shownTab = computed((): TabKey => (tabs.value.some((t) => t.key === tab.value) ? tab.value : "rooms"));
 
-// Some tabs open on one plain sentence about the viewer's situation, with the longer "what is this, why it matters"
-// behind the "?" (Panel shows them through Explain.vue). The floor plan, the housemates and the chat speak for themselves.
-const credit = computed(() => fcfa(house.value?.bill?.reviewCredit ?? 500));
-const intro = computed((): { summary: string | null; explain: string | null } => {
-  const h = house.value;
-  if (!h) return { summary: null, explain: null };
-  switch (shownTab.value) {
-    case "rooms":
-    case "people":
-    case "channel":
-      return { summary: null, explain: null };
-    case "chores":
-      return { summary: reviewSummary(reviews.value, credit.value), explain: explain.chores(credit.value) };
-    case "fridge":
-      return { summary: notesSummary(notes.value), explain: explain.fridge };
-    case "bill": {
-      // The bill's first sentences are its summary; with no bill and no cost yet, the plain line says what it is.
-      const said = bill.value ? billHead(bill.value) : h.monthlyCostFcfa && share.value ? w.perMonth(fcfa(h.monthlyCostFcfa), fcfa(share.value)) : null;
-      return { summary: said, explain: explain.bill };
-    }
-  }
-});
-
+// The tabs open on numbers rather than sentences (Jib, 6 Nov): the housemates, the reviews and the bill each start with
+// a row of stats tiles, and the Bill tab ends on the one line that says how the cost is split (explain.bill).
 // The house's other reviews wait behind a button when you have some of your own; with none of yours, they show.
 const othersOpen = ref(false);
 const othersShown = computed(() => !reviews.value.mine.length || othersOpen.value);
@@ -441,12 +419,14 @@ async function takeRoom() {
   if (!res.ok) takeError.value = res.message;
 }
 
-// The squares shown: all of them once opened, else up to eight (seven with the workshop's "A room for you"), yours and
-// the free ones first (crew.ts).
+// The squares shown: all of them once opened, else two rows of four with the house's own square last (and the
+// workshop's "A room for you" first), yours and the free ones first (crew.ts).
 const roomsOpen = ref(false);
+const planSum = computed(() => !!house.value && !!houseCost(house.value) && !inviteFoot.value);
 const roomRows = computed(() => {
   const rooms = house.value?.rooms ?? [];
-  return roomsOpen.value ? { shown: rooms, hidden: 0 } : foldedRooms(rooms, mine.value, ROWS_SHOWN - (takeRow.value ? 1 : 0));
+  const room = ROWS_SHOWN - 1 - (planSum.value ? 1 : 0) - (takeRow.value ? 1 : 0);
+  return roomsOpen.value ? { shown: rooms, hidden: 0 } : foldedRooms(rooms, mine.value, room);
 });
 
 // The bill (flatmates only): the month's total, then one line per flatmate, yours first, each said in two
@@ -481,8 +461,13 @@ const seatRent = (seat: Seat) => {
 function personOf(l: Pick<BillLine, "login" | "name">) {
   return house.value?.members.find((m) => m.login === l.login) ?? { login: l.login, name: l.name, avatarUrl: null };
 }
-const lineState = (l: BillLine) =>
-  l.paid ? { tone: "live" as const, word: w.paid } : l.due > 0 ? { tone: "warn" as const, word: w.toPay } : { tone: "neutral" as const, word: w.nothingToPay };
+// Your own line of the bill: the third number at the top, and your reviews this month.
+const myLine = computed(() => bill.value?.lines.find((l) => l.login === me.value) ?? null);
+// Everyone's part waits in a fold: the numbers at the top are what most people come for.
+const linesOpen = ref(false);
+// The housemates' numbers: how many, what each pays, and who's the chef.
+const people = computed(() => seats.value.filter((s) => s.kind === "person").length);
+const chefFirst = computed(() => (house.value?.chef ? nameOf(house.value.chef).split(" ")[0] : null));
 
 // Paying your share: the foot offers it on the Bill tab, and the tab's body becomes the pay sheet (PayBill).
 const myDue = computed(() => toPay(bill.value, me.value));
@@ -514,36 +499,25 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
 
     <RoomDetails v-else-if="house && shownRoom" :key="shownRoom.name" :house="house" :room="shownRoom" :situation="situation" @back="closeRoom" @press="press" />
 
-    <Panel
-      v-else-if="house"
-      :summary="intro.summary"
-      :explain="intro.explain"
-      :body-id="`tabpanel-${shownTab}`"
-      :body-labelledby="`tab-${shownTab}`"
-    >
+    <Panel v-else-if="house" class="house-panel" :body-id="`tabpanel-${shownTab}`" :body-labelledby="`tab-${shownTab}`">
       <template #head>
-        <div class="head">
-          <div>
-            <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
-              <!-- The chef of a house being made: copy an invite link. Any other house (not the workshop): share it. -->
-              <template v-if="(chef && making) || (shareable && !inviteFoot)" #aside>
-                <button v-if="chef && making" type="button" class="chip" :aria-label="copied ? w.inviteCopied : w.copyInvite" @click="copyLink">
-                  <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? w.copied : w.invite }}</span>
-                </button>
-                <ShareHouse v-else :house-id="house.id" :name="house.name" :city="house.city" />
-              </template>
-            </PanelHead>
-          </div>
-        </div>
+        <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
+          <template #lead><span class="icon-tile"><Icon name="house" :size="22" /></span></template>
+          <!-- The chef of a house being made: copy an invite link. Any other house (not the workshop): share it. -->
+          <template v-if="(chef && making) || (shareable && !inviteFoot)" #aside>
+            <button v-if="chef && making" type="button" class="chip" :aria-label="copied ? w.inviteCopied : w.copyInvite" @click="copyLink">
+              <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? w.copied : w.invite }}</span>
+            </button>
+            <ShareHouse v-else :house-id="house.id" :name="house.name" :city="house.city" />
+          </template>
+        </PanelHead>
       </template>
 
       <template #tabs>
-        <div>
-          <PanelTabs v-model="tab" :tabs="tabs" :label="w.parts" />
-        </div>
+        <PanelTabs v-model="tab" :tabs="tabs" :label="w.parts" />
       </template>
 
-      <!-- The floor plan: one tile per room. -->
+      <!-- The floor plan: one square per room, and the house's own square last. -->
       <FloorPlan
         v-if="shownTab === 'rooms'"
         :house="house"
@@ -556,66 +530,74 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
         :coached="coached"
         :taking="taking"
         :take-error="takeError"
-        :no-numbers="inviteFoot"
+        :no-numbers="!planSum"
         @pick="(room) => (openRoom = room.name)"
         @take="takeRoom"
         @more="roomsOpen = true"
       />
 
-      <!-- Who lives here, one row each: their project, their rent, a Chat key, and the arrow to their room's page. -->
-      <ul v-else-if="shownTab === 'people'" class="plain lines people">
-        <ListRow v-for="s in seats" :key="s.key" class="pickable" :data-room="s.room" :title="nameOf(s.person)" :sub="seatSub(s)" @click="pick(s)">
-          <template #lead>
-            <span class="face">
-              <Avatar :person="s.person" :size="44" decorative />
-              <span v-if="s.kind === 'person' && s.chef" class="crown" :title="w.chefTag"><Icon name="crown" :size="12" /></span>
-            </span>
-          </template>
-          <template #meta>
-            <span v-if="seatRent(s)" class="amount small">{{ seatRent(s) }}</span>
-          </template>
-          <template #end>
-            <button v-if="rowChat(s.person)" type="button" class="chat-key" :aria-label="w.person.chatName(nameOf(s.person).split(' ')[0])" @click.stop="press(rowChat(s.person)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
-            <a v-if="rowGithub(s.person, s.room)" class="button git-key" :href="rowGithub(s.person, s.room)!" target="_blank" rel="noopener" :aria-label="w.person.githubName(s.person.login)" :title="w.person.githubName(s.person.login)" @click.stop><Icon name="external" :size="16" /></a>
-            <button v-if="s.kind === 'knock' || s.room" type="button" class="see" :aria-label="w.peopleName(nameOf(s.person))" @click.stop="pick(s)"><Icon name="next" :size="18" /></button>
-          </template>
-        </ListRow>
-        <!-- Guests in the chat, from outside a full house: flatmates can take them out, and a guest can leave. -->
-        <ListRow v-for="g in house.guests ?? []" :key="`g:${g.login}`" :title="nameOf(g)" :sub="w.guests.line">
-          <template #lead><Avatar :person="g" :size="44" decorative /></template>
-          <template #end>
-            <button v-if="rowChat(g)" type="button" class="chat-key" :aria-label="w.person.chatName(nameOf(g).split(' ')[0])" @click="press(rowChat(g)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
-            <a v-if="rowGithub(g, null)" class="button git-key" :href="rowGithub(g, null)!" target="_blank" rel="noopener" :aria-label="w.person.githubName(g.login)" :title="w.person.githubName(g.login)"><Icon name="external" :size="16" /></a>
-            <button v-if="member || g.login === me" type="button" class="chat-key" :aria-label="g.login === me ? w.guests.leaveName : w.guests.removeName(nameOf(g))" @click="removeGuest(g.login)">{{ g.login === me ? w.guests.leave : w.guests.remove }}</button>
-          </template>
-        </ListRow>
-        <li v-if="guestError" class="error" role="alert">{{ guestError }}</li>
-      </ul>
+      <!-- Who lives here: their numbers first (how many, what each pays, the chef), then one line each: their project,
+           their rent, a Chat key, and the arrow to their room's page. -->
+      <template v-else-if="shownTab === 'people'">
+        <ul class="stats">
+          <li><strong>{{ people }}</strong><span>{{ w.stats.flatmates(people) }}</span></li>
+          <li v-if="share"><strong>{{ fcfa(share) }}</strong><span>{{ w.stats.eachMonth }}</span></li>
+          <li v-if="chefFirst"><strong>{{ chefFirst }}</strong><span>{{ w.stats.chef }}</span></li>
+        </ul>
+        <ul class="plain lines people">
+          <ListRow v-for="s in seats" :key="s.key" class="pickable" :data-room="s.room" :title="nameOf(s.person)" :sub="seatSub(s)" @click="pick(s)">
+            <template #lead><Avatar :person="s.person" :size="40" decorative /></template>
+            <template v-if="s.kind === 'person' && (s.chef || s.you)" #tag>
+              <span v-if="s.chef" class="tag">{{ w.chefTag }}</span>
+              <span v-if="s.you" class="tag">{{ w.you }}</span>
+            </template>
+            <template #meta>
+              <span v-if="seatRent(s)" class="amount">{{ seatRent(s) }}</span>
+            </template>
+            <template #end>
+              <button v-if="rowChat(s.person)" type="button" :aria-label="w.person.chatName(nameOf(s.person).split(' ')[0])" @click.stop="press(rowChat(s.person)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
+              <a v-if="rowGithub(s.person, s.room)" class="button git-key" :href="rowGithub(s.person, s.room)!" target="_blank" rel="noopener" :aria-label="w.person.githubName(s.person.login)" :title="w.person.githubName(s.person.login)" @click.stop><Icon name="external" :size="16" /></a>
+              <button v-if="s.kind === 'knock' || s.room" type="button" class="see" :aria-label="w.peopleName(nameOf(s.person))" @click.stop="pick(s)"><Icon name="next" :size="18" /></button>
+            </template>
+          </ListRow>
+          <!-- Guests in the chat, from outside a full house: flatmates can take them out, and a guest can leave. -->
+          <ListRow v-for="g in house.guests ?? []" :key="`g:${g.login}`" :title="nameOf(g)" :sub="w.guests.line">
+            <template #lead><Avatar :person="g" :size="40" decorative /></template>
+            <template #end>
+              <button v-if="rowChat(g)" type="button" :aria-label="w.person.chatName(nameOf(g).split(' ')[0])" @click="press(rowChat(g)!)"><Icon name="chat" :size="16" />{{ w.person.chat }}</button>
+              <a v-if="rowGithub(g, null)" class="button git-key" :href="rowGithub(g, null)!" target="_blank" rel="noopener" :aria-label="w.person.githubName(g.login)" :title="w.person.githubName(g.login)"><Icon name="external" :size="16" /></a>
+              <button v-if="member || g.login === me" type="button" :aria-label="g.login === me ? w.guests.leaveName : w.guests.removeName(nameOf(g))" @click="removeGuest(g.login)">{{ g.login === me ? w.guests.leave : w.guests.remove }}</button>
+            </template>
+          </ListRow>
+          <li v-if="guestError" class="error" role="alert">{{ guestError }}</li>
+        </ul>
+      </template>
 
       <div v-else-if="shownTab === 'channel' && viewer" class="chat-host">
         <ChatPanel :messages="house.channel ?? []" :post-url="`/api/houses/${house.id}/messages`" :me="viewer.login" tools @message="(login) => openChat('dm', { with: login })" />
       </div>
 
-      <!-- Reviews (the API's chores): yours first, each a sentence with when it's due and a link to the pull request
-           on GitHub. The rest of the house's reviews wait behind a quiet button, unless you have none of your own.
-           The summary sentence above the list (Panel) already says what to do, or that there's nothing. -->
+      <!-- Reviews (the API's chores): the numbers first (yours to do, the house's this month, what one is worth), then
+           yours, each a line with when it's due and a key to the pull request on GitHub. The rest of the house's
+           reviews wait behind a fold, unless you have none of your own. With none at all, one calm tile says so. -->
       <template v-else-if="shownTab === 'chores'">
-        <span v-if="example" class="example-tag">{{ w.exampleTag }}</span>
         <UiNote v-if="rulesNote" :note="rulesNote" />
-        <!-- Whose turn it is (its faces in order, the one whose turn it is lit), and the month's reviews with the
-             house's review rule. -->
-        <div class="life">
-          <p v-if="tontineText" class="tontine">
-            <span class="turns" aria-hidden="true">
-              <Avatar v-for="(p, i) in turnFaces" :key="p.login" :person="p" :size="i === 0 ? 26 : 20" decorative :class="{ now: i === 0 }" />
-            </span>
-            <span class="turn-said">{{ tontineText }}</span>
-          </p>
-          <p class="reviews-line">
-            {{ reviewsText }}
-            <!-- The chef switches the rule right where it's said: a toggle, pressed is strict. Its name stays "Strict
-                 reviews" so the pressed state reads true. -->
-            <button
+        <ul class="stats">
+          <li><strong>{{ myChores.length }}</strong><span>{{ w.stats.toDo(myChores.length) }}</span></li>
+          <li v-if="typeof house.reviewsThisMonth === 'number'"><strong>{{ house.reviewsThisMonth }}</strong><span>{{ w.stats.traded(house.reviewsThisMonth) }}</span></li>
+          <li><strong>{{ perReview }}</strong><span>{{ w.stats.perReview }}</span></li>
+        </ul>
+        <!-- Whose turn it is: their face, the next few smaller, and the sentence. -->
+        <p v-if="tontineText" class="tontine">
+          <span class="turns" aria-hidden="true">
+            <Avatar v-for="(p, i) in turnFaces" :key="p.login" :person="p" :size="i === 0 ? 24 : 20" decorative :class="{ now: i === 0 }" />
+          </span>
+          <span class="turn-said">{{ tontineText }}</span>
+        </p>
+        <div v-if="!reviews.mine.length && !reviews.others.length" class="calm tile-box">
+          <span class="status-mark ok big"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+          <strong class="calm-title">{{ w.reviews.none }}</strong>
+          <span class="calm-line">{{ ruleText }}<button
               v-if="chef && !house.demo"
               type="button"
               class="rule"
@@ -624,48 +606,48 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
               :title="w.pressToSwitch(ruleSentence)"
               :disabled="savingRules"
               @click="switchRules"
-            >
-              <Icon name="rules" :size="14" />
-            </button>
-          </p>
+            ><Icon name="rules" :size="14" /></button></span>
         </div>
-        <ul v-if="reviews.mine.length" class="plain lines">
-          <ListRow v-for="c in reviews.mine" :key="c.id" :title="reviewTitle(c, me)" mine>
-            <span class="sub">
-              <span class="when" :class="{ late: c.late }">{{ dueWords(dueOf(c)) }}</span> · {{ c.repo }}#{{ c.prNumber }}
-            </span>
-            <template #lead>
-              <Avatar v-if="c.author" :person="c.author" :size="56" decorative />
-              <span v-else class="door"><Icon name="check" :size="28" /></span>
-            </template>
-            <template #end>
-              <a :href="c.prUrl" class="button" target="_blank" rel="noopener" :aria-label="w.reviewName(`${c.repo}#${c.prNumber}`)">
-                {{ w.review }}<Icon name="external" :size="16" />
-              </a>
-            </template>
-          </ListRow>
-        </ul>
-        <button
-          v-if="reviews.mine.length && reviews.others.length"
-          type="button"
-          class="others-toggle"
-          :aria-expanded="othersOpen"
-          aria-controls="house-other-reviews"
-          @click="othersOpen = !othersOpen"
-        >
-          <Icon name="next" :size="16" class="chev" />{{ othersOpen ? w.reviews.hideOthers : w.reviews.showOthers(reviews.others.length) }}
-        </button>
-        <ul v-if="reviews.others.length" v-show="othersShown" id="house-other-reviews" class="plain lines">
-          <ListRow v-for="c in reviews.others" :key="c.id" :title="reviewTitle(c, me)">
-            <span class="sub">
-              <span class="when" :class="{ late: c.late }">{{ dueWords(dueOf(c)) }}</span> · {{ c.repo }}#{{ c.prNumber }}
-            </span>
-            <template #lead><Avatar :person="c.assignee" :size="56" decorative /></template>
-          </ListRow>
-        </ul>
+        <template v-else>
+          <p v-if="example" class="label">{{ w.exampleTag }}</p>
+          <ul v-if="reviews.mine.length" class="plain lines">
+            <ListRow v-for="c in reviews.mine" :key="c.id" :title="reviewTitle(c, me)">
+              <span class="sub">{{ dueWords(dueOf(c)) }} · {{ c.repo }}#{{ c.prNumber }}</span>
+              <template #lead>
+                <span class="status-mark" :class="c.late ? 'fail' : 'todo'">
+                  <template v-if="c.late"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg></template>
+                </span>
+              </template>
+              <template #end>
+                <a :href="c.prUrl" class="button" target="_blank" rel="noopener" :aria-label="w.reviewName(`${c.repo}#${c.prNumber}`)">{{ w.review }}</a>
+              </template>
+            </ListRow>
+          </ul>
+          <div v-if="reviews.mine.length && reviews.others.length" class="fold tile-box">
+            <button type="button" class="fold-key" :aria-expanded="othersOpen" aria-controls="house-other-reviews" @click="othersOpen = !othersOpen">
+              <span class="fold-title">{{ othersOpen ? w.reviews.hideOthers : w.reviews.showOthers(reviews.others.length) }}</span><svg class="chev" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+          </div>
+          <ul v-if="reviews.others.length" v-show="othersShown" id="house-other-reviews" class="plain lines">
+            <ListRow v-for="c in reviews.others" :key="c.id" :title="reviewTitle(c, me)">
+              <span class="sub">{{ dueWords(dueOf(c)) }} · {{ c.repo }}#{{ c.prNumber }}</span>
+              <template #lead><span class="status-mark" :class="c.late ? 'fail' : 'none'"><template v-if="c.late"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg></template></span></template>
+            </ListRow>
+          </ul>
+          <p class="note"><Icon name="info" :size="16" /><span>{{ ruleText }}<button
+              v-if="chef && !house.demo"
+              type="button"
+              class="rule"
+              :aria-pressed="strict"
+              :aria-label="w.strictName"
+              :title="w.pressToSwitch(ruleSentence)"
+              :disabled="savingRules"
+              @click="switchRules"
+            ><Icon name="rules" :size="14" /></button></span></p>
+        </template>
       </template>
 
-      <!-- News (the API's fridge): the notes the house pinned, one row each. -->
+      <!-- News (the API's fridge): quiet lines by day, one symbol each. -->
       <FridgeDoor v-else-if="shownTab === 'fridge'" compact :notes="notes" />
 
       <template v-else-if="shownTab === 'bill'">
@@ -676,40 +658,51 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
           @paid="paid"
           @back="paying = false"
         />
-        <!-- The month's bill: a line per flatmate, yours first: who, what their reviews took off, what they owe (the
-             sentence for it on hover and for a screen reader), and a tick once paid. Then your part, big. The whole
-             bill is the tab's summary, above (Panel). -->
+        <!-- The month's bill in numbers: the server, the rooms, your part. Then what a review takes off and how many you
+             did, and everyone's line in a fold: who, what their reviews took off, what they owe (the sentence for it on
+             hover and for a screen reader), and a tick once paid. -->
         <template v-else-if="bill">
-          <span v-if="example" class="example-tag">{{ w.exampleTag }}</span>
-          <ul class="plain lines bill-lines">
-            <ListRow v-for="l in billLines" :key="l.login" :title="nameOf(personOf(l))" :sub="lineWords(l, me).reviews" :mine="l.login === me">
-              <template #meta>
-                <span class="amount" :title="lineWords(l, me).owes" :class="{ due: !l.paid && l.due > 0 }">{{ fcfa(l.due) }}<span class="sr-only">. {{ lineWords(l, me).owes }}</span></span>
-                <Icon v-if="l.paid" name="tick" :size="26" class="paid" />
-              </template>
-              <template #lead>
-                <span class="face">
-                  <Avatar :person="personOf(l)" :size="40" decorative />
-                  <StatusDot class="on-face" :state="lineState(l)" />
-                </span>
-              </template>
-            </ListRow>
+          <p v-if="example" class="label">{{ w.exampleTag }}</p>
+          <ul class="stats">
+            <li><strong>{{ fcfa(bill.total) }}</strong><span>{{ w.stats.server }}</span></li>
+            <li><strong>{{ house.rooms.length }}</strong><span>{{ w.stats.rooms(house.rooms.length) }}</span></li>
+            <li v-if="myLine"><strong>{{ fcfa(myLine.paid ? (myLine.paidAmount ?? myLine.due) : myLine.due) }}</strong><span>{{ myLine.paid ? w.stats.paid : w.stats.yourPart }}</span></li>
           </ul>
-          <p v-if="myDue" class="your-part">
-            <span class="part-word">{{ w.yourPart }}</span>
-            <span class="part-sum"><span class="part-n">{{ fcfa(myDue.due).replace(/\s*FCFA$/, "") }}</span> FCFA</span>
-          </p>
+          <div class="facts">
+            <p class="fact"><span>{{ w.bill.eachReview }}</span><strong>&minus;{{ fcfa(bill.reviewCredit) }}</strong></p>
+            <p v-if="myLine" class="fact"><span>{{ w.bill.yourReviews }}</span><strong>{{ myLine.reviews }}</strong></p>
+            <p v-if="bill.pool" class="fact"><span>{{ w.bill.pool }}</span><strong>{{ fcfa(bill.pool) }}</strong></p>
+          </div>
+          <div class="fold tile-box">
+            <button type="button" class="fold-key" :aria-expanded="linesOpen" aria-controls="house-bill-lines" @click="linesOpen = !linesOpen">
+              <span class="fold-title">{{ w.bill.everyone }}</span>
+              <span class="fold-meta">{{ billLines.length }} {{ w.stats.flatmates(billLines.length) }}</span><svg class="chev" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <ul v-show="linesOpen" id="house-bill-lines" class="plain lines bill-lines">
+              <ListRow v-for="l in billLines" :key="l.login" :title="nameOf(personOf(l))" :sub="lineWords(l, me).reviews">
+                <template #lead><Avatar :person="personOf(l)" :size="32" decorative /></template>
+                <template #meta>
+                  <span class="amount" :title="lineWords(l, me).owes">{{ fcfa(l.due) }}<span class="sr-only">. {{ lineWords(l, me).owes }}</span></span>
+                  <span class="status-mark" :class="l.paid ? 'ok' : 'none'" aria-hidden="true"><template v-if="l.paid"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg></template></span>
+                </template>
+              </ListRow>
+            </ul>
+          </div>
         </template>
-        <!-- An API without the bill yet: the month's cost split evenly, as an estimate (its total is the summary). -->
+        <!-- An API without the bill yet: the month's cost split evenly, as an estimate. -->
         <template v-else-if="house.monthlyCostFcfa && share">
+          <ul class="stats">
+            <li><strong>{{ fcfa(house.monthlyCostFcfa) }}</strong><span>{{ w.stats.server }}</span></li>
+            <li><strong>{{ house.rooms.length }}</strong><span>{{ w.stats.rooms(house.rooms.length) }}</span></li>
+            <li><strong>{{ fcfa(share) }}</strong><span>{{ w.stats.eachMonth }}</span></li>
+          </ul>
           <ul class="plain lines">
             <ListRow
               v-for="r in lived"
               :key="r.name"
               :title="mine.includes(r.name) ? w.yourShare(fcfa(share)) : w.theirShare(nameOf(r.occupant!).split(' ')[0], fcfa(share))"
-              :mine="mine.includes(r.name)"
             >
-              <template #lead><Avatar :person="r.occupant!" :size="56" decorative /></template>
+              <template #lead><Avatar :person="r.occupant!" :size="32" decorative /></template>
             </ListRow>
           </ul>
         </template>
@@ -719,15 +712,18 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
 
       <template v-if="footShown" #foot>
         <div class="foot">
-          <!-- On the Bill tab, with your share still to pay, paying it is the next step. -->
-          <button v-if="payButton" type="button" class="primary go" @click="paying = true"><Icon name="bill" :size="20" />{{ w.pay(fcfa(myDue!.due)) }}</button>
+          <!-- On the Bill tab, with your share still to pay, paying it is the next step; how the cost is split under it. -->
+          <template v-if="payButton">
+            <button type="button" class="primary go" @click="paying = true">{{ w.pay(fcfa(myDue!.due)) }}</button>
+            <p class="note"><Icon name="info" :size="16" /><span>{{ explain.bill }}</span></p>
+          </template>
           <template v-else-if="inviteFoot">
             <p v-if="inviteRent" class="less">
               <!-- A paragraph can't carry a name, so the sentence is said in words and the drawing is skipped. -->
               <span class="sr-only">{{ w.plan.rentFalls(fcfa(inviteRent.now), fcfa(inviteRent.then)) }}</span>
               <span class="sums" aria-hidden="true">
                 <span class="was">{{ bare(inviteRent.now) }}</span>
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 <span>{{ fcfa(inviteRent.then) }}</span>
               </span>
               <span class="less-word" aria-hidden="true">{{ w.plan.withOneMore }}</span>
@@ -762,115 +758,101 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
 /* The panel inside it is exactly as tall as the sheet leaves. */
 .inside-house { position: relative; display: flex; flex-direction: column; min-height: 0; }
 .inside-house > :deep(.panel-shape), .inside-house > :deep(.waiting) { flex: 1 1 auto; }
-.empty { padding: 24px var(--gutter); display: grid; gap: 8px; }
-.head { display: grid; gap: 8px; min-width: 0; }
+.empty { padding: 24px 20px; display: grid; gap: 8px; }
+/* The head's icon: the house on the soft red (PanelHead's lead is a plain tile; this fills it). */
+.icon-tile { width: 44px; height: 44px; }
 
-/* The chef's invite on the band: a white key with an icon, the ones PanelHead sizes. */
-.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; }
+/* The chef's invite on the head: a small grey key with an icon, the size PanelHead gives its aside. */
+.chip { display: inline-flex; align-items: center; gap: 6px; box-shadow: inset 0 -3px 0 var(--quiet-lip); }
 .chip:active:not(:disabled) { transform: translateY(1px); }
-/* The review rule's switch, at the end of its sentence: a small key, yellow while strict. */
-.rule { display: inline-grid; place-items: center; width: 26px; height: 26px; min-height: 0; padding: 0; margin-left: 4px; vertical-align: middle; border-radius: var(--r-xs); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); }
-.rule:hover:not(:disabled) { background: var(--tile); }
-.rule[aria-pressed="true"] { background: var(--sticker); color: var(--ink); box-shadow: none; }
-/* The exchange above the reviews: two sentences, each at most two lines. */
-.life { display: grid; gap: 4px; font-size: 14px; line-height: 1.25; color: var(--muted); }
-.life p { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.tontine { color: var(--text); }
-/* The tontine's line keeps its ring whole, so it doesn't clip like the other line. */
-.life p.tontine { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; overflow: visible; padding-left: 3px; }
-/* The tontine's faces in turn order: whose turn it is, ringed in yellow, then the next ones, smaller. */
-.turn-said { flex: 1 1 220px; min-width: 0; }
-.turns { flex: none; display: inline-flex; align-items: center; gap: 4px; }
-.turns > :not(.now) { opacity: 0.75; }
-.turns > .now { box-shadow: 0 0 0 3px var(--sticker); margin: 0 4px 0 3px; }
+
+/* Numbers rather than sentences: a tile each, the number at 20 and what it counts at 13 under it, one line each. */
+.stats { flex: none; list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.stats li { min-width: 0; display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
+.stats strong, .stats span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats strong { font-size: 20px; font-weight: 800; line-height: 26px; font-variant-numeric: tabular-nums; }
+.stats span { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
 
 .plain { list-style: none; margin: 0; padding: 0; }
-/* The workshop's made-up reviews and bill say so once, with a small tag at the top of the tab. */
-.example-tag { justify-self: start; align-self: flex-start; flex: none; padding: 3px 8px; border-radius: var(--r-xs); background: var(--sticker); color: var(--ink); font: 800 12px/1.2 var(--font); text-transform: uppercase; letter-spacing: 0.04em; }
-.lines { display: grid; align-content: start; line-height: 1.3; }
-.lines :deep(.list-row) { min-height: 76px; }
-.lines :deep(.lead) { color: var(--ink); }
-/* A housemate's row is one big key: it lights under the pointer, never pink, and its arrow is the way in for the keyboard. */
-.people { gap: 2px; }
-.people :deep(.list-row) { min-height: 60px; }
+.lines { flex: none; display: grid; align-content: start; gap: 4px; }
+/* A housemate's line is one big key: it lights under the pointer, and its arrow is the way in for the keyboard. */
+.people :deep(.list-row) { min-height: 56px; }
 .people :deep(.list-row.pickable) { cursor: pointer; }
-.people :deep(.list-row:focus-within) { background: var(--tile); box-shadow: -6px 0 0 var(--tile), 6px 0 0 var(--tile); }
-.people :deep(.end) .chat-key { min-height: 40px; padding: 0 12px; background: var(--tile); box-shadow: none; color: var(--text); font: 800 15px/1 var(--font); }
-.people :deep(.end) .chat-key:hover:not(:disabled) { background: var(--fill); }
-/* An icon on a row, so the row stays dense: its name is for a screen reader and a hover. */
-.people :deep(.end) a.button.git-key { width: 46px; padding: 0; background: var(--tile); box-shadow: none; color: var(--text); }
-.people :deep(.end) a.button.git-key:hover { background: var(--fill); }
-.people .see { width: 40px; min-height: 40px; height: 40px; padding: 0; display: grid; place-items: center; background: none; box-shadow: none; color: var(--muted); }
-.crown { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--sticker); color: var(--ink); }
-.bill-lines :deep(.list-row) { min-height: 50px; }
-.paid { flex: none; color: var(--live); }
+.amount { font-size: 14px; font-weight: 800; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* An icon on a line, so it stays dense: its name is for a screen reader and a hover. */
+.lines :deep(.end a.button.git-key) { width: 40px; padding: 0 0 3px; }
+.lines :deep(.end button.see) { width: 40px; padding: 0; background: none; box-shadow: none; color: var(--muted); }
+.lines :deep(.end button.see:hover:not(:disabled)) { background: var(--tile); color: var(--text); }
+.sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .none { padding: 8px 0; }
-.sub { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.face { position: relative; display: inline-grid; }
-.face .on-face { position: absolute; right: -3px; bottom: -3px; width: 14px; height: 14px; box-shadow: 0 0 0 2px var(--surface); animation: none; }
-/* Buttons and links in a row carry an icon beside their word. */
-.lines :deep(.end button), .lines :deep(.end a.button) { display: inline-flex; align-items: center; gap: 6px; }
-/* When a review is due: in the row's muted words, and in the danger colour once it's late (it costs rent then). */
-.when { font-weight: 600; }
-.when.late { color: var(--danger); }
-/* A bill's amount, and your part of it on red under the rows. The amounts line up, with or without a tick. */
-.amount { font-size: 18px; font-weight: 800; white-space: nowrap; }
-.amount.small { font: 700 14px/1 var(--num); color: var(--muted); }
-.your-part { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; padding: 6px 12px; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); }
-.part-word { font-size: 20px; font-weight: 800; }
-.part-sum { font-size: 20px; font-weight: 800; white-space: nowrap; }
-.part-n { font: 400 48px/1.05 var(--display); }
-/* "See the house's other reviews (2)": a ghost across the width under your own rows, with a chevron that turns down
-   when they're shown. Quieter than a row, so your own reviews stay what the tab is about. */
-.others-toggle {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 46px;
-  margin: 8px 0;
-  padding: 0 12px;
-  border-radius: var(--r-md);
-  background: none;
-  box-shadow: var(--quiet-edge);
-  color: var(--text);
-  font: 800 15px/1.2 var(--font);
-  text-align: left;
-}
-.others-toggle:hover:not(:disabled) { background: var(--tile); }
-.chev { transition: transform var(--dur) var(--ease); }
-.others-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.label { flex: none; }
+
+/* Whose turn it is, above the reviews: the faces in turn order, the one whose turn it is ringed in ink. */
+.tontine { flex: none; display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
+.turn-said { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.turns { flex: none; display: inline-flex; align-items: center; gap: 4px; padding-left: 2px; }
+.turns > :not(.now) { opacity: 0.75; }
+.turns > .now { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); margin: 0 4px 0 2px; }
+/* Nothing to review: one calm tile, a tick, and the house's rule under it. */
+.calm { flex: none; display: grid; justify-items: center; gap: 6px; padding: 18px 12px; text-align: center; }
+.status-mark.big { width: 28px; height: 28px; }
+.status-mark.big svg { width: 16px; height: 16px; }
+.calm-title { font-size: 17px; font-weight: 800; line-height: 22px; }
+.calm-line { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
+/* The review rule's switch, at the end of its sentence: a small grey key, ink while strict. */
+.rule { display: inline-grid; place-items: center; width: 26px; height: 26px; min-height: 0; padding: 0; margin-left: 6px; vertical-align: middle; border-radius: 8px; background: var(--sunken); color: var(--text); box-shadow: none; }
+.rule:hover:not(:disabled) { background: var(--fill); }
+.rule[aria-pressed="true"], .rule[aria-pressed="true"]:hover:not(:disabled) { background: var(--text); color: var(--surface); }
+/* A muted line with the info sign: how something works, said once at the end. */
+.note { flex: none; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
+.note > svg { flex: none; }
+
+/* A fold: a row you open, for what most people don't need to read first. Its chevron turns when it's open. */
+.fold { flex: none; display: grid; }
+.fold-key { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 14px; border-radius: var(--tile-r); background: transparent; box-shadow: none; color: var(--text); text-align: left; }
+.fold-key:hover:not(:disabled) { background: transparent; }
+.fold-key:active:not(:disabled) { transform: none; }
+.fold-title { flex: 1 1 auto; min-width: 0; font: 800 15px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fold-meta { flex: none; font: 600 13px/1.2 var(--font); color: var(--muted); }
+.chev { flex: none; color: var(--muted); transition: transform var(--dur) var(--ease); }
+.fold-key[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.fold .lines { padding: 0 14px 10px; }
+/* On the paper, a hovered line lights one step darker. */
+.fold :deep(.list-row:hover), .fold :deep(.list-row:focus-within) { background: var(--fill); box-shadow: -8px 0 0 var(--fill), 8px 0 0 var(--fill); }
+.bill-lines :deep(.meta) { gap: 8px; }
 @media (prefers-reduced-motion: reduce) {
   .chev { transition: none; }
 }
+
+/* The bill's rows: what a word stands for on the left, its number on the right, each on the soft paper. */
+.facts { flex: none; display: grid; gap: 6px; }
+.fact { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 0 14px; border-radius: 12px; background: var(--tile); font-size: 15px; line-height: 22px; }
+.fact span { min-width: 0; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fact strong { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 /* The channel fills the body, so the chat can keep its box and scroll its messages inside it. */
 .chat-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .chat-host > :deep(*) { flex: 1 1 auto; min-height: 0; }
 
-/* The foot: one big button across the width, or the one line that says why there's none. */
-.foot { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+/* The foot: one button across the width (red: the one main action), or the one line that says why there's none. */
+.foot { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; min-width: 0; }
 .foot .error { flex-basis: 100%; font-size: 14px; }
-.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; font-size: 24px; }
+.foot .note { flex-basis: 100%; }
+.go { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 a.go:hover { text-decoration: none; }
-.say { min-height: 50px; display: flex; align-items: center; font-size: 15px; color: var(--muted); }
+.say { min-height: 48px; display: flex; align-items: center; font-size: 15px; font-weight: 600; color: var(--muted); }
 /* Your rent with one more flatmate, beside the button that brings them in. */
 .foot :deep(.share) { margin-left: auto; }
 .less { flex: 1 1 200px; min-width: 0; display: grid; gap: 1px; }
-.sums { display: flex; align-items: center; gap: 8px; font: 800 22px/1.15 var(--num); white-space: nowrap; }
+.sums { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; line-height: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sums svg { flex: none; color: var(--muted); }
 .was { font-weight: 600; color: var(--muted); }
-.less-word { font-size: 14px; line-height: 1.2; color: var(--muted); }
+.less-word { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
 @media (max-width: 560px) {
-  .lines :deep(.list-row) { min-height: 64px; }
-  .part-n { font-size: 44px; }
-  .go { font-size: 20px; }
+  /* Three numbers don't fit side by side on a phone: the third goes under, across. */
+  .stats { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 480px) {
-  /* A phone keeps only whose turn it is beside the sentence, so the line stays two lines high. */
-  .life p.tontine { flex-wrap: nowrap; }
-  .turns > :not(.now) { display: none; }
   .chip-word { display: none; }
 }
 </style>

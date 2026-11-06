@@ -297,8 +297,9 @@ function onKey(e: KeyboardEvent) {
   <div v-if="large" class="veil" @click.self="emit('close')">
     <section class="big sign" role="dialog" aria-modal="true" :aria-label="said.mapOf(neighbourhood.city)" @keydown.esc.stop="emit('close')" @keydown="onKey">
       <div class="sign-frame">
-      <header class="sign-band large">
-        <h2>{{ neighbourhood.city }}</h2>
+      <header class="sign-band">
+        <span class="icon-tile"><Icon name="map" :size="22" /></span>
+        <h2>{{ said.mapOf(neighbourhood.city) }}</h2>
         <p class="sign-sub">{{ said.mapHint }}</p>
         <button class="sign-x" :aria-label="said.closeMap" @click="emit('close')"><span aria-hidden="true">X</span></button>
       </header>
@@ -318,17 +319,17 @@ function onKey(e: KeyboardEvent) {
           <span v-if="goalHalo" class="halo" :class="{ calm: settings.reduceMotion }" :style="goalHalo" aria-hidden="true" />
           <span class="compass" :title="mw.northName" aria-hidden="true">{{ mw.north }}</span>
         </div>
-        <!-- Each house is a menu entry: the whole row travels to its door; its one button is what the keyboard reaches.
-             The house under the mouse on the map lights its row. -->
+        <!-- Each house is a menu entry on a soft tile: the whole row travels to its door; its one button is what the
+             keyboard reaches. The house under the mouse on the map lights its row. -->
         <ul class="houses" :style="{ maxHeight: `${size.h}px` }">
           <!-- The Arena first, a stadium in its colours like on the map. -->
-          <ListRow v-if="neighbourhood.arena" class="entry" :title="said.arena">
+          <ListRow v-if="neighbourhood.arena" class="entry" :title="said.arena" :sub="said.arenaWeek">
             <template #lead>
-              <svg class="stadium" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <span class="stadium-tile"><svg class="stadium" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                 <ellipse cx="12" cy="12" rx="10.5" ry="8.5" :fill="colours.stands" stroke="#fff" stroke-width="1.5" />
                 <ellipse cx="12" cy="12" rx="6.5" ry="4.8" :fill="colours.pitch" />
                 <rect x="10" y="10.2" width="4" height="3.6" :fill="colours.ring" stroke="#fff" stroke-width="0.8" />
-              </svg>
+              </svg></span>
             </template>
             <template #end>
               <button class="go" :aria-label="said.goToArena" @click="emit('arena')"><Icon name="next" :size="18" /></button>
@@ -379,16 +380,17 @@ function onKey(e: KeyboardEvent) {
 </template>
 
 <style scoped>
-/* The frame: the sign's off-white board with a red line inside its edge and a hard shadow. Flat: no glass, no blur.
-   */
+/* The small map: the drawing on a white tile with the HUD's flat shadow. Plain: no red frame. */
 .small {
   display: grid;
   gap: 5px;
   padding: 7px;
-  background: var(--board);
+  border-radius: var(--tile-r);
+  background: var(--surface);
   color: var(--text);
-  box-shadow: inset 0 0 0 3px var(--panel-red), var(--lift);
+  box-shadow: var(--lift);
 }
+.small canvas { border-radius: 9px; }
 .holder { position: relative; flex: none; }
 /* The small map opens the big one; on the big map only a house can be picked. */
 canvas { display: block; flex: none; cursor: pointer; }
@@ -420,7 +422,7 @@ canvas { display: block; flex: none; cursor: pointer; }
   border-top: 0;
   border-bottom: 4px solid var(--panel-red);
 }
-.big .compass { top: 8px; right: 8px; width: 24px; height: 24px; font-size: 14px; }
+.big .compass { width: 24px; height: 24px; font-size: 14px; }
 /* The goal's halo: a soft red ring around its house, under the pin, swelling and fading like a sonar ping.
    Still and faint with calm motion. It never takes a click: the canvas below does. */
 .halo {
@@ -459,19 +461,31 @@ canvas { display: block; flex: none; cursor: pointer; }
   animation: menu-pop var(--dur-slow) var(--ease-pop);
 }
 .big .sign-body { overflow-y: auto; overscroll-behavior: contain; }
+/* The drawn map on its own soft tile, the inner corner. */
+.big .holder { padding: 8px; border-radius: var(--tile-r); background: var(--sunken); }
+.big canvas { border-radius: 8px; }
+.big .compass { top: 16px; right: 16px; }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
 }
 .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
-/* The houses: the panels' rows, the list scrolling inside itself when it's longer than the map is tall. */
-.houses { list-style: none; margin: 0; padding: 0 8px; flex: 1; min-width: 240px; display: grid; align-content: start; overflow-y: auto; overscroll-behavior: contain; line-height: 1.3; }
-.entry { position: relative; cursor: pointer; }
+/* The houses: soft tiles with a gap between, the list scrolling inside itself when it's longer than the map is tall. */
+.houses { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 240px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; line-height: 1.3; }
+/* Doubled class: above the row's own fills (ListRow.vue), which light in red. Here a lit row is one step darker. */
+.houses .entry.entry { position: relative; min-height: 56px; padding: 8px 4px 8px 10px; gap: 12px; border-radius: 12px; background: var(--tile); box-shadow: none; cursor: pointer; }
+.houses .entry.entry:is(:hover, :focus-within, .lit) { background: var(--fill); box-shadow: none; }
+.houses .entry :deep(.title) { font-size: 15px; line-height: 20px; }
+.houses .entry :deep(.sub) { font-size: 13px; font-weight: 600; }
+.houses .entry :deep(.lead) { min-width: 0; }
+/* The lead: the house in its colour (or the stadium) on a small white tile. */
+.houses :deep(.house-badge), .stadium-tile { width: 36px; height: 36px; border-radius: 10px; background: var(--surface); }
+.stadium-tile { display: grid; place-items: center; }
 /* The row's one button covers the whole row, so a click anywhere on it travels. */
-.houses .go { width: 46px; min-height: 46px; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); }
-.houses .go::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-md); }
-.entry:hover .go { color: var(--text); }
-.houses .go:hover:not(:disabled) { background: none; }
-.houses .go:focus-visible { outline: none; color: var(--accent); }
+.houses .go.go { width: 40px; min-height: 40px; padding: 0; display: grid; place-items: center; border-radius: 10px; background: none; box-shadow: none; color: var(--muted); }
+.houses .go::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
+.houses .entry:hover .go.go { color: var(--text); }
+.houses .go.go:hover:not(:disabled) { background: none; }
+.houses .go.go:focus-visible { outline: none; color: var(--accent); }
 button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .big, .halo { animation: none; }

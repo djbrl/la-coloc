@@ -36,7 +36,7 @@ const id = `explain-${useId()}`;
 <style scoped>
 .explain { display: grid; gap: 6px; min-width: 0; }
 /* The sentence about you: body text, a size under a row's title, so the rows stay the heart of the panel. */
-.summary { font-size: 15px; line-height: 1.3; color: var(--text); }
+.summary { font-size: 15px; font-weight: 600; line-height: 21px; color: var(--text); }
 .summary > span { margin-right: 6px; }
 /* The "?": a small round key at the end of the sentence, like a game's hint button. */
 .ask {
@@ -57,11 +57,12 @@ const id = `explain-${useId()}`;
 .ask { position: relative; }
 .ask::after { content: ""; position: absolute; inset: -8px; }
 .ask:hover:not(:disabled) { background: var(--muted); color: var(--surface); }
-.ask[aria-expanded="true"] { background: var(--accent-fill); color: var(--on-accent); }
+.ask[aria-expanded="true"] { background: var(--muted); color: var(--surface); }
 /* The explanation: muted, a touch smaller, under the "?". */
 .why {
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
   color: var(--muted);
   animation: unfold var(--dur) var(--ease);
 }

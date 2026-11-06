@@ -116,6 +116,10 @@ export const icons = {
   prompt: "M3 5h18v14H3z M7 10l3 2-3 2 M12 15h5",
   // A keyboard: every key.
   keyboard: "M3 6h18v12H3z M7 10h.01 M11 10h.01 M15 10h.01 M7 14h10",
+  // A bell: the notifications' card.
+  bell: "M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z M10 20.5a2 2 0 0 0 4 0",
+  // A cog: the settings' card.
+  gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M12 3v2.5 M12 18.5V21 M3 12h2.5 M18.5 12H21 M5.6 5.6l1.8 1.8 M16.6 16.6l1.8 1.8 M5.6 18.4l1.8-1.8 M16.6 7.4l1.8-1.8",
 } as const;
 
 export type IconName = keyof typeof icons;

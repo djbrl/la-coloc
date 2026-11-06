@@ -110,7 +110,7 @@ const gear = (() => {
   color: var(--on-panel);
 }
 .inner { height: 100%; max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.logo { font: 400 20px/1 var(--display); text-transform: uppercase; color: inherit; white-space: nowrap; }
+.logo { font: 400 20px/1 var(--brand); text-transform: uppercase; color: inherit; white-space: nowrap; }
 .logo:hover { text-decoration: none; }
 .side { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* The chat, the bell and the gear are the same key, in or out of the lobby: red, with a lip. */

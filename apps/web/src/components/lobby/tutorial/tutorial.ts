@@ -75,6 +75,9 @@ export interface Controls {
 }
 const OFF: Controls = { walk: false, dash: false, turn: false, targets: "houses" };
 const WALK: Controls = { walk: true, dash: false, turn: false, targets: "houses" };
+// The walkthrough's cards never hold the keys (Jib, 6 11): you can walk, dash and turn while you read them. Nothing can
+// be gone into yet (LobbyView's `picking` waits for the step that sends you to the door).
+const TRY: Controls = { walk: true, dash: true, turn: true, targets: "houses" };
 const ALL: Controls = { walk: true, dash: true, turn: true, targets: "houses" };
 // Outside the quest: everything.
 export const FREE: Controls = { walk: true, dash: true, turn: true, targets: "all" };
@@ -89,7 +92,7 @@ export interface Setup {
 }
 export const SETUP: Record<Step, Setup> = {
   welcome: { controls: OFF, reveal: [], poll: false, beacon: false },
-  intro: { controls: OFF, reveal: ["keys"], poll: false, beacon: false },
+  intro: { controls: TRY, reveal: ["keys"], poll: false, beacon: false },
   walk: { controls: WALK, reveal: ["keys"], poll: false, beacon: false },
   look: { controls: OFF, reveal: TRACKER, poll: false, beacon: true },
   go: { controls: ALL, reveal: FINDING, poll: false, beacon: true },
@@ -104,10 +107,10 @@ export const SETUP: Record<Step, Setup> = {
   home: { controls: OFF, reveal: HUD, poll: false, beacon: false },
   // The real city, behind a welcome card: nothing moves until you've read it.
   city: { controls: OFF, reveal: CITY, poll: false, beacon: false },
-  tour: { controls: OFF, reveal: CITY, poll: false, beacon: false },
+  tour: { controls: TRY, reveal: CITY, poll: false, beacon: false },
 };
 
-// The walkthrough's cards, one thing each, while nothing moves: the controls at the start of the quest, what's new on
+// The walkthrough's cards, one thing each, with the keys still yours: the controls at the start of the quest, what's new on
 // the city's screen at the end. Someone who skipped the quest never saw the first ones, so they get them in the city.
 const INTRO_CARDS = ["help", "walk", "dash", "use"] as const;
 const TOUR_CARDS = ["search", "map", "pick", "chat", "bell", "settings"] as const;

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-// Someone you met in the street: who they are, where they live, what they build (and whether it's online), and
-// what you can do about it. Chat first, on everyone but you: a direct conversation in the chat sheet (messageAction in
+// Someone you met in the street: who they are and where they live (the line under the name), what they build (and
+// whether it's online, as a quiet symbol), and what you can do about it. Message is the main button, on everyone but you: a direct conversation in the chat sheet (messageAction in
 // chat/chat.ts). Logged out, it takes you to log in. For a made-up person (a seeded flatmate, or a passer-by the lobby
 // invents) it's there but off, and one plain line says why. Then at most two more keys (streetActions in
-// personActions.ts): see their house, and invite them to yours or ask them to share one. A real GitHub account's name
-// is a link to their profile, and someone else's card has a key for it too.
+// personActions.ts): see their house beside Message, and invite them to yours or ask them to share one. The friend key
+// and their GitHub profile come last, as quiet words. A real GitHub account's name is a link to their profile.
 import { computed, ref } from "vue";
 import { openChat } from "../../conversations";
 import { acceptFriend, askFriend, friends, friendsSheet, takeBackFriend } from "../../friends";
@@ -20,7 +20,6 @@ import Icon from "./house/Icon.vue";
 import { type Home, homeLine, roomOf, sentence } from "./cards";
 import { houseWords as hw } from "./house/words";
 import LobbyCard from "./LobbyCard.vue";
-import StatusDot from "./panel/StatusDot.vue";
 import { roomLine, roomState } from "./panel/words";
 import { streetActions } from "./personActions";
 import { cardWords as w } from "./words";
@@ -53,6 +52,8 @@ const state = computed(() => (room.value ? roomState(room.value, props.house?.st
 // Its state in words, first in the line under the name ("Online."), the dot beside the name in colour.
 const stateWords = computed(() => (room.value ? roomLine(room.value, props.house?.status, props.house?.demo) : ""));
 const where = computed(() => homeLine(props.home));
+// The project's state as a quiet symbol: online (a tick), down (a cross), anything else a small grey dot.
+const mark = computed(() => (state.value?.tone === "live" ? "ok" : state.value?.tone === "danger" ? "fail" : "none"));
 const occupant = computed(() => room.value?.occupant ?? null);
 const madeUp = computed(() => !!props.example || !!props.house?.demo || occupant.value?.github === false);
 
@@ -85,6 +86,12 @@ const first = computed(() => props.name.split(" ")[0]);
 // The friend key beside Chat (friends/friends.ts): add them, say yes to their request, take yours back, or open the
 // friends list when you're friends already.
 const friend = computed(() => friendKey({ login: props.login, isMe: props.isMe, example: madeUp.value }, me.value, friends));
+// The friend key's word: what pressing it does, or that you're friends already.
+const friendWord = computed(() => {
+  const k = friend.value;
+  if (!k) return "";
+  return k.kind === "friends" ? fw.youreFriends : k.kind === "asked" ? fw.asked : k.kind === "accept" ? fw.acceptWord : fw.addWord;
+});
 const friendName = computed(() => {
   const k = friend.value;
   if (!k) return "";
@@ -130,50 +137,56 @@ async function send(kind: "invite" | "share" | "withdraw") {
 </script>
 
 <template>
-  <LobbyCard :label="w.personLabel(name)" :title="name" :close-name="w.close" @close="emit('close')">
-    <!-- Their name on GitHub: a link for a real account. A made-up person's handle may be a stranger's, so it's plain. -->
+  <LobbyCard :label="w.personLabel(name)" :title="name" icon="people" :close-name="w.close" @close="emit('close')">
+    <!-- Their name on GitHub (a link for a real account; a made-up person's handle may be a stranger's, so it's plain),
+         then where they live. -->
     <template #sub>
       <a v-if="actions.github" class="handle" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">@{{ login }}</a>
       <template v-else>@{{ login }}</template>
-    </template>
-    <BadgeChip v-if="badge" class="worn" :badge="badge" />
-    <p v-if="where || isMe" class="soft small who">
-      <template v-if="where">{{ where }}</template>
+      <template v-if="where"> · {{ where }}</template>
       <template v-if="isMe">{{ w.thatsYou }}</template>
-    </p>
+    </template>
+    <!-- The title they wear, and an example person said once, in plain words, instead of disabled keys whose reason
+         hides in a hover. -->
+    <div v-if="badge || (madeUp && !error && !said)" class="marks">
+      <BadgeChip v-if="badge" class="worn" :badge="badge" />
+      <span v-if="madeUp && !error && !said" class="soft small">{{ w.exampleLine }}</span>
+    </div>
 
-    <!-- What they build: the project's name, its state, and a line from them about it. -->
+    <!-- What they build: the project's name and its state, and a line from them about it, on a soft tile. -->
     <div v-if="home" class="project">
       <span class="ic" aria-hidden="true"><Icon name="box" :size="20" /></span>
       <div class="what">
         <p class="name">
           <strong>{{ project ?? w.room(home.room) }}</strong>
-          <StatusDot v-if="state && project" :state="state" />
+          <span v-if="state && project" class="status-mark" :class="mark" role="img" :aria-label="state.word">
+            <Icon v-if="mark === 'ok'" name="tick" :size="10" />
+            <svg v-else-if="mark === 'fail'" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+          </span>
         </p>
-        <p v-if="!project" class="soft small desc">{{ w.nothingOnline }}</p>
-        <p v-else class="soft small desc">{{ stateWords }}{{ room?.projectDescription ? ` ${sentence(seeded(room.projectDescription))}` : "" }}</p>
+        <p v-if="!project" class="soft desc">{{ w.nothingOnline }}</p>
+        <p v-else class="soft desc">{{ stateWords }}{{ room?.projectDescription ? ` ${sentence(seeded(room.projectDescription))}` : "" }}</p>
       </div>
     </div>
 
-    <!-- Words only when they matter: an invitation just sent, a refusal, an example person (said once, in plain words,
-         instead of disabled keys whose reason hides in a hover). -->
+    <!-- Words only when they matter: an invitation just sent, a refusal. -->
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <p v-else-if="said" class="soft small" role="status">{{ said }}</p>
-    <p v-else-if="madeUp" class="soft small">{{ w.exampleLine }}</p>
 
     <div class="menu">
-      <!-- Chat first: never missing on someone who isn't you. Beside it, the friend key: an icon, its name for a
-           screen reader and on hover. -->
-      <div v-if="message" class="talk">
-        <RouterLink v-if="message.kind === 'login'" to="/login" class="big primary" :aria-label="w.messageLoginName(name)">
-          <Icon name="chat" :size="20" /> {{ hw.person.chat }}
-        </RouterLink>
-        <button v-else class="big primary" :aria-label="w.messageName(name)" @click="openChat('dm', { with: login })">
-          <Icon name="chat" :size="20" /> {{ hw.person.chat }}
+      <!-- Their house beside Message, the main button: never missing on someone who isn't you. -->
+      <div v-if="message || actions.see" class="pair">
+        <button v-if="actions.see" class="big move" :aria-label="bw.seeHouseName(actions.see.houseName)" @click="emit('see', actions.see!.houseId)">
+          {{ bw.seeHouse }}
         </button>
-        <button v-if="friend" type="button" class="big friend-key" :class="friend.kind" :disabled="busy" :aria-label="friendName" :title="friendName" @click="friendAct">
-          <Icon :name="friend.kind === 'asked' ? 'tick' : friend.kind === 'friends' ? 'people' : 'addFriend'" :size="22" />
-        </button>
+        <template v-if="message">
+          <RouterLink v-if="message.kind === 'login'" to="/login" class="big primary talk" :aria-label="w.messageLoginName(name)">
+            <Icon name="chat" :size="20" /> {{ w.write }}
+          </RouterLink>
+          <button v-else class="big primary talk" :aria-label="w.messageName(name)" @click="openChat('dm', { with: login })">
+            <Icon name="chat" :size="20" /> {{ w.write }}
+          </button>
+        </template>
       </div>
 
       <div v-if="offer?.kind === 'invite' && offer.rooms.length > 1 && !offer.example" class="segmented rooms" role="radiogroup" :aria-label="bw.whichRoom">
@@ -182,60 +195,60 @@ async function send(kind: "invite" | "share" | "withdraw") {
         </button>
       </div>
 
-      <div v-if="actions.see || offer" class="moves">
-        <button v-if="actions.see" class="big move" :aria-label="bw.seeHouseName(actions.see.houseName)" @click="emit('see', actions.see!.houseId)">
-          <Icon name="house" :size="20" /> {{ bw.seeHouse }}
-        </button>
-        <button v-if="offer?.kind === 'invite'" class="big move" :disabled="offer.example || busy" :aria-label="bw.inviteHomeName(offer.houseName)" @click="send('invite')">
-          <Icon name="key" :size="20" /> {{ bw.inviteHome(offer.houseName) }}
-        </button>
-        <button v-else-if="offer?.kind === 'share'" class="big move" :disabled="offer.example || busy" @click="send('share')">
-          <Icon name="people" :size="20" /> {{ bw.rentTogether }}
-        </button>
-        <div v-else-if="offer" class="sent">
-          <span class="done"><Icon name="tick" :size="18" /> {{ offer.kind === "invited" ? bw.invited : bw.asked }}</span>
-          <button class="big quiet" :disabled="busy" :aria-label="bw.withdrawName" @click="send('withdraw')">{{ bw.withdraw }}</button>
-        </div>
+      <button v-if="offer?.kind === 'invite'" class="big move" :disabled="offer.example || busy" :aria-label="bw.inviteHomeName(offer.houseName)" @click="send('invite')">
+        <Icon name="key" :size="20" /> {{ bw.inviteHome(offer.houseName) }}
+      </button>
+      <button v-else-if="offer?.kind === 'share'" class="big move" :disabled="offer.example || busy" @click="send('share')">
+        <Icon name="people" :size="20" /> {{ bw.rentTogether }}
+      </button>
+      <div v-else-if="offer" class="sent">
+        <span class="done"><Icon name="tick" :size="18" /> {{ offer.kind === "invited" ? bw.invited : bw.asked }}</span>
+        <button class="big quiet" :disabled="busy" :aria-label="bw.withdrawName" @click="send('withdraw')">{{ bw.withdraw }}</button>
       </div>
 
-      <!-- Someone else's real GitHub account. An example person has none (the line above says why). -->
-      <a v-if="actions.github && !isMe" class="big move" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
-        <Icon name="external" :size="18" /> {{ w.github }}
-      </a>
+      <!-- Last, as quiet words: the friend key, and someone else's real GitHub account. -->
+      <div v-if="friend || (actions.github && !isMe)" class="quiet-row">
+        <button v-if="friend" type="button" class="word-key" :class="friend.kind" :disabled="busy" :aria-label="friendName" :title="friendName" @click="friendAct">
+          <Icon :name="friend.kind === 'asked' ? 'tick' : friend.kind === 'friends' ? 'people' : 'addFriend'" :size="18" />{{ friendWord }}
+        </button>
+        <a v-if="actions.github && !isMe" class="word-key" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
+          <Icon name="external" :size="16" />{{ w.github }}
+        </a>
+      </div>
     </div>
   </LobbyCard>
 </template>
 
 <style scoped>
-.who { overflow-wrap: anywhere; }
-.worn { justify-self: start; }
-/* The honest marker: a quiet word, its sentence on hover and for a screen reader. */
-.tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--r-xs); background: var(--fill); color: var(--text); font-size: 14px; font-weight: 800; line-height: 20px; }
-/* Their project, as one row: what it's called, whether it's online, and what it does. */
-.project { display: flex; gap: 12px; align-items: flex-start; }
-.ic { flex: none; width: 36px; height: 36px; display: grid; place-items: center; color: var(--panel); }
-.what { flex: 1; min-width: 0; display: grid; gap: 2px; }
-.name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 18px; }
-.name strong { font-weight: 800; overflow-wrap: anywhere; }
-.desc { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-/* Their name on GitHub, on the band. */
+.worn { flex: none; }
+.marks { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Their project, as one row on a soft tile: an icon, its name and state, and what it does on one line. */
+.project { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: var(--tile-r); background: var(--tile); }
+.ic { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--sunken); color: var(--text); }
+.what { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.card .name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; line-height: 20px; }
+.name strong { min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name .status-mark { width: 16px; height: 16px; }
+.name .status-mark svg { width: 10px; height: 10px; }
+.card .desc, .desc { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Their name on GitHub, in the head's line. */
 .handle { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-/* Chat and the friend key: Chat takes the width, the friend key is square. Friends already, or asked: it says so in
-   green; their request waiting: the sign's red, like a yes. */
-.talk { display: flex; gap: 8px; }
-.talk > .primary { flex: 1 1 auto; min-width: 0; }
-.talk .friend-key { flex: none; width: 60px; padding: 0; }
-.talk .friend-key.friends, .talk .friend-key.asked { color: var(--live); }
-.talk .friend-key.accept, .talk .friend-key.accept:hover:not(:disabled) { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
-/* The keys after Chat: side by side when both fit, each stepping back from it. */
-.moves { display: flex; flex-wrap: wrap; gap: 8px; }
-.moves > * { flex: 1 1 150px; min-width: 0; }
-.menu .big.move { padding: 6px 10px; font-size: 15px; text-align: center; }
-/* Already invited: the tick and the word, then "Take back" as a ghost. */
+/* Their house and Message side by side, Message the wider. */
+.pair { display: flex; gap: 10px; }
+.pair > * { flex: 1 1 0; min-width: 0; }
+.pair > .talk { flex-grow: 1.1; }
+.menu .big.move { padding: 0 12px var(--lip); font-size: 15px; text-align: center; }
+/* Already invited: the tick and the word, then "Take back" in grey. */
 .sent { display: flex; align-items: center; gap: 8px; }
-.done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 50px; color: var(--live); font-weight: 800; }
+.done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; color: var(--live); font-weight: 800; }
 .sent .quiet { flex: none; }
 /* Several free rooms: pick the one to offer, above the invitation. */
 .rooms { flex-wrap: wrap; }
 .rooms > button { flex: 1 1 auto; justify-content: center; }
+/* The quiet words at the foot: an icon and a word, muted, no button around them. */
+.quiet-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; }
+.word-key { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 6px; border-radius: 10px; background: none; box-shadow: none; color: var(--muted); font: 800 14px/1.2 var(--display); text-decoration: none; }
+.word-key:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
+.word-key.friends, .word-key.asked { color: var(--live); }
+.word-key.accept { color: var(--accent); }
 </style>

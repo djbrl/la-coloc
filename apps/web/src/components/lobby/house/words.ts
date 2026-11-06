@@ -29,7 +29,33 @@ export const houseWords = defineWords(
       invite: "Invite a flatmate",
       withOneMore: "Your rent with one more flatmate",
       rentFalls: (now: string, then: string) => `Your rent goes from ${now} to ${then} with one more flatmate.`,
+      // The plan's last square: the house in numbers.
+      theHouse: "The house",
+      forRooms: (n: number) => `a month, ${plural(n, "room", "rooms")}`,
     },
+    // The tabs' numbers (stats, not sentences): the value big, these words small under it, in lower case.
+    stats: {
+      flatmates: (n: number) => (n === 1 ? "flatmate" : "flatmates"),
+      eachMonth: "each, a month",
+      chef: "the house's chef",
+      toDo: (n: number) => (n === 1 ? "review to do" : "reviews to do"),
+      // English needs no plural here; French does ("échangée", "échangées").
+      traded: (_n: number) => "traded this month",
+      perReview: "per review done",
+      server: "the server, a month",
+      rooms: (n: number) => (n === 1 ? "room" : "rooms"),
+      yourPart: "your part",
+      paid: "paid",
+    },
+    // The Bill tab's rows, and its fold.
+    bill: {
+      eachReview: "Each review done",
+      yourReviews: "Your reviews this month",
+      pool: "The house pool covers",
+      everyone: "Each flatmate's part",
+    },
+    // The News tab's day headings ("Yesterday" is the common word).
+    today: "Today",
     // The housemates' list.
     peopleName: (who: string) => `${who}: their room and project`,
     chefTag: "chef",
@@ -97,7 +123,7 @@ export const houseWords = defineWords(
     noServerChef: "No server yet.",
     noServer: "No server yet.",
     markedPaid: "Marked as paid.",
-    pay: (amount: string) => `Pay your ${amount}`,
+    pay: (amount: string) => `Pay ${amount} from my credit`,
 
     // The foot: the one next step.
     logInToKnock: "Log in to knock",
@@ -197,7 +223,28 @@ export const houseWords = defineWords(
       invite: "Inviter un coloc",
       withOneMore: "Votre loyer avec un coloc de plus",
       rentFalls: (now, then) => `Votre loyer passe de ${now} à ${then} avec un coloc de plus.`,
+      theHouse: "La maison",
+      forRooms: (n) => `par mois, ${pluriel(n, "chambre", "chambres")}`,
     },
+    stats: {
+      flatmates: (n) => (n <= 1 ? "coloc" : "colocs"),
+      eachMonth: "chacun, par mois",
+      chef: "chef de la maison",
+      toDo: (n) => (n <= 1 ? "revue à faire" : "revues à faire"),
+      traded: (n) => (n <= 1 ? "échangée ce mois-ci" : "échangées ce mois-ci"),
+      perReview: "par revue faite",
+      server: "le serveur, par mois",
+      rooms: (n) => (n <= 1 ? "chambre" : "chambres"),
+      yourPart: "votre part",
+      paid: "payé",
+    },
+    bill: {
+      eachReview: "Chaque revue faite",
+      yourReviews: "Vos revues ce mois-ci",
+      pool: "La caisse commune couvre",
+      everyone: "La part de chaque coloc",
+    },
+    today: "Aujourd'hui",
     peopleName: (who) => `${who} : sa chambre et son projet`,
     chefTag: "chef",
 
@@ -257,7 +304,7 @@ export const houseWords = defineWords(
     noServerChef: "Pas encore de serveur.",
     noServer: "Pas encore de serveur.",
     markedPaid: "Marqué comme payé.",
-    pay: (amount) => `Payer ${amount}`,
+    pay: (amount) => `Payer ${amount} avec mon crédit`,
 
     logInToKnock: "Se connecter pour frapper",
     waitingForServer: "Votre serveur arrive",

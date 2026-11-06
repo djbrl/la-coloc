@@ -1,53 +1,80 @@
-/* The room panel's controls, shared by its tabs. It should feel like a game's pause menu, not a web page: chunky
-   buttons with an icon and a word, no underlined links for actions, and edit flows that read like a settings
-   sub-screen (one question, a big Next). Everything is under .room-panel so none of it leaks into the rest. */
+/* The room panel's controls, shared by its tabs, in carte blanche: white, soft tiles with the inner corner, buttons of
+   the one family (grey with a lip; the main one red, from style.css), numbers in tiles, one symbol per line. Everything
+   is under .room-panel so none of it leaks into the rest. */
 
-/* A chunky button: an icon and a word, a quiet key with a grey edge and a small lip that sinks when pressed. Used for
-   Edit, Add, Follow, Refresh, Back. The primary one keeps the main key from style.css. */
+/* A grey key with a lip, the family's second button: an icon and a word. Used for Edit, Add, Follow, Refresh, Back.
+   `.small` is a row's key, 40 high with a 3px lip. The primary one keeps the main key from style.css. */
 .room-panel .chunk {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 46px;
-  padding: 0 16px;
-  border-radius: var(--r-md);
-  background: var(--surface);
+  min-height: 48px;
+  padding: 0 16px var(--lip);
+  border-radius: 12px;
+  background: var(--sunken);
   box-shadow: var(--quiet-edge);
   color: var(--text);
-  font-size: 15px;
-  font-weight: 600;
+  font: 800 16px/1.2 var(--display);
   white-space: nowrap;
   text-decoration: none;
   transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.room-panel .chunk:hover:not(:disabled) { background: var(--tile); text-decoration: none; }
-.room-panel .chunk:active:not(:disabled) { transform: translateY(1px); }
-.room-panel .chunk.small { min-height: 46px; padding: 0 12px; font-size: 14px; border-radius: var(--r-sm); }
-.room-panel .chunk.on { background: var(--text); color: var(--surface); box-shadow: none; }
-.room-panel .chunk.danger { background: var(--sticker); color: var(--ink); box-shadow: none; }
-.room-panel .chunk.primary { background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 var(--lip) 0 var(--accent-lip); }
+.room-panel .chunk:hover:not(:disabled) { background: var(--fill); text-decoration: none; }
+.room-panel .chunk:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 calc(-1 * var(--lip-pressed)) 0 var(--quiet-lip); }
+.room-panel .chunk.small { min-height: 40px; padding: 0 14px 3px; border-radius: 10px; box-shadow: inset 0 -3px 0 var(--quiet-lip); font-size: 14px; }
+/* A key that stays pressed (Follow live): ink, no lip. */
+.room-panel .chunk.on, .room-panel .chunk.on:hover:not(:disabled) { padding-bottom: 0; background: var(--text); color: var(--surface); box-shadow: none; }
+/* Removing for good: the same grey key, its word in the danger colour. */
+.room-panel .chunk.danger { color: var(--danger); }
+.room-panel .chunk.primary { background: var(--accent-fill); color: var(--on-accent); box-shadow: inset 0 calc(-1 * var(--lip)) 0 var(--accent-lip); }
 .room-panel .chunk.primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
-.room-panel .chunk.primary:active:not(:disabled) { transform: translateY(calc(var(--lip) - var(--lip-pressed))); box-shadow: 0 var(--lip-pressed) 0 var(--accent-lip); }
+.room-panel .chunk.primary:active:not(:disabled) { box-shadow: inset 0 calc(-1 * var(--lip-pressed)) 0 var(--accent-lip); }
 
-/* An edit flow: one card, one question, a big Next. A sunken card with an edge, like a settings sub-screen. */
-.room-panel .flow { padding: 18px; border-radius: var(--r-lg); background: var(--tile); }
+/* Numbers rather than sentences: a row of tiles, a value and what it counts, each on one line. */
+.room-panel .stats { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.room-panel .stat { min-width: 0; display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
+.room-panel .stat > strong { font: 800 20px/26px var(--font); font-variant-numeric: tabular-nums; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-panel .stat > span { font: 600 13px/18px var(--font); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A line with its one symbol: what it is, and a number or a word at the end. */
+.room-panel .st-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.room-panel .st-line { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 36px; }
+.room-panel .st-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.room-panel .st-title { font: 800 15px/20px var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-panel .st-sub { font: 600 13px/18px var(--font); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-panel .st-end { flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13px/18px var(--font); color: var(--muted); }
+
+/* A short note at the foot of a tab: muted, with a small "i". */
+.room-panel .info-note { display: flex; align-items: center; gap: 8px; margin: 0; font: 600 13px/18px var(--font); color: var(--muted); }
+.room-panel .info-note > svg { flex: none; }
+
+/* Nothing yet: a soft tile, centred, with its one key. */
+.room-panel .none-yet { display: grid; justify-items: center; gap: 10px; padding: 22px 12px; border-radius: var(--tile-r); background: var(--tile); text-align: center; }
+.room-panel .none-yet > .none-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--surface); color: var(--muted); }
+.room-panel .none-yet > strong { font: 800 16px/21px var(--font); }
+
+/* An edit flow: one soft tile, one question, a Next. */
+.room-panel .flow { padding: 18px; border-radius: var(--tile-r); background: var(--tile); }
 .room-panel .flow .steps { gap: 16px; }
 .room-panel .flow .step { gap: 14px; }
-.room-panel .flow h3 { font-size: 21px; }
+.room-panel .flow h3 { font: 800 19px/1.2 var(--display); }
 .room-panel .flow .hint { margin-top: -6px; font-size: 14px; color: var(--muted); }
 .room-panel .flow form { display: grid; gap: 14px; }
+.room-panel .flow input { background: var(--surface); }
 .room-panel .flow .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.room-panel .flow-nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 4px; }
-.room-panel .flow-nav .next { min-height: 50px; min-width: 140px; padding: 0 28px; border-radius: var(--r-md); font-size: 17px; }
+.room-panel .flow-nav { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 4px; }
+.room-panel .flow-nav .next { min-width: 140px; }
 .room-panel .caps { text-transform: uppercase; }
 .room-panel .mono { font-family: var(--code); font-size: 0.92em; }
 
 /* A list of rows: the lobby's ListRow, with the list's own styles reset. */
-.room-panel .row-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.room-panel .row-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 
 @media (max-width: 480px) {
   .room-panel .flow .pair { grid-template-columns: 1fr; }
+  .room-panel .stat { padding: 10px 12px; }
+  .room-panel .stat > strong { font-size: 18px; line-height: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .room-panel .chunk { transition: none; }

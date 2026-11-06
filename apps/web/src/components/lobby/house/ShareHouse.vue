@@ -92,22 +92,26 @@ async function shareNatively() {
 
 <style scoped>
 .share { position: relative; display: inline-flex; }
-/* The band's key: white, 46px. */
-.key { width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; }
-/* A flat card under the key, on the right edge, over the panel: on the band it must set its own colours. */
-.card { position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; width: min(320px, 80vw); display: grid; gap: 10px; padding: 12px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel), var(--lift); }
-/* The foot's main button, and its card above it. */
-.share .key.big { width: auto; height: auto; min-height: 60px; padding: 0 22px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-size: 20px; white-space: nowrap; }
+/* The head's key: an icon on the grey, 40px, with the family's lip (3px at this size). */
+.share .key { width: 40px; height: 40px; min-height: 0; padding: 0 0 3px; display: grid; place-items: center; }
+.share .key:not(.primary) { background: var(--sunken); box-shadow: inset 0 -3px 0 var(--quiet-lip); }
+.share .key:not(.primary):hover:not(:disabled) { background: var(--fill); }
+.share .key :deep(svg) { width: 18px; height: 18px; }
+/* A small white card under the key, on the right edge, over the panel: the card's corner and flat shadow, no outline. */
+.card { position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; width: min(320px, 80vw); display: grid; gap: 10px; padding: 14px; border-radius: var(--tile-r); background: var(--surface); color: var(--text); box-shadow: var(--lift), 0 0 0 1px var(--line); }
+/* The foot's button (red when it's the main one, grey when quiet), and its card above it. The one family: 48 high. */
+.share .key.big { width: auto; height: auto; min-height: 48px; padding: 0 18px var(--lip); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; white-space: nowrap; }
+.share .key.big:not(.primary) { box-shadow: var(--quiet-edge); }
 .card.up { top: auto; bottom: calc(100% + 8px); }
 @media (max-width: 560px) {
   .share:has(.big), .share .key.big { width: 100%; }
 }
-.link { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--handle); overflow-wrap: anywhere; }
+.link { margin: 0; font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); overflow-wrap: anywhere; }
 .ways { display: flex; flex-wrap: wrap; gap: 6px; }
-.share .way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); box-shadow: var(--quiet-edge); font: 400 15px/1 var(--display); text-decoration: none; }
-.share .way:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
-.share .way.done { color: var(--live); }
-.here { margin: 0; font-size: 14px; line-height: 1.3; color: var(--muted); }
+.share .way { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px 3px; border: 0; border-radius: 10px; background: var(--sunken); color: var(--text); box-shadow: inset 0 -3px 0 var(--quiet-lip); font: 800 14px/1 var(--display); text-decoration: none; }
+.share .way:hover:not(:disabled) { background: var(--fill); color: var(--text); text-decoration: none; }
+.share .way.done :deep(svg) { color: var(--live); }
+.here { margin: 0; font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
 a:focus-visible, button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 .pop-enter-active, .pop-leave-active { transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease-pop); }
 .pop-enter-from, .pop-leave-to { opacity: 0; transform: translateY(-4px); }

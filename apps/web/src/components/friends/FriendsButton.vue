@@ -1,16 +1,15 @@
 <script setup lang="ts">
-// The friends key in the top bar, beside the chat's: two people, with the count of requests waiting for you in a
-// small yellow chip. Pressed, it opens (or closes) the friends list (FriendsSheet.vue). Logged in only.
+// The friends key in the top bar, beside the chat's: two people, with a small dot when a request waits for you (how
+// many is in the key's hidden name, never on a chip). Pressed, it opens (or closes) the friends list (FriendsSheet.vue). Logged in only.
 import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { friends, friendsSheet, loadFriends } from "../../friends";
 import { notices } from "../../notices";
 import { me } from "../../session";
 import Icon from "../lobby/house/Icon.vue";
 import { friendWords as w } from "../list/words";
-import { waiting } from "./friends";
 import FriendsSheet from "./FriendsSheet.vue";
 
-const count = computed(() => waiting(friends.requests.length));
+const waits = computed(() => friends.requests.length > 0);
 
 // Logged in or out, and whenever the bell changes (a request came in, or was answered): fetch again. The lobby's
 // "friends" nudge covers statuses; coming back to the tab covers the rest.
@@ -34,12 +33,13 @@ onBeforeUnmount(() => {
 <template>
   <button type="button" class="ring" data-tour="friends" :aria-label="w.buttonName(friends.requests.length)" :aria-expanded="friendsSheet.open" aria-haspopup="dialog" @click="friendsSheet.open = !friendsSheet.open">
     <Icon name="people" />
-    <span v-if="count" class="badge" aria-hidden="true">{{ count }}</span>
+    <span v-if="waits" class="dot" aria-hidden="true" />
   </button>
   <FriendsSheet />
 </template>
 
 <style scoped>
-/* The key itself is drawn by the bar (App.vue), like the chat's and the bell. The count, in yellow: someone waits. */
-.badge { position: absolute; top: 5px; right: 5px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--sticker); color: var(--ink); font: 800 14px/22px var(--font); text-align: center; }
+/* The key itself is drawn by the bar (App.vue), like the chat's and the bell. Someone waits: a small white dot in the
+   key's corner, white because the key is the sign's red. */
+.dot { position: absolute; top: 9px; right: 9px; width: 10px; height: 10px; border-radius: 50%; background: var(--on-panel); box-shadow: 0 0 0 2px var(--panel-red); }
 </style>

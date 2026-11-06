@@ -56,49 +56,47 @@ function onKey(e: KeyboardEvent, i: number) {
 </template>
 
 <style scoped>
-/* Words on the white, the chosen one on ink. No track, no line under them. */
+/* Carte blanche: one control, a grey rail, the chosen tab lifted out in white. Something waiting there is a small red
+   dot after the word (its count is in the tab's hidden name), never a number on a chip. */
 .panel-tabs {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 4px;
+  padding: 4px;
+  border-radius: var(--tile-r);
+  background: var(--sunken);
   overflow-x: auto;
   scrollbar-width: none;
   flex: none;
 }
 .panel-tabs::-webkit-scrollbar { display: none; }
 .tab {
-  flex: 1 1 auto;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 46px;
+  min-height: 40px;
   padding: 0 6px;
-  border-radius: var(--r-sm);
-  background: none;
-  color: var(--text);
-  font: 800 17px/1 var(--font);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  font: 800 15px/1 var(--font);
   white-space: nowrap;
 }
-.tab:hover:not(:disabled) { background: var(--tile); }
-.tab[aria-selected="true"], .tab[aria-selected="true"]:hover:not(:disabled) { background: var(--text); color: var(--surface); }
+.panel-tabs:has(> .tab:nth-child(5)) .tab { font-size: 14px; }
+.tab:hover:not(:disabled) { background: transparent; color: var(--text); }
+.tab[aria-selected="true"], .tab[aria-selected="true"]:hover:not(:disabled) { background: var(--surface); color: var(--text); box-shadow: 0 2px 0 rgba(23, 21, 26, 0.14); }
 .tab:focus-visible { outline-offset: -3px; }
 .ic { display: none; }
-/* A count: the yellow chip, something waits there. Red when it's late. */
-.badge {
-  flex: none;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 10px;
-  background: var(--sticker);
-  color: var(--ink);
-  font: 800 13px/20px var(--font);
-  text-align: center;
-}
-.badge.alert { background: var(--danger); color: var(--on-danger); }
+.word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.badge { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); font-size: 0; }
+.badge.alert { background: var(--danger); }
 @media (max-width: 480px) {
   .ic { display: inline-grid; }
   .word { display: none; }
-  .tab { padding: 0 12px; }
+  .tab { padding: 0 8px; }
 }
 </style>

@@ -14,6 +14,7 @@ export const joinWords = defineWords(
 
     // Shared by the dialogs.
     cancel: "Cancel (Esc)",
+    cancelWord: "Cancel",
     back: "Back",
     next: "Next",
     skip: "Skip",
@@ -46,6 +47,8 @@ export const joinWords = defineWords(
     moveInBefore: "You'd move in with",
     moveInAfter: ".",
     readyHow: "Flatmates vote. A majority decides.",
+    // Under the first step: where you're knocking.
+    freeRoomIn: (where: string) => `Free room in ${where}.`,
     knocking: "Knocking…",
     knock: "Knock",
 
@@ -86,6 +89,7 @@ export const joinWords = defineWords(
     stepOf: (step, total) => `Étape ${step} sur ${total}`,
 
     cancel: "Annuler (Échap)",
+    cancelWord: "Annuler",
     back: "Retour",
     next: "Suivant",
     skip: "Passer",
@@ -116,6 +120,7 @@ export const joinWords = defineWords(
     moveInBefore: "Vous arriveriez avec",
     moveInAfter: ".",
     readyHow: "Les colocs votent. La majorité décide.",
+    freeRoomIn: (where) => `Chambre libre à ${where}.`,
     knocking: "On frappe…",
     knock: "Frapper",
 

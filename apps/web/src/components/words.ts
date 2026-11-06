@@ -26,11 +26,16 @@ export const creditWords = defineWords(
     awardEarn: "Earn more",
     unit: "FCFA",
     awardGo: "Let's go",
+    given: "given",
     tryAgain: "Try again",
     topUp: "Top up",
     topUpName: (amount: string) => `Top up ${amount} with PayDunya`,
     topUpTest: "PayDunya test mode: no real money.",
     topUpAdded: "Credit added.",
+    // The card's small heading over the ways to earn, and the folded history with its count.
+    earnHead: "Earn more",
+    history: "History",
+    moves: (n: number) => plural(n, "movement", "movements"),
   },
   {
     title: "Votre crédit",
@@ -49,11 +54,15 @@ export const creditWords = defineWords(
     awardEarn: "Gagnez-en plus",
     unit: "FCFA",
     awardGo: "C'est parti",
+    given: "offerts",
     tryAgain: "Réessayer",
     topUp: "Recharger",
     topUpName: (amount) => `Recharger ${amount} avec PayDunya`,
     topUpTest: "PayDunya en mode test : pas de vrai argent.",
     topUpAdded: "Crédit ajouté.",
+    earnHead: "Gagnez-en plus",
+    history: "Historique",
+    moves: (n) => pluriel(n, "mouvement", "mouvements"),
   },
 );
 
@@ -78,6 +87,7 @@ export const welcomeWords = defineWords(
     keysAll: "every key",
     // The first window, before anything else (CreationDoor.vue).
     doorTitle: "Welcome to La Coloc",
+    doorSub: "A city of developers' houses.",
     doorMoveIn: "Move in",
     doorOnline: "Put your project online",
     doorShare: "Share the server",
@@ -108,6 +118,7 @@ export const welcomeWords = defineWords(
     keysUse: "entrer, utiliser",
     keysAll: "toutes les touches",
     doorTitle: "Bienvenue à La Coloc",
+    doorSub: "Une ville de maisons de devs.",
     doorMoveIn: "Emménagez",
     doorOnline: "Mettez votre projet en ligne",
     doorShare: "Partagez le serveur",
@@ -310,6 +321,7 @@ export const lobbyWords = defineWords(
     stage: (place: string) =>
       `${place}, a neighbourhood you can walk around in 3D. W A S D walks, E goes in, the question mark lists every key. The list view in settings shows the same houses as text.`,
     findTitle: "Search",
+    findSub: "A city, a house, someone.",
     searchHint: "City, house, person…",
     searchName: "Search for a city, a house, or someone in this lobby",
     noMatch: "Nothing found.",
@@ -318,6 +330,8 @@ export const lobbyWords = defineWords(
     close: "Close (Esc)",
     travelName: "Travel to another city",
     whereTo: "Where to?",
+    citiesLine: (n: number, here: string) => `${n} cities. You're in ${here}.`,
+    youAreHere: "you're here",
     // A city's stats in the travel menu, as icon chips; these are their hidden names.
     walking: (n: number) => `${plural(n, "person", "people")} walking around`,
     houses: (n: number) => plural(n, "house", "houses"),
@@ -355,6 +369,7 @@ export const lobbyWords = defineWords(
     stage: (place) =>
       `${place}, un quartier où se promener en 3D. W A S D pour marcher, E pour entrer, le point d'interrogation liste toutes les touches. La vue en liste, dans les réglages, montre les mêmes maisons en texte.`,
     findTitle: "Chercher",
+    findSub: "Une ville, une maison, quelqu'un.",
     searchHint: "Ville, maison, personne…",
     searchName: "Chercher une ville, une maison, ou quelqu'un dans ce salon",
     noMatch: "Aucun résultat.",
@@ -362,6 +377,8 @@ export const lobbyWords = defineWords(
     close: "Fermer (Échap)",
     travelName: "Aller dans une autre ville",
     whereTo: "On va où ?",
+    citiesLine: (n, here) => `${n} villes. Vous êtes à ${here}.`,
+    youAreHere: "vous êtes ici",
     walking: (n) => `${pluriel(n, "personne", "personnes")} en balade`,
     houses: (n) => pluriel(n, "maison", "maisons"),
     online: (n) => `${pluriel(n, "projet", "projets")} en ligne`,

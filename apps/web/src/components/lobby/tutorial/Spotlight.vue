@@ -97,16 +97,16 @@ const px = (b: Box) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `${b.wi
   box-shadow: 0 0 0 3px var(--sticker), 0 0 0 100vmax var(--scrim);
   transition: left var(--dur) var(--ease), top var(--dur) var(--ease), width var(--dur) var(--ease), height var(--dur) var(--ease);
 }
-/* The line: a small flat card beside the hole. */
+/* The line: a small white card (carte blanche) beside the hole. */
 .line {
   position: fixed;
   pointer-events: auto;
   width: max-content;
-  max-width: min(360px, calc(100vw - 32px));
+  max-width: min(420px, calc(100vw - 32px));
   display: grid;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: var(--r-md);
+  gap: 12px;
+  padding: 20px;
+  border-radius: var(--card-r);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);

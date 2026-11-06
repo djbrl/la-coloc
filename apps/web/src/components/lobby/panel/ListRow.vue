@@ -3,8 +3,9 @@
 // the row has to show on the right (a state, a number), and at most one action at the end. Rooms, people, knocks,
 // chores, secrets and builds are all this row, so every list in the lobby reads the same way.
 //
-// Slots: `lead` (left, 40px wide), `meta` (right of the text), `end` (the action). `title` and `sub` are props
-// so they truncate on one line each; `default` replaces the sub line when a row needs more than text there.
+// Slots: `lead` (left, 40px wide), `tag` (small grey words after the title: "chef", "you"), `meta` (right of the
+// text), `end` (the action). `title` and `sub` are props so they truncate on one line each; `default` replaces the sub
+// line when a row needs more than text there.
 defineProps<{
   title: string;
   sub?: string | null;
@@ -21,7 +22,8 @@ defineProps<{
   <li class="list-row" :class="{ mine, open, lit }">
     <span class="lead"><slot name="lead" /></span>
     <span class="text">
-      <span class="title">{{ title }}</span>
+      <span v-if="$slots.tag" class="title-line"><span class="title">{{ title }}</span><slot name="tag" /></span>
+      <span v-else class="title">{{ title }}</span>
       <slot><span v-if="sub" class="sub">{{ sub }}</span></slot>
     </span>
     <span v-if="$slots.meta" class="meta"><slot name="meta" /></span>
@@ -35,26 +37,36 @@ defineProps<{
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 50px;
+  min-height: 52px;
   padding: 6px 0;
   transition: background-color var(--dur-fast) var(--ease);
 }
 /* Rows behave like a game menu's entries: the whole row lights under the pointer, and the one holding the keyboard
-   focus is the selected entry (a fill, never an outline or a stripe). */
-.list-row:hover { background: var(--tile); box-shadow: -6px 0 0 var(--tile), 6px 0 0 var(--tile); }
-.list-row:focus-within { background: var(--accent-soft); box-shadow: -6px 0 0 var(--accent-soft), 6px 0 0 var(--accent-soft); outline: none; }
-/* Yours, and a row lit for a moment (picked from the crew above it): the same soft fill. */
-.list-row.mine, .list-row.lit { background: var(--accent-soft); box-shadow: -6px 0 0 var(--accent-soft), 6px 0 0 var(--accent-soft); }
-.lead { flex: none; min-width: 40px; display: grid; place-items: center; color: var(--panel, var(--muted)); }
+   focus is the selected entry. Carte blanche keeps colour for the icon's tile and the main button, so the light is
+   the soft paper, never pink, and never an outline or a stripe. */
+.list-row:hover, .list-row:focus-within { background: var(--tile); box-shadow: -8px 0 0 var(--tile), 8px 0 0 var(--tile); outline: none; }
+/* Yours, and a row lit for a moment (picked from the crew above it): the same soft paper, one step darker on hover. */
+.list-row.mine, .list-row.lit { background: var(--tile); box-shadow: -8px 0 0 var(--tile), 8px 0 0 var(--tile); }
+.list-row.mine:hover, .list-row.lit:hover { background: var(--fill); box-shadow: -8px 0 0 var(--fill), 8px 0 0 var(--fill); }
+.lead { flex: none; min-width: 40px; display: grid; place-items: center; color: var(--muted); }
 .lead:empty { display: none; }
-.text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
-.title { font-size: 18px; font-weight: 800; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sub, .text :deep(.sub) { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* What's on the right: words and numbers that line up. */
-.meta { flex: none; display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 14px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+/* The name at 15 and its line at 13, one line each: a long name ends in "…", never on two lines. */
+.title { font-size: 15px; font-weight: 800; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub, .text :deep(.sub) { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A tag after the name: the soft grey, small capitals, never a colour. */
+.title-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.title-line > :not(.title) { flex: none; height: 20px; padding: 0 7px; border-radius: 10px; background: var(--sunken); color: var(--muted); font-size: 11px; font-weight: 800; line-height: 20px; letter-spacing: 0.05em; text-transform: uppercase; }
+/* What's on the right: numbers that line up, muted so the name stays first. */
+.meta { flex: none; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .end { flex: none; display: flex; align-items: center; gap: 8px; }
-/* A row's buttons are one size: 46. A ghost unless a component says it's the row's main action. */
-.end :deep(button:not(.toggle)), .end :deep(a.button) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 0 14px; border-radius: var(--r-sm); font-size: 18px; }
+/* A row's buttons are the small size of the one family: 40 high, the grey with its lip (3px at this size), the heavy
+   cut at 14. A row's main action can still say .primary and take the red. */
+/* A rail's parts (.segmented, style.css) keep the rail's look: they aren't the row's keys. */
+.end :deep(button:not(.toggle, .segmented > button)), .end :deep(a.button) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 14px 3px; border-radius: 10px; font-size: 14px; }
+.end :deep(button:not(.toggle, .primary, .segmented > button)), .end :deep(a.button:not(.primary)) { background: var(--sunken); color: var(--text); box-shadow: inset 0 -3px 0 var(--quiet-lip); }
+.end :deep(button:not(.toggle, .primary, .segmented > button)):hover:not(:disabled), .end :deep(a.button:not(.primary)):hover { background: var(--fill); }
+.end :deep(button.primary) { box-shadow: inset 0 -3px 0 var(--accent-lip); }
 @media (max-width: 480px) {
   .meta { display: none; }
 }

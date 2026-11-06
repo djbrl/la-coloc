@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The coach: one flat card at the bottom of the screen during the quest, saying the one thing to do now. No line on
+// The coach: one white card (carte blanche) at the bottom of the screen during the quest, saying the one thing to do now. No line on
 // top names the chapter (the tracker does; the card says it to screen readers): one or two sentences, the step's
 // own piece (the two ways to bring a project, the launch's track, your address, the postcard to share, a card about the house), and at most one main action.
 // No ×: closing a message must never end the quest (Jib, 6 11). Leaving it is said in words, on the first card ("Not
@@ -52,6 +52,14 @@ const label = computed(() => (chapter.value ? `${w.quest}. ${w.chapterOf(CHAPTER
 const touch = computed(() => props.machine.touch);
 // The steps that talk to the API.
 const needsApi = computed(() => ["room", "project", "launch", "open"].includes(step.value));
+
+// The card's icon, in carte blanche's soft red tile beside its words. The launch and the postcard draw their own heads.
+const chipIcon = computed<QuestIconName | null>(() => {
+  if (props.waiting && needsApi.value && !live.value) return "launch";
+  if (step.value === "launch" || step.value === "share") return null;
+  if (step.value === "house") return houseIcon[houseCard.value];
+  return ({ walk: "arrive", look: "find", go: "find", room: "keys", project: picking.value ? "repo" : "project", open: "open" } as Partial<Record<string, QuestIconName>>)[step.value] ?? null;
+});
 
 // The key caps of the walk step, as this keyboard prints them (Z Q S D on AZERTY: lobby/keys.ts).
 const walkCaps = computed(() => [caps.w, caps.a, caps.s, caps.d]);
@@ -108,6 +116,8 @@ onBeforeUnmount(() => clearTimeout(timer));
 <template>
   <!-- No eyebrow over the step (the tracker at the top already shows the chapter): it's in the box's hidden name. -->
   <div class="coach" :class="[`at-${step}`]" role="dialog" :aria-label="label" @keydown="onKey">
+    <div class="row">
+    <span v-if="chipIcon" class="icon-tile"><QuestIcon :name="chipIcon" :size="22" /></span>
     <div class="body" aria-live="polite">
       <template v-if="waiting && needsApi && !live">
         <p class="text">{{ w.waiting }}</p>
@@ -121,7 +131,7 @@ onBeforeUnmount(() => clearTimeout(timer));
         <p v-if="touch" class="text">{{ w.walkTouch }}</p>
         <template v-else>
           <p class="text">{{ w.walkKeys(walkCaps.join(" ")) }}</p>
-          <p class="caps"><kbd v-for="c in walkCaps" :key="c">{{ c }}</kbd><kbd class="help">?</kbd></p>
+          <p class="caps" aria-hidden="true"><span class="label">{{ w.tryIt }}</span><kbd v-for="c in walkCaps" :key="c">{{ c }}</kbd><kbd class="help">?</kbd></p>
         </template>
       </template>
 
@@ -129,7 +139,7 @@ onBeforeUnmount(() => clearTimeout(timer));
       <p v-else-if="step === 'look'" class="text">{{ w.look }}</p>
       <template v-else-if="step === 'go'">
         <p class="text">{{ touch ? w.goTouch : w.goKeys }}</p>
-        <p v-if="!touch" class="caps"><kbd>{{ caps.e }}</kbd></p>
+        <p v-if="!touch" class="caps" aria-hidden="true"><span class="label">{{ w.tryIt }}</span><kbd>{{ caps.e }}</kbd></p>
       </template>
       <template v-else-if="step === 'room'">
         <p class="text">{{ w.room }}</p>
@@ -211,11 +221,12 @@ onBeforeUnmount(() => clearTimeout(timer));
 
       <!-- 8 · Meet the house, one idea per card. -->
       <template v-else-if="step === 'house'">
-        <p class="text with-icon"><span class="badge"><QuestIcon :name="houseIcon[houseCard]" :size="18" /></span>{{ w.houseTitles[houseCard] }}</p>
+        <p class="text">{{ w.houseTitles[houseCard] }}</p>
         <p class="line">{{ houseLine }}</p>
       </template>
 
       <p v-if="error && step !== 'launch'" class="sub error" role="alert">{{ error }}</p>
+    </div>
     </div>
 
     <div class="nav">
@@ -262,44 +273,45 @@ onBeforeUnmount(() => clearTimeout(timer));
 .coach {
   width: min(480px, calc(100vw - 32px));
   display: grid;
-  gap: 10px;
-  padding: 12px 16px 14px 18px;
-  border-radius: var(--r-lg);
+  gap: 14px;
+  padding: 20px;
+  border-radius: var(--card-r);
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
   animation: coach-pop var(--dur-slow) var(--ease-pop);
 }
 .coach.at-share, .coach.at-launch { width: min(540px, calc(100vw - 32px)); }
-.coach.at-share { width: min(640px, calc(100vw - 32px)); padding: 18px 22px 18px; }
+.coach.at-share { width: min(640px, calc(100vw - 32px)); }
 @keyframes coach-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
-.coach { position: relative; padding-top: 14px; }
-.body { display: grid; gap: 6px; }
-.text { margin: 0; font: 700 19px/1.3 var(--display); }
-.sub { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
-.line { margin: 0; font-size: 16px; line-height: 1.45; }
+.coach { position: relative; }
+/* Carte blanche's head: the icon's tile, then the words. */
+.row { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
+.body { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; }
+.text { margin: 0; padding-top: 1px; font: 800 22px/28px var(--display); }
+.sub { margin: 0; font-size: 15px; line-height: 21px; color: var(--muted); }
+.line { margin: 0; font-size: 15px; line-height: 21px; color: var(--muted); }
 .error { color: var(--danger); }
 /* Your address, big, in the monospace: the thing to remember. A long one wraps rather than push the card wider. */
-.url { margin: 4px 0; padding: 10px 12px; border-radius: var(--r-md); background: var(--tile); font: 600 20px/1.25 var(--num); color: var(--accent); overflow-wrap: anywhere; }
-/* The keys of the step, as big raised caps. */
-.caps { margin: 4px 0 0; display: flex; gap: 6px; }
-.caps .help { margin-left: 12px; }
-.caps kbd { min-width: 36px; height: 36px; padding: 0 8px; border-radius: var(--r-sm); border-bottom-width: 3px; font-size: 14px; }
+.url { margin: 8px 0 4px; padding: 10px 14px; border-radius: 12px; background: var(--tile); font: 500 15px/1.4 var(--code); color: var(--accent); overflow-wrap: anywhere; }
+/* "Try it": the step's keys as raised caps on a soft strip. They're a hint: the city has the keys. */
+.caps { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
+.caps .label { margin-right: 6px; }
+.caps .help { margin-left: 10px; }
+.caps kbd { min-width: 32px; height: 32px; padding: 0 8px 3px; border-radius: 8px; background: var(--surface); color: var(--text); box-shadow: inset 0 -3px 0 var(--quiet-lip); font-size: 14px; }
 /* Chapter 4's two ways in: big tiles, the ready-made page first and in the red. */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
-.tile { display: flex; align-items: flex-start; gap: 10px; min-height: 0; padding: 12px; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); text-align: left; font: inherit; line-height: 1.3; text-decoration: none; cursor: pointer; }
-.tile:hover:not(:disabled):not(.off) { background: var(--tile); text-decoration: none; }
+/* A choice is a row with a chevron's worth of room, never a picture: a soft tile, its icon on white. */
+.tile { display: flex; align-items: center; gap: 12px; min-height: 0; padding: 12px 14px; border: 0; border-radius: var(--tile-r); background: var(--tile); color: var(--text); box-shadow: none; text-align: left; font: inherit; line-height: 1.3; text-decoration: none; cursor: pointer; }
+.tile:hover:not(:disabled):not(.off) { background: var(--sunken); text-decoration: none; }
 .tile:active:not(:disabled):not(.off) { transform: translateY(1px); }
-.tile.main { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill), 0 3px 0 var(--accent-lip); }
-.tile.main:hover:not(:disabled) { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent-fill-hover), 0 3px 0 var(--accent-lip); }
 .tile.off { opacity: 0.6; cursor: default; }
-.tile-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-sm); background: var(--tile); color: var(--muted); }
-.main .tile-icon { background: var(--accent-fill); color: var(--on-accent); }
+.tile-icon { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--surface); color: var(--accent); }
 .tile-text { display: grid; gap: 3px; min-width: 0; }
-.tile-title { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 15px; }
-.tile-sub { font-size: 14px; color: var(--muted); }
+.tile-title { display: inline-flex; align-items: center; gap: 4px; font-weight: 800; font-size: 15px; line-height: 20px; }
+.tile-sub { font-size: 13px; line-height: 18px; color: var(--muted); }
 /* Waiting on GitHub: three dots that take turns. */
 .dots { display: flex; gap: 6px; margin-top: 2px; }
 .dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-fill); animation: dot 1.2s var(--ease) infinite; }
@@ -309,18 +321,16 @@ onBeforeUnmount(() => clearTimeout(timer));
   0%, 60%, 100% { opacity: 0.25; transform: none; }
   30% { opacity: 1; transform: translateY(-3px); }
 }
-/* Chapter 8: the card's icon in a soft disc beside its title. */
-.with-icon { display: flex; align-items: center; gap: 10px; }
-.badge { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
 .nav { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .nav:empty { display: none; }
 .nav > .quiet:first-child { margin-right: auto; }
 .count { margin-right: auto; font: 600 14px/1 var(--num); color: var(--muted); }
-.quiet { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--muted); font-size: 14px; font-weight: 600; }
-.quiet:hover:not(:disabled) { background: var(--tile); color: var(--text); text-decoration: none; }
-.quiet:active:not(:disabled) { transform: translateY(1px); }
-.go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; }
-.go.wide { flex: 1 1 auto; min-height: 60px; font-size: 19px; }
+/* The second button: carte blanche's grey, with its lip. */
+.quiet { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 16px var(--lip); border-radius: 12px; background: var(--sunken); box-shadow: var(--quiet-edge); color: var(--text); font-size: 15px; font-weight: 800; }
+.quiet:hover:not(:disabled) { background: var(--fill); text-decoration: none; }
+.quiet:active:not(:disabled) { transform: translateY(2px); }
+.go { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 160px; padding: 0 20px var(--lip); }
+.go.wide { flex: 1 1 auto; }
 a.go:hover { text-decoration: none; }
 button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
@@ -328,9 +338,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-
   .quiet:active:not(:disabled), .tile:active { transform: none; }
 }
 @media (max-width: 520px) {
-  .coach { padding: 10px 12px 12px 14px; }
-  .coach.at-share { padding: 12px 14px 14px; }
-  .text { font-size: 17px; }
+  .coach { padding: 16px; }
+  .text { font-size: 19px; line-height: 24px; }
   .tiles { grid-template-columns: 1fr; }
   .url { font-size: 16px; }
 }

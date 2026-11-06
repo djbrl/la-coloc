@@ -120,7 +120,7 @@ function onClick(e: MouseEvent) {
           <h2>{{ w.readyTitle }}</h2>
           <!-- The house as the street will see it: its name, where it is, its line. -->
           <div class="preview">
-            <span class="house-ic" aria-hidden="true"><Icon name="house" :size="24" /></span>
+            <span class="icon-tile" aria-hidden="true"><Icon name="house" :size="22" /></span>
             <span class="what">
               <strong class="name">{{ name.trim() }}</strong>
               <span class="where">{{ city }} · {{ w.youreChef }}</span>
@@ -140,9 +140,9 @@ function onClick(e: MouseEvent) {
 </template>
 
 <style scoped>
-/* A floating card over the dimmed city, like a game's menu: flat surface, big corners, a quick pop. */
+/* A floating card over the dimmed city (style.css's .step-sign gives it the white card and its head), a quick pop. */
 .sheet {
-  width: min(540px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   padding: 0;
   border: none;
@@ -154,35 +154,28 @@ function onClick(e: MouseEvent) {
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.94); }
 }
-.form { display: grid; gap: 14px; }
-.form > p { font-size: 16px; line-height: 1.4; }
-.form > p.small { font-size: 14px; }
+.form { display: grid; gap: 16px; }
+.form > p { font-size: 15px; font-weight: 600; line-height: 21px; }
+.form > p.small { font-size: 13px; line-height: 18px; }
 .error { font-size: 14px; }
-/* The field: a big soft well, no hard border until it has the focus. */
-.form input { min-height: 50px; border-color: var(--line); border-radius: var(--r-md); background: var(--tile); font: 700 20px var(--display); }
-.form input:focus { border-color: var(--accent-fill); background: var(--surface); }
-.form input[aria-invalid="true"] { border-color: var(--danger); }
+/* The field: the soft grey well, no border; the focus ring says where you are. */
+.form input { font-size: 17px; font-weight: 600; }
 
-/* The last look: the house as a tile, the way the street will see it. */
-.preview { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border-radius: var(--r-md); background: var(--tile); }
-.house-ic { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-md); background: var(--accent-fill); color: var(--on-accent); box-shadow: 0 var(--lip) 0 var(--accent-lip); }
+/* The last look: the house as a tile on the soft paper, the way the street will see it, its icon on the soft red. */
+.preview { display: flex; align-items: flex-start; gap: 14px; padding: 14px; border-radius: var(--tile-r); background: var(--tile); }
 .what { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
-.name { font: 800 22px/1.15 var(--display); overflow-wrap: anywhere; }
-.where { font-size: 14px; color: var(--muted); }
-.tag { margin-top: 6px; font-size: 15px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.name { font-size: 17px; font-weight: 800; line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.where { font-size: 13px; font-weight: 600; color: var(--muted); }
+.tag { margin-top: 4px; font-size: 15px; font-weight: 600; line-height: 21px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* Chunky buttons, as in a game's menu: the main one in the accent and as wide as it can be, the way back in grey. */
-.nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.nav button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; white-space: nowrap; }
-.nav .primary { flex: 1 1 auto; min-height: 60px; font-size: 22px; }
-.nav .second { padding-left: 14px; }
-@media (max-width: 520px) {
-  /* A phone: the card becomes a sheet along the bottom edge. */
-}
+/* The one button family: 48 high, the main one red and twice as wide, the way back in grey. */
+.nav { display: flex; align-items: center; gap: 10px; }
+.nav button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+.nav .second { flex: 1 1 0; }
+.nav .primary { flex: 2 1 0; min-width: 0; }
 /* A short window (a landscape phone, a small laptop): tighter, so every step fits without scrolling. */
 @media (max-height: 640px) {
-    .form { gap: 10px; }
-  .nav { margin-top: 0; }
+  .form { gap: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet[open] { animation: none; }

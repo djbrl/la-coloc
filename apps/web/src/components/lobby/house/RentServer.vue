@@ -160,7 +160,7 @@ watch(
 
         <form v-else-if="step === 2" class="form pay" novalidate @submit.prevent="pay">
           <h2>{{ w.payTitle }}</h2>
-          <p class="amount"><strong>{{ fcfa(price) }}</strong></p>
+          <p class="amount"><strong>{{ fcfa(price) }}</strong><span>{{ w.aMonth.trim() }}</span></p>
           <p class="muted">{{ w.spec(plans.find((p) => p.id === plan)!.vcpu, plans.find((p) => p.id === plan)!.gb) }}. {{ w.payWhy }}</p>
           <CreditAfter :price="price" />
           <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -202,9 +202,9 @@ watch(
 </template>
 
 <style scoped>
-/* A floating card over the dimmed city, like a game's menu: flat surface, big corners, a quick pop. */
+/* A floating card over the dimmed city (style.css's .step-sign gives it the white card and its head), a quick pop. */
 .sheet {
-  width: min(540px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   padding: 0;
   border: none;
@@ -216,62 +216,64 @@ watch(
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.94); }
 }
-.form { display: grid; gap: 14px; }
-.form > p { font-size: 16px; line-height: 1.4; }
+.form { display: grid; gap: 16px; }
+.form > p { font-size: 15px; font-weight: 600; line-height: 21px; }
 .error { font-size: 14px; }
 
-/* A size is a big tile you pick, like a game's difficulty: the ink ring and a tick on the chosen one. */
-.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+/* A size is a tile you pick, like a game's difficulty: the soft paper, and the chosen one white with an ink ring and
+   a tick. */
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .plan {
   position: relative;
   display: grid;
-  gap: 4px;
+  gap: 2px;
   justify-items: start;
   min-height: 0;
-  padding: 14px;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: var(--quiet-edge);
+  padding: 12px 14px;
+  border-radius: var(--tile-r);
+  background: var(--tile);
+  box-shadow: none;
   color: var(--text);
   text-align: left;
-  transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.plan:hover:not(:disabled) { background: var(--tile); }
-.plan:active:not(:disabled) { transform: translateY(1px); }
-.plan[aria-checked="true"] { background: var(--surface); box-shadow: inset 0 0 0 3px var(--panel-red); }
-.plan-ic { display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 6px; border-radius: var(--r-sm); background: var(--tile); color: var(--muted); }
-.plan[aria-checked="true"] .plan-ic { background: var(--accent-fill); color: var(--on-accent); }
-.size { font: 400 22px/1.1 var(--display); }
-/* The machine's numbers and its price: the monospace, like a cloud provider's plan table. */
-.spec { font: 600 14px/1.25 var(--num); color: var(--muted); }
-.price { display: grid; font: 800 15px/1.25 var(--num); font-variant-numeric: tabular-nums; }
+.plan:hover:not(:disabled) { background: var(--fill); }
+.plan:active:not(:disabled) { transform: none; }
+.plan[aria-checked="true"], .plan[aria-checked="true"]:hover:not(:disabled) { background: var(--surface); box-shadow: inset 0 0 0 2px var(--text); }
+.plan-ic { display: grid; place-items: center; width: 32px; height: 32px; margin-bottom: 6px; border-radius: 10px; background: var(--surface); color: var(--muted); }
+.plan[aria-checked="true"] .plan-ic { background: var(--tile); color: var(--text); }
+.size { font: 800 17px/22px var(--font); }
+.spec { font: 600 13px/18px var(--num); color: var(--muted); }
+.price { display: grid; margin-top: 4px; font: 800 15px/20px var(--num); font-variant-numeric: tabular-nums; }
 /* More than you have: it's still there to pick, and the next step says what to do. */
 .price.dear { color: var(--danger); }
-.per { display: block; font-size: 14px; font-weight: 600; color: var(--muted); }
-.picked { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent); }
+.per { display: block; font-size: 13px; font-weight: 600; color: var(--muted); }
+.picked { position: absolute; top: 10px; right: 10px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--text); color: var(--surface); }
 
-/* The first month: the amount, what it does to your credit, one button. */
+/* The first month, as the first rent's card: the amount big on the soft paper, what it does to your credit, two
+   buttons. */
 .pay { justify-items: stretch; }
-.amount strong { font: 400 44px/1.05 var(--display); color: var(--panel-red); white-space: nowrap; }
-/* The amount on the button is long: it keeps to the card, however narrow, and Back stays its size. */
-.pay .nav .second { flex: none; }
-.pay .nav .primary { flex: 1 1 0; min-width: 0; padding: 0 10px; font-size: clamp(16px, 4.6vw, 20px); white-space: nowrap; }
+.amount { display: flex; align-items: baseline; gap: 8px; padding: 14px 16px; border-radius: var(--tile-r); background: var(--tile); }
+.amount strong { font-size: 34px; font-weight: 800; line-height: 40px; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.amount span { font-size: 15px; font-weight: 600; color: var(--muted); }
 
-.small { font-size: 14px !important; }
+.small { font-size: 13px !important; }
 
-/* Chunky buttons, as in a game's menu: the main one in the accent and as wide as it can be, the other in grey. */
-.nav { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.nav button, .nav a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; white-space: nowrap; }
-.nav .primary { flex: 1 1 auto; min-height: 60px; font-size: 22px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The one button family: 48 high, the main one red and twice as wide, Back in grey. The amount on the main one is
+   long: it keeps to the card, however narrow. */
+.nav { display: flex; align-items: center; gap: 10px; }
+.nav button, .nav a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+.nav .second { flex: 1 1 0; }
+.nav .primary { flex: 2 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .wait { justify-items: center; text-align: center; }
-/* The title stays the card's red band, as on the steps before it. */
+/* The title stays the card's head, as on the steps before it. */
 .wait h2 { justify-self: stretch; text-align: left; }
 .wait .nav { justify-self: stretch; }
 .ring { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; }
 .ring.on { background: var(--live-soft); color: var(--live); }
-/* A calm spinner: a ring with one red quarter, turning slowly. */
-.ring.spin { border: 4px solid var(--fill); border-top-color: var(--accent-fill); animation: turn 1.4s linear infinite; }
+/* A calm spinner: a ring with one ink quarter, turning slowly. */
+.ring.spin { border: 4px solid var(--fill); border-top-color: var(--text); animation: turn 1.4s linear infinite; }
 @keyframes turn {
   to { transform: rotate(360deg); }
 }
@@ -281,11 +283,10 @@ watch(
   .plans { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .plan { grid-template-columns: auto 1fr auto; grid-template-areas: "ic size price" "ic spec price"; align-items: center; column-gap: 12px; padding: 10px 14px; }
   .plan-ic { grid-area: ic; margin: 0; }
-  .size { grid-area: size; font-size: 17px; }
+  .size { grid-area: size; }
   .spec { grid-area: spec; }
-  .price { grid-area: price; padding-right: 26px; text-align: right; }
-  .picked { top: 50%; margin-top: -11px; }
-  .nav button { padding: 0 14px; }
+  .price { grid-area: price; margin: 0; padding-right: 26px; text-align: right; }
+  .picked { top: 50%; margin-top: -10px; }
 }
 /* A short window (a landscape phone, a small laptop): tighter, so every step fits without scrolling. */
 @media (max-height: 640px) {

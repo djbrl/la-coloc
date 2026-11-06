@@ -13,7 +13,7 @@ const title = computed(() => w.emptyTitle[props.plot.lot]);
 </script>
 
 <template>
-  <LobbyCard :label="w.emptyLabel" :title="title" :close-name="w.close" @close="emit('close')">
+  <LobbyCard :label="w.emptyLabel" :title="title" icon="pin" :close-name="w.close" @close="emit('close')">
     <div class="menu">
       <button v-if="me" class="big primary" @click="emit('rent')"><Icon name="plus" :size="20" /> {{ w.startHere }}</button>
       <RouterLink v-else to="/login" class="big primary"><Icon name="login" :size="20" /> {{ w.logInToStart }}</RouterLink>

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { language } from "../../../i18n";
-import { noteLook, noteWhen, notesSummary, notesThisWeek, whenKind } from "./notes";
-import { icons } from "./icons";
+import { byDay, noteDay, noteMark, noteWhen, notesSummary, notesThisWeek, splitNote, whenKind } from "./notes";
 
 // Dates in the test machine's own time zone, as a viewer reads them.
 const NOW = new Date(2026, 9, 15, 16, 30);
@@ -12,12 +11,25 @@ afterEach(() => {
 });
 
 describe("the News tab", () => {
-  it("draws each kind of note with its own icon and colour", () => {
-    expect(noteLook("thanks")).toEqual({ icon: "heart", colour: "live" });
-    expect(noteLook("warning")).toEqual({ icon: "warn", colour: "warn" });
-    expect(noteLook("danger")).toEqual({ icon: "alert", colour: "danger" });
-    expect(noteLook("info")).toEqual({ icon: "info", colour: "quiet" });
-    for (const tone of ["thanks", "warning", "danger", "info"] as const) expect(icons[noteLook(tone).icon]).toBeTruthy();
+  it("marks each kind of note with one quiet symbol: done, broken, or waiting for you", () => {
+    expect(noteMark("thanks")).toBe("ok");
+    expect(noteMark("info")).toBe("ok");
+    expect(noteMark("warning")).toBe("todo");
+    expect(noteMark("danger")).toBe("fail");
+  });
+
+  it("puts a note's first sentence on its line and the rest under it", () => {
+    expect(splitNote("skindiff#85 merged without review. Strict house: not online.")).toEqual({ head: "skindiff#85 merged without review", rest: "Strict house: not online." });
+    expect(splitNote("Awa moved in.")).toEqual({ head: "Awa moved in.", rest: "" });
+    expect(splitNote("It crashed! The old version still runs.")).toEqual({ head: "It crashed!", rest: "The old version still runs." });
+  });
+
+  it("groups the notes by day, in the order they came", () => {
+    const groups = byDay([{ at: at(15, 9) }, { at: at(15, 8) }, { at: at(14) }, { at: at(12) }], NOW);
+    expect(groups.map((g) => [g.day, g.notes.length])).toEqual([["Today", 2], ["Yesterday", 1], ["12 October", 1]]);
+    language.lang = "fr";
+    expect(noteDay(at(15), NOW)).toBe("Aujourd'hui");
+    expect(noteDay(at(12), NOW)).toBe("12 octobre");
   });
 
   it("counts the notes of the last seven days", () => {

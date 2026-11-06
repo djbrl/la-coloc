@@ -93,7 +93,12 @@ export const roomWords = defineWords(
       preview: "Preview:",
       backToRoom: "Back to the room",
     },
-    tabs: { code: "Code", secrets: "Secrets", logs: "Logs", history: "History", lease: "Lease", ssh: "SSH", inside: "Inside" },
+    // The room's tabs. With seven of them (SSH and Lease too) the first takes its short word, so none is cut.
+    tabs: { overview: "Overview", overviewShort: "Overview", code: "Code", secrets: "Secrets", logs: "Logs", history: "History", lease: "Lease", ssh: "SSH", inside: "Inside" },
+    // The Overview's numbers and lines (RoomOverview.vue).
+    cpuMax: "CPU max",
+    codeLine: (branch: string) => `Code: ${branch}`,
+    lastLog: "The log's last lines",
     // The SSH tab (RoomSsh.vue).
     ssh: {
       copy: "Copy",
@@ -132,6 +137,9 @@ export const roomWords = defineWords(
       see: "See",
       connected: "in SSH",
       who: (names: string) => `In SSH: ${names}`,
+      usedOf: (mb: number) => `used of ${mb} MB`,
+      runningStat: "running",
+      whyLocal: "Why “only inside”?",
     },
     // The Lease tab (RoomLease.vue).
     lease: {
@@ -394,7 +402,10 @@ export const roomWords = defineWords(
       preview: "Aperçu :",
       backToRoom: "Retour à la chambre",
     },
-    tabs: { code: "Code", secrets: "Secrets", logs: "Logs", history: "Historique", lease: "Bail", ssh: "SSH", inside: "Dedans" },
+    tabs: { overview: "Vue d'ensemble", overviewShort: "Aperçu", code: "Code", secrets: "Secrets", logs: "Journaux", history: "Historique", lease: "Bail", ssh: "SSH", inside: "Intérieur" },
+    cpuMax: "CPU max",
+    codeLine: (branch) => `Code : ${branch}`,
+    lastLog: "Dernières lignes du journal",
     ssh: {
       copy: "Copier",
       copied: "Copié",
@@ -431,6 +442,9 @@ export const roomWords = defineWords(
       see: "Voir",
       connected: "en SSH",
       who: (names: string) => `En SSH : ${names}`,
+      usedOf: (mb: number) => `utilisés sur ${mb} Mo`,
+      runningStat: "en marche",
+      whyLocal: "Pourquoi « seulement dedans » ?",
     },
     lease: {
       share: "votre part ce mois-ci",

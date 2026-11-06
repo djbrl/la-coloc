@@ -7,6 +7,12 @@ export const bellWords = defineWords(
     label: "Notifications",
     bellName: (unread: number) => (unread ? `Notifications, ${unread} unread` : "Notifications"),
     empty: "Nothing new.",
+    // The line under the title, and the list's two small headings: what waits for you, then the rest.
+    toDo: (n: number) => `${n} to do.`,
+    toDoHead: "To do",
+    earlierHead: "Earlier",
+    // The quiet symbol before a line, for a screen reader.
+    markName: { ok: "Done", fail: "Didn't work out", todo: "Waiting for you" } as Record<"ok" | "fail" | "todo", string>,
     someone: "Someone",
     close: "Close",
     // A house invitation, then how it ended.
@@ -79,6 +85,10 @@ export const bellWords = defineWords(
     label: "Notifications",
     bellName: (unread) => (unread ? `Notifications, ${unread} non lue${unread > 1 ? "s" : ""}` : "Notifications"),
     empty: "Rien de neuf.",
+    toDo: (n) => `${n} à traiter.`,
+    toDoHead: "À traiter",
+    earlierHead: "Plus tôt",
+    markName: { ok: "Fait", fail: "N'a pas abouti", todo: "Vous attend" },
     someone: "Quelqu'un",
     close: "Fermer",
     invite: (who, house) => `${who} vous invite à ${house}`,

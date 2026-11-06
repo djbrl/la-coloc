@@ -92,24 +92,28 @@ export const cpuShare = (cpus: number) => w.cpuShare(cpus);
  *  share, or what that share is when nothing is measured. "Online for 3 days, using 9 of its 256 MB and almost no
  *  CPU." / "Never built yet. It has 256 MB of memory and half a CPU of its own." */
 export function roomSentence(room: Pick<RoomManage["room"], "status" | "limits" | "usage">, deployments: Deployment[], now = Date.now()): string {
-  const prod = deployments.filter((d) => d.kind === "prod");
-  const ago = (iso: string) => span(now - new Date(iso).getTime());
-  const last = prod[0] ?? deployments[0];
-  let state: string;
-  if (room.status === "live") {
-    const up = prod.find((d) => d.status === "live");
-    state = up ? w.onlineFor(ago(up.updatedAt)) : w.online;
-  } else if (room.status === "deploying") state = w.buildingNow;
-  else if (room.status === "down") state = w.stopped;
-  else if (room.status === "failed") state = last ? w.failedAgo(ago(last.updatedAt)) : w.failed;
-  else state = last ? w.notOnlineYet : w.neverBuilt;
-
+  const state = stateWords(room.status, deployments, now);
   const memory = memoryUse(room.usage);
   if (room.usage && memory && (room.status === "live" || room.status === "deploying")) {
     const cpu = room.usage.cpuPercent < 1 ? w.almostNoCpu : w.cpuPercent(Math.round(room.usage.cpuPercent));
     return w.using(state, memory.mb, room.limits.memoryMb, cpu);
   }
   return w.has(state, room.limits.memoryMb, cpuShare(room.limits.cpus));
+}
+
+/** The state half of that sentence, alone: the Overview's first line. "Online for 3 days", "Never built yet". */
+export function stateWords(status: RoomStatus, deployments: Pick<Deployment, "kind" | "status" | "updatedAt">[], now = Date.now()): string {
+  const prod = deployments.filter((d) => d.kind === "prod");
+  const ago = (iso: string) => span(now - new Date(iso).getTime());
+  const last = prod[0] ?? deployments[0];
+  if (status === "live") {
+    const up = prod.find((d) => d.status === "live");
+    return up ? w.onlineFor(ago(up.updatedAt)) : w.online;
+  }
+  if (status === "deploying") return w.buildingNow;
+  if (status === "down") return w.stopped;
+  if (status === "failed") return last ? w.failedAgo(ago(last.updatedAt)) : w.failed;
+  return last ? w.notOnlineYet : w.neverBuilt;
 }
 
 export interface CodeRow {

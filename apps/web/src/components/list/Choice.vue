@@ -47,23 +47,24 @@ function onKey(e: KeyboardEvent, i: number) {
 </template>
 
 <style scoped>
-.choice { display: flex; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); min-width: 0; }
+/* One control: a grey rail, the chosen option lifted out in white (carte blanche's tabs). */
+.choice { display: flex; gap: 4px; padding: 4px; border-radius: var(--tile-r); background: var(--sunken); min-width: 0; }
 .option {
   flex: 1 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 46px;
+  min-height: 40px;
   padding: 0 12px;
-  border-radius: var(--r-sm);
+  border-radius: 10px;
   background: none;
   color: var(--muted);
-  font-size: 14px;
-  font-weight: 600;
+  box-shadow: none;
+  font: 800 15px/1 var(--font);
   white-space: nowrap;
 }
 .option:hover:not(:disabled) { background: none; color: var(--text); }
-.option[aria-checked="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
-.option:focus-visible { outline-offset: -2px; }
+.option[aria-checked="true"], .option[aria-checked="true"]:hover:not(:disabled) { background: var(--surface); color: var(--text); box-shadow: 0 2px 0 rgba(23, 21, 26, 0.14); }
+.option:focus-visible { outline-offset: -3px; }
 </style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Chapter 5: the launch, as a show. Four stages in plain words on a track (fetching your code → building →
-// starting → live), the current one breathing, the bar filling as the caretaker reports each step, a clock in the
-// monospace, and a tick for each new stage. Meanwhile the house wears its crane (the engine draws it while the
+// Chapter 5: the launch, as a show, in carte blanche: the icon's tile, the title, and the stage you're at with a clock
+// under it; then the four stages as quiet lines (fetching your code → building → starting → live), each with its
+// symbol: a tick when done, the current one breathing, a soft dot for what's next, and a tick sound for each new stage. Meanwhile the house wears its crane (the engine draws it while the
 // room builds); when it goes live the fireworks go off over the house and your window lights up. A failed build
 // says what happened and what to do, with the whole log a press away, and offers to try again, to bring another
 // project, or to fall back on the ready-made page. The build's own window opens over this card by itself as the build
@@ -81,7 +81,6 @@ watch(
 );
 
 // How full the bar is: each stage is a quarter, and the current one is half filled while it runs.
-const fill = computed(() => (props.launched ? 100 : Math.min(100, (reached.value / 3) * 100 + (failed.value ? 0 : 100 / 6))));
 const title = computed(() => (props.launched ? w.liveTitle : failed.value || props.error ? w.failed : w.launching));
 // What went wrong, and what to do about it.
 const trouble = computed(() => roomWords.trouble[buildTrouble(props.log ?? props.why)]);
@@ -91,11 +90,14 @@ const nowSaid = computed(() => w.stageOf(reached.value + 1, STAGES.length, w.sta
 <template>
   <div class="launch" :class="{ live: launched, failed: failed || !!error }">
     <div class="top">
-      <p class="title">{{ title }}</p>
-      <span class="clock" aria-hidden="true">{{ w.seconds(stopped ?? seconds) }}</span>
+      <span class="icon-tile"><QuestIcon :name="launched ? 'tick' : 'project'" :size="22" /></span>
+      <div class="words">
+        <p class="title">{{ title }}</p>
+        <p class="where"><span>{{ launched ? w.stages.live : nowSaid }}</span><span class="clock" aria-hidden="true">{{ w.seconds(stopped ?? seconds) }}</span></p>
+      </div>
     </div>
 
-    <!-- The track: four stages, each a dot and a word, with the bar filling under them. -->
+    <!-- The stages: one quiet line each, a symbol for where it's at. -->
     <ol v-if="!failed" class="track" :aria-label="w.launching">
       <li
         v-for="(stage, i) in STAGES"
@@ -104,11 +106,10 @@ const nowSaid = computed(() => w.stageOf(reached.value + 1, STAGES.length, w.sta
         :class="{ done: i < reached || launched, now: i === reached && !launched && !failed && !error, stuck: i === reached && failed }"
         :aria-current="i === reached ? 'step' : undefined"
       >
-        <span class="dot"><QuestIcon v-if="i < reached || launched" name="tick" :size="12" /></span>
+        <span class="status-mark" :class="i < reached || launched ? 'ok' : i === reached && !error ? 'todo' : 'none'"><QuestIcon v-if="i < reached || launched" name="tick" :size="12" /></span>
         <span class="word">{{ w.stages[stage] }}</span>
       </li>
     </ol>
-    <div v-if="!failed" class="bar" aria-hidden="true"><span :style="{ width: `${fill}%` }" /></div>
     <p class="sr-only" aria-live="polite">{{ launched ? w.liveTitle : failed ? w.failed : nowSaid }}</p>
 
     <template v-if="error">
@@ -133,48 +134,37 @@ const nowSaid = computed(() => w.stageOf(reached.value + 1, STAGES.length, w.sta
 </template>
 
 <style scoped>
-.launch { display: grid; gap: 10px; }
-.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.title { margin: 0; font: 800 22px/1.15 var(--display); }
-.live .title { color: var(--live); }
-.clock { font: 600 14px/1 var(--num); color: var(--muted); font-variant-numeric: tabular-nums; }
-.track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
-.stage { display: grid; justify-items: center; gap: 6px; text-align: center; min-width: 0; }
-.dot { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--line-strong); color: var(--on-accent); }
-.word { font-size: 14px; line-height: 1.2; color: var(--muted); }
-.done .dot { background: var(--accent-fill); box-shadow: 0 2px 0 var(--accent-lip); }
-.done .word { color: var(--text); }
-.live .done .dot { background: var(--live); box-shadow: none; color: var(--surface); }
-/* The stage running now: the ring breathes in the red. */
-.now .dot { box-shadow: inset 0 0 0 2px var(--accent-fill); animation: breathe 1.2s var(--ease) infinite; }
-.now .word { color: var(--text); font-weight: 600; }
-.stuck .dot { box-shadow: inset 0 0 0 2px var(--danger); background: var(--danger-soft); }
-.stuck .word { color: var(--danger); font-weight: 600; }
+.launch { display: grid; gap: 14px; }
+.top { display: flex; align-items: flex-start; gap: 14px; }
+.words { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; }
+.title { margin: 0; padding-top: 1px; font: 800 22px/28px var(--display); }
+.where { display: flex; justify-content: space-between; gap: 12px; margin: 0; font-size: 15px; line-height: 21px; color: var(--muted); }
+.where > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clock { flex: none; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.track { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.stage { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.word { font-size: 15px; font-weight: 800; line-height: 20px; color: var(--text); }
+.stage:not(.done):not(.now):not(.stuck) .word { color: var(--muted); font-weight: 600; }
+/* The stage running now: its symbol breathes. */
+.now .status-mark { animation: breathe 1.2s var(--ease) infinite; }
+.stuck .status-mark { background: var(--accent-soft); }
+.stuck .word { color: var(--danger); }
 @keyframes breathe {
-  50% { box-shadow: inset 0 0 0 2px var(--accent-fill), 0 0 0 6px var(--focus); }
+  50% { opacity: 0.5; }
 }
-/* The bar: a sunken track, filled in the red, striped while it runs, green once live. */
-.bar { height: 8px; border-radius: 4px; background: var(--fill); overflow: hidden; }
-.bar span { display: block; height: 100%; border-radius: 4px; background: repeating-linear-gradient(-45deg, var(--accent-fill) 0 8px, var(--accent-fill-hover) 8px 16px); background-size: 22px 22px; transition: width 600ms var(--ease); animation: run 0.8s linear infinite; }
-.live .bar span { background: var(--live); animation: none; }
-.failed .bar span { background: var(--danger); animation: none; }
-@keyframes run {
-  to { background-position: 22px 0; }
-}
-.help { margin: 0; font-size: 16px; line-height: 1.35; }
+.help { margin: 0; font-size: 15px; line-height: 21px; }
 .see { justify-self: start; }
 .why { margin: 0; font-size: 15px; color: var(--danger); }
 .nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .nav .go { margin-left: auto; }
-.quiet { min-height: 46px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--quiet-edge); color: var(--text); font-size: 14px; font-weight: 600; }
-.quiet:hover:not(:disabled) { background: var(--tile); color: var(--text); }
-.go { min-height: 50px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; }
+/* The second button: carte blanche's grey, with its lip. */
+.quiet { min-height: 48px; padding: 0 16px var(--lip); border-radius: 12px; background: var(--sunken); box-shadow: var(--quiet-edge); color: var(--text); font-size: 15px; font-weight: 800; }
+.quiet:hover:not(:disabled) { background: var(--fill); color: var(--text); }
+.go { min-width: 140px; }
 @media (max-width: 520px) {
-  .word { font-size: 14px; }
-  .title { font-size: 19px; }
+  .title { font-size: 19px; line-height: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .now .dot, .bar span { animation: none; }
-  .bar span { transition: none; }
+  .now .status-mark { animation: none; }
 }
 </style>

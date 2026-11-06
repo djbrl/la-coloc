@@ -6,7 +6,7 @@
  * (Caveat Brush) is on the landing's sign and nowhere else, so nobody in the game ever downloads it. woff2 only: every
  * browser we target reads it.
  */
-/* Titles and buttons. It has one weight, heavy already; the range says "this is every weight", so a stray
+/* The wordmark (La Coloc) and the landing. It has one weight, heavy already; the range says "this is every weight", so a stray
    `font-weight: 700` on a title draws this face as it is rather than a smeared fake bold. */
 @font-face {
   font-family: "Archivo Black";
@@ -54,6 +54,24 @@
   font-style: normal;
   font-display: swap;
   font-weight: 800;
+  src: url("@fontsource/bricolage-grotesque/files/bricolage-grotesque-latin-ext-800-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* Carte blanche's titles and buttons: Bricolage's 800, under its own name with the range "every weight", so a
+   `font-weight: 400` or `700` left on a title from the Panneau days still draws the heavy cut, never a fake bold. */
+@font-face {
+  font-family: "Bricolage Display";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource/bricolage-grotesque/files/bricolage-grotesque-latin-800-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Bricolage Display";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
   src: url("@fontsource/bricolage-grotesque/files/bricolage-grotesque-latin-ext-800-normal.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }

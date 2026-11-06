@@ -3,19 +3,21 @@
 // (see components/lobby/panel), so in the lobby's sheet it fits the sheet's height and never scrolls the sheet:
 // each part is made to fit, the long ones (logs, a long history) scroll inside themselves, and anything with more
 // than a field or two to fill in is a short step flow. On a page of its own the panel just grows.
-// It opens on a menu of tiles (RoomOverview.vue), one per part; a part opens in its place, with a key back to the menu
-// (in the lobby's sheet, the sheet's own back key: see lobby/sheetStep.ts).
+// Carte blanche: one window, its parts in one row of tabs (no tiles opening sub-pages), and the room's two actions,
+// Restart and Update, always at the foot, whatever tab is open (Jib, 6 Nov). The foot steps aside only while a tab
+// runs a flow with its own main button (naming the project, choosing the code, adding a secret, ending the lease).
 // The parts live in components/room; this page holds the room's data and talks to the API.
-import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import Icon from "../components/lobby/house/Icon.vue";
 import Panel from "../components/lobby/panel/Panel.vue";
 import PanelHead from "../components/lobby/panel/PanelHead.vue";
-import type { IconName } from "../components/lobby/house/icons";
 import PanelTabs, { type Tab as PanelTab } from "../components/lobby/panel/PanelTabs.vue";
 import { bare, explain, roomLine, roomState } from "../components/lobby/panel/words";
+import BuildLog from "../components/room/BuildLog.vue";
 import { TUTORIAL_HOUSE } from "../components/lobby/tutorial/tutorial";
 import RoomCode from "../components/room/RoomCode.vue";
+import RoomFold from "../components/room/RoomFold.vue";
 import RoomHistory from "../components/room/RoomHistory.vue";
 import RoomInterior from "../components/room/RoomInterior.vue";
 import RoomLease from "../components/room/RoomLease.vue";
@@ -23,10 +25,9 @@ import RoomSsh from "../components/room/RoomSsh.vue";
 import RoomLogs from "../components/room/RoomLogs.vue";
 import RoomOverview from "../components/room/RoomOverview.vue";
 import RoomSecrets from "../components/room/RoomSecrets.vue";
-import { parsePort, projectTitle, type SettingsForm, settingsBody } from "../components/room/room";
+import { buildFailed, canRestart, parsePort, projectTitle, refWord, type SettingsForm, settingsBody, updateTile } from "../components/room/room";
 import "../components/room/room.css";
 import { roomWords as w } from "../components/room/words";
-import { sheetStep } from "../components/lobby/sheetStep";
 import UiNote, { loud, quiet, type Note } from "../components/UiNote.vue";
 import Waiting from "../components/Waiting.vue";
 import { useWhenBack, wentDown } from "../core";
@@ -37,7 +38,7 @@ import type { RoomInside, RoomInsideTrouble, RoomManage } from "../types";
 
 // `embedded`: shown inside the lobby's sheet, which has its own Back and Close. The page then drops its link
 // back to the house, and tells the sheet what to call it (`label`).
-// `coached`: the tutorial's coach is up over this room, with its own "Put it online"; the Overview's tile then
+// `coached`: the tutorial's coach is up over this room, with its own "Put it online"; the foot's main button then
 // steps back. Left out, it's worked out: your room in the workshop while your tutorial isn't done.
 // Vue turns a missing boolean prop into false; the explicit undefined default keeps "not said" apart from "no".
 const props = withDefaults(defineProps<{ id: string; room: string; embedded?: boolean; coached?: boolean }>(), { coached: undefined });
@@ -178,13 +179,14 @@ async function saveSettings(): Promise<boolean> {
   return res.ok;
 }
 
-const showLog = ref(false);
+// The build's own window (BuildLog.vue): it opens on a build just started, or from the foot and the Overview.
+const logOpen = ref(false);
 async function run(what: "redeploy" | "restart") {
   actionNote.value = null;
   action.value = what;
   const res = await sendJSON("POST", `${base.value}/${what}`, {});
   action.value = "";
-  showLog.value = res.ok && what === "redeploy";
+  if (res.ok && what === "redeploy") logOpen.value = true;
   // A build shows itself in the log window; only a refusal or a restart needs a line here.
   actionNote.value = !res.ok ? loud(res.message) : what === "restart" ? quiet(w.restartingNote) : null;
 }
@@ -230,9 +232,8 @@ async function putOnline(port: number) {
   else if (res.data.inside) inside.value = res.data.inside;
 }
 
-// Which part of the room is open: the menu of tiles, or what a tile opened. Only the logs and the history share a tab
-// row. Only the secrets need a line to say what they are.
-type TabKey = "overview" | "code" | "secrets" | "logs" | "history" | "inside" | "ssh" | "lease";
+// Which tab is open. The history is folded under the logs, so it has no tab of its own.
+type TabKey = "overview" | "code" | "logs" | "inside" | "secrets" | "ssh" | "lease";
 const tab = ref<TabKey>("overview");
 watch(
   () => [data.value?.inside, tab.value, props.id, props.room] as const,
@@ -244,75 +245,52 @@ watch(
   },
   { immediate: true },
 );
-const logTabs = computed<PanelTab[]>(() => [
-  { key: "logs", icon: "logs", word: w.tabs.logs },
-  { key: "history", icon: "clock", word: w.tabs.history },
-]);
-const inLogs = computed(() => tab.value === "logs" || tab.value === "history");
-const part = computed((): { icon: IconName; word: string } | null => {
-  switch (tab.value) {
-    case "code":
-      return { icon: "code", word: w.tabs.code };
-    case "secrets":
-      return { icon: "lock", word: w.tabs.secrets };
-    case "inside":
-      return { icon: "folder", word: w.tabs.inside };
-    case "ssh":
-      return { icon: "key", word: w.tabs.ssh };
-    case "lease":
-      return { icon: "door", word: w.tabs.lease };
-    default:
-      return null;
-  }
+// The tabs this room has: Inside where it can be looked into, SSH and Lease for whoever lives in it. On a phone each
+// is its icon (PanelTabs). With all seven, the first takes its short word, so no tab's word is cut.
+const tabs = computed<PanelTab[]>(() => {
+  const d = data.value;
+  if (!d) return [];
+  const rest: PanelTab[] = [
+    { key: "code", icon: "code", word: w.tabs.code },
+    { key: "logs", icon: "logs", word: w.tabs.logs },
+    ...(d.inside ? [{ key: "inside", icon: "folder", word: w.tabs.inside } as PanelTab] : []),
+    { key: "secrets", icon: "lock", word: w.tabs.secrets },
+    ...(d.ssh ? [{ key: "ssh", icon: "key", word: w.tabs.ssh } as PanelTab] : []),
+    ...(d.lease ? [{ key: "lease", icon: "door", word: w.tabs.lease } as PanelTab] : []),
+  ];
+  return [{ key: "overview", icon: "gauge", word: rest.length > 4 ? w.tabs.overviewShort : w.tabs.overview }, ...rest];
 });
-// A "Saved." from one part shouldn't greet you on the next.
-watch(tab, () => (formNote.value = null));
+// A tab that isn't offered (any more: the lease just ended, say) shows the Overview.
+const shown = computed((): TabKey => (tabs.value.some((t) => t.key === tab.value) ? tab.value : "overview"));
+watch(shown, (now) => {
+  if (data.value && tab.value !== now) tab.value = now;
+});
+// A "Saved." from one tab shouldn't greet you on the next, and a flow left behind doesn't hide the next tab's foot.
+const flow = ref(false);
+watch(tab, () => {
+  formNote.value = null;
+  flow.value = false;
+});
 
-// The focus follows you: to the back key when a part opens, and to its tile when you come back. Set here, and spent
-// once the new part has arrived, so moving between the logs and the history keeps it on their tabs.
-const backKey = ref<HTMLButtonElement | null>(null);
+// Sent to another tab by a button in this one (Upload a project, Fix the setup): the pressed button goes with the tab,
+// so the focus lands on the tab it went to, once that has arrived.
 const panel = ref<{ $el: HTMLElement } | null>(null);
-let focusNext: string | null = null;
-function openPart(to: Exclude<TabKey, "overview">) {
-  focusNext = "back";
+let focusNext: TabKey | null = null;
+function goTo(to: TabKey) {
+  if (shown.value === to) return;
+  focusNext = to;
   tab.value = to;
 }
-function backToMenu() {
-  focusNext = inLogs.value ? "logs" : tab.value;
-  fixing.value = false;
-  tab.value = "overview";
+function toCode() {
+  fixing.value = true;
+  goTo("code");
 }
-// In the lobby's sheet, its band's back key is the way back to the menu: the part has no key of its own.
-const sheetBack = inject(sheetStep, null);
-watch(tab, (on) => {
-  if (sheetBack) sheetBack.value = on === "overview" ? null : backToMenu;
-});
-onBeforeUnmount(() => {
-  if (sheetBack?.value === backToMenu) sheetBack.value = null;
-});
 function arrived() {
-  const back = backKey.value ?? panel.value?.$el.closest("[role=dialog]")?.querySelector<HTMLElement>(".back-btn");
-  if (focusNext === "back") back?.focus({ preventScroll: true });
-  else if (focusNext) panel.value?.$el.querySelector<HTMLElement>(`[data-section="${focusNext}"]`)?.focus({ preventScroll: true });
+  if (focusNext) panel.value?.$el.querySelector<HTMLElement>(`#tab-${focusNext}`)?.focus({ preventScroll: true });
   focusNext = null;
 }
-// Esc steps back to the menu from a part, unless a window on top of it has its own Esc. On the menu, it's the sheet's.
-// Heard on the way down, before the sheet: focus falls out of the panel when a pressed tile goes, or on a click on a
-// blank spot, and Esc must still step back and not close the window. Anything else holding the keyboard (the chat, the
-// settings, the bell's card) keeps its Esc.
-function onEsc(e: KeyboardEvent) {
-  const t = e.target as Element | null;
-  if (e.key !== "Escape" || tab.value === "overview" || t?.closest?.("dialog[open]")) return;
-  const own: Element | undefined = panel.value?.$el.closest("[role=dialog]") ?? panel.value?.$el;
-  if (t && t !== document.body && !own?.contains(t)) return;
-  e.preventDefault();
-  e.stopPropagation();
-  backToMenu();
-}
-onMounted(() => window.addEventListener("keydown", onEsc, true));
-onBeforeUnmount(() => window.removeEventListener("keydown", onEsc, true));
 
-// The Logs tile stays fresh while the menu shows a room that's online.
+// The log's last lines stay fresh while the Overview shows a room that's online.
 watch(
   () => tab.value === "overview" && data.value?.room.status === "live",
   (on) => {
@@ -324,6 +302,22 @@ watch(
   },
   { immediate: true },
 );
+
+// The foot: Restart once there's something to restart, and the one thing to do next: upload a project, watch the
+// build under way, try a failed build again, put it online the first time, or update it. Nothing while the house's
+// server isn't connected (the tab says so).
+const serverUp = computed(() => !!data.value?.house.agentOnline);
+const noCode = computed(() => !!data.value && !data.value.settings.source && !data.value.github);
+const lastBuild = computed(() => data.value?.deployments.find((d) => d.kind === "prod"));
+const buildBroke = computed(() => buildFailed(lastBuild.value));
+const building = computed(() => ["queued", "cloning", "building", "starting"].includes(lastBuild.value?.status ?? ""));
+const tile = computed(() => (data.value ? updateTile(data.value.room.status, data.value.deployments) : null));
+// Update builds from a branch: said to a screen reader after the verb ("Update from main"), and on hover.
+const from = computed(() => (tile.value?.verb === w.update && !noCode.value ? w.fromBranch(refWord(data.value?.settings.branch ?? "default")) : null));
+const restartable = computed(() => !!data.value && canRestart(data.value.room.status, data.value.deployments));
+const footShown = computed(() => !!data.value && serverUp.value && !flow.value);
+// The history's row says the newest build: its branch and when.
+const newest = computed(() => data.value?.deployments[0] ?? null);
 
 const state = computed(() => (data.value ? roomState(data.value.room) : null));
 const online = computed(() => !!data.value?.room.url && data.value.room.status !== "empty");
@@ -364,13 +358,14 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
       v-if="data && state"
       ref="panel"
       class="room-panel"
-      :explain="tab === 'secrets' ? explain.secrets : null"
-      :body-id="`tabpanel-${tab}`"
-      :body-labelledby="inLogs ? `tab-${tab}` : undefined"
-      :body-label="part?.word"
+      :explain="shown === 'secrets' ? explain.secrets : null"
+      :body-id="`tabpanel-${shown}`"
+      :body-labelledby="`tab-${shown}`"
     >
       <template #head>
         <PanelHead :title="title" :state="state" :line="liveAt ? null : headLine">
+          <!-- The icon's tile: a room is a box the project lives in. -->
+          <template #lead><Icon name="box" :size="22" /></template>
           <template v-if="liveAt" #line>
             <a class="lives-at" :href="liveAt" target="_blank" rel="noopener"><span class="at">{{ bare(liveAt) }}</span><Icon name="external" :size="14" /><span class="sr-only">{{ w.newTab }}</span></a>
           </template>
@@ -384,53 +379,49 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
         <p class="sr-only" aria-live="polite">{{ w.stateSr(state.word) }}</p>
       </template>
 
-      <!-- In a part: the key back to the menu, and what this part is. -->
-      <template v-if="tab !== 'overview'" #tabs>
-        <div class="part-bar">
-          <button v-if="!sheetBack" ref="backKey" type="button" class="chunk small to-menu" :aria-label="w.tile.backToRoom" :title="w.tile.backToRoom" @click="backToMenu"><Icon name="back" :size="20" /></button>
-          <PanelTabs v-if="inLogs" v-model="tab" :tabs="logTabs" :label="w.sections" />
-          <h3 v-else-if="part" class="part-word"><Icon :name="part.icon" :size="22" />{{ part.word }}</h3>
-        </div>
+      <template #tabs>
+        <PanelTabs v-model="tab" :tabs="tabs" :label="w.sections" />
       </template>
 
       <Transition name="fade" mode="out-in" @after-enter="arrived">
-        <div :key="tab" class="tab-body" :class="{ fill: tab === 'logs' }">
+        <div :key="shown" class="tab-body" :class="{ fill: shown === 'logs' }">
           <RoomOverview
-            v-if="tab === 'overview'"
+            v-if="shown === 'overview'"
             :data="data"
             :form="form"
             :saving="savingSettings"
             :form-note="formNote"
             :save="saveSettings"
             :reset="fillForm"
-            :action="action"
-            :action-note="actionNote"
-            :when="when"
-            :coached="coached"
-            :show-log="showLog"
             :logs="logs"
             :logs-message="logsMessage"
             :inside="inside"
-            @log-shown="showLog = false"
-            @run="run"
-            @tab="(to) => { fixing = true; openPart(to); }"
-            @open="openPart"
+            @log="logOpen = true"
+            @tab="toCode"
+            @flow="(on) => (flow = on)"
           />
           <RoomCode
-            v-else-if="tab === 'code'"
+            v-else-if="shown === 'code'"
             :data="data"
             :base="base"
             :fixing="fixing"
             @run="(what) => { fixing = false; tab = 'overview'; run(what); }"
             @fixed="fixing = false"
+            @flow="(on) => (flow = on)"
             :form="form"
             :reset="fillForm"
             :reload="load"
           />
-          <RoomSecrets v-else-if="tab === 'secrets'" :data="data" :base="base" :reload="load" :when="when" />
-          <RoomLogs v-else-if="tab === 'logs'" v-model:follow="follow" :text="logs" :message="logsMessage" :loading="logsLoading" @refresh="fetchLogs" />
+          <RoomSecrets v-else-if="shown === 'secrets'" :data="data" :base="base" :reload="load" :when="when" @flow="(on) => (flow = on)" />
+          <template v-else-if="shown === 'logs'">
+            <RoomLogs v-model:follow="follow" :text="logs" :message="logsMessage" :loading="logsLoading" @refresh="fetchLogs" />
+            <!-- Every build, newest first, folded under the logs: its row says the newest one. -->
+            <RoomFold class="history" :title="w.tabs.history" :meta="newest ? `${refWord(newest.ref)} · ${when(newest.createdAt)}` : null">
+              <RoomHistory :deployments="data.deployments" :github="data.github" :when="when" />
+            </RoomFold>
+          </template>
           <RoomInterior
-            v-else-if="tab === 'inside' && data.inside"
+            v-else-if="shown === 'inside'"
             :inside="inside"
             :trouble="insideTrouble"
             :looked="insideLooked"
@@ -439,11 +430,24 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
             :note="addressNote"
             @put-online="putOnline"
           />
-          <RoomSsh v-else-if="tab === 'ssh' && data.ssh" :data="data" />
-          <RoomLease v-else-if="tab === 'lease' && data.lease" :lease="data.lease" :base="base" @left="leftRoom" />
-          <RoomHistory v-else :deployments="data.deployments" :github="data.github" :when="when" />
+          <RoomSsh v-else-if="shown === 'ssh' && data.ssh" :data="data" />
+          <RoomLease v-else-if="shown === 'lease' && data.lease" :lease="data.lease" :base="base" @left="leftRoom" @flow="(on) => (flow = on)" />
         </div>
       </Transition>
+      <!-- What Restart or Update answered, when it's a refusal or a restart: the build itself shows in its window. -->
+      <div class="action-note"><UiNote :note="actionNote" /></div>
+
+      <template v-if="footShown" #foot>
+        <button v-if="restartable" type="button" class="second restart" :disabled="action !== ''" :title="explain.restart" @click="run('restart')">
+          {{ action === "restart" ? w.restarting : w.restart }}
+        </button>
+        <button v-if="noCode" type="button" class="primary go" :class="{ quiet: coached }" @click="toCode">{{ w.uploadProject }}</button>
+        <button v-else-if="building" type="button" class="primary go" :class="{ quiet: coached }" @click="logOpen = true">{{ w.watchBuild }}</button>
+        <button v-else-if="tile" type="button" class="primary go" :class="{ quiet: coached }" :disabled="action !== ''" :title="from ? `${tile.hint} (${from})` : tile.hint" @click="run('redeploy')">
+          <span class="go-word">{{ action === "redeploy" ? w.starting : buildBroke ? w.buildAgain : tile.verb }}</span>
+          <span v-if="from && action !== 'redeploy' && !buildBroke" class="sr-only"> {{ from }}</span>
+        </button>
+      </template>
     </Panel>
 
     <!-- Not yours, not there, or still loading: one short message in the middle of the panel. -->
@@ -451,26 +455,40 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
       <Waiting v-if="waiting" @retry="open" />
       <Waiting v-else-if="failed" :title="w.loadFailed" :line="w.loadFailedWhy" @retry="open" />
       <div v-else class="message" :aria-live="error ? undefined : 'polite'">
-        <span class="icon"><Icon :name="error ? (status === 401 ? 'login' : 'door') : 'key'" :size="28" /></span>
+        <span class="icon"><Icon :name="error ? (status === 401 ? 'login' : 'door') : 'key'" :size="22" /></span>
         <p class="said">{{ error || w.unlocking }}</p>
-        <div v-if="error && (status === 401 || !embedded)" class="go">
+        <div v-if="error && (status === 401 || !embedded)" class="go-on">
           <RouterLink v-if="status === 401" to="/login" class="chunk primary"><Icon name="login" :size="16" /> {{ w.logIn }}</RouterLink>
           <RouterLink v-if="!embedded" :to="`/houses/${id}`" class="chunk"><Icon name="house" :size="16" /> {{ w.backToHouse }}</RouterLink>
         </div>
       </div>
     </Panel>
+
+    <BuildLog
+      v-if="logOpen && data"
+      :house-id="data.house.id"
+      :room="data.room.name"
+      :url="data.room.url"
+      :other-word="w.fixSetup"
+      :refusal="actionNote?.error ? actionNote.text : ''"
+      :retrying="action === 'redeploy'"
+      @close="logOpen = false"
+      @retry="run('redeploy')"
+      @other="logOpen = false; toCode()"
+    />
   </div>
 </template>
 
 <style scoped>
 /* In the lobby's sheet the page is a column the panel fills; on its own it's a centred column that grows. */
 .room-page { display: flex; flex-direction: column; min-height: 0; }
-.room-page:not(.embedded) { max-width: calc(640px + 2 * var(--gutter)); margin: 0 auto; padding: 24px 0 64px; }
+.room-page:not(.embedded) { max-width: calc(680px + 2 * var(--gutter)); margin: 0 auto; padding: 24px 0 64px; }
 .room-page:not(.embedded) .back { align-self: flex-start; margin: 0 var(--gutter) 4px; }
-/* On its own the page has no window around it, so the panel wears the black sign itself (.sign.black and .sign-frame
-   in style.css): without it the band has no colour and the room's name is white on the page. */
-.room-page:not(.embedded) .room-panel { --panel: var(--panel-black); border: 3px solid var(--panel); border-radius: 15px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+/* On its own the page has no window around it, so the panel is the white card itself. */
+.room-page:not(.embedded) .room-panel { border-radius: var(--card-r); background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
 .room-panel { flex: 1 1 auto; }
+/* The head's icon: the soft red tile, the icon in the red. */
+.room-panel :deep(.panel-head .lead) { background: var(--accent-soft); color: var(--accent); }
 /* A room's name is a project's, often a repo's: it keeps the case it was written in. */
 .room-panel :deep(.panel-head .title) { text-transform: none; }
 .lives-at { min-width: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: inherit; }
@@ -481,19 +499,26 @@ const when = (iso: string) => new Date(iso).toLocaleString(locale(), { day: "num
   .open-key { width: 46px; padding: 0; justify-content: center; }
   .open-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
-.part-bar { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.part-bar > :not(.to-menu) { flex: 1 1 auto; min-width: 0; }
-.room-panel .part-bar .to-menu { flex: none; width: 46px; padding: 0; }
-.part-word { display: flex; align-items: center; gap: 10px; font: 800 19px/1.1 var(--font); text-transform: none; }
 
-/* One part's content. It grows with what it holds (the body scrolls if that's too much), except the logs, which
+/* One tab's content. It grows with what it holds (the body scrolls if that's too much), except the logs, which
    take exactly the body's height so only the log box scrolls. */
-.tab-body { flex: 1 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.tab-body { flex: 1 0 auto; display: flex; flex-direction: column; gap: 16px; }
 .tab-body.fill { flex: 1 1 0; min-height: 0; }
 .room-page:not(.embedded) .tab-body.fill { height: 60vh; flex: none; }
+/* An open history keeps the log box in view: it scrolls inside its fold. */
+.history :deep(.fold-body) { max-height: 240px; overflow-y: auto; overscroll-behavior: contain; }
+/* The live region stays in the page, but takes no room until it says something. */
+.action-note { flex: none; }
+.action-note :deep(.note-line) { min-height: 0; }
+
+/* The foot: Restart in grey, the main key red and twice as wide. With the coach up, the main key steps back to grey. */
+.restart { flex: 1 1 0; min-width: 0; }
+.go { flex: 2 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; }
+.go-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go.quiet, .go.quiet:hover:not(:disabled) { background: var(--sunken); color: var(--text); box-shadow: var(--quiet-edge); }
 
 .message { margin: auto; display: grid; justify-items: center; gap: 14px; padding: 32px 16px; text-align: center; }
-.icon { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-lg); background: var(--fill); color: var(--muted); }
-.said { font-size: 19px; font-weight: 600; }
-.go { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--tile); color: var(--muted); }
+.said { font-size: 17px; font-weight: 700; }
+.go-on { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 </style>

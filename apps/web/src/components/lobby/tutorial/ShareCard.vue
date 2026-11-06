@@ -1,13 +1,12 @@
 <script setup lang="ts">
-// Chapter 7: show it off. A postcard of your new home (the drawing, where it is, your address in the monospace),
-// a QR code to open it on your phone, and the ways to send it: first your own house's chat ("Tell the house": one
+// Chapter 7: show it off, in carte blanche: no drawing, the address itself is the thing (in the monospace, with its copy
+// key), a small QR code to open it on your phone, and the ways to send it: first your own house's chat ("Tell the house": one
 // message, by the same address the house's chat posts to), then copy the link, WhatsApp (a wa.me link with the
 // message ready), or the phone's own share sheet where there is one. Any of them counts as shared, and the quest
 // moves on; "Later" moves on too, without guilt. On a phone the QR is left out: you're already holding the phone.
 import { computed, onMounted, ref } from "vue";
 import { postJSON } from "../../../session";
 import { bare } from "../panel/words";
-import HouseArt from "./HouseArt.vue";
 import QuestIcon from "./QuestIcon.vue";
 import { canShareNatively, opensAnywhere, qrPath, whatsappLink } from "./share";
 import { tutorialWords as w } from "./words";
@@ -68,78 +67,70 @@ async function shareNatively() {
 
 <template>
   <div class="share">
-    <p class="heading">{{ w.shareHeading }}</p>
-    <div class="postcard">
-      <div class="art"><HouseArt :name="room" lit /></div>
-      <p class="from">{{ w.postcardFrom(house, city) }}</p>
-      <figure v-if="!touch && anywhere" class="qr">
-        <svg :viewBox="`0 0 ${qr.size} ${qr.size}`" role="img" :aria-label="w.qrName(address)" shape-rendering="crispEdges">
-          <rect :width="qr.size" :height="qr.size" class="qr-paper" />
-          <path :d="qr.d" class="qr-ink" />
-        </svg>
-        <figcaption><QuestIcon name="phone" :size="14" />{{ w.scan }}</figcaption>
-      </figure>
+    <div class="top">
+      <span class="icon-tile"><QuestIcon name="share" :size="22" /></span>
+      <div class="words">
+        <p class="heading">{{ w.shareHeading }}</p>
+        <p class="from">{{ w.postcardFrom(house, city) }}</p>
+      </div>
     </div>
-    <p class="address">{{ address }}</p>
+    <div class="addr">
+      <p class="address" :title="address">{{ address }}</p>
+      <button type="button" class="copy" :class="{ done: copied }" :aria-label="copied ? w.copied : w.copy" @click="copy"><QuestIcon :name="copied ? 'tick' : 'copy'" :size="18" /></button>
+    </div>
+    <figure v-if="!touch && anywhere" class="qr">
+      <svg :viewBox="`0 0 ${qr.size} ${qr.size}`" role="img" :aria-label="w.qrName(address)" shape-rendering="crispEdges">
+        <rect :width="qr.size" :height="qr.size" class="qr-paper" />
+        <path :d="qr.d" class="qr-ink" />
+      </svg>
+      <figcaption><QuestIcon name="phone" :size="16" />{{ w.scan }}</figcaption>
+    </figure>
+    <p v-if="!anywhere" class="here"><QuestIcon name="phone" :size="16" />{{ w.onlyHere }}</p>
     <button ref="tellKey" type="button" class="primary tell" :class="{ told }" :disabled="telling || told" @click="tell">
       <QuestIcon :name="told ? 'tick' : 'people'" :size="20" /><span>{{ told ? w.told : w.tellHouse }}</span>
     </button>
     <p v-if="tellError" class="here error" role="alert">{{ tellError }}</p>
-    <div class="ways">
-      <button type="button" class="way" :class="{ done: copied }" @click="copy">
-        <QuestIcon :name="copied ? 'tick' : 'copy'" :size="18" /><span>{{ copied ? w.copied : w.copy }}</span>
-      </button>
-      <a v-if="anywhere" class="way" :href="whatsappLink(message)" target="_blank" rel="noopener" :aria-label="w.whatsappName" @click="emit('shared')" @auxclick="emit('shared')">
+    <div v-if="anywhere" class="ways">
+      <a class="way" :href="whatsappLink(message)" target="_blank" rel="noopener" :aria-label="w.whatsappName" @click="emit('shared')" @auxclick="emit('shared')">
         <QuestIcon name="chat" :size="18" /><span>{{ w.whatsapp }}</span>
       </a>
-      <button v-if="native && anywhere" type="button" class="way" @click="shareNatively"><QuestIcon name="share" :size="18" /><span>{{ w.shareMore }}</span></button>
+      <button v-if="native" type="button" class="way" @click="shareNatively"><QuestIcon name="share" :size="18" /><span>{{ w.shareMore }}</span></button>
     </div>
-    <p v-if="!anywhere" class="here">{{ w.onlyHere }}</p>
     <span class="sr-only" aria-live="polite">{{ told ? w.told : copied ? w.copied : "" }}</span>
   </div>
 </template>
 
 <style scoped>
 .share { display: grid; gap: 14px; }
-.heading { margin: 0; font: 700 19px/1.3 var(--display); }
-/* The postcard: a flat card inside the card, with a stamp-like dashed edge. The drawing, where it's from, the QR. */
-.postcard { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 18px; border-radius: var(--r-md); background: var(--tile); outline: 2px dashed var(--line-strong); outline-offset: -6px; }
-.art { min-width: 0; }
-.from { margin: 0; font: 600 16px/1.3 var(--display); color: var(--muted); }
-/* The address on its own line, across the card: the thing being shared. A long one wraps rather than widen the card. */
-.address { margin: 0; font: 600 18px/1.3 var(--code); color: var(--accent); text-align: center; overflow-wrap: anywhere; }
-.tell { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 60px; font-size: 19px; }
+.top { display: flex; align-items: flex-start; gap: 14px; }
+.words { min-width: 0; display: grid; gap: 4px; }
+.heading { margin: 0; padding-top: 1px; font: 800 22px/28px var(--display); }
+.from { margin: 0; font-size: 15px; line-height: 21px; color: var(--muted); }
+/* The address: the thing being shared, on a soft tile in the monospace, one line, with its copy key. */
+.addr { display: flex; align-items: center; gap: 8px; }
+.address { flex: 1 1 auto; min-width: 0; margin: 0; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--tile); font: 500 14px/44px var(--code); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy { flex: none; width: 44px; min-height: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 12px; background: var(--sunken); color: var(--text); box-shadow: none; }
+.copy.done { color: var(--live); }
+.tell { display: flex; align-items: center; justify-content: center; gap: 10px; }
 /* A tick, in the live green, for the moment before the quest moves on. */
-.tell.told:disabled { opacity: 1; background: var(--live); color: var(--on-accent); }
-/* The other ways, sharing one row evenly: never a lone key on a second line. */
+.tell.told:disabled { opacity: 1; background: var(--live); color: var(--on-accent); box-shadow: none; }
+/* The other ways, sharing one row evenly: grey keys with their lip. */
 .ways { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
-.way { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 50px; padding: 0 10px; border: 0; border-radius: var(--r-sm); background: var(--surface); color: var(--text); box-shadow: var(--quiet-edge); font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; }
-.way:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); text-decoration: none; }
-.way:active { transform: translateY(1px); }
-.way.done { color: var(--live); }
-.here { margin: 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.way { white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 12px var(--lip); border: 0; border-radius: 12px; background: var(--sunken); color: var(--text); box-shadow: var(--quiet-edge); font: 800 15px/1 var(--display); text-decoration: none; cursor: pointer; }
+.way:hover:not(:disabled) { background: var(--fill); text-decoration: none; }
+.way:active { transform: translateY(2px); }
+.here { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; line-height: 18px; color: var(--muted); }
 .here.error { color: var(--danger); }
-.qr { display: grid; justify-items: center; gap: 6px; margin: 0; }
-.qr > svg { width: 124px; height: 124px; border-radius: var(--r-xs); }
+/* The QR, small, beside how to use it: a way to open it on a phone, not a picture. */
+.qr { display: flex; align-items: center; gap: 14px; margin: 0; padding: 10px; border-radius: var(--tile-r); background: var(--tile); }
+.qr > svg { flex: none; width: 84px; height: 84px; border-radius: 8px; }
 /* A QR code reads best dark on light: the logs' two colours are that. */
 .qr-paper { fill: var(--code-text); }
 .qr-ink { fill: var(--code-bg); }
-.qr figcaption { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.qr figcaption { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
 a:focus-visible, button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
-/* A short screen: the drawing gives way before the card can need scrolling. */
 @media (max-height: 640px) {
-  .postcard { grid-template-columns: 120px minmax(0, 1fr) auto; padding: 12px; }
-  .qr > svg { width: 84px; height: 84px; }
-  .qr figcaption { display: none; }
-}
-/* A phone: no QR, the drawing beside where it's from, and each way an icon over its word, so three still fit a row. */
-@media (max-width: 620px) {
-  .share { gap: 12px; }
-  .postcard { grid-template-columns: 132px minmax(0, 1fr); gap: 14px; padding: 14px; }
   .qr { display: none; }
-  .from { font-size: 15px; }
-  .address { font-size: 16px; }
-  .way { flex-direction: column; gap: 3px; min-height: 60px; padding: 6px 4px; font-size: 14px; line-height: 1.1; white-space: normal; text-align: center; }
 }
 @media (prefers-reduced-motion: reduce) {
   .way:active { transform: none; }

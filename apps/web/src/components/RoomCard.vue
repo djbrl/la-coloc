@@ -60,5 +60,5 @@ const title = computed(() => (props.row.room.project ? `${name.value} · ${props
 .gauge { flex: none; width: 56px; }
 .use .sub { min-width: 0; }
 .reviews { display: inline-flex; align-items: center; gap: 3px; }
-.manage { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+.manage { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 </style>

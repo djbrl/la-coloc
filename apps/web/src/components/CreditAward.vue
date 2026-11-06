@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The credit, given with some ceremony but in a window like the other steps: the sum counts up from 0 under the band,
+// The credit, given with some ceremony but in a window like the other steps (carte blanche): the sum counts up from 0 on its tile,
 // and when it lands, the coin's sound. What earns more sits below it. The key was there all along, so nobody has to sit
 // through it. Calmer motion shows the final number at once. The amount is whatever /api/me says.
 import { onBeforeUnmount, onMounted, ref } from "vue";
@@ -41,21 +41,26 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 </script>
 
 <template>
-  <dialog ref="dialog" class="step-sign" :aria-label="w.awardTitle(fcfa(amount))" @cancel.prevent>
-    <div class="inner">
-      <div class="form">
+  <dialog ref="dialog" class="sign award" :aria-label="w.awardTitle(fcfa(amount))" @cancel.prevent>
+    <div class="sign-frame">
+      <header class="sign-band">
+        <span class="chip"><Icon name="coin" :size="22" /></span>
         <h2>{{ w.awardBand }}</h2>
-        <p class="stat" aria-hidden="true"><Icon name="coin" :size="34" /><strong>{{ digits(shown) }}</strong><span>{{ w.unit }}</span></p>
-        <p class="tiny">{{ w.fake }}</p>
-        <p class="label">{{ w.awardEarn }}</p>
-        <ul class="earn">
-          <li><Icon name="check" :size="22" />{{ w.review }}</li>
-          <li><Icon name="trophy" :size="22" />{{ w.arena }}</li>
-        </ul>
+        <p class="sign-sub">{{ w.fake }}</p>
+      </header>
+      <div class="sign-body body">
+        <p class="stat" aria-hidden="true"><strong>{{ digits(shown) }} {{ w.unit }}</strong><span>{{ w.given }}</span></p>
+        <div class="earn-more">
+          <p class="label">{{ w.awardEarn }}</p>
+          <ul class="earn">
+            <li><Icon name="check" :size="18" />{{ w.review }}</li>
+            <li><Icon name="trophy" :size="18" />{{ w.arena }}</li>
+          </ul>
+        </div>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
         <div class="foot">
           <button v-if="error" type="button" class="second" :disabled="saving" @click="emit('back')">{{ ww.back }}</button>
-          <button type="button" class="primary go" autofocus :disabled="saving" @click="emit('go')">{{ error ? w.tryAgain : w.awardGo }}</button>
+          <button type="button" class="primary go" autofocus :disabled="saving" @click="emit('go')">{{ error ? w.tryAgain : w.awardGo }}<kbd aria-hidden="true">↵</kbd></button>
         </div>
       </div>
     </div>
@@ -63,22 +68,23 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 </template>
 
 <style scoped>
-dialog { width: min(460px, calc(100vw - 32px)); animation: menu-pop var(--dur-slow) var(--ease-pop); }
+dialog { width: min(460px, calc(100vw - 32px)); padding: 0; border: 0; background: none; color: var(--text); overflow: visible; animation: menu-pop var(--dur-slow) var(--ease-pop); }
 dialog::backdrop { background: var(--scrim); }
 @keyframes menu-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.94); }
 }
-.stat { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 22px 0 0; color: var(--panel-red); }
-.stat strong { font: 400 46px/1.05 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.stat span { align-self: flex-end; padding-bottom: 6px; font: 400 18px/1 var(--display); }
-.tiny { margin: 6px 0 18px; font-size: 14px; color: var(--muted); text-align: center; }
-.label { margin: 0 0 6px; font-size: 14px; font-weight: 700; }
-.earn { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
-.earn li { display: flex; align-items: center; gap: 8px; min-height: 50px; padding: 6px 12px; border-radius: var(--r-md); background: var(--tile); font-size: 15px; font-weight: 700; line-height: 1.2; }
-.earn :deep(svg) { flex: none; color: var(--panel-red); }
-.error { margin: 0 0 12px; color: var(--danger); font-size: 15px; }
-.foot { display: flex; gap: 8px; }
-.go { flex: 1 1 0; }
+.body { display: grid; gap: 16px; }
+/* The sum on a soft tile, in the red, counting up. */
+.stat { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0; padding: 14px 16px; border-radius: var(--tile-r); background: var(--tile); color: var(--muted); font-size: 15px; }
+.stat strong { font: 800 32px/1.15 var(--display); color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.earn-more { display: grid; gap: 8px; }
+.earn { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.earn li { display: flex; align-items: center; gap: 10px; min-height: 28px; font-size: 15px; font-weight: 800; line-height: 20px; }
+.earn :deep(svg) { flex: none; color: var(--muted); }
+.error { margin: 0; color: var(--danger); font-size: 15px; }
+.foot { display: flex; gap: 10px; }
+.foot > button { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.foot > .go { flex-grow: 2; }
 @media (prefers-reduced-motion: reduce) {
   dialog { animation: none; }
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-// One question per screen: progress dots, then the current step, sliding forward or back.
+// One question per screen: progress (a bar per step, done and current in ink), then the current step, sliding forward
+// or back. In a step dialog (.step-sign) style.css draws them as small dots under the step's title instead.
 // The parent renders the step's content in the slot, switching on the same `step` number.
 import { onMounted, ref, watch } from "vue";
 import { joinWords as w } from "./joinWords";
@@ -48,12 +49,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.steps { display: grid; gap: 28px; }
-.dots { display: flex; gap: 8px; }
-.center .dots { justify-content: center; }
+.steps { display: grid; gap: 24px; }
+.dots { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.d { height: 6px; border-radius: 3px; background: var(--sunken); transition: background-color 0.2s, width 0.2s; }
+.d.done, .d.on { background: var(--text); }
 .center .step { text-align: center; justify-items: center; }
-.d { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: background-color 0.2s, width 0.2s; }
-.d.done { background: var(--muted); }
-.d.on { width: 22px; border-radius: 4px; background: var(--accent-fill); }
 .step { display: grid; gap: 20px; min-width: 0; }
 </style>

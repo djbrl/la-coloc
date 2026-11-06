@@ -126,10 +126,11 @@ onBeforeUnmount(() => {
   <Panel ref="panel" class="room-details" @keydown.esc.stop="emit('back')">
     <template #head>
       <PanelHead :title="title" :state="state" :line="state.word">
-        <template v-if="!sheetBack" #lead>
-          <button ref="backKey" type="button" class="sign-x arrow" :aria-label="w.details.back" @click="emit('back')">
+        <template #lead>
+          <button v-if="!sheetBack" ref="backKey" type="button" class="sign-x arrow" :aria-label="w.details.back" @click="emit('back')">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
+          <span v-else class="icon-tile"><Icon :name="person ? 'key' : 'door'" :size="22" /></span>
         </template>
       </PanelHead>
     </template>
@@ -194,45 +195,46 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* The same key as the sheet's own back arrow, in the band's flow rather than pinned to the sheet. */
+/* The same key as the sheet's own back arrow, in the head's flow rather than pinned to the sheet. */
 .arrow.sign-x { position: static; margin: 0; }
+.icon-tile { width: 44px; height: 44px; }
 /* One calm column in the middle of the body, for a free room and a taken one. The auto margin centres it while there's
    space, and gives way to the body's scroll when there isn't. */
-.page { flex: none; width: min(100%, 460px); margin: auto; display: grid; justify-items: center; gap: 14px; padding: 8px 0; text-align: center; }
+.page { flex: none; width: min(100%, 480px); margin: auto; display: grid; justify-items: center; gap: 16px; padding: 8px 0; text-align: center; }
 .page > * { min-width: 0; }
-.who { display: grid; justify-items: center; gap: 4px; max-width: 100%; }
+.who { display: grid; justify-items: center; gap: 2px; max-width: 100%; }
 /* The free room's door, in the place and the size of a face. */
-.door { width: 72px; height: 72px; display: grid; place-items: center; border-radius: 50%; background: var(--tile); color: var(--muted); }
-.name { display: flex; align-items: center; justify-content: center; gap: 8px; max-width: 100%; margin-top: 6px; font-size: 24px; line-height: 1.15; }
+.door { width: 72px; height: 72px; display: grid; place-items: center; border-radius: var(--tile-r); background: var(--tile); color: var(--muted); }
+.name { display: flex; align-items: center; justify-content: center; gap: 8px; max-width: 100%; margin-top: 8px; font-size: 22px; line-height: 28px; }
 .name strong { min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .name :deep(.badge-chip) { flex: 0 1 auto; min-width: 22px; }
-.handle { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; font-size: 16px; font-weight: 600; color: var(--handle); }
-.about { font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
+.handle { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; font-size: 15px; font-weight: 600; color: var(--muted); }
+.about { font-size: 15px; font-weight: 600; line-height: 21px; overflow-wrap: anywhere; }
 .about.none { color: var(--muted); }
-/* The numbers: a flat tile each, the number big and its word small under it. */
-.stats { width: 100%; list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.stats li { flex: 1 1 110px; display: grid; gap: 2px; padding: 10px 8px; border-radius: var(--r-md); background: var(--tile); }
-.stats strong { font: 800 18px/1.1 var(--num); white-space: nowrap; }
-.stats span { font-size: 13px; line-height: 1.1; color: var(--muted); }
-/* Where it lives online: a flat tile each, an icon instead of a label. */
-.facts { width: 100%; list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.facts li { min-width: 0; display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; padding: 8px 12px; border-radius: var(--r-md); background: var(--tile); font-size: 15px; }
+/* The numbers: a tile each, the number at 20 and its word at 13 under it, one line each. */
+.stats { width: 100%; list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; text-align: left; }
+.stats li { min-width: 0; display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
+.stats strong, .stats span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats strong { font-size: 20px; font-weight: 800; line-height: 26px; font-variant-numeric: tabular-nums; }
+.stats span { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
+/* Where it lives online: a row each on the soft paper, an icon instead of a label. */
+.facts { width: 100%; list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.facts li { min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 14px; border-radius: 12px; background: var(--tile); font-size: 15px; }
 .facts :deep(svg) { flex: none; color: var(--muted); }
-.facts a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
-.keys { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
-/* Inviting someone: a second key, on its own row under taking the room. */
+.facts a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; color: var(--text); }
+/* The keys: the one family, 48 high. The main one red, the others the grey with its lip. */
+.keys { width: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; }
 .keys > :deep(.share) { flex: 1 1 100%; }
-.keys > :deep(.share) .key { width: 100%; min-height: 50px; font-size: 18px; background: var(--tile); color: var(--text); box-shadow: none; }
-.key { flex: 1 1 160px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 60px; font-size: 24px; }
+.keys > :deep(.share) .key { width: 100%; }
+.key { flex: 1 1 160px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 a.key:hover { text-decoration: none; }
-.keys .key.second { min-height: 50px; font-size: 18px; background: var(--tile); color: var(--text); box-shadow: none; }
 /* The Chat key off, for an example person: readable, but plainly off. */
-.keys .key.primary:disabled { opacity: 1; background: var(--fill); color: var(--muted); cursor: not-allowed; }
-.done { display: inline-flex; align-items: center; gap: 6px; min-height: 50px; padding: 0 12px; color: var(--live); font-size: 15px; font-weight: 800; }
-.say { flex-basis: 100%; font-size: 15px; color: var(--muted); }
+.keys .key.primary:disabled { opacity: 1; background: var(--fill); color: var(--muted); box-shadow: inset 0 calc(-1 * var(--lip)) 0 var(--quiet-lip); cursor: not-allowed; }
+.done { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 12px; font-size: 15px; font-weight: 800; }
+.done :deep(svg) { color: var(--live); }
+.say { flex-basis: 100%; font-size: 13px; font-weight: 600; color: var(--muted); }
 .error { flex-basis: 100%; font-size: 14px; color: var(--danger); }
 @media (max-width: 480px) {
-  .key { min-height: 54px; font-size: 19px; }
-  .stats strong { font-size: 16px; }
+  .stats { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>

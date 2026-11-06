@@ -90,22 +90,22 @@ onMounted(async () => {
       <code>{{ line }}</code>
       <button type="button" class="chunk small" @click="copy"><Icon :name="copied ? 'tick' : 'copy'" :size="18" />{{ copied ? w.ssh.copied : w.ssh.copy }}</button>
     </div>
-    <p class="soft small">{{ running ? w.ssh.limits : w.ssh.notRunning }}</p>
+    <p class="said">{{ running ? w.ssh.limits : w.ssh.notRunning }}</p>
 
-    <h3>{{ w.ssh.keys }}</h3>
-    <ul v-if="keys?.length" class="keys">
+    <h3 class="label">{{ w.ssh.keys }}</h3>
+    <ul v-if="keys?.length" class="row-list">
       <ListRow v-for="k in keys" :key="k.id" :title="short(k)" :sub="k.fromGithub ? w.ssh.fromGithub : undefined">
-        <template #lead><Icon name="key" :size="22" /></template>
+        <template #lead><span class="key-tile"><Icon name="key" :size="18" /></span></template>
         <template #end>
           <button type="button" class="chunk small" :disabled="busy" :aria-label="w.ssh.remove(k.fingerprint)" @click="remove(k)"><Icon name="trash" :size="18" /></button>
         </template>
       </ListRow>
     </ul>
-    <p v-else-if="keys" class="soft small">{{ w.ssh.noKeys }}</p>
+    <p v-else-if="keys" class="said">{{ w.ssh.noKeys }}</p>
 
     <form class="paste" @submit.prevent="add">
       <input v-model="pasted" type="text" spellcheck="false" autocomplete="off" :placeholder="w.ssh.paste" :aria-label="w.ssh.paste" />
-      <button type="submit" class="chunk small" :disabled="busy || !pasted.trim()">{{ w.ssh.add }}</button>
+      <button type="submit" class="chunk" :disabled="busy || !pasted.trim()">{{ w.ssh.add }}</button>
     </form>
     <button v-if="github" type="button" class="chunk small github" :disabled="busy" @click="useGithub">{{ w.ssh.useGithub }}</button>
     <UiNote :note="note" />
@@ -113,12 +113,13 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.ssh { display: grid; gap: 10px; align-content: start; }
-.line { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-radius: var(--r-md); background: var(--ink); color: var(--on-panel); }
-.line code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 1.35; }
-.line button { flex: none; background: var(--surface); color: var(--ink); }
-h3 { margin: 8px 0 0; font-size: 16px; }
-.keys { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ssh { display: grid; gap: 12px; align-content: start; }
+/* The one line to type, as code on the soft paper, with its copy key. */
+.line { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-radius: var(--tile-r); background: var(--tile); }
+.line code { flex: 1; min-width: 0; overflow-wrap: anywhere; font: 500 14px/1.35 var(--code); }
+.said { font: 600 14px/20px var(--font); color: var(--muted); }
+h3.label { margin-top: 4px; }
+.key-tile { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--tile); color: var(--muted); }
 .paste { display: flex; gap: 8px; }
 .paste input { flex: 1; min-width: 0; }
 .github { justify-self: start; }

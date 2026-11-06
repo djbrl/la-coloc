@@ -30,6 +30,10 @@ export const cardWords = defineWords(
     knock: "Knock",
     knocked: "Knocked",
     goIn: "Go in",
+    // The house card's three numbers: what each counts, under it.
+    statPeople: (n: number) => (n === 1 ? "flatmate" : "flatmates"),
+    statRooms: (n: number) => (n === 1 ? "room" : "rooms"),
+    statFree: (_n: number) => "free",
     yourKnock: "Your knock",
     logInToKnock: "Log in to knock",
     // EmptyCard.vue
@@ -50,6 +54,8 @@ export const cardWords = defineWords(
     thatsYou: " · That's you.",
     messageName: (name: string) => `Write to ${name}`,
     messageLoginName: (name: string) => `Log in to write to ${name}`,
+    // The person card's main button.
+    write: "Message",
     nothingOnline: "Nothing online yet.",
     // A made-up person (a seeded flatmate, a passer-by): said once, plainly, and their GitHub never linked.
     exampleLine: "Example person.",
@@ -77,6 +83,9 @@ export const cardWords = defineWords(
     knock: "Frapper",
     knocked: "Demande envoyée",
     goIn: "Entrer",
+    statPeople: (n) => (n > 1 ? "colocs" : "coloc"),
+    statRooms: (n) => (n > 1 ? "chambres" : "chambre"),
+    statFree: (n) => (n > 1 ? "libres" : "libre"),
     yourKnock: "Ma demande",
     logInToKnock: "Se connecter pour frapper",
     emptyLabel: "Un terrain vide",
@@ -94,6 +103,7 @@ export const cardWords = defineWords(
     thatsYou: " · C'est vous.",
     messageName: (name) => `Écrire à ${name}`,
     messageLoginName: (name) => `Se connecter pour écrire à ${name}`,
+    write: "Écrire",
     nothingOnline: "Rien en ligne pour l'instant.",
     exampleLine: "Personne d'exemple.",
     github: "Voir sur GitHub",
@@ -117,6 +127,7 @@ export const hudWords = defineWords(
     shiftKey: "Shift",
     escKey: "Esc",
     theKeys: "The keys",
+    keysLine: "? shows them, any time.",
     dash: "dash",
     move: "Move",
     act: "Act",
@@ -186,6 +197,7 @@ export const hudWords = defineWords(
     shiftKey: "Maj",
     escKey: "Échap",
     theKeys: "Les touches",
+    keysLine: "? les montre, à tout moment.",
     dash: "sprint",
     move: "Bouger",
     act: "Agir",

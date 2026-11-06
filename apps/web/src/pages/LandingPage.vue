@@ -355,7 +355,7 @@ onBeforeUnmount(() => {
 .bottom-tie { bottom: calc(-12 * var(--s)); height: calc(32 * var(--s)); }
 .edge { padding: calc(4 * var(--s)); border: calc(3 * var(--s)) solid #b3202c; border-radius: calc(18 * var(--s)); }
 .red { position: relative; padding: calc(4 * var(--s)) calc(10 * var(--s)) calc(10 * var(--s)); border-radius: calc(13 * var(--s)); background: #b3202c; color: #ffffff; text-align: center; }
-h2 { margin: 0; font-family: var(--display); }
+h2 { margin: 0; font-family: var(--brand); text-transform: uppercase; }
 .l1, .l2 { display: block; }
 .l1 { font-size: calc(82 * var(--s)); line-height: 1.08; }
 .l2 { margin-top: calc(-6 * var(--s)); font-size: calc(77 * var(--s)); line-height: 1; }

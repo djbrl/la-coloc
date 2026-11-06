@@ -51,7 +51,7 @@ const lit = computed(() => (props.progress === null ? 0 : Math.round(props.progr
 }
 .loading.leaving { opacity: 0; pointer-events: none; }
 .card { width: min(520px, 100%); padding: 20px; border-radius: 15px; background: var(--surface); color: var(--text); text-align: center; box-shadow: var(--shadow); }
-.name { margin: 0; font: 400 52px/1.08 var(--display); text-transform: uppercase; color: var(--panel-red); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.name { margin: 0; font: 400 52px/1.08 var(--brand); text-transform: uppercase; color: var(--panel-red); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hello { margin: 2px 0 0; font-size: 20px; font-weight: 700; line-height: 1.2; }
 .windows { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 5px; margin-top: 16px; padding: 5px; border-radius: var(--r-md); background: var(--ink); }
 .window { height: 36px; border-radius: 2px; background: #3a3640; transition: background-color var(--dur) var(--ease); }

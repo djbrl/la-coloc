@@ -157,10 +157,10 @@ async function withdraw() {
 
     <template v-else-if="app">
       <RouterLink v-if="!embedded" :to="`/houses/${app.house.id}`" class="back"><span aria-hidden="true">‹</span> {{ app.house.name }}</RouterLink>
-      <Panel :body-label="said.theThread">
+      <Panel class="thread" :body-label="said.theThread">
         <template #head>
           <PanelHead :title="title" :state="state" :line="line">
-            <template #lead><Avatar :person="app.applicant" :size="52" decorative /></template>
+            <template #lead><Avatar :person="app.applicant" :size="44" decorative /></template>
             <template v-if="!mine" #aside><GithubLink :person="app.applicant" /></template>
           </PanelHead>
         </template>
@@ -221,13 +221,16 @@ async function withdraw() {
 .application-page.embedded > :deep(.panel-shape) { flex: 1 1 auto; }
 .application-page.alone { max-width: calc(680px + 2 * var(--gutter)); margin: 0 auto; padding: 24px 0 64px; }
 .state { display: grid; gap: 12px; padding: 24px var(--gutter); }
+/* Panel.vue (not ours) still keeps 14px from the card's edges; carte blanche's are 20px, like the head. */
+.thread { gap: 16px; }
+.thread :deep(.p-body) { gap: 16px; padding: 2px 20px 20px; }
 .alone .back { margin-left: var(--gutter); }
 
 /* The vote: one flat tile, the number on the left and the action on the right; it wraps on a phone. */
-.vote { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 2px; padding: 10px 14px; border-radius: var(--r-md); background: var(--tile); }
+.vote { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 2px; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
 .tally { flex: 1 1 120px; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-.count { font-size: 15px; font-weight: 700; min-width: 0; }
-.count.stat { font: 800 30px/1 var(--num); }
+.count { font-size: 15px; font-weight: 800; min-width: 0; }
+.count.stat { font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
 .plain { list-style: none; margin: 0; padding: 0; }
 .voters { display: flex; flex: none; }
 .voters li { display: inline-grid; border-radius: 50%; box-shadow: 0 0 0 2px var(--tile); }
@@ -236,8 +239,9 @@ async function withdraw() {
 .voters li.yes { box-shadow: 0 0 0 2px var(--tile), 0 0 0 3.5px var(--live); }
 .voters li.no { box-shadow: 0 0 0 2px var(--tile), 0 0 0 3.5px var(--danger); }
 .act { flex: none; display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.act button, .act .button { min-height: 46px; padding: 0 16px; border-radius: var(--r-md); font: 800 15px/1 var(--font); white-space: nowrap; }
-.act button.withdraw { background: var(--surface); box-shadow: none; color: var(--text); }
+/* The one button family: 48 high with its lip, the vote to let them in red, the others grey. */
+.act button, .act .button { padding: 0 16px var(--lip); white-space: nowrap; }
+.act button.withdraw { box-shadow: var(--quiet-edge); }
 .act button.withdraw:hover:not(:disabled) { color: var(--danger); }
 .error { margin: 0; }
 /* What they've built, in one row of chips that wraps. */
@@ -247,9 +251,6 @@ async function withdraw() {
 .chip:hover { background: var(--fill-hover); text-decoration: none; }
 .stat-chip { padding: 0 4px; font-size: 14px; color: var(--muted); }
 /* The vote you cast stays marked. */
-button[aria-pressed="true"]:not(.primary) { box-shadow: inset 0 0 0 2px var(--text); }
-button.primary[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--tile), 0 0 0 4px var(--accent-fill); }
-@media (max-width: 480px) {
-  .application-page :deep(.panel-head .lead .avatar) { width: 40px !important; height: 40px !important; }
-}
+button[aria-pressed="true"]:not(.primary) { box-shadow: var(--quiet-edge), inset 0 0 0 2px var(--text); }
+button.primary[aria-pressed="true"] { box-shadow: inset 0 calc(-1 * var(--lip)) 0 var(--accent-lip), 0 0 0 2px var(--tile), 0 0 0 4px var(--text); }
 </style>

@@ -237,14 +237,14 @@ function trapTab(e: KeyboardEvent) {
 .sign-frame { position: relative; }
 /* The band's two keys, 44px and centred in its 88px. They're placed from inside the frame's border, and the band
    starts 3px further in, after the frame's padding. */
-.sign-x { z-index: 2; top: 44px; }
-.back-btn { right: auto; left: 16px; }
-.deep { --band-lead: 52px; }
+.sign-x { z-index: 2; top: 20px; }
+.back-btn { right: auto; left: 20px; }
+.deep { --band-lead: 50px; }
 /* Going deeper looks deeper: a room is a black sign, and a page opened from another sits on it, the one under showing
    along its top edge. */
-.stacked::before { content: ""; position: absolute; z-index: -1; top: -10px; left: 16px; right: 16px; height: 48px; border-radius: 15px 15px 0 0; background: var(--panel-red); box-shadow: var(--shadow); }
+.stacked::before { content: ""; position: absolute; z-index: -1; top: -10px; left: 16px; right: 16px; height: 48px; border-radius: var(--card-r) var(--card-r) 0 0; background: var(--sunken); box-shadow: var(--shadow); }
 /* The page fills what's left, on the white. If a window is too short for it, it scrolls here rather than spilling out. */
-.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--surface); }
+.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: 0 0 var(--card-r) var(--card-r); background: var(--surface); }
 .page-host > * { flex: 1 1 auto; min-height: 0; }
 /* The pause menu's entrance: a quick scale up from just under full size. */
 @keyframes pop-in {

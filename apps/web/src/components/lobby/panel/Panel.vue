@@ -33,13 +33,13 @@ defineProps<{ summary?: string | null; explain?: string | null; bodyLabel?: stri
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   height: 100%;
   min-height: 0;
 }
 .p-head, .p-tabs, .p-explain, .p-foot { flex: none; }
-.p-tabs, .p-explain { margin: 0 14px; }
-.p-explain { font-size: 14px; line-height: 1.35; color: var(--muted); }
+.p-tabs, .p-explain { margin: 0 20px; }
+.p-explain { font-size: 15px; font-weight: 600; line-height: 21px; color: var(--muted); }
 /* The summary keeps its full height even when a list below it is too long (then the body scrolls). */
 .p-summary { flex: none; }
 /* The body takes what's left. It scrolls only if what's in it can't fit (a stream, a long list). */
@@ -50,19 +50,14 @@ defineProps<{ summary?: string | null; explain?: string | null; bodyLabel?: stri
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
   overflow-y: auto;
   overscroll-behavior: contain;
   /* Room for focus rings at the edges. */
-  padding: 2px 14px;
+  padding: 2px 20px;
 }
 /* With no tabs and no head above it (a step of a flow), the body still keeps off the band. */
-.p-body:last-child { padding-bottom: 14px; }
-/* The one next step, on the same white, with no line above it. */
-.p-foot { display: flex; align-items: center; gap: 8px; padding: 0 14px 14px; }
-.p-foot :deep(button), .p-foot :deep(a.button) { min-height: 60px; font-size: 24px; }
-.p-foot :deep(.second), .p-foot :deep(.small) { min-height: 50px; font-size: 18px; }
-@media (max-width: 480px) {
-  .p-foot :deep(button), .p-foot :deep(a.button) { min-height: 54px; font-size: 19px; }
-}
+.p-body:last-child { padding-bottom: 20px; }
+/* The one next step, on the same white, with no line above it: carte blanche's 48px keys (style.css). */
+.p-foot { display: flex; align-items: center; gap: 10px; padding: 0 20px 20px; }
 </style>

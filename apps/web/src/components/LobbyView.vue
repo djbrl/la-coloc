@@ -62,6 +62,8 @@ import { keyParts } from "./lobby/tutorial/tour";
 import TourCard from "./lobby/tutorial/TourCard.vue";
 import { CHAPTERS, FREE, HOUSE_CARDS, type Piece, PIECES, SETUP, STEPS, TUTORIAL_HOUSE } from "./lobby/tutorial/tutorial";
 import { useTutorial } from "./lobby/tutorial/useTutorial";
+import QuestIcon, { type QuestIconName } from "./lobby/tutorial/QuestIcon.vue";
+import SkipTutorial from "./lobby/tutorial/SkipTutorial.vue";
 import Welcome from "./lobby/tutorial/Welcome.vue";
 import { houseLineOf, tutorialWords as qw } from "./lobby/tutorial/words";
 import LoadingScreen from "./LoadingScreen.vue";
@@ -267,7 +269,9 @@ const picking = computed(() => !inWorkshop.value || STEPS.indexOf(t.step) >= STE
 // Opened on a shared link by someone the quest is for: it didn't start, and this corner button offers it.
 const tutorialChip = ref(false);
 // The steps shown as a card in the middle of the screen, which hold the keyboard themselves.
-const centred = computed(() => t.active && ["welcome", "intro", "keys", "home", "city", "tour"].includes(t.step));
+const centred = computed(() => t.active && ["welcome", "keys", "home", "city"].includes(t.step));
+// The walkthrough's steps: a card at the bottom, and the keys stay the city's (TourCard.vue). No coach, no spotlight.
+const walkthrough = computed(() => t.active && (t.step === "intro" || t.step === "tour"));
 
 // The visitors' welcome (Onboarding.vue), for visitors and anyone the quest isn't for (an API without it leaves
 // `tutorialDone` out). Someone logged in who hasn't done the quest gets the quest instead. A place opened
@@ -372,6 +376,19 @@ function endTutorial() {
   focusStage();
 }
 
+// The corner's "Skip the tutorial" (SkipTutorial.vue), the quest's one way out: in the workshop, the quest is marked
+// done (as "Into the city" does) and the real city comes back; in the city, its welcome and walkthrough end too.
+async function skipTutorial() {
+  if (inWorkshop.value) {
+    await tutorial.finish();
+    if (tutorial.error.value) return;
+  }
+  t.stop();
+  focusStage();
+}
+// Escape is the corner button's only while nothing else on screen would close with it.
+const escFree = computed(() => !place.value && !sheet.value && !card.value && !bigMap.value && !keysOpen.value && !knock.value && !rent.value && !creditOpen.value && !keysFor.value && !chatSheet.open);
+
 // "Start" on the first card: the keyboard goes to the city, where the walking happens. "Continue" jumps to the
 // chapter you'd reached; from the keys on, you're put back at the workshop's door.
 function startTutorial(resume = false) {
@@ -421,7 +438,7 @@ watch(
 const firstRent = computed(() => {
   const view = tutorial.view.value;
   const total = (view && houseCost(view)) ?? plans[1].fcfa;
-  return { share: evenSplit(total, WORKSHOP_SHARES), total, operators: view?.operators?.length ? view.operators : OPERATORS };
+  return { share: evenSplit(total, WORKSHOP_SHARES), total, shares: WORKSHOP_SHARES, operators: view?.operators?.length ? view.operators : OPERATORS };
 });
 // Chapter 8: the house's window opens again, on the tab each card talks about; "Well done" closes it.
 const questTab = computed(() => {
@@ -429,10 +446,13 @@ const questTab = computed(() => {
   return ({ flatmates: "people", channel: "channel", reviews: "chores", news: "fridge", bill: "bill" } as const)[HOUSE_CARDS[t.card]];
 });
 
+// The icon on each of chapter 8's spotlight cards, the tab it talks about.
+const SPOT_ICON: Record<(typeof HOUSE_CARDS)[number], QuestIconName> = { flatmates: "people", channel: "chat", reviews: "reviews", news: "news", bill: "bill" };
+
 // The steps that point at a control in the workshop's window get a spotlight on it, in place of the coach (Jib, 6 11):
 // taking the free room (its square on the floor plan), then each of the house's tabs.
 const spot = computed(() => {
-  if (!inWorkshop.value || centred.value || creating.value || place.value?.kind !== "house" || place.value.id !== TUTORIAL_HOUSE) return null;
+  if (!inWorkshop.value || centred.value || walkthrough.value || creating.value || place.value?.kind !== "house" || place.value.id !== TUTORIAL_HOUSE) return null;
   if (t.step === "room") return { target: '[data-spot="take"]', focus: "target" as const, side: "below" as const };
   // A tab's line goes above it, over the window's head, so the tab's content shows under the dim.
   if (t.step === "house" && questTab.value) return { target: `#tab-${questTab.value}`, focus: "line" as const, side: "above" as const };
@@ -1311,6 +1331,12 @@ function statsOf(name: string) {
         <QuestTracker :stamps="t.stamps" :current="t.chapter" />
       </div>
 
+      <!-- Top left, all through the quest: its one way out (no card of the quest has a × or a "Not now"). Under the
+           search and the coin once they're on screen. -->
+      <div v-if="t.active && !creating" class="hud skip-corner" :class="{ low: shows('tools') }">
+        <SkipTutorial :esc-free="escFree" :touch="t.touch" :busy="tutorial.busy.value" :error="tutorial.error.value" @skip="skipTutorial" />
+      </div>
+
       <!-- Top centre, in the city: what needs attention there, if anything. -->
       <div v-if="!inWorkshop" class="hud top" :class="activity?.tone" aria-live="polite">
         <p v-if="activity && shows('here')">
@@ -1395,7 +1421,7 @@ function statsOf(name: string) {
            screen, where the window docks on the right, the column moves out of its way. -->
       <div class="hud centre" :class="{ lifted: inWorkshop, aside: inWorkshop && !!place }">
         <Coach
-          v-if="inWorkshop && !centred && !creating && !spot"
+          v-if="inWorkshop && !centred && !walkthrough && !creating && !spot"
           :key="t.step"
           :machine="t"
           :missing="tutorial.missing.value"
@@ -1469,7 +1495,6 @@ function statsOf(name: string) {
         :resume="resumeAt"
         @start="startTutorial(false)"
         @resume="startTutorial(true)"
-        @skip="tutorial.finish"
         @end="endTutorial"
       />
       <!-- The walkthrough, one card at a time while nothing moves: the controls before the first steps, what's new
@@ -1481,13 +1506,13 @@ function statsOf(name: string) {
         :total="t.tourCards.length"
         :touch="t.touch"
         @next="t.send({ type: 'next' })"
-        @skip="t.send({ type: 'skip' })"
       />
       <KeysCard
         v-if="inWorkshop && t.step === 'keys' && t.state?.room"
         :room="t.state.room.name"
         :house="t.state.house.name"
         :rent="firstRent"
+        :credit="credit"
         @next="t.send({ type: 'next' })"
       />
       <KeysCard v-if="keysFor" :room="keysFor.room" :house="keysFor.house" @next="movedInDone" />
@@ -1540,7 +1565,7 @@ function statsOf(name: string) {
       :key="placeKey(place)"
       :start="place"
       :tab="questTab"
-      :coached="inWorkshop && !centred && t.step !== 'room'"
+      :coached="inWorkshop && !centred && !walkthrough && t.step !== 'room'"
       @change="insideChanged"
       @close="closeInside"
       @link="insideLink"
@@ -1548,15 +1573,20 @@ function statsOf(name: string) {
     <!-- The tutorial's spotlight on the control a step is about, in the workshop's window: the free room, then each tab
          of the house with its one line and Next. -->
     <Spotlight v-if="spot" :key="spot.target" :target="spot.target" :label="questLabel" :focus="spot.focus" :side="spot.side">
-      <p v-if="t.step === 'room'" class="spot-text">{{ tutorial.waiting.value ? qw.waiting : qw.room }}</p>
-      <template v-else>
-        <p class="spot-text">{{ qw.houseTitles[HOUSE_CARDS[t.card]] }}</p>
-        <p class="spot-line">{{ houseLineOf(HOUSE_CARDS[t.card], credit) }}</p>
-        <div class="spot-nav">
-          <span class="spot-count" aria-hidden="true">{{ qw.houseCardOf(t.card + 1, HOUSE_CARDS.length) }}</span>
-          <button type="button" class="primary go spot-go" @click="t.send({ type: 'next' })">{{ t.card === HOUSE_CARDS.length - 1 ? qw.gotIt : qw.next }}</button>
+      <div class="spot-head">
+        <span class="icon-tile"><QuestIcon :name="t.step === 'room' ? 'keys' : SPOT_ICON[HOUSE_CARDS[t.card]]" :size="22" /></span>
+        <div class="spot-words">
+          <p v-if="t.step === 'room'" class="spot-text">{{ tutorial.waiting.value ? qw.waiting : qw.room }}</p>
+          <template v-else>
+            <p class="spot-text">{{ qw.houseTitles[HOUSE_CARDS[t.card]] }}</p>
+            <p class="spot-line">{{ houseLineOf(HOUSE_CARDS[t.card], credit) }}</p>
+          </template>
         </div>
-      </template>
+      </div>
+      <div v-if="t.step !== 'room'" class="spot-nav">
+        <span class="spot-dots" role="img" :aria-label="qw.houseCardOf(t.card + 1, HOUSE_CARDS.length)"><i v-for="(c, i) in HOUSE_CARDS" :key="c" :class="{ on: i === t.card }" /></span>
+        <button type="button" class="primary go spot-go" @click="t.send({ type: 'next' })">{{ t.card === HOUSE_CARDS.length - 1 ? qw.gotIt : qw.next }}<kbd aria-hidden="true">↵</kbd></button>
+      </div>
     </Spotlight>
 
     <!-- The arena, opened at the stadium's entrance: a floating card on the right, like a house's window. -->
@@ -1569,41 +1599,55 @@ function statsOf(name: string) {
          One row per house or city, like a game's menu entries. The close button comes after the field, so the field
          takes the focus. -->
     <Transition name="sheet">
-      <section v-if="sheet === 'find'" ref="sheetEl" class="find" role="dialog" aria-modal="true" :aria-label="w.findTitle" @keydown.esc="sheet = ''">
-        <div class="field">
-          <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="3" /><path d="M16 16l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
-          <input v-model="query" type="search" :placeholder="w.searchHint" :aria-label="w.searchName" autofocus @keydown.enter="findFirst" />
-          <button class="x" :aria-label="w.close" @click="sheet = ''"><span aria-hidden="true">X</span></button>
+      <section v-if="sheet === 'find'" ref="sheetEl" class="find sign" role="dialog" aria-modal="true" aria-labelledby="find-title" @keydown.esc="sheet = ''">
+        <div class="sign-frame">
+          <header class="sign-band">
+            <span class="icon-tile"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4" /><path d="M16 16l5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg></span>
+            <h2 id="find-title">{{ w.findTitle }}</h2>
+            <p class="sign-sub">{{ w.findSub }}</p>
+            <button class="sign-x" :aria-label="w.close" @click="sheet = ''"><span aria-hidden="true">X</span></button>
+          </header>
+          <div class="sign-body">
+            <div class="field">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4" /><path d="M16 16l5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+              <input v-model="query" type="search" :placeholder="w.searchHint" :aria-label="w.searchName" @keydown.enter="findFirst" />
+              <kbd v-if="!typed" aria-hidden="true">F</kbd>
+            </div>
+            <ul v-if="foundCities.length || foundPeople.length || found.length" class="entries">
+              <li v-for="c in foundCities" :key="`city-${c}`">
+                <button class="entry" @click="travel(c)">
+                  <span class="mark"><Icon name="globe" :size="20" /></span>
+                  <span class="title">{{ c }}</span>
+                </button>
+              </li>
+              <li v-for="p in foundPeople" :key="`person-${p.login}`">
+                <button class="entry" @click="findPerson(p.login)">
+                  <span class="mark"><Icon name="people" :size="20" /></span>
+                  <span class="title">{{ p.name }}</span>
+                </button>
+              </li>
+              <li v-for="h in found" :key="h.id">
+                <button class="entry" @click="findHouse(h)">
+                  <span class="mark"><Icon name="house" :size="20" /></span>
+                  <span class="text">
+                    <span class="title">{{ h.name }}</span>
+                    <span class="where">{{ h.demo ? `${h.city} · ${sampleWord}` : h.city }}</span>
+                  </span>
+                  <span v-if="freeRooms(h).length" class="free-chip">{{ w.freeChip(freeRooms(h).length) }}</span>
+                </button>
+              </li>
+            </ul>
+            <p v-else-if="typed" class="none">{{ w.noMatch }}</p>
+          </div>
         </div>
-        <ul v-if="foundCities.length || foundPeople.length || found.length" class="entries">
-          <li v-for="c in foundCities" :key="`city-${c}`">
-            <button class="entry" @click="travel(c)">
-              <Icon name="pin" :size="22" class="mark" />
-              <span class="title">{{ c }}</span>
-            </button>
-          </li>
-          <li v-for="p in foundPeople" :key="`person-${p.login}`">
-            <button class="entry" @click="findPerson(p.login)">
-              <Icon name="people" :size="22" class="mark" />
-              <span class="title">{{ p.name }}</span>
-            </button>
-          </li>
-          <li v-for="h in found" :key="h.id">
-            <button class="entry" @click="findHouse(h)">
-              <Icon name="house" :size="22" class="mark" />
-              <span class="title">{{ h.name }}</span>
-              <span class="where">{{ h.demo ? `${h.city} · ${sampleWord}` : h.city }}</span>
-              <span v-if="freeRooms(h).length" class="free-chip">{{ w.freeChip(freeRooms(h).length) }}</span>
-            </button>
-          </li>
-        </ul>
-        <p v-else-if="typed" class="none">{{ w.noMatch }}</p>
       </section>
       <!-- Where to: Africa with a dot per city, and the cities as rows beside it (under it on a phone). -->
       <section v-else-if="sheet === 'travel'" ref="sheetEl" class="sheet travel sign" role="dialog" aria-modal="true" :aria-label="w.travelName" @keydown.esc="sheet = ''">
         <div class="sign-frame">
-        <header class="sign-band large">
+        <header class="sign-band">
+          <span class="icon-tile"><Icon name="globe" :size="22" /></span>
           <h2>{{ w.whereTo }}</h2>
+          <p class="sign-sub">{{ w.citiesLine(cities.length, city) }}</p>
           <button class="sign-x" :aria-label="w.close" @click="sheet = ''"><span aria-hidden="true">X</span></button>
         </header>
         <div class="sign-body">
@@ -1621,7 +1665,7 @@ function statsOf(name: string) {
                 @blur="litCity = null"
               >
                 <span class="text">
-                  <span class="title">{{ c.name }}</span>
+                  <span class="name-line"><span class="title">{{ c.name }}</span><span v-if="c.name === city" class="here-word">{{ w.youAreHere }}</span></span>
                   <!-- Icon chips, each with its hidden name; the numbers in the monospace, calm like a dashboard. -->
                   <span class="stats">
                     <span class="stat" :class="{ zero: !statsOf(c.name).walking }" role="img" :aria-label="w.walking(statsOf(c.name).walking)"><Icon name="people" :size="14" />{{ statsOf(c.name).walking }}</span>
@@ -1653,7 +1697,7 @@ function statsOf(name: string) {
 .stage:focus-visible { box-shadow: inset 0 0 0 3px var(--ring); }
 .stage :deep(canvas) { display: block; }
 /* No WebGL: one flat card in the middle says so. */
-.failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
+.failed { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); margin: 0; padding: 20px 24px; border-radius: var(--tile-r); background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-align: center; font-size: 17px; }
 /* Everything on top of the city is flat, with a hard shadow: no glass, no blur. */
 .hud { position: absolute; z-index: 10; color: var(--text); transition: opacity var(--dur) var(--ease); animation: hud-in 0.4s var(--ease); }
 @keyframes hud-in {
@@ -1671,21 +1715,28 @@ function statsOf(name: string) {
 @media (min-width: 720px) and (max-height: 720px) {
   .windowed .hud.place { opacity: 0; pointer-events: none; }
 }
-/* The search, top left: a white key with a red edge. Pressed, the field opens in the same place. */
-.find-key, .field { display: flex; align-items: center; gap: 10px; height: 62px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 3px var(--panel-red), var(--lift); }
-.find-key { top: 24px; left: 24px; width: 62px; min-height: 0; justify-content: center; padding: 0; }
-.coin-key { top: 24px; left: calc(24px + 62px + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); font: 800 18px/1 var(--num); font-variant-numeric: tabular-nums; }
-.coin-key:hover:not(:disabled) { background: var(--tile); }
-.coin-key svg { flex: none; color: var(--panel-red); }
-.find-key:hover:not(:disabled) { background: var(--tile); }
-.find-key svg, .field svg { flex: none; color: var(--panel-red); }
-.place { top: 24px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 16px; border: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
+/* The quest's way out, top left, over the quest's own cards (their layer is 30). */
+.skip-corner { top: 24px; left: 24px; z-index: 40; }
+.skip-corner.low { top: calc(24px + 62px + 12px); }
+@media (max-width: 520px) {
+  .skip-corner { top: 16px; left: 16px; }
+  .skip-corner.low { top: calc(16px + 62px + 10px); }
+}
+/* The search and the credit, top left: white keys over the city, the game's flat shadow under them, the colour only
+   on their icons. Pressed, the search opens as a card in the same corner. */
+.find-key, .coin-key { top: 24px; display: flex; align-items: center; height: 62px; min-height: 0; border-radius: var(--tile-r); background: var(--surface); color: var(--text); box-shadow: var(--lift); }
+.find-key { left: 24px; width: 62px; justify-content: center; padding: 0; }
+.coin-key { left: calc(24px + 62px + 8px); gap: 8px; padding: 0 16px; font: 800 18px/1 var(--num); font-variant-numeric: tabular-nums; }
+.find-key:hover:not(:disabled), .coin-key:hover:not(:disabled) { background: var(--tile); }
+.find-key:active:not(:disabled), .coin-key:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(20, 12, 18, 0.45); }
+.find-key svg, .coin-key svg { flex: none; color: var(--accent); }
+.place { top: 24px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 16px; border: 0; border-radius: var(--tile-r); background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
 .place .city { font: 800 20px/1.1 var(--font); white-space: nowrap; }
-.lobby-number { top: 94px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 6px; height: 46px; min-height: 0; padding: 0 12px; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 800 16px/1 var(--font); box-shadow: 0 3px 0 var(--hairline); cursor: pointer; }
+.lobby-number { top: 94px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 6px; height: 46px; min-height: 0; padding: 0 12px; border: 0; border-radius: var(--tile-r); background: var(--surface); color: var(--text); font: 800 16px/1 var(--font); box-shadow: 0 3px 0 var(--hairline); cursor: pointer; }
 .place:hover:not(:disabled) { background: var(--accent-fill-hover); }
 .place:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 /* What needs attention in this city, a yellow chip at the top; absent while all is well. It never catches clicks. */
-.top { top: calc(98px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: var(--r-md); background: var(--sticker); color: var(--ink); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
+.top { top: calc(98px + var(--core-offset, 0px)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: var(--tile-r); background: var(--sticker); color: var(--ink); box-shadow: var(--lift); text-align: center; pointer-events: none; max-width: calc(100vw - 32px); }
 .top.danger::before { content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--panel-red); }
 .top:empty { display: none; }
 .top p { margin: 0; font-size: 15px; font-weight: 800; min-width: 0; }
@@ -1698,10 +1749,10 @@ function statsOf(name: string) {
 .toast kbd { margin: 0 1px; }
 /* The corner offers, under the search: a white strip and a small way to say no. */
 .corner { top: calc(100px + var(--core-offset, 0px)); left: 24px; display: grid; gap: 8px; justify-items: start; max-width: min(340px, calc(100vw - 96px)); }
-.chip { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); }
-.chip-go { min-height: 46px; padding: 6px 12px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text); font: 800 15px/1.2 var(--font); text-align: left; cursor: pointer; }
+.chip { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: var(--tile-r); background: var(--surface); box-shadow: var(--lift); }
+.chip-go { min-height: 46px; padding: 6px 12px; border: 0; border-radius: 10px; background: none; color: var(--text); font: 800 15px/1.2 var(--font); text-align: left; cursor: pointer; }
 .chip-go:hover:not(:disabled) { background: var(--tile); }
-.chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-sm); display: grid; place-items: center; background: none; color: var(--text); cursor: pointer; }
+.chip-x { flex: none; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 10px; display: grid; place-items: center; background: none; color: var(--text); cursor: pointer; }
 .chip-x:hover:not(:disabled) { background: var(--fill); }
 /* A short window: the corner stands beside the minimap rather than running into it. */
 @media (min-width: 521px) and (max-height: 580px) {
@@ -1714,14 +1765,14 @@ function statsOf(name: string) {
   .tools { display: flex; }
   .help { display: none; }
 }
-.tools button { width: 50px; height: 50px; min-height: 0; padding: 0; border-radius: var(--r-md); border: 0; display: grid; place-items: center; background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
+.tools button { width: 50px; height: 50px; min-height: 0; padding: 0; border-radius: var(--tile-r); border: 0; display: grid; place-items: center; background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
 .tools button:hover:not(:disabled) { background: var(--accent-fill-hover); }
 .tools button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-lip); }
 /* The open card, under the keys on the right; its empty space lets clicks through to the city. */
 .dock { top: 112px; right: 24px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; pointer-events: none; }
 .dock > * { pointer-events: auto; }
 /* "?", bottom right: the list of keys. */
-.help { right: 24px; bottom: max(28px, env(safe-area-inset-bottom)); width: 50px; height: 50px; min-height: 0; padding: 0; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 800 22px/1 var(--font); cursor: pointer; }
+.help { right: 24px; bottom: max(28px, env(safe-area-inset-bottom)); width: 50px; height: 50px; min-height: 0; padding: 0; border: 0; border-radius: var(--tile-r); background: var(--surface); color: var(--ink); box-shadow: var(--lift); font: 800 22px/1 var(--font); cursor: pointer; }
 .help:hover:not(:disabled) { background: var(--tile); }
 /* The middle column along the bottom: the coach or the prompt; the gaps let clicks through. */
 .centre { left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
@@ -1733,57 +1784,64 @@ function statsOf(name: string) {
   .centre.aside { left: 24px; bottom: max(28px, env(safe-area-inset-bottom)); transform: none; align-items: flex-start; }
 }
 /* The interact prompt, like a game's: what's in reach, and the one action as the red key. */
-.prompt { display: flex; align-items: center; gap: 16px; padding: 7px 7px 7px 18px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); white-space: nowrap; font-size: 16px; max-width: calc(100vw - 32px); animation: prompt-pop var(--dur-slow) var(--ease-pop); }
+.prompt { display: flex; align-items: center; gap: 16px; padding: 7px 7px 7px 18px; border-radius: var(--tile-r); background: var(--surface); color: var(--text); box-shadow: var(--lift); white-space: nowrap; font-size: 16px; max-width: calc(100vw - 32px); animation: prompt-pop var(--dur-slow) var(--ease-pop); }
 .prompt strong { font-size: 18px; font-weight: 800; }
 @keyframes prompt-pop {
   from { transform: scale(0.96); }
 }
 .soft { color: var(--muted); }
 /* The one main action: the red key, and the key it answers to. */
-.pill { border: 0; border-radius: var(--r-md); padding: 0 8px 0 16px; min-height: 46px; font: 400 18px/1 var(--display); background: var(--accent-fill); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
-.pill:active:not(:disabled) { transform: translateY(1px); }
+.pill { border: 0; border-radius: 12px; padding: 0 8px var(--lip) 16px; min-height: 48px; font: 800 17px/1 var(--display); background: var(--accent-fill); color: var(--on-accent); box-shadow: inset 0 calc(-1 * var(--lip)) 0 var(--accent-lip); cursor: pointer; display: inline-flex; align-items: center; gap: 10px; }
+.pill:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 calc(-1 * var(--lip-pressed)) 0 var(--accent-lip); }
 .pill:hover:not(:disabled) { background: var(--accent-fill-hover); }
 .map { left: 24px; bottom: max(28px, env(safe-area-inset-bottom)); }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 .scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); }
 /* The search doesn't dim the city: a click beside it still closes it. */
 .scrim.clear { background: none; }
-/* Find: the field in the same place as the key that opened it, the houses in a white card under it. */
-.find { position: absolute; z-index: 50; top: 24px; left: 24px; width: min(420px, calc(100vw - 48px)); max-height: calc(100dvh - 60px); display: flex; flex-direction: column; gap: 12px; }
-.field { flex: none; padding-right: 9px; }
-.field input { flex: 1; min-width: 0; min-height: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; font-size: 19px; font-weight: 800; }
-.field input:focus { outline: none; }
+/* Find: a white card in the corner the key was in: its head, a grey field, and the matches as rows under it. */
+.find { position: absolute; z-index: 50; top: 24px; left: 24px; width: min(440px, calc(100vw - 48px)); color: var(--text); }
+.find .sign-frame { max-height: calc(100dvh - 48px); display: flex; flex-direction: column; }
+.find .sign-body { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.field { flex: none; display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 8px 0 14px; border-radius: 12px; background: var(--sunken); color: var(--muted); }
+.field:focus-within { box-shadow: inset 0 0 0 2px var(--text); }
+.field svg { flex: none; }
+.field input { flex: 1; min-width: 0; min-height: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--text); font-size: 17px; font-weight: 800; }
+.field input:focus, .field input:focus-visible { outline: none; }
 .field input::-webkit-search-cancel-button { display: none; }
-.field .x { flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--panel-red); color: var(--on-panel); font: 400 20px/1 var(--display); }
-.find .entries { flex: 0 1 auto; min-height: 0; list-style: none; margin: 0; padding: 6px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); overflow-y: auto; overscroll-behavior: contain; }
-.find .entry { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; cursor: pointer; }
-.find .entry:hover:not(:disabled) { background: var(--tile); }
-.find .entry:focus-visible { outline: none; background: var(--accent-soft); }
-.find .mark { flex: none; color: var(--panel-red); }
-.find .title { flex: 1; min-width: 0; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.find .where { flex: none; color: var(--muted); }
-.find .free-chip { flex: none; padding: 2px 8px; border-radius: var(--r-xs); background: var(--sticker); color: var(--ink); font-size: 15px; font-weight: 800; }
-.find .none { margin: 0; padding: 14px 12px; border-radius: var(--r-md); background: var(--surface); box-shadow: var(--lift); font-size: 16px; }
-/* Travel: a sign in the middle of the screen, popping in. */
+.field kbd { flex: none; }
+.find .entries { flex: 0 1 auto; min-height: 0; list-style: none; margin: 0 -8px; padding: 0; display: grid; gap: 2px; overflow-y: auto; overscroll-behavior: contain; }
+.find .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px; border: 0; border-radius: 12px; background: none; color: var(--text); box-shadow: none; font: 600 15px/1.2 var(--font); text-align: left; cursor: pointer; }
+.find .entry:hover:not(:disabled), .find .entry:focus-visible { outline: none; background: var(--tile); }
+.find .mark { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--sunken); color: var(--text); }
+.find .text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.find .title { flex: 1; min-width: 0; font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find .where { min-width: 0; color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find .free-chip { flex: none; padding: 3px 9px; border-radius: 999px; background: rgba(30, 79, 168, 0.12); color: var(--panel-blue); font-size: 13px; font-weight: 800; }
+.find .none { margin: 0; padding: 4px 0 2px; color: var(--muted); font-size: 15px; font-weight: 700; }
+/* Travel: a white card in the middle of the screen, popping in. */
 .sheet { position: absolute; z-index: 50; top: 50%; left: 50%; translate: -50% -50%; display: flex; flex-direction: column; color: var(--text); }
-.sheet.travel { width: min(860px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 48px)); }
+.sheet.travel { width: min(900px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 48px)); }
 .sheet .sign-body { display: flex; flex-direction: column; min-height: 0; }
-/* The rows: lines between them, each one whole button, lit under the pointer and when it holds the focus. */
-.sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 0 6px; display: grid; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
-.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 50px; padding: 6px 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 600 16px/1.2 var(--font); text-align: left; cursor: pointer; }
-.sheet .entry:hover:not(:disabled) { background: var(--tile); }
-.sheet .entry:focus-visible { outline: none; background: var(--accent-soft); }
+/* The rows: soft tiles, each one whole button; the one under the pointer or the focus lifts to white with an ink
+   edge, and so does the city you're in, which says so. */
+.sheet .entries { flex: 1 1 auto; min-height: 0; list-style: none; margin: 0; padding: 2px; display: grid; gap: 6px; align-content: start; overflow-y: auto; overscroll-behavior: contain; }
+.sheet .entry { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 9px 12px 9px 14px; border: 0; border-radius: var(--tile-r); background: var(--tile); color: var(--text); box-shadow: none; font: 600 16px/1.2 var(--font); text-align: left; cursor: pointer; }
+.sheet .entry:hover:not(:disabled), .sheet .entry:focus-visible { outline: none; background: var(--surface); box-shadow: inset 0 0 0 2px var(--text); }
+.sheet .entry[aria-current="location"] { background: var(--surface); box-shadow: inset 0 0 0 2px var(--accent); }
 .sheet .entry:active { transform: translateY(1px); }
-.sheet .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
-.sheet .title { font-size: 18px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sheet .chev { flex: none; display: grid; color: var(--text); }
-/* Where to: the map on the left and the cities beside it. */
-.atlas { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 18px; align-items: start; }
-.atlas .africa { max-height: calc(min(720px, 100dvh - 48px) - 150px); max-width: 100%; justify-self: center; }
-.atlas .entries { max-height: calc(min(720px, 100dvh - 48px) - 150px); }
-/* A city's stats: icons and numbers; a zero steps back. */
-.sheet .stats { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; }
-.sheet .stat { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sheet .text { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; }
+.sheet .name-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sheet .title { min-width: 0; font-size: 16px; font-weight: 800; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet .here-word { flex: none; font-size: 12px; font-weight: 800; color: var(--accent); }
+.sheet .chev { flex: none; display: grid; color: var(--muted); }
+/* Where to: the map on the left, bigger than the list, and the cities beside it. */
+.atlas { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 16px; align-items: stretch; }
+.atlas .africa { align-self: start; }
+.atlas .entries { max-height: calc(min(720px, 100dvh - 48px) - 130px); }
+/* A city's stats: icons and numbers, in the muted ink; a zero steps further back. */
+.sheet .stats { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); }
+.sheet .stat { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sheet .stat.zero { opacity: 0.55; }
 .rise-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .rise-leave-active { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
@@ -1807,7 +1865,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 @media (max-width: 520px) {
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
   .coin-key { top: 12px; left: calc(12px + 46px + 6px); height: 46px; padding: 0 10px; gap: 5px; font-size: 15px; }
-  .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: inset 0 0 0 3px var(--panel-red), 0 3px 0 rgba(20, 12, 18, 0.45); }
+  .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
   .lobby-number { top: 66px; right: calc(12px + var(--keys-width, 0px) + 6px); }
   .place { top: 12px; right: calc(12px + var(--keys-width, 0px) + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
@@ -1850,18 +1908,24 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .dock { top: auto; left: 0; right: 0; bottom: 0; align-items: stretch; gap: 0; }
   /* Find keeps the top of the screen, clear of the on-screen keyboard. */
   .find { top: 12px; left: 12px; width: calc(100vw - 24px); }
+  .find .sign-frame { max-height: calc(100dvh - 24px); }
   /* Travel becomes a sheet along the bottom edge. */
   .sheet, .sheet.travel { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 86dvh; padding-bottom: max(7px, env(safe-area-inset-bottom)); }
   /* Where to: the map on top, small, and the cities under it, scrolling. */
   .atlas { grid-template-columns: minmax(0, 1fr); gap: 10px; overflow-y: auto; }
-  .atlas .africa { width: auto; height: 30dvh; max-height: none; }
+  .atlas .africa :deep(.paper) { width: min(100%, calc(28dvh * 0.97)); }
   .atlas .entries { max-height: none; overflow: visible; }
 }
 /* The spotlight's line (Spotlight.vue holds the card): a bold sentence, and on the house's tabs a line and Next. */
-.spot-text { margin: 0; font: 700 18px/1.3 var(--display); }
-.spot-line { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
-.spot-nav { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
-.spot-count { margin-right: auto; font: 600 14px/1 var(--num); color: var(--muted); }
-.spot-go { min-height: 46px; padding: 0 18px; border-radius: var(--r-md); font-size: 16px; }
+/* The spotlight's card, carte blanche: the icon's tile, a title and one line, then the dots and the one way on. */
+.spot-head { display: flex; align-items: flex-start; gap: 14px; }
+.spot-words { min-width: 0; display: grid; gap: 4px; }
+.spot-text { margin: 0; padding-top: 1px; font: 800 20px/26px var(--display); }
+.spot-line { margin: 0; font-size: 15px; line-height: 21px; color: var(--muted); }
+.spot-nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 6px; }
+.spot-dots { display: flex; gap: 6px; }
+.spot-dots i { width: 8px; height: 8px; border-radius: 4px; background: var(--line); }
+.spot-dots i.on { width: 18px; background: var(--text); }
+.spot-go { min-width: 140px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .spot-go:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 </style>

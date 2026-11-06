@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { language } from "../../i18n";
 import type { Notice } from "../../types";
 import { fcfa } from "../lobby/house/server";
-import { noticeRow } from "./bell";
+import { noticeMark, noticeRow } from "./bell";
 
 afterEach(() => {
   language.lang = "en";
@@ -100,5 +100,13 @@ describe("words meant for you under the bell", () => {
   it("has nothing to open once the post is gone", () => {
     expect(noticeRow({ ...news, kind: "post_reply", chat: null })).toMatchObject({ sub: "That post is gone.", actions: [] });
     expect(noticeRow({ ...news, kind: "mention", chat: null }).actions).toEqual([]);
+  });
+
+  it("marks what waits for you, what went wrong, and what's done", () => {
+    const mark = (n: Notice) => noticeMark(n, noticeRow(n));
+    expect(mark(base)).toBe("todo");
+    expect(mark({ ...base, state: "accepted" })).toBe("ok");
+    expect(mark({ ...base, kind: "build_failed", state: null })).toBe("fail");
+    expect(mark({ ...base, kind: "knock_answer", state: null, verdict: "declined" })).toBe("fail");
   });
 });

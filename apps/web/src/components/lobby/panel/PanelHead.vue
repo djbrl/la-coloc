@@ -28,20 +28,17 @@ defineProps<{ title: string; state?: State | null; line?: string | null }>();
 </template>
 
 <style scoped>
-/* The title band of a large sign: always 88px, the name at 34, one line under it or none. On the band's right, room
-   for the X the window around it draws (Inside.vue). A panel a level down leaves room on its left for the back key. */
-.panel-head { flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; padding-left: calc(16px + var(--band-lead, 0px)); }
-.lead { flex: none; display: grid; place-items: center; }
-.t { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+/* Carte blanche's head: the picture (a house drawing, a face) in the icon's place, the name at 22, one muted line under
+   it with the state's dot. The X (and the back key, a level down) are drawn by the window around it (Inside.vue): the
+   head leaves room for them on the right, and on the left for the back key. */
+.panel-head { display: flex; flex-direction: row; align-items: flex-start; justify-content: flex-start; gap: 14px; min-height: 80px; padding-left: calc(20px + var(--band-lead, 0px)); padding-right: 72px; }
+.lead { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--tile); overflow: hidden; }
+.t { flex: 1 1 auto; min-width: 0; display: grid; gap: 4px; padding-top: 1px; }
 .name { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.title { min-width: 0; font-size: 34px; line-height: 1.08; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.line { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 16px; line-height: 1.2; }
+.title { min-width: 0; font-size: 22px; line-height: 28px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; font-weight: 600; line-height: 21px; color: var(--muted); }
 .where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* On the band, a dot wears a white ring so green still reads on red. */
-.panel-head :deep(.status-dot) { box-shadow: 0 0 0 2px var(--on-panel); }
+.panel-head :deep(.status-dot) { width: 10px; height: 10px; }
 .aside { flex: none; display: flex; gap: 8px; align-items: center; }
-.aside :deep(button), .aside :deep(a.button) { min-height: 46px; padding: 0 14px; background: var(--surface); color: var(--panel); box-shadow: none; font-size: 15px; }
-@media (max-width: 480px) {
-  .title { font-size: 26px; }
-}
+.aside :deep(button), .aside :deep(a.button) { min-height: 40px; padding: 0 12px var(--lip); font-size: 14px; }
 </style>

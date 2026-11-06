@@ -200,6 +200,11 @@ export const friendWords = defineWords(
     statusIn: (status: string, city: string) => `${status} · ${city}`,
     wantsToBeFriends: "Wants to be friends",
     asked: "Asked",
+    // The list's three small headings: waiting for you, your friends, what you asked.
+    requestsHead: (n: number) => (n > 1 ? "Requests" : "Request"),
+    friendsHead: "Your friends",
+    sentHead: "You asked",
+    accept: "Accept",
     acceptName: (name: string) => `Accept ${name}`,
     declineName: (name: string) => `Decline ${name}`,
     takeBackName: (name: string) => `Take back your request to ${name}`,
@@ -213,7 +218,9 @@ export const friendWords = defineWords(
     sentTo: (login: string) => `Asked @${login}.`,
     nowFriends: (login: string) => `You and @${login} are friends.`,
     empty: "No friends yet. Add one by login, or from their card in the city.",
-    // The person card.
+    // The person card: the friend key's word under the buttons, and its full name.
+    addWord: "Add as a friend",
+    acceptWord: "Accept their request",
     isFriend: (name: string) => `${name} is your friend`,
     askedName: (name: string) => `Asked ${name}. Take it back`,
     // The bell.
@@ -230,6 +237,10 @@ export const friendWords = defineWords(
     statusIn: (status, city) => `${status} · ${city}`,
     wantsToBeFriends: "Veut être votre ami",
     asked: "Demandé",
+    requestsHead: (n) => (n > 1 ? "Demandes" : "Demande"),
+    friendsHead: "Vos amis",
+    sentHead: "Vos demandes",
+    accept: "Accepter",
     acceptName: (name) => `Accepter ${name}`,
     declineName: (name) => `Refuser ${name}`,
     takeBackName: (name) => `Retirer votre demande à ${name}`,
@@ -243,6 +254,8 @@ export const friendWords = defineWords(
     sentTo: (login) => `Demande envoyée à @${login}.`,
     nowFriends: (login) => `Vous et @${login} êtes amis.`,
     empty: "Pas encore d'amis. Ajoutez-en un par identifiant, ou depuis sa carte dans la ville.",
+    addWord: "Ajouter comme ami",
+    acceptWord: "Accepter sa demande",
     isFriend: (name) => `${name} est votre ami`,
     askedName: (name) => `Demande envoyée à ${name}. La retirer`,
     request: (who) => `${who} veut être votre ami`,

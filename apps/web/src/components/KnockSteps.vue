@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // Knocking on a free room, one question at a time: your note, your repo (optional), then a last look before sending.
-// A native <dialog>: it traps focus, closes on Escape, and hands focus back to the Knock button afterwards.
+// A native <dialog>: it traps focus, closes on Escape, and hands focus back to the Knock button afterwards. Each step
+// heads the card in carte blanche (a door in the red tile, the step's question, one line under it), then a bar per
+// step under the head; UiSteps' own dots stay for a screen reader only.
 // You can only have one open knock per house. If you already have one, the dialog says so on its first screen
 // and takes you to it, instead of letting you write a note only to hear it on the last step.
 import { computed, onMounted, ref } from "vue";
@@ -13,6 +15,7 @@ import type { Room } from "../types";
 import { knockOn } from "./lobby/cards";
 import { joinWords as w } from "./joinWords";
 import RepoPicker from "./RepoPicker.vue";
+import Icon from "./lobby/house/Icon.vue";
 import UiSteps from "./UiSteps.vue";
 
 // The room only matters by name, so any room shape fits: the city's slimmer one, or the house page's Room.
@@ -127,13 +130,16 @@ function onClick(e: MouseEvent) {
 <template>
   <dialog ref="dialog" class="sheet step-sign" :aria-label="w.knockOn(room.name)" @close="emit('close')" @click="onClick">
     <div class="inner">
-      <button type="button" class="x" :aria-label="w.cancel" @click="dialog?.close()"><span aria-hidden="true">X</span></button>
+      <button type="button" class="sign-x" :aria-label="w.cancel" @click="dialog?.close()"><span aria-hidden="true">X</span></button>
 
       <!-- Already knocked here: one screen, one way on. -->
       <UiSteps v-if="already" :step="1" :total="1" focus-on-mount>
         <div class="form">
-          <h2>{{ w.alreadyTitle }}</h2>
-          <p class="lead">{{ w.alreadyLead(where) }}</p>
+          <header class="sign-band">
+            <span class="chip"><Icon name="door" :size="22" /></span>
+            <h2>{{ w.alreadyTitle }}</h2>
+            <p class="sign-sub">{{ w.alreadyLead(where) }}</p>
+          </header>
           <p class="muted">{{ w.alreadyWhy }}</p>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
@@ -145,8 +151,13 @@ function onClick(e: MouseEvent) {
 
       <UiSteps v-else :step="step" :total="3">
         <form v-if="step === 1" class="form" novalidate @submit.prevent="next">
-          <h2>{{ w.buildTitle }}</h2>
-          <p class="muted">{{ w.buildWhy }}</p>
+          <header class="sign-band">
+            <span class="chip"><Icon name="door" :size="22" /></span>
+            <h2>{{ w.buildTitle }}</h2>
+            <p class="sign-sub">{{ w.buildWhy }}</p>
+          </header>
+          <div class="bars" aria-hidden="true"><span v-for="i in 3" :key="i" :class="{ on: i <= step }" /></div>
+          <p class="label" aria-hidden="true">{{ w.noteLabel }}</p>
           <textarea
             v-model="note"
             autofocus
@@ -161,14 +172,19 @@ function onClick(e: MouseEvent) {
           />
           <p v-if="error" id="knock-error" class="error" role="alert">{{ error }}</p>
           <div class="nav">
-            <span />
+            <button type="button" class="second" @click="dialog?.close()">{{ w.cancelWord }}</button>
             <button class="primary">{{ w.next }}</button>
           </div>
+          <p class="foot">{{ w.freeRoomIn(where) }} {{ w.readyHow }}</p>
         </form>
 
         <form v-else-if="step === 2" class="form" novalidate @submit.prevent="next">
-          <h2>{{ w.repoTitle }}</h2>
-          <p class="muted">{{ w.repoWhy }}</p>
+          <header class="sign-band">
+            <span class="chip"><Icon name="door" :size="22" /></span>
+            <h2>{{ w.repoTitle }}</h2>
+            <p class="sign-sub">{{ w.repoWhy }}</p>
+          </header>
+          <div class="bars" aria-hidden="true"><span v-for="i in 3" :key="i" :class="{ on: i <= step }" /></div>
           <RepoPicker :selected="pickedRepo" public-only @pick="(r) => { repo = GITHUB + r.fullName; error = ''; }" />
           <input
             v-model="repo"
@@ -190,8 +206,12 @@ function onClick(e: MouseEvent) {
         </form>
 
         <form v-else class="form" @submit.prevent="send">
-          <h2>{{ w.readyTitle }}</h2>
-          <p class="muted">{{ w.readyWhy }}</p>
+          <header class="sign-band">
+            <span class="chip"><Icon name="door" :size="22" /></span>
+            <h2>{{ w.readyTitle }}</h2>
+            <p class="sign-sub">{{ w.readyWhy }}</p>
+          </header>
+          <div class="bars" aria-hidden="true"><span v-for="i in 3" :key="i" :class="{ on: i <= step }" /></div>
           <blockquote class="quote">{{ note.trim() }}</blockquote>
           <p v-if="repo.trim()">{{ w.moveInBefore }} <a :href="repo.trim()" target="_blank" rel="noopener">{{ repo.trim().replace(/^https:\/\//, "") }}</a>{{ w.moveInAfter }}</p>
           <p class="muted small">{{ w.readyHow }}</p>
@@ -208,7 +228,7 @@ function onClick(e: MouseEvent) {
 
 <style scoped>
 .sheet {
-  width: min(560px, calc(100vw - 32px));
+  width: min(480px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   padding: 0;
   border: none;
@@ -221,22 +241,29 @@ function onClick(e: MouseEvent) {
   from { opacity: 0; transform: translateY(16px) scale(0.98); }
 }
 .form { display: grid; gap: 16px; }
-.lead { font-size: 19px; font-weight: 600; }
-.quote { margin: 0; padding: 10px 14px; border-radius: var(--r-md); background: var(--tile); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
+/* The step's head reaches the card's edges; the form's own side padding stays for what's under it. */
+.form > .sign-band { margin: 0 -20px -4px; }
+/* UiSteps' dots: for a screen reader only here, the bars below the head say the same. */
+.sheet :deep(.steps > .dots) { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* One bar per step: done and current in ink, the rest the soft grey. */
+.bars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.bars > span { height: 6px; border-radius: 3px; background: var(--sunken); }
+.bars > span.on { background: var(--text); }
+.form textarea { min-height: 120px; resize: none; }
+.quote { margin: 0; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30vh; overflow-y: auto; }
 .form a { overflow-wrap: anywhere; }
-.nav { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; }
-/* Chunky buttons, as in a game's menu: the main one in the accent, the way back in grey. */
-.nav button { min-height: 50px; border-radius: var(--r-md); padding: 0 20px; font-weight: 600; white-space: nowrap; }
-.nav .primary { flex: 1 1 auto; min-height: 60px; font-size: 22px; }
-.nav .second { display: inline-flex; align-items: center; gap: 6px; padding-left: 14px; }
-@media (max-width: 480px) {
-}
+.muted { font-size: 15px; font-weight: 600; }
+.foot { margin: -4px 0 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+/* The way back (or out) in grey, the main button twice as wide. */
+.nav { display: flex; gap: 10px; }
+.nav button { white-space: nowrap; }
+.nav .second { flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.nav .primary { flex: 2 1 0; min-width: 0; }
 /* A short window (a landscape phone, a small laptop with the bars open): tighter, so the buttons stay in view. */
 @media (max-height: 640px) {
   .form { gap: 10px; }
-  .form textarea { height: 104px; }
-  .nav { margin-top: 0; }
-  }
+  .form textarea { min-height: 0; height: 104px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .sheet[open] { animation: none; }
 }

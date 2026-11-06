@@ -2,8 +2,8 @@
 // The chores board on the market square: which houses in this city have code reviews waiting, and how many are
 // late. A review is a chore: a flatmate reviews a housemate's pull request, and it takes a little off their rent.
 // Only the counts are public (the pull requests' titles are for the flatmates); each house is one row that takes
-// you to it. Under them, the city's own board (the chat sheet's Board tab): posts about houses, flatmates, projects,
-// with a dot when there's one you haven't seen (cityNews.ts).
+// you to it, a quiet "!" when one is late. Under them, the city's own board (the chat sheet's Board tab): posts about
+// houses, flatmates, projects, with a small dot when there's one you haven't seen (cityNews.ts).
 import { computed } from "vue";
 import { cityNews } from "../../cityNews";
 import type { CityHouse } from "../../types";
@@ -30,9 +30,7 @@ function line(h: CityHouse): string {
 </script>
 
 <template>
-  <LobbyCard class="board" :label="w.boardLabel(city)" :title="w.board" :close-name="w.close" @close="emit('close')">
-    <p v-if="waiting.length" class="soft">{{ w.boardWaiting(city) }}</p>
-    <p v-else class="soft">{{ w.boardNone(city) }}</p>
+  <LobbyCard class="board" :label="w.boardLabel(city)" :title="w.board" icon="board" :sub="waiting.length ? w.boardWaiting(city) : w.boardNone(city)" :close-name="w.close" @close="emit('close')">
 
     <ul v-if="waiting.length" class="pins">
       <li v-for="h in waiting" :key="h.id">
@@ -40,7 +38,7 @@ function line(h: CityHouse): string {
           <span class="text">
             <strong>{{ h.name }}</strong><span class="soft">: {{ line(h) }}</span>
           </span>
-          <span v-if="(h.lateChores ?? 0) > 0" class="late" aria-hidden="true" />
+          <span v-if="(h.lateChores ?? 0) > 0" class="status-mark fail" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6v7M12 17.5v.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg></span>
           <Icon name="next" :size="18" />
         </button>
       </li>
@@ -52,16 +50,16 @@ function line(h: CityHouse): string {
 </template>
 
 <style scoped>
-/* "Le tableau des revues" is longer than a small band: two lines, the band keeps its height. */
-.board :deep(.sign-band > h2) { white-space: normal; }
-.pins { list-style: none; margin: 0; padding: 0; display: grid; }
-/* Each house: one wide row, its name and counts in one sentence, a red pin when something's late. */
-.pin.big { width: 100%; justify-content: flex-start; gap: 10px; min-height: 50px; padding: 6px 0; border-radius: 0; background: none; box-shadow: none; text-align: left; font: 600 16px/1.2 var(--font); }
-.pin .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+/* Wide enough for "Le tableau des corvées" on one line. */
+.board { --card-width: 420px; }
+.pins { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+/* Each house: one row on a soft tile, its name and counts in one line, a quiet "!" when something's late. */
+.card .pin.big { width: 100%; justify-content: flex-start; gap: 10px; min-height: 52px; padding: 6px 10px 6px 14px; border-radius: 12px; background: var(--tile); box-shadow: none; text-align: left; font: 600 15px/1.2 var(--font); }
+.card .pin.big:hover:not(:disabled) { background: var(--fill); }
+.pin .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pin strong { font-weight: 800; }
-.pin svg { color: var(--muted); }
+.pin > svg { color: var(--muted); }
 .city.big { width: 100%; }
-/* A post you haven't seen on the city's board: the bell's "new" dot. */
-.new { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sticker); box-shadow: 0 0 0 1px var(--ink); }
-.late { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--danger); }
+/* A post you haven't seen on the city's board: a small red dot after the word. */
+.new { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 </style>

@@ -77,7 +77,7 @@ export function noticeRow(n: Notice): NoticeRow {
     }
     // Friends: a request, answered like an invitation, and the yes coming back.
     case "friend_request":
-      if (n.state === "open") return row(fw.request(who), null, ["accept", "decline"], fw.add);
+      if (n.state === "open") return row(fw.request(who), null, ["accept", "decline"], fw.accept);
       if (n.state === "accepted") return row(fw.request(who), fw.youreFriends);
       return row(fw.request(who), n.state === "declined" ? w.youSaidNo : n.state === "withdrawn" ? w.takenBack : w.lapsed);
     case "friend_accepted":
@@ -86,4 +86,15 @@ export function noticeRow(n: Notice): NoticeRow {
       // A kind this page doesn't know yet (a newer API): who it's from, and nothing to do.
       return row(who, null);
   }
+}
+
+// The quiet symbol before a line (carte blanche: a symbol, never a coloured row). "todo": it waits for you (an answer
+// to give, rent to top up, a knock on your house to vote on); "fail": it went wrong or someone said no; "ok": done.
+export type NoticeMark = "ok" | "fail" | "todo";
+
+export function noticeMark(n: Notice, row: Pick<NoticeRow, "actions">): NoticeMark {
+  if (row.actions.includes("accept") || row.actions.includes("credit") || (n.kind === "knock" && row.actions.includes("knock"))) return "todo";
+  if (n.kind === "build_failed" || n.kind === "invite_declined" || n.kind === "rent_together_no" || n.kind === "guest_declined") return "fail";
+  if (n.kind === "knock_answer" && n.verdict !== "admitted") return "fail";
+  return "ok";
 }

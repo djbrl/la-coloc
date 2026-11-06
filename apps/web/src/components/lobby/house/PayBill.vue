@@ -6,7 +6,6 @@ import { loadMe, me, postJSON } from "../../../session";
 import { shortBy } from "../../credit";
 import CreditAfter from "./CreditAfter.vue";
 import type { BillLine } from "./exchange";
-import Icon from "./Icon.vue";
 import { fcfa } from "./server";
 import { houseWords as w } from "./words";
 
@@ -34,24 +33,28 @@ async function markPaid() {
 </script>
 
 <template>
+  <!-- As the first rent's card: the amount big on the soft paper, what it does to your credit, then Back and Pay. -->
   <section class="pay" aria-labelledby="pay-title">
-    <h3 id="pay-title" ref="heading" tabindex="-1">{{ w.payTitle(fcfa(line.due)) }}</h3>
+    <h3 id="pay-title" ref="heading" tabindex="-1" class="sr-only">{{ w.payTitle(fcfa(line.due)) }}</h3>
+    <p class="sum" aria-hidden="true"><strong>{{ fcfa(line.due) }}</strong><span>{{ w.stats.yourPart }}</span></p>
     <CreditAfter :price="line.due" />
     <p v-if="error" class="error small" role="alert">{{ error }}</p>
 
     <div class="nav">
-      <button type="button" class="back" @click="emit('back')"><span aria-hidden="true">‹</span> {{ w.back }}</button>
-      <button type="button" class="primary done" :disabled="sending || short > 0" @click="markPaid"><Icon name="tick" :size="18" />{{ sending ? w.marking : w.markPaid }}</button>
+      <button type="button" class="second" @click="emit('back')">{{ w.back }}</button>
+      <button type="button" class="primary done" :disabled="sending || short > 0" @click="markPaid">{{ sending ? w.marking : w.markPaid }}</button>
     </div>
   </section>
 </template>
 
 <style scoped>
-/* A sub-screen of the Bill tab, like a settings sub-screen: one question, a big button. */
-.pay { display: grid; gap: 12px; }
-h3 { font-size: 24px; outline: none; }
-.nav { display: flex; align-items: center; gap: 8px; }
-.back { flex: none; min-height: 60px; padding: 0 16px; background: transparent; box-shadow: var(--quiet-edge); }
-.back:hover:not(:disabled) { background: var(--tile); }
-.done { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 60px; padding: 0 16px; font-size: 22px; }
+/* A sub-screen of the Bill tab, like the first rent's card: one number, what it does, two buttons. */
+.pay { display: grid; gap: 16px; }
+h3 { outline: none; }
+.sum { display: flex; align-items: baseline; gap: 8px; padding: 14px 16px; border-radius: var(--tile-r); background: var(--tile); }
+.sum strong { font-size: 34px; font-weight: 800; line-height: 40px; color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sum span { font-size: 15px; font-weight: 600; color: var(--muted); }
+.nav { display: flex; align-items: center; gap: 10px; }
+.nav .second { flex: 1 1 0; }
+.done { flex: 2 1 0; min-width: 0; }
 </style>

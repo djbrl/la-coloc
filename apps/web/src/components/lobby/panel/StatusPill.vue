@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A state as a small pill: a dot and one or two words, coloured by tone. See words.ts for the states.
+// A state as a dot and one or two words; the dot carries the tone. See words.ts for the states.
 import type { State } from "./words";
 
 defineProps<{ state: State }>();
@@ -10,25 +10,22 @@ defineProps<{ state: State }>();
 </template>
 
 <style scoped>
-/* Fine is a green dot and its word; only what needs attention earns the yellow chip. */
+/* A state in words, with its dot before them: no chip behind it. Colour stays on the dot (green fine, yellow on its way,
+   red down, blue free), so nothing on the card becomes a coloured block. */
 .status-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 24px;
-  padding: 0 8px;
-  border-radius: var(--r-xs);
-  background: var(--fill);
-  color: var(--text);
-  font-size: 14px;
+  color: var(--muted);
+  font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
   flex: none;
 }
-.d { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
-.live { padding: 0; background: none; color: var(--live); }
-.warn, .free { background: var(--sticker); color: var(--ink); }
-.warn .d, .free .d { background: var(--ink); }
-.danger { background: var(--sticker); color: var(--ink); }
-.danger .d { background: var(--panel-red); }
+.d { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.live .d { background: var(--live); }
+.warn .d { background: var(--sticker); box-shadow: inset 0 0 0 1.5px var(--warn); }
+.danger .d { background: var(--danger); }
+.free .d { background: var(--free-window); }
 </style>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// Settings, as a game's options menu: a floating card in the middle of the screen, one row per setting (a sentence
-// that says what it does now on the left, its control on the right), then the ways to start over (the welcome, the tutorial, and, when
-// this server allows it, the whole demo) as big buttons. The arrow keys move a choice inside a row, as in a game.
+// Settings, as a game's options menu: a white card in the middle of the screen, one row per setting (its name on the
+// left, its control on the right: a grey rail with the choice in white, or a switch), then the ways to start over
+// (the welcome, the tutorial, and, when this server allows it, the whole demo) as rows with an arrow, then you, with
+// Log out last. The arrow keys move a choice inside a row, as in a game.
 import { computed, type FunctionalComponent, h, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { setVisiting } from "../landing";
@@ -271,10 +272,13 @@ async function resetDemo() {
     <div v-if="settingsPane.open" class="scrim" @click="close" />
   </Transition>
   <Transition name="pop">
-    <aside v-if="settingsPane.open" ref="panel" class="pane sign green" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
+    <aside v-if="settingsPane.open" ref="panel" class="pane sign" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
       <div class="sign-frame">
       <header class="sign-band">
+        <span class="chip"><Icon name="gear" :size="22" /></span>
         <h2 id="settings-title">{{ w.title }}</h2>
+        <!-- Said in the language it names, so whoever can't read the other one still sees which is on. -->
+        <p class="sign-sub">{{ w.languageNow }}</p>
         <button class="sign-x" :aria-label="w.close" @click="close"><span aria-hidden="true">X</span></button>
       </header>
       <div class="sign-body inner">
@@ -371,27 +375,24 @@ async function resetDemo() {
 
       <!-- Starting over: rows like the others, a word and an arrow. The demo's reset asks once more, in place. -->
       <div v-if="!confirming" class="acts">
-        <button class="act" @click="replayWelcome"><span>{{ w.welcomeAgain }}</span><Icon name="next" :size="20" /></button>
-        <button v-if="me" class="act" :disabled="tutorialBusy" @click="takeTutorialAgain"><span>{{ w.tutorialAgain }}</span><Icon name="next" :size="20" /></button>
+        <button class="act" @click="replayWelcome"><span>{{ w.welcomeAgain }}</span><Icon name="next" :size="18" /></button>
+        <button v-if="me" class="act" :disabled="tutorialBusy" @click="takeTutorialAgain"><span>{{ w.tutorialAgain }}</span><Icon name="next" :size="18" /></button>
         <!-- Only when the server says the demo may be reset: the whole city goes back to its seed. -->
-        <button v-if="config?.demoReset" ref="resetButton" class="act danger" @click="ask(true)"><span>{{ w.resetDemo }}</span><Icon name="next" :size="20" /></button>
+        <button v-if="config?.demoReset" ref="resetButton" class="act danger" @click="ask(true)"><span>{{ w.resetDemo }}</span><Icon name="next" :size="18" /></button>
       </div>
       <div v-else class="confirm" role="group" aria-labelledby="reset-question">
         <p id="reset-question" class="question"><Icon name="warn" :size="20" />{{ w.resetQuestion }}</p>
         <div class="choice">
           <button ref="keepButton" :disabled="resetBusy" @click="ask(false)">{{ w.keep }}</button>
-          <button class="danger-fill" :disabled="resetBusy" @click="resetDemo">{{ w.reset }}</button>
+          <button class="primary" :disabled="resetBusy" @click="resetDemo">{{ w.reset }}</button>
         </div>
       </div>
-      <!-- Your account, last of all: your face, who you're logged in as, and the key to log out. The full sentence is for
-           screen readers. -->
+      <!-- Your account, last of all, on its own tile: your face, who you're logged in as, and the key to log out. -->
       <ul v-if="me" class="options account">
-        <ListRow :title="me.name ?? me.login">
-          <template #lead><Avatar :person="me" :size="46" decorative /></template>
-          <span class="handle">@{{ me.login }}</span>
-          <span class="sr-only">{{ w.signedIn(me.login) }}</span>
+        <ListRow :title="me.name ?? me.login" :sub="w.signedIn(me.login)">
+          <template #lead><Avatar :person="me" :size="40" decorative /></template>
           <template #end>
-            <button class="leave" :disabled="leaving" @click="leave"><Icon name="logout" :size="18" />{{ w.logOut }}</button>
+            <button class="leave second" :disabled="leaving" @click="leave">{{ w.logOut }}</button>
           </template>
         </ListRow>
       </ul>
@@ -400,9 +401,9 @@ async function resetDemo() {
       <template v-if="me">
         <div v-if="!asking" class="acts">
           <a v-if="app.state === 'absent' && app.installUrl" class="act" :href="app.installUrl" target="_blank" rel="noopener">
-            <span>{{ w.installApp }}</span><Icon name="external" :size="20" />
+            <span>{{ w.installApp }}</span><Icon name="external" :size="18" />
           </a>
-          <button v-else-if="app.state === 'installed'" ref="removeKey" class="act" @click="askLeave('remove')"><span>{{ w.removeApp }}</span><Icon name="next" :size="20" /></button>
+          <button v-else-if="app.state === 'installed'" ref="removeKey" class="act" @click="askLeave('remove')"><span>{{ w.removeApp }}</span><Icon name="next" :size="18" /></button>
           <p v-if="app.removed" class="done" role="status">
             <Icon name="tick" :size="18" />{{ w.removed }}
             <template v-if="app.orgs.length">
@@ -410,14 +411,14 @@ async function resetDemo() {
               <template v-for="(org, i) in app.orgs" :key="org">{{ i ? ", " : "" }}<a :href="`https://github.com/organizations/${org}/settings/installations`" target="_blank" rel="noopener">{{ org }}</a></template>.
             </template>
           </p>
-          <button ref="deleteKey" class="act danger" @click="askLeave('delete')"><span>{{ w.deleteAccount }}</span><Icon name="next" :size="20" /></button>
+          <button ref="deleteKey" class="act danger" @click="askLeave('delete')"><span>{{ w.deleteAccount }}</span><Icon name="next" :size="18" /></button>
         </div>
         <div v-else-if="asking === 'remove'" class="confirm" role="group" aria-labelledby="remove-question">
           <p id="remove-question" class="question"><Icon name="warn" :size="20" />{{ w.removeQuestion }}</p>
           <p class="what">{{ w.removeWhat }}</p>
           <div class="choice">
             <button ref="keepLeaving" :disabled="leaveBusy" @click="askLeave('')">{{ w.keep }}</button>
-            <button class="danger-fill" :disabled="leaveBusy" @click="removeApp">{{ w.remove }}</button>
+            <button class="primary" :disabled="leaveBusy" @click="removeApp">{{ w.remove }}</button>
           </div>
         </div>
         <form v-else class="confirm" aria-labelledby="delete-question" novalidate @submit.prevent="deleteAccount">
@@ -435,7 +436,7 @@ async function resetDemo() {
           />
           <div class="choice">
             <button type="button" :disabled="leaveBusy" @click="askLeave('')">{{ w.keep }}</button>
-            <button type="submit" class="danger-fill" :disabled="leaveBusy || !typedOk">{{ w.delete }}</button>
+            <button type="submit" class="primary" :disabled="leaveBusy || !typedOk">{{ w.delete }}</button>
           </div>
         </form>
         <p v-if="leaveError" class="error" role="alert">{{ leaveError }}</p>
@@ -444,7 +445,6 @@ async function resetDemo() {
       <p v-if="tutorialError" class="error" role="alert">{{ tutorialError }}</p>
       <p v-if="resetError" class="error" role="alert">{{ resetError }}</p>
 
-      <!-- Who you are, and the way out. While the core is down you stay as you are (the card on top says why). -->
       </div>
       </div>
     </aside>
@@ -453,7 +453,7 @@ async function resetDemo() {
 
 <style scoped>
 .scrim { position: fixed; inset: 0; z-index: 90; background: var(--scrim); }
-/* The options menu: a green sign in the middle of the screen, a quick pop. It fits; only a very short window scrolls. */
+/* The options menu: a white card in the middle of the screen, a quick pop. It fits; only a very short window scrolls. */
 .pane {
   position: fixed;
   top: 50%;
@@ -462,62 +462,70 @@ async function resetDemo() {
   z-index: 100;
   display: flex;
   flex-direction: column;
-  width: min(400px, calc(100vw - 32px));
+  width: min(480px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   outline: none;
 }
-.inner { display: grid; align-content: start; gap: 8px; overflow-y: auto; overscroll-behavior: contain; }
+.inner { display: grid; align-content: start; gap: 14px; overflow-y: auto; overscroll-behavior: contain; }
 
-.options { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; line-height: 1.3; }
-.options :deep(.list-row) { min-height: 50px; padding: 0; }
+.options { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; line-height: 1.3; }
+.options :deep(.list-row) { min-height: 48px; padding: 0; }
 .options :deep(.list-row:hover), .options :deep(.list-row:focus-within) { background: none; box-shadow: none; }
-/* Rows here are a word and a control: plain text, not a name. */
-.options :deep(.title) { font-size: 17px; font-weight: 600; }
+/* Rows here are a word and a control. */
+.options :deep(.title) { font-size: 15px; font-weight: 800; }
+/* The choices: the shared grey rail (style.css), one width, so the rails line up down the card. */
+.options .segmented { width: 200px; }
+/* Doubled class: the row's own button rule (ListRow.vue) would make them its 46px keys. */
+.options .segmented.segmented > button { flex: 1 1 0; min-width: 0; min-height: 40px; padding: 0 10px; border-radius: 10px; font-size: 15px; }
 .flip { cursor: pointer; }
-/* Your account, at the very end, on its own tile. Logging out is the quiet key in it. */
-.account { margin-top: 4px; padding: 6px 8px 6px 10px; border-radius: var(--r-md); background: var(--tile); }
-.account .leave:hover:not(:disabled) { background: var(--fill); }
-.handle { font-size: 14px; font-weight: 600; color: var(--handle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.leave { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 12px; background: transparent; box-shadow: var(--quiet-edge); color: var(--text); font: 800 15px/1 var(--font); }
-.leave:hover:not(:disabled) { background: var(--tile); }
-/* The title to wear: a plain menu, the size of the row's other keys. */
-.pick { min-height: 46px; max-width: 13em; padding: 0 10px; border: 3px solid var(--text); border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 800 15px/1.2 var(--font); }
+/* A switch: a pill, the knob on the left when off and on the ink's side when on. */
+.options button.toggle[role="switch"][aria-checked] { width: 48px; min-height: 28px; height: 28px; border-radius: 14px; background: var(--fill); box-shadow: none; }
+.options button.toggle[role="switch"][aria-checked]:hover:not(:disabled) { background: var(--fill-hover); }
+.options button.toggle[role="switch"][aria-checked="true"], .options button.toggle[role="switch"][aria-checked="true"]:hover:not(:disabled) { background: var(--text); }
+.options button.toggle[role="switch"][aria-checked]::before { content: none; }
+.options button.toggle[role="switch"][aria-checked] .knob { position: absolute; top: 3px; left: 3px; display: block; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); transition: translate var(--dur-fast) var(--ease); }
+.options button.toggle[role="switch"][aria-checked="true"] .knob { translate: 20px 0; }
+/* Your account, at the very end, on its own tile. Logging out is the grey button in it. */
+.account { padding: 10px 10px 10px 12px; border-radius: var(--tile-r); background: var(--tile); }
+.account :deep(.list-row .sub) { font-size: 13px; font-weight: 600; }
+.options.account button.leave.second { flex: none; min-height: 48px; padding: 0 16px var(--lip); border-radius: 12px; background: var(--fill); font-size: 16px; white-space: nowrap; }
+.options.account button.leave.second:hover:not(:disabled) { background: var(--fill-hover); }
+/* The title to wear: a plain menu on the soft grey. */
+.pick { min-height: 40px; max-width: 13em; padding: 0 10px; border: 0; border-radius: 10px; background: var(--sunken); color: var(--text); font: 800 15px/1.2 var(--font); }
 
-/* The segmented controls (.segmented) and the tick boxes (.toggle) are the shared ones in style.css. */
-
-/* Starting over: rows with an arrow. */
-.acts { display: grid; gap: 2px; margin: 4px -8px 0; }
-.act { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; padding: 0 8px; border-radius: var(--r-sm); background: none; color: var(--text); font: 600 17px/1.2 var(--font); text-align: left; }
+/* Starting over, and leaving: rows of a word and an arrow. */
+.acts { display: grid; gap: 0; margin: 0 -8px; }
+.act { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 8px; border-radius: 10px; background: none; box-shadow: none; color: var(--text); font: 800 15px/1.2 var(--font); text-align: left; }
+.act svg { color: var(--muted); }
 .act:hover:not(:disabled) { background: var(--tile); }
 .act.danger { color: var(--danger); }
-.act.danger:hover:not(:disabled) { background: var(--danger-soft); }
+.act.danger svg { color: inherit; }
 
-/* The reset's question, in place of the rows: a soft red block, then Keep beside Reset. */
-.confirm { display: grid; gap: 12px; padding: 12px; border-radius: var(--r-md); background: var(--danger-soft); }
-.question { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 800; color: var(--danger); }
-.choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* A question in place of the rows: on a soft tile, the warning's symbol, then Keep beside the red button that does it. */
+.confirm { display: grid; gap: 12px; padding: 14px; border-radius: var(--tile-r); background: var(--tile); }
+.question { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 800; color: var(--text); }
+.question svg { flex: none; color: var(--accent); }
+.choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .choice button { display: inline-flex; align-items: center; justify-content: center; }
-.danger-fill { background: var(--danger); color: var(--on-danger); }
-.danger-fill:hover:not(:disabled) { background: var(--danger); opacity: 0.9; }
+.choice button:not(.primary) { background: var(--fill); box-shadow: inset 0 calc(-1 * var(--lip)) 0 var(--quiet-lip); padding-bottom: var(--lip); }
 .error { margin: 0; font-size: 14px; color: var(--danger); }
 /* Leaving: what it does in one line, and the login to type. */
 a.act { text-decoration: none; }
-.what { margin: -4px 0 0; font-size: 14px; color: var(--text); }
-.login { min-height: 46px; padding: 0 12px; border: 3px solid var(--text); border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 700 16px/1.2 var(--font); }
+.what { margin: -4px 0 0; font-size: 14px; font-weight: 600; color: var(--muted); }
+.login { background: var(--surface); }
 .done { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0 8px; font-size: 14px; font-weight: 600; }
 .done a { color: var(--accent); }
-
-.handle { font-size: 14px; color: var(--handle); }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .pop-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .pop-leave-active { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
 .pop-enter-from, .pop-leave-to { opacity: 0; transform: translateY(10px) scale(0.95); }
-/* A phone: the menu is a sheet along the bottom edge. */
+/* A phone: the menu is a sheet along the bottom edge, the rails a little narrower. */
 @media (max-width: 520px) {
   .pane { top: auto; bottom: 0; left: 0; translate: none; width: 100%; max-height: 92dvh; }
-  .options .segmented > button { padding: 0 9px; }
+  .options .segmented { width: 168px; }
+  .options .segmented.segmented > button { padding: 0 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .fade-enter-active, .fade-leave-active, .pop-enter-active, .pop-leave-active { transition: none; }

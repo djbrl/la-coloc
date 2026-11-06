@@ -10,9 +10,9 @@ defineProps<{ title?: string; explain?: string | null; headingId?: string }>();
     <div class="sign-frame">
       <header class="sign-band">
         <h2 :id="headingId">{{ title }}</h2>
+        <p v-if="explain" class="sign-sub">{{ explain }}</p>
       </header>
       <div class="sign-body">
-        <p v-if="explain" class="explain">{{ explain }}</p>
         <slot />
       </div>
     </div>
@@ -22,10 +22,10 @@ defineProps<{ title?: string; explain?: string | null; headingId?: string }>();
 
 <style scoped>
 .list-card { min-width: 0; animation: pop-in 0.22s var(--ease); }
-.sign-band { padding-right: 16px; }
+/* No X on these cards: the head's line runs to the right edge. */
+.sign-band { padding-right: 20px; }
 .sign-body { display: grid; gap: 12px; }
-.sign-white { background: var(--surface); border-radius: var(--r-md); overflow: hidden; }
-.explain { font-size: 14px; line-height: 1.3; color: var(--muted); }
+.sign-white { background: var(--surface); border-radius: var(--card-r); overflow: hidden; }
 /* The pause menu's entrance: a quick scale up from just under full size. */
 @keyframes pop-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }

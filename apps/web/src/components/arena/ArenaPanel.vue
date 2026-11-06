@@ -1,17 +1,17 @@
 <script setup lang="ts">
 // The arena, opened at the stadium's entrance (or from the HUD's way in): a floating card docked on the right of the
-// city, like a house's window, built on the lobby's Panel. Its head is the week's challenge (its kind's icon and its
-// title). The first tab answers three questions in this order, without scrolling: what's this week's challenge (one
-// line, the time left, who's in, the rules folded), how do I take part (three numbered steps with the real actions:
-// join, open a pull request on the arena repo, then it's picked up or you paste it, and how it's graded), and what's
-// the payout (1st, 2nd, 3rd). The leaderboard (with your own pull requests on top) and the arena's chat room wait
+// city, like a house's window, built on the lobby's Panel. Its head is the week's challenge (a trophy in the icon's tile,
+// its title, "This week's challenge." under it). The first tab tells it in order, quietly (Jib, 6 Nov: the old one was
+// "too loud"): what it pays and how long is left, one line on the challenge, one button to take part. How to take part
+// (three numbered steps with the real actions: fork, open a pull request, send it) and the rules, points and prizes are
+// folded away until asked for. The leaderboard (with your own pull requests on top) and the arena's chat room wait
 // behind the other two tabs. The view comes from the arena store (store.ts), which the lobby keeps fresh over the
 // city's stream; a join or a pull request sent gives a newer view back at once.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useWhenBack } from "../../core";
 import { language } from "../../i18n";
 import { me, postJSON, sendJSON } from "../../session";
-import type { ArenaView, Badge } from "../../types";
+import type { ArenaView } from "../../types";
 import Waiting from "../Waiting.vue";
 import { commonWords as cw } from "../words";
 import Icon from "../lobby/house/Icon.vue";
@@ -20,7 +20,6 @@ import ListRow from "../lobby/panel/ListRow.vue";
 import Panel from "../lobby/panel/Panel.vue";
 import PanelHead from "../lobby/panel/PanelHead.vue";
 import PanelTabs, { type Tab } from "../lobby/panel/PanelTabs.vue";
-import StatusPill from "../lobby/panel/StatusPill.vue";
 import {
   arenaStage,
   checkPrUrl,
@@ -30,7 +29,6 @@ import {
   forkUrl,
   KINDS,
   labelWord,
-  medal,
   prizesFor,
   prProblemText,
   repoName,
@@ -40,7 +38,6 @@ import {
 } from "./arena";
 import ArenaBoard from "./ArenaBoard.vue";
 import ArenaRoom from "./ArenaRoom.vue";
-import BadgeChip from "./BadgeChip.vue";
 import { arena, arenaUrl, loadArena, showArena } from "./store";
 import { arenaWords as w } from "./words";
 
@@ -85,6 +82,8 @@ const deadline = computed(() =>
     : "",
 );
 const rules = computed(() => (challenge.value ? say(challenge.value.rules) : []));
+// The two folds under the main button: how to take part, and the rules with the points and the prizes.
+const howOpen = ref(false);
 const rulesOpen = ref(false);
 
 // ---- 2. Taking part ----
@@ -96,6 +95,11 @@ const pasteOpen = ref(false);
 const mine = computed(() => {
   const list = view.value?.mine ?? [];
   return { count: list.length, points: list.reduce((n, s) => n + s.points, 0) };
+});
+// What a merged pull request can be worth, lowest to highest: the rules fold's meta ("10 to 100 pts").
+const pointsRange = computed(() => {
+  const all = (challenge.value?.points ?? []).map((p) => p.points);
+  return all.length ? w.pointsRange(Math.min(...all), Math.max(...all)) : null;
 });
 // The points table as a reader hears it: "low 10 points, medium 25 points…".
 const table = computed(() => (challenge.value?.points ?? []).map((p) => `${labelWord(p.label)} ${w.points(p.points)}`).join(", "));
@@ -163,18 +167,25 @@ watch(tab, () => {
 
 // ---- 3. The payout ----
 
-// Each place as the window draws it: the credit (1st only) and the badge, the podium's one under its short name.
+// Each place in words, for the rules fold: "1st place: 20 000 FCFA and the title Eagle eye", "2nd place: a podium badge".
 const prizes = computed(() => {
   const c = challenge.value;
   if (!c) return [];
-  const week = c.startsAt.slice(0, 10);
   return prizesFor(c).map((p) => {
     const podium = p.badge.key === "podium";
-    const badge: Badge = { key: p.badge.key, title: podium ? { en: w.podium, fr: w.podium } : p.badge.title, place: p.place, city: props.city, week };
     const amount = p.fcfa > 0 ? fcfa(p.fcfa) : null;
-    return { place: p.place, amount, badge, name: w.prizeName(w.place(p.place), amount, podium ? null : say(p.badge.title)) };
+    return { place: p.place, amount, title: say(p.badge.title), name: w.prizeName(w.place(p.place), amount, podium ? null : say(p.badge.title)) };
   });
 });
+// The head of the tab: first place's credit, big, and the title it wins in a line under it. A week that pays no credit
+// shows the title itself big.
+const top = computed(() => {
+  const first = prizes.value.find((p) => p.place === 1);
+  if (!first) return null;
+  return first.amount ? { big: first.amount, line: w.andTitle(first.title) } : { big: first.title, line: w.forFirst };
+});
+// A submission's quiet symbol: merged is done, closed failed, open waits on the judges (a plain dot, nothing for you).
+const mark = (state: "open" | "merged" | "closed") => (state === "merged" ? "ok" : state === "closed" ? "fail" : "none");
 
 // ---- The keys ----
 
@@ -196,19 +207,22 @@ function onKey(e: KeyboardEvent) {
     <div class="scrim" @click="emit('close')" />
     <section ref="sheet" class="sheet sign" role="dialog" aria-modal="true" :aria-label="w.label(city)" tabindex="-1" @keydown="onKey">
       <div class="sign-frame">
-      <!-- Close sits on the title band, whichever is showing. -->
+      <!-- Close sits on the head, whichever is showing. -->
       <button type="button" class="sign-x close" :aria-label="w.close" @click="emit('close')"><span aria-hidden="true">X</span></button>
 
       <div class="page-host">
         <template v-if="!view || !challenge || !kind">
-          <header class="sign-band large"><h2>{{ w.arena }}</h2></header>
+          <header class="sign-band large">
+            <span class="chip"><Icon name="trophy" :size="22" /></span>
+            <h2>{{ w.arena }}</h2>
+          </header>
           <Waiting v-if="arena.waiting" @retry="loadArena()" />
           <div v-else-if="arena.failed" class="state" role="alert">
             <p class="said">{{ w.failed }}</p>
             <button type="button" class="primary" @click="loadArena()">{{ cw.tryAgain }}</button>
           </div>
           <div v-else-if="arena.loaded" class="state" role="status">
-            <span class="big-ic" aria-hidden="true"><Icon name="trophy" :size="32" /></span>
+            <span class="big-ic" aria-hidden="true"><Icon name="trophy" :size="26" /></span>
             <p class="said">{{ w.closed }}</p>
             <p class="soft">{{ w.closedLine }}</p>
           </div>
@@ -217,10 +231,11 @@ function onKey(e: KeyboardEvent) {
 
         <Panel v-else :body-id="`tabpanel-${tab}`" :body-labelledby="`tab-${tab}`">
           <template #head>
-            <PanelHead :title="say(challenge.title)">
+            <PanelHead :title="say(challenge.title)" :line="w.weekly">
+              <!-- The trophy in the icon's tile; the challenge's kind (bug bounty, hackathon…) is its name. -->
               <template #lead>
-                <span class="kind" :class="kind.tone" role="img" :aria-label="w.kinds[challenge.kind]" :title="w.kinds[challenge.kind]">
-                  <Icon :name="kind.icon" :size="28" />
+                <span class="kind" role="img" :aria-label="w.kinds[challenge.kind]" :title="w.kinds[challenge.kind]">
+                  <Icon name="trophy" :size="22" />
                 </span>
               </template>
             </PanelHead>
@@ -230,110 +245,130 @@ function onKey(e: KeyboardEvent) {
           </template>
 
           <template v-if="tab === 'challenge'">
-            <!-- 1. This week's challenge: one line, then its stats as icons and numbers, the rules folded. -->
-            <div class="what">
-              <p class="summary">{{ say(challenge.summary) }}</p>
-              <div class="stats-row">
-                <ul class="stats">
-                  <li class="stat" :class="{ over }" role="img" :aria-label="over ? w.endedName : `${w.timeLeftName(left)}. ${deadline}`" :title="deadline">
-                    <Icon name="clock" :size="20" /><span class="n">{{ left }}</span>
-                  </li>
-                  <li class="stat" role="img" :aria-label="w.entrantsName(view.entrants)" :title="w.entrantsName(view.entrants)">
-                    <Icon name="people" :size="20" /><span class="n">{{ view.entrants }}</span>
-                  </li>
-                  <li v-if="crowd !== null" class="stat" role="img" :aria-label="w.crowdName(crowd)" :title="w.crowdName(crowd)">
-                    <Icon name="eye" :size="20" /><span class="n">{{ crowd }}</span>
-                  </li>
-                </ul>
-                <button v-if="rules.length" type="button" class="key small" :aria-expanded="rulesOpen" aria-controls="arena-rules" :aria-label="w.rules" :title="w.rules" @click="rulesOpen = !rulesOpen">
-                  <Icon name="rules" :size="16" /><span class="word">{{ w.rules }}</span>
-                </button>
-              </div>
-              <ol v-if="rulesOpen" id="arena-rules" class="rules">
-                <li v-for="(r, i) in rules" :key="i">{{ r }}</li>
-              </ol>
-            </div>
-
-            <!-- 2. How to take part: three steps, each with its real action, then how it's graded. -->
-            <div v-if="stage === 'soon'" class="soon" role="status">
-              <Icon name="code" :size="20" />
-              <p><strong>{{ w.notOpenTitle }}</strong>{{ w.notOpen }}</p>
-            </div>
-            <div v-else class="take-part">
-              <h3 class="sr-only">{{ w.stepsName }}</h3>
-              <ol class="steps">
-                <li class="step" :class="{ done: view.joined }">
-                  <span class="num" aria-hidden="true"><Icon v-if="view.joined" name="tick" :size="16" /><template v-else>1</template></span>
-                  <span class="say">{{ view.joined ? w.joined : w.joinStep }}</span>
-                  <span class="act">
-                    <RouterLink v-if="stage === 'login'" to="/login" class="button primary go"><Icon name="login" :size="18" />{{ w.logIn }}</RouterLink>
-                    <button v-else-if="stage === 'join'" type="button" class="primary go" :disabled="busy" @click="join"><Icon name="trophy" :size="18" />{{ w.join }}</button>
-                  </span>
-                </li>
-                <li class="step">
-                  <span class="num" aria-hidden="true">2</span>
-                  <span class="say">
-                    {{ w.prStep }}
-                    <a class="where" :href="folderUrl(challenge.repo, challenge.path)" target="_blank" rel="noopener noreferrer" :title="w.githubName">{{ repoName(challenge.repo) }}/{{ challenge.path }}</a>
-                  </span>
-                  <span class="act">
-                    <a class="button key" :href="forkUrl(challenge.repo)" target="_blank" rel="noopener noreferrer" :aria-label="w.forkName" :title="w.forkName">
-                      <Icon name="code" :size="16" /><span class="word">{{ w.fork }}</span>
-                    </a>
-                    <button type="button" class="key icon" :aria-label="copied ? w.copied : w.copyName" :title="copied ? w.copied : w.copyName" @click="copyClone">
-                      <Icon :name="copied ? 'tick' : 'copy'" :size="16" />
-                    </button>
-                    <a class="button key icon" :href="folderUrl(challenge.repo, challenge.path)" target="_blank" rel="noopener noreferrer" :aria-label="w.githubName" :title="w.githubName">
-                      <Icon name="external" :size="16" />
-                    </a>
-                  </span>
-                </li>
-                <li class="step" :class="{ off: !view.joined }">
-                  <span class="num" aria-hidden="true">3</span>
-                  <span class="say">{{ auto ? w.autoStep : w.pasteStep }}</span>
-                  <span class="act">
-                    <button v-if="mine.count" type="button" class="key mine" :aria-label="w.mineChipName(mine.count, mine.points)" :title="w.mineChipName(mine.count, mine.points)" @click="tab = 'board'">
-                      <Icon name="thread" :size="16" />{{ w.mineChip(mine.count, mine.points) }}
-                    </button>
-                    <button v-if="auto && stage === 'joined' && !pasteOpen" type="button" class="key icon" :aria-label="w.pasteInstead" :title="w.pasteInstead" @click="pasteOpen = true">
-                      <Icon name="link" :size="16" />
-                    </button>
-                  </span>
-                  <form v-if="stage === 'joined' && (!auto || pasteOpen)" class="send" novalidate @submit.prevent="submit">
-                    <input v-model="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" :placeholder="w.prPlaceholder" :aria-label="w.prName" :aria-invalid="!!error" @input="error = ''" />
-                    <button class="primary" :disabled="busy"><Icon name="rocket" :size="18" />{{ w.submit }}</button>
-                  </form>
-                </li>
-              </ol>
-              <p v-if="error" class="error" role="alert">{{ error }}</p>
-              <p v-else-if="said" class="said-ok" role="status">{{ said }}</p>
-              <p v-if="challenge.points.length" class="graded" role="img" :aria-label="w.gradedName(table)">
-                <Icon name="check" :size="18" />
-                <span class="g-word" aria-hidden="true">{{ w.graded }}</span>
-                <span v-for="p in challenge.points" :key="p.label" class="pts-chip" aria-hidden="true" :title="p.label"><b>{{ labelWord(p.label) }}</b>{{ p.points }}</span>
+            <!-- What it pays and how long is left: the numbers first, the words small under them. -->
+            <div class="prize">
+              <p v-if="top" class="pays">
+                <span class="big">{{ top.big }}</span>
+                <span class="small-line">{{ top.line }}</span>
+              </p>
+              <p class="when">
+                <span class="left" :class="{ over }" role="img" :aria-label="over ? w.endedName : `${w.timeLeftName(left)}. ${deadline}`" :title="deadline">
+                  <Icon name="clock" :size="16" /><span aria-hidden="true">{{ left }}</span>
+                </span>
+                <span class="small-line">
+                  <span :title="w.entrantsName(view.entrants)">{{ w.entrants(view.entrants) }}</span>
+                  <span v-if="crowd !== null" :title="w.crowdName(crowd)"> · {{ w.here(crowd) }}</span>
+                </span>
               </p>
             </div>
 
-            <!-- 3. The payout: what 1st, 2nd and 3rd win. -->
-            <div class="payout">
-              <h3 class="sr-only">{{ w.prizesName }}</h3>
-              <ul class="prizes">
-                <li v-for="p in prizes" :key="p.place" class="prize" :class="{ first: p.place === 1 }" role="img" :aria-label="p.name" :title="p.name">
-                  <span class="medal" :class="medal(p.place)" aria-hidden="true">{{ p.place }}</span>
-                  <span v-if="p.amount" class="amt" aria-hidden="true">{{ p.amount }}</span>
-                  <BadgeChip :badge="p.badge" aria-hidden="true" />
-                </li>
-              </ul>
+            <p class="summary">{{ say(challenge.summary) }}</p>
+
+            <!-- The one thing to do: log in, take part, or (once in) send a pull request. -->
+            <div v-if="stage === 'soon'" class="soon" role="status">
+              <span class="status-mark none" aria-hidden="true" />
+              <p><strong>{{ w.notOpenTitle }}</strong> {{ w.notOpen }}</p>
+            </div>
+            <RouterLink v-else-if="stage === 'login'" to="/login" class="button primary go"><Icon name="login" :size="18" />{{ w.logIn }}</RouterLink>
+            <button v-else-if="stage === 'join'" type="button" class="primary go" :disabled="busy" @click="join"><Icon name="trophy" :size="18" />{{ w.join }}</button>
+            <template v-else-if="stage === 'joined'">
+              <div class="in">
+                <span class="status-mark ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+                <span class="in-word">{{ w.joined }}<span v-if="auto" class="small-line"> · {{ w.autoStep }}</span></span>
+                <button v-if="mine.count" type="button" class="key" :aria-label="w.mineChipName(mine.count, mine.points)" :title="w.mineChipName(mine.count, mine.points)" @click="tab = 'board'">
+                  {{ w.mineChip(mine.count, mine.points) }}
+                </button>
+                <button v-if="auto && !pasteOpen" type="button" class="key icon" :aria-label="w.pasteInstead" :title="w.pasteInstead" @click="pasteOpen = true">
+                  <Icon name="link" :size="16" />
+                </button>
+              </div>
+              <form v-if="!auto || pasteOpen" class="send" novalidate @submit.prevent="submit">
+                <input v-model="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" :placeholder="w.prPlaceholder" :aria-label="w.prName" :aria-invalid="!!error" @input="error = ''" />
+                <button class="primary" :disabled="busy">{{ w.submit }}</button>
+              </form>
+            </template>
+            <p v-if="error" class="error" role="alert">{{ error }}</p>
+            <p v-else-if="said" class="said-ok" role="status">{{ said }}</p>
+
+            <!-- Folded until asked for: how to take part, then the rules, the points and the prizes. -->
+            <div class="folds">
+              <div v-if="stage !== 'soon'" class="fold">
+                <button type="button" class="fold-key" :aria-expanded="howOpen" aria-controls="arena-how" @click="howOpen = !howOpen">
+                  <span class="fold-title">{{ w.stepsName }}</span>
+                  <span class="fold-meta">{{ w.stepsMeta(3) }}</span>
+                  <svg class="chev" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </button>
+                <ol v-show="howOpen" id="arena-how" class="steps">
+                  <li class="step">
+                    <span class="num" aria-hidden="true">1</span>
+                    <span class="say">
+                      <span class="step-title">{{ w.forkStep }}</span>
+                      <span class="repo">
+                        <a class="field" :href="folderUrl(challenge.repo, challenge.path)" target="_blank" rel="noopener noreferrer" :title="w.githubName">{{ repoName(challenge.repo) }}/{{ challenge.path }}</a>
+                        <a class="button key" :href="forkUrl(challenge.repo)" target="_blank" rel="noopener noreferrer" :aria-label="w.forkName" :title="w.forkName">
+                          <Icon name="code" :size="16" /><span class="word">{{ w.fork }}</span>
+                        </a>
+                        <button type="button" class="key icon" :aria-label="copied ? w.copied : w.copyName" :title="copied ? w.copied : w.copyName" @click="copyClone">
+                          <Icon :name="copied ? 'tick' : 'copy'" :size="16" />
+                        </button>
+                      </span>
+                    </span>
+                  </li>
+                  <li class="step">
+                    <span class="num" aria-hidden="true">2</span>
+                    <span class="say"><span class="step-title">{{ w.prStep }}</span></span>
+                  </li>
+                  <li class="step" :class="{ off: !view.joined }">
+                    <span class="num" aria-hidden="true">3</span>
+                    <span class="say">
+                      <span class="step-title">{{ auto ? w.autoStep : w.pasteStep }}</span>
+                      <span class="step-sub">{{ w.scoreLine }}</span>
+                    </span>
+                  </li>
+                </ol>
+              </div>
+
+              <div v-if="rules.length || challenge.points.length || prizes.length" class="fold">
+                <button type="button" class="fold-key" :aria-expanded="rulesOpen" aria-controls="arena-rules" @click="rulesOpen = !rulesOpen">
+                  <span class="fold-title">{{ w.rulesPoints }}</span>
+                  <span v-if="pointsRange" class="fold-meta">{{ pointsRange }}</span>
+                  <svg class="chev" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </button>
+                <div v-show="rulesOpen" id="arena-rules" class="fold-body">
+                  <template v-if="challenge.points.length">
+                    <ul class="points" role="img" :aria-label="w.gradedName(table)">
+                      <li v-for="p in challenge.points" :key="p.label" class="pt" aria-hidden="true">
+                        <span class="pt-n">{{ w.points(p.points) }}</span>
+                        <span class="pt-label">{{ p.label }}</span>
+                      </li>
+                    </ul>
+                    <p class="small-line" aria-hidden="true">{{ w.graded }}</p>
+                  </template>
+                  <ol v-if="rules.length" class="rules">
+                    <li v-for="(r, i) in rules" :key="i">{{ r }}</li>
+                  </ol>
+                  <div v-if="prizes.length" class="prizes">
+                    <p class="label">{{ w.prizesName }}</p>
+                    <ul>
+                      <li v-for="p in prizes" :key="p.place">{{ p.name }}</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
           </template>
 
           <!-- The leaderboard, your own pull requests first. -->
           <template v-else-if="tab === 'board'">
             <ul v-if="view.mine.length" class="lines" :aria-label="w.mineName">
-              <ListRow v-for="s in view.mine" :key="s.id" :title="s.title ?? `#${s.number}`" :sub="`${repoName(challenge.repo)} #${s.number}`" mine>
-                <template #lead><Icon name="thread" :size="20" /></template>
+              <ListRow v-for="s in view.mine" :key="s.id" :title="s.title ?? `#${s.number}`" :sub="`${repoName(challenge.repo)} #${s.number} · ${submissionState(s.state).word}`">
+                <template #lead>
+                  <span class="status-mark" :class="mark(s.state)" aria-hidden="true">
+                    <svg v-if="s.state === 'merged'" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    <svg v-else-if="s.state === 'closed'" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
+                  </span>
+                </template>
                 <template #meta>
-                  <StatusPill :state="submissionState(s.state)" />
                   <span>{{ w.points(s.points) }}</span>
                 </template>
                 <template #end>
@@ -358,7 +393,7 @@ function onKey(e: KeyboardEvent) {
 </template>
 
 <style scoped>
-/* Above the HUD, like a house's window (Inside.vue): the same sign on the right, the city lit beside it. */
+/* Above the HUD, like a house's window (Inside.vue): the same card on the right, the city lit beside it. */
 .arena { position: absolute; inset: 0; z-index: 60; }
 .scrim { position: absolute; inset: 0; }
 .sheet {
@@ -373,89 +408,95 @@ function onKey(e: KeyboardEvent) {
   animation: pop-in var(--dur-slow) var(--ease-pop);
 }
 .sign-frame { position: relative; }
-/* The band's X, 44px and centred in its 88px: placed from inside the frame's border, the band starts 3px further in. */
-.sign-x { z-index: 2; top: 44px; }
-.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: 12px; background: var(--surface); }
+.page-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; border-radius: var(--card-r); background: var(--surface); }
 .page-host > :not(.sign-band) { flex: 1 1 auto; min-height: 0; }
 
+.arena :deep(.p-body) { gap: 14px; padding-bottom: 20px; }
+
 /* Opening, closed, failed: one calm message in the middle. */
-.state { margin: auto; display: grid; justify-items: center; align-content: center; gap: 10px; padding: 28px 16px; text-align: center; max-width: 360px; }
-.state .said { font-size: 19px; font-weight: 800; }
-.soft { color: var(--muted); font-size: 15px; }
-.big-ic { display: grid; place-items: center; width: 56px; height: 56px; color: var(--panel); }
+.state { margin: auto; display: grid; justify-items: center; align-content: center; gap: 6px; padding: 28px 16px; text-align: center; max-width: 360px; }
+.state .said { font-size: 15px; font-weight: 800; }
+.soft { color: var(--muted); font-size: 13px; font-weight: 600; }
+.big-ic { display: grid; place-items: center; color: var(--muted); }
 
-/* The challenge's kind: its icon on a white key, on the band. */
-.kind { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-md); background: var(--surface); }
-.kind.danger { color: var(--panel-red); }
-.kind.accent { color: var(--ink); }
-.kind.live { color: var(--live); }
+/* The trophy fills PanelHead's 44px tile in the soft red. */
+.kind { display: grid; place-items: center; width: 44px; height: 44px; background: var(--accent-soft); color: var(--accent); }
 
-/* The three parts keep their height: the body scrolls (rules open, an error) rather than squeezing them. */
-.what, .take-part, .payout, .soon { flex: none; }
-/* Air between the three answers, so each reads as one block. */
-.take-part, .payout, .soon { margin-top: 8px; }
+/* Everything on the tab keeps its height: the body scrolls (a fold open, an error) rather than squeezing it. */
+.prize, .summary, .go, .in, .send, .soon, .folds, .error, .said-ok { flex: none; }
+.small-line { font-size: 14px; font-weight: 600; line-height: 20px; color: var(--muted); }
 
-/* 1. The challenge: one line, then the stats as icons and numbers, not sentences. */
-.summary { margin: 0; font-size: 17px; line-height: 1.3; font-weight: 600; }
-.stats-row { display: flex; align-items: center; gap: 8px 12px; margin-top: 6px; }
-.stats { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin: 0; padding: 0; list-style: none; }
-.stat { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
-.stat .n { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.stat.over .n { color: var(--muted); }
-.rules { margin: 6px 0 0; padding: 0 0 0 22px; display: grid; gap: 4px; font-size: 15px; line-height: 1.3; color: var(--muted); }
+/* What it pays, big, and the time left at the right. */
+.prize { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 4px 0 2px; }
+.pays, .when { margin: 0; display: grid; gap: 2px; min-width: 0; }
+.big { font-size: 32px; font-weight: 800; line-height: 38px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pays .small-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.when { flex: none; justify-items: end; text-align: right; }
+.left { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; line-height: 20px; white-space: nowrap; }
+.left.over { color: var(--muted); }
 
-/* The keys: one look, a link or a button. */
-.key { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 12px; background: transparent; box-shadow: var(--quiet-edge); color: var(--text); font-size: 15px; white-space: nowrap; }
-.key.icon { width: 44px; padding: 0; }
-.key.small { flex: none; min-height: 38px; }
-.key:hover:not(:disabled) { background: var(--tile); text-decoration: none; }
+/* One line on the challenge. */
+.summary { margin: 0; font-size: 15px; font-weight: 600; line-height: 22px; color: var(--muted); }
 
-/* 2. Taking part: numbered rows, the action at the end of each. */
-.steps { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.step { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 6px; min-height: 52px; }
-.num { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--text); color: var(--surface); font: 800 16px/1 var(--font); }
-.step.done .num { background: var(--live); color: var(--surface); }
-.step.off .say, .step.off .num { opacity: 0.45; }
-.say { min-width: 0; display: grid; gap: 1px; font-size: 18px; font-weight: 800; line-height: 1.15; }
-.where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 14px/1.3 var(--code); color: var(--muted); }
-.act { display: flex; align-items: center; gap: 6px; }
-.act:empty { display: none; }
-.go { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; font-size: 18px; white-space: nowrap; }
+/* The one main button, across the width. */
+.go { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; white-space: nowrap; }
 a.go:hover { text-decoration: none; }
-.mine { font-weight: 800; font-variant-numeric: tabular-nums; }
-.send { grid-column: 2 / -1; display: flex; gap: 8px; min-width: 0; }
-.send input { flex: 1 1 auto; min-width: 0; min-height: 46px; font-size: 15px; }
-.send button { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 46px; font-size: 17px; white-space: nowrap; }
-.error { margin: 4px 0 0 42px; color: var(--danger); font-size: 15px; }
-.said-ok { margin: 4px 0 0 42px; color: var(--live); font-size: 15px; font-weight: 800; }
-/* How it's graded: one line, the labels and their points as chips. */
-.graded { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0 42px; font-size: 14px; color: var(--muted); }
-.graded > :first-child { color: var(--text); }
-.g-word { margin-right: 4px; font-weight: 700; }
-.pts-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 3px 8px; border-radius: var(--r-xs); background: var(--fill); color: var(--text); font-weight: 800; font-variant-numeric: tabular-nums; }
-.pts-chip b { font-weight: 600; color: var(--muted); }
 
-/* 3. The payout: three places in a row, 1st with its credit. */
-.prizes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.prize { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 12px 6px 8px; border-radius: var(--r-sm); background: var(--fill); }
-.prize.first { flex: 1 1 auto; }
-.medal { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-xs); font: 800 16px/1 var(--font); }
-.medal.gold { background: #f2c14e; color: #3d2a00; }
-.medal.silver { background: #c9d1db; color: #1f2933; }
-.medal.bronze { background: #e3a275; color: #3b1f0b; }
-.amt { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Taken part: a tick, and what's next on the same line. */
+.in { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.in-word { flex: 1 1 auto; min-width: 0; font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.send { display: flex; gap: 10px; min-width: 0; }
+.send input { flex: 1 1 auto; min-width: 0; font-size: 15px; }
+.send button { flex: none; white-space: nowrap; }
+.soon { display: flex; align-items: flex-start; gap: 10px; }
+.soon p { margin: 0; font-size: 14px; line-height: 20px; color: var(--muted); }
+.soon strong { color: var(--text); }
+.error { margin: 0; color: var(--danger); font-size: 14px; }
+.said-ok { margin: 0; font-size: 14px; font-weight: 800; }
+
+/* The small keys, one family with the big ones: grey, a lip, 40 high. Inside a fold they're a step darker, so they
+   still show on its grey. */
+.key { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 12px 3px; border-radius: 10px; background: var(--sunken); box-shadow: inset 0 -3px 0 var(--quiet-lip); color: var(--text); font-size: 14px; white-space: nowrap; }
+.key.icon { width: 40px; padding: 0 0 3px; }
+.key:hover:not(:disabled) { background: var(--fill); text-decoration: none; }
+.fold .key { background: var(--fill); }
+.fold .key:hover:not(:disabled) { background: var(--fill-hover); }
+
+/* The folds: a grey tile each, a row that opens it, its chevron turning. */
+.folds { display: grid; gap: 8px; }
+.fold { border-radius: var(--tile-r); background: var(--tile); }
+.fold-key { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 14px; border-radius: var(--tile-r); background: transparent; box-shadow: none; color: var(--text); text-align: left; }
+.fold-key:hover:not(:disabled) { background: transparent; }
+.fold-key:active:not(:disabled) { transform: none; }
+.fold-title { flex: 1 1 auto; min-width: 0; font: 800 15px/1.2 var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fold-meta { flex: none; font: 600 13px/1 var(--font); color: var(--muted); }
+.chev { flex: none; color: var(--muted); transition: transform var(--dur) var(--ease); }
+.fold-key[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.fold-body { display: grid; gap: 12px; padding: 0 14px 14px; }
+
+/* How to take part: numbered on ink, the action under step 1. */
+.steps { display: grid; gap: 12px; margin: 0; padding: 0 14px 14px; list-style: none; }
+.step { display: flex; gap: 12px; }
+.num { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--text); color: var(--surface); font: 800 13px/1 var(--font); }
+.step.off .num, .step.off .say { opacity: 0.45; }
+.say { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.step-title { padding-top: 3px; font-size: 15px; font-weight: 800; line-height: 20px; }
+.step-sub { font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); }
+.repo { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 8px; }
+.field { flex: 1 1 auto; min-width: 0; height: 40px; padding: 0 12px; border-radius: 10px; background: var(--surface); color: var(--text); font: 500 13px/40px var(--code); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* The rules fold: the points as four small white tiles, then the rules and the prizes in plain lines. */
+.points { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.pt { display: grid; padding: 8px 10px; border-radius: 10px; background: var(--surface); min-width: 0; }
+.pt-n { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pt-label { font: 500 12px/1.4 var(--code); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rules { margin: 0; padding: 0 0 0 20px; display: grid; gap: 4px; font-size: 14px; font-weight: 600; line-height: 20px; color: var(--muted); }
+.prizes { display: grid; gap: 6px; }
+.prizes ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 14px; font-weight: 600; line-height: 20px; }
 
 /* The leaderboard tab: your pull requests above the top ten. */
 .lines { flex: none; display: grid; margin: 0; padding: 0; list-style: none; }
-
-.soon { display: flex; gap: 12px; align-items: flex-start; }
-.soon p { margin: 0; font-size: 15px; line-height: 1.3; color: var(--muted); }
-.soon strong { display: block; margin-bottom: 2px; color: var(--text); font-size: 18px; font-weight: 800; }
-
-/* A challenge's name is a sentence, not a house's one word: two lines at the smaller band size rather than an
-   ellipsis. The band stays 88px high. */
-.arena :deep(.panel-head .title) { font-size: 24px; line-height: 1.15; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.arena :deep(.panel-head .line) { font-size: 15px; }
 
 @keyframes pop-in {
   from { opacity: 0; transform: translateX(12px) scale(0.96); }
@@ -469,41 +510,16 @@ a.go:hover { text-decoration: none; }
 @media (max-width: 719px) {
   .arena { display: grid; place-items: end stretch; }
   .scrim { background: color-mix(in srgb, var(--scrim) 45%, transparent); }
-  /* A little taller than a house's 70: the challenge, the three steps and the payout all show without scrolling. */
   .sheet { position: relative; inset: auto; width: 100%; height: 76dvh; min-height: min(460px, 88dvh); animation-name: rise-in; }
 }
-/* A phone: everything a size down so the payout still shows without scrolling. The keys lose their words (their
-   names stay), and the three places sit side by side, the badge under the medal. */
+/* A phone: the prize a size down; the keys lose their words (their names stay). */
 @media (max-width: 480px) {
-  .summary { font-size: 15px; }
-  .stats-row { margin-top: 4px; }
-  .stat .n { font-size: 16px; }
-  .say { font-size: 16px; }
-  .steps { gap: 0; }
-  .step { column-gap: 10px; min-height: 46px; }
-  .num { width: 26px; height: 26px; font-size: 14px; }
-  .step { grid-template-columns: 26px minmax(0, 1fr) auto; }
+  .big { font-size: 26px; line-height: 32px; }
   .key .word { display: none; }
-  .key { min-height: 40px; padding: 0 10px; }
-  .key.icon { width: 40px; }
-  .key.small { min-height: 36px; }
-  .go { min-height: 40px; padding: 0 14px; font-size: 16px; }
-  .send input, .send button { min-height: 42px; }
-  .send button { padding: 0 14px; font-size: 15px; }
-  .error, .said-ok, .graded { margin-left: 0; }
-  .graded { gap: 4px; font-size: 13px; }
-  .pts-chip { padding: 2px 6px; }
-  .take-part, .payout, .soon { margin-top: 4px; }
-  .prizes { flex-wrap: nowrap; gap: 6px; }
-  .prize { gap: 6px; min-height: 40px; padding: 4px 8px 4px 6px; }
-  .prize:not(.first) { flex: 1 1 0; justify-content: center; }
-  .medal { width: 26px; height: 26px; font-size: 14px; }
-  .amt { font-size: 16px; }
-  /* The badge as its trophy alone, like BadgeChip's compact look: its title stays in the hover and the place's name. */
-  .prize :deep(.badge-chip) { width: 22px; padding: 0; justify-content: center; }
-  .prize :deep(.badge-chip .t) { display: none; }
+  .key:not(.icon) { padding: 0 10px 3px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sheet { animation: none; }
+  .chev { transition: none; }
 }
 </style>

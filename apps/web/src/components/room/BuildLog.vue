@@ -9,6 +9,7 @@ import { STAGES, stageOf } from "../lobby/tutorial/tutorial";
 import { tutorialWords } from "../lobby/tutorial/words";
 import Icon from "../lobby/house/Icon.vue";
 import { readable } from "./buildLog";
+import RoomMark from "./RoomMark.vue";
 import { buildTrouble, refWord } from "./room";
 import { roomWords as w } from "./words";
 
@@ -138,12 +139,15 @@ onBeforeUnmount(() => clearInterval(timer));
   <dialog ref="dialog" class="window" :aria-label="w.logLabel" @close="emit('close')" @click="(e) => e.target === dialog && dialog?.close()">
     <div class="frame" :class="{ failed, live: status === 'live' }">
       <header class="head">
+        <RoomMark :kind="failed ? 'fail' : status === 'live' ? 'ok' : 'none'" />
         <h2>{{ title }}</h2>
         <span class="meta"><span v-if="build && !build.repo?.startsWith('docker://')">{{ refWord(build.ref) }}</span><span v-if="build">{{ tutorialWords.seconds(seconds) }}</span></span>
         <button v-if="build && !over" type="button" class="x" :aria-label="w.logCollapse" :title="w.logCollapse" @click="dialog?.close()">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
-        <button v-else type="button" class="x" :aria-label="w.logClose" :title="w.logClose" @click="dialog?.close()"><span aria-hidden="true">X</span></button>
+        <button v-else type="button" class="x" :aria-label="w.logClose" :title="w.logClose" @click="dialog?.close()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" /></svg>
+        </button>
       </header>
 
       <ol v-if="build" class="track">
@@ -173,7 +177,7 @@ onBeforeUnmount(() => clearInterval(timer));
         <template v-else-if="build && !over">
           <template v-if="asking">
             <button type="button" class="second" @click="asking = false">{{ w.logKeepGoing }}</button>
-            <button type="button" class="stop" :disabled="cancelling" @click="cancel">{{ w.logCancelYes }}</button>
+            <button type="button" class="primary" :disabled="cancelling" @click="cancel">{{ w.logCancelYes }}</button>
           </template>
           <button v-else type="button" class="second" @click="asking = true">{{ w.logCancel }}</button>
         </template>
@@ -183,51 +187,55 @@ onBeforeUnmount(() => clearInterval(timer));
 </template>
 
 <style scoped>
-/* Its own window over everything: a flat card, as wide as a terminal wants, the log taking all the room left. */
-.window { width: min(860px, calc(100vw - 32px)); height: min(640px, calc(100dvh - 32px)); max-height: none; padding: 0; border: none; border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
+/* Its own window over everything: the white card (one corner, the flat shadow), as wide as a terminal wants, the log
+   taking all the room left. The log stays light on dark: it's a terminal. */
+.window { width: min(860px, calc(100vw - 32px)); height: min(640px, calc(100dvh - 32px)); max-height: none; padding: 0; border: none; border-radius: var(--card-r); background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
 .window[open] { animation: pop var(--dur-slow) var(--ease-pop); }
 .window::backdrop { background: var(--scrim); }
 @keyframes pop {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
 }
 /* Head, track, the log taking what's left, then whatever is under it. */
-.frame { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 16px; }
+.frame { display: flex; flex-direction: column; gap: 14px; height: 100%; padding: 20px; }
 .head { display: flex; align-items: center; gap: 12px; min-width: 0; }
-h2 { margin: 0; font: 400 26px/1.1 var(--display); }
-.live h2 { color: var(--live); }
-.failed h2 { color: var(--danger); }
+/* The title in the head's size and face; the symbol before it says how it went, never a coloured title. */
+h2 { margin: 0; min-width: 0; font: 800 22px/28px var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta { display: flex; gap: 12px; min-width: 0; margin-left: auto; color: var(--muted); font: 600 14px/1 var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
-.x { flex: none; display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--tile); box-shadow: none; color: var(--ink); font: 400 20px/1 var(--display); }
+.x { flex: none; display: grid; place-items: center; width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 12px; background: var(--sunken); box-shadow: none; color: var(--text); }
+.x:hover:not(:disabled) { background: var(--fill); }
 
 .track { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-.track li { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); font-size: 14px; line-height: 1.2; }
-.dot { flex: none; width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line-strong); }
+.track li { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); font: 600 14px/1.2 var(--font); }
+.dot { flex: none; width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line); }
 .done { color: var(--text) !important; }
-.done .dot { background: var(--accent-fill); box-shadow: none; }
+.done .dot { background: var(--text); box-shadow: none; }
 .live .done .dot { background: var(--live); }
-.now { color: var(--text) !important; font-weight: 600; }
-.now .dot { box-shadow: inset 0 0 0 2px var(--accent-fill); animation: breathe 1.2s var(--ease) infinite; }
-.stuck { color: var(--danger) !important; font-weight: 600; }
+.now { color: var(--text) !important; font-weight: 800; }
+.now .dot { box-shadow: inset 0 0 0 2px var(--text); animation: breathe 1.2s var(--ease) infinite; }
+.stuck { color: var(--text) !important; font-weight: 800; }
 .stuck .dot { background: var(--danger); box-shadow: none; }
 
-.term { position: relative; flex: 1 1 0; min-height: 0; border-radius: var(--r-sm); background: var(--code-bg); }
-.lines { height: 100%; overflow: auto; overscroll-behavior: contain; padding: 12px 14px; color: var(--code-text); font: 500 13px/1.5 var(--num); }
+.term { position: relative; flex: 1 1 0; min-height: 0; border-radius: var(--tile-r); background: var(--code-bg); }
+.lines { height: 100%; overflow: auto; overscroll-behavior: contain; padding: 14px; color: var(--code-text); font: 500 13px/20px var(--code); }
 .lines p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .lines .step { margin-top: 10px; color: var(--sticker); font-weight: 700; }
 .lines .step:first-child { margin-top: 0; }
 .lines .error { color: #ff8b8b; font-weight: 700; }
 .lines .wait { opacity: 0.6; }
-.back { position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; background: var(--surface); color: var(--ink); font: 700 14px/1 var(--font); }
+.back { position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 10px; background: var(--surface); color: var(--text); box-shadow: none; font: 800 14px/1 var(--font); }
 
-.trouble { margin: 0; font-size: 15px; line-height: 1.35; }
+.trouble { margin: 0; font: 600 15px/21px var(--font); }
 .refused { color: var(--danger); }
-.foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.foot .button, .foot button { min-height: 44px; }
+.foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .foot .second:first-child { margin-right: auto; }
 .foot .second { display: inline-flex; align-items: center; gap: 6px; }
-.stop { padding: 0 16px; background: var(--danger); box-shadow: none; color: var(--surface); font-weight: 700; }
-.stop:hover:not(:disabled) { background: var(--danger); filter: brightness(0.95); }
 @media (max-width: 560px) {
   .track li { flex-direction: column; text-align: center; font-size: 13px; }
+}
+@keyframes breathe {
+  50% { opacity: 0.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .now .dot { animation: none; }
 }
 </style>

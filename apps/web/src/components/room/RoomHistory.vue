@@ -1,23 +1,24 @@
 <script setup lang="ts">
-// The room's History tab: one row per build, newest first. What was built (an update of a branch, or a preview
-// of a pull request), how it went, and when. A failure shows the first line of what went wrong.
-import Icon from "../lobby/house/Icon.vue";
+// The room's history, folded under its logs: one row per build, newest first. What was built (an update of a branch,
+// or a preview of a pull request), how it went, and when. A failure shows the first line of what went wrong. Each row
+// has its one symbol: went online, failed, or the quiet dot for anything under way or cancelled.
 import ListRow from "../lobby/panel/ListRow.vue";
 import type { RoomManage } from "../../types";
+import RoomMark from "./RoomMark.vue";
 import { buildFailed, deploymentStep, deploymentTitle, firstLine } from "./room";
 import { roomWords as w } from "./words";
 
 defineProps<{ deployments: RoomManage["deployments"]; github: RoomManage["github"]; when: (iso: string) => string }>();
+
+const mark = (tone: "live" | "warn" | "danger") => (tone === "live" ? "ok" : tone === "danger" ? "fail" : "none");
 </script>
 
 <template>
   <ul v-if="deployments.length" class="row-list">
     <ListRow v-for="d in deployments" :key="d.id" :title="deploymentTitle(d)">
-      <template #lead>
-        <span class="mark" :class="deploymentStep(d.status, d.detail).tone"><Icon :name="deploymentStep(d.status, d.detail).icon" :size="18" /></span>
-      </template>
+      <template #lead><RoomMark :kind="mark(deploymentStep(d.status, d.detail).tone)" /></template>
       <span class="sub">
-        <span :class="`word-${deploymentStep(d.status, d.detail).tone}`">{{ deploymentStep(d.status, d.detail).word }}</span>
+        <span>{{ deploymentStep(d.status, d.detail).word }}</span>
         <template v-if="d.prNumber && github">
           · {{ w.fromPr }}
           <a :href="`${github.url}/pull/${d.prNumber}`" target="_blank" rel="noopener">#{{ d.prNumber }}<span class="sr-only">{{ w.newTab }}</span></a>
@@ -31,9 +32,8 @@ defineProps<{ deployments: RoomManage["deployments"]; github: RoomManage["github
 </template>
 
 <style scoped>
-.mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--fill); color: var(--muted); }
-.mark.live { background: var(--live-soft); color: var(--live); }
-.mark.warn { background: var(--warn-soft); color: var(--warn); }
-.mark.danger { background: var(--danger-soft); color: var(--danger); }
-.empty { padding: 18px 16px; border-radius: var(--r-lg); background: var(--tile); font-size: 14px; color: var(--muted); }
+/* In its fold the symbol needs no 40px column of its own. */
+.row-list :deep(.lead) { min-width: 22px; }
+.row-list :deep(.meta) { font-weight: 600; color: var(--muted); }
+.empty { font: 600 14px/1.4 var(--font); color: var(--muted); }
 </style>

@@ -26,11 +26,16 @@ export const chatWords = defineWords(
     // Nothing for you directly, but the city's room or board moved since you looked.
     buttonNews: "Chat, new in the city",
     label: "Chat",
+    // The line under the title, by tab (the City and Board tabs say their city: cityTitle, boardTitle).
+    subDm: "Your conversations.",
+    subHouse: "Flatmates only.",
     close: "Close",
     back: "Back",
     tabs: { dm: "Messages", city: "City", board: "Board", house: "House" } as Record<"dm" | "city" | "board" | "house", string>,
     // Direct messages.
     noConversations: "No messages yet.",
+    // Under it: where a conversation starts.
+    noConversationsHint: "Write to someone from their card, in the city.",
     you: "You: ",
     unread: (n: number) => plural(n, "unread message", "unread messages"),
     with: (name: string) => `Conversation with ${name}`,
@@ -79,10 +84,13 @@ export const chatWords = defineWords(
     buttonName: (unread: number) => (unread ? `Discussions, ${unread} non lus` : "Discussions"),
     buttonNews: "Discussions, du nouveau en ville",
     label: "Discussions",
+    subDm: "Vos conversations.",
+    subHouse: "Entre colocs.",
     close: "Fermer",
     back: "Retour",
     tabs: { dm: "Messages", city: "Ville", board: "Annonces", house: "Maison" },
     noConversations: "Pas encore de message.",
+    noConversationsHint: "Écrivez à quelqu'un depuis sa fiche, en ville.",
     you: "Vous : ",
     unread: (n: number) => pluriel(n, "message non lu", "messages non lus"),
     with: (name: string) => `Conversation avec ${name}`,

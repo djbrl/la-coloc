@@ -126,7 +126,7 @@ async function devLogin(as: string) {
 </template>
 
 <style scoped>
-/* The flat at night behind a dark veil, and the sign in the middle of it. */
+/* The flat at night behind a dark veil, and the white card in the middle of it. */
 .login {
   display: grid;
   place-items: center;
@@ -137,19 +137,20 @@ async function devLogin(as: string) {
 .card { width: min(500px, 100%); }
 /* The name is the whole title here: bigger than a panel's, and its band grows with it. */
 .title { height: auto; padding: 10px 16px; }
-.title h1 { font-size: 74px; line-height: 1.08; white-space: nowrap; }
+.title h1 { font-family: var(--brand); font-size: 74px; line-height: 1.08; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
 .center { text-align: center; }
 .step { display: grid; gap: 10px; justify-items: stretch; text-align: center; width: 100%; }
-.main { min-height: 60px; width: 100%; font-size: 24px; }
+/* The two ways in: the card's buttons (48, with their lip), across the width. */
+.main { width: 100%; }
+.main svg { width: 22px; height: 22px; }
 .link { justify-self: center; }
-.who { font-size: 24px; }
+.who { font-size: 22px; line-height: 28px; }
 .quick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .quick button { flex: 1 1 88px; }
 .row { display: flex; gap: 8px; width: 100%; }
 .row input { flex: 1; min-width: 0; }
 @media (max-width: 520px) {
   .title h1 { font-size: clamp(36px, 13vw, 74px); }
-  .main { font-size: 18px; }
 }
 @media (max-width: 420px) {
   .row { flex-direction: column; }

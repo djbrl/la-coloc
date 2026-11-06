@@ -1,10 +1,12 @@
 /*
- * La Coloc's look: "Panneau", a hardware-store FOR RENT sign turned into a game's menus.
+ * La Coloc's look: "Carte blanche" (6 Nov 2026), a white card with a game's flat shadow under it.
  *
- * Every card is a sign: an off-white board, a coloured line inside its edge, a title band in the panel's colour, a white
- * body, a hard flat shadow under it (.sign below). Titles and buttons are in Archivo Black;
- * everything else is Bricolage Grotesque. A line only ever runs between two rows. One radius (9px), three button
- * heights (46 in a row, 50 by default, 60 for the main action). No glass, no blur, no soft shadows.
+ * Every window is the same card (.sign below): white, one corner (18px), the hard flat shadow, no border, no band.
+ * Its head is an icon in a soft red tile, a title (22) and one line under it (15), in the same face, never in capitals.
+ * Colour does two jobs only: the icon's tile and the one main button. Buttons are one family, 48px tall with a lip
+ * under them: the main one red, the others a soft grey (not outlined). Tabs are one control, a grey rail with the
+ * chosen tab in white. Numbers rather than sentences; a long name ends in "…", never on two lines. Titles and buttons
+ * are Bricolage Grotesque's heavy cut (--display); Archivo Black is kept for the wordmark only (--brand).
  *
  * Every colour is a token below, for day and for night. Components never write a colour of their own. Fonts are
  * self-hosted (fonts.css says which files and why), all under the SIL Open Font Licence.
@@ -72,8 +74,9 @@
   /* Hard and flat, like a board held off a wall: --shadow under a card, --lift under a small piece of the HUD. */
   --shadow: 0 7px 0 rgba(20, 12, 18, 0.45);
   --lift: 0 5px 0 rgba(20, 12, 18, 0.45);
-  /* A ghost button's edge: three pixels of ink. */
-  --quiet-edge: inset 0 0 0 3px var(--text);
+  /* The quiet button's lip: the grey one step darker. Kept under its old name, which components still use. */
+  --quiet-lip: #d6d1c6;
+  --quiet-edge: inset 0 calc(-1 * var(--lip)) 0 var(--quiet-lip);
   color-scheme: light;
 }
 
@@ -93,8 +96,10 @@
   --on-panel: #ffffff;
 
   --font: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  /* Titles and buttons. */
-  --display: "Archivo Black", var(--font);
+  /* Titles and buttons: Bricolage's heavy cut at any weight asked (fonts.css). */
+  --display: "Bricolage Display", var(--font);
+  /* The wordmark, La Coloc, and the landing's headlines. */
+  --brand: "Archivo Black", var(--font);
   /* Numbers that line up in columns: the text face with tabular figures (see .num). */
   --num: var(--font);
   /* Real code only: logs, a command, an address. */
@@ -125,9 +130,12 @@
   --s-5: 24px;
   --s-6: 32px;
 
-  /* Buttons in a card sit flat on it; only the HUD's own keys have a lip (LobbyView.vue, App.vue). */
-  --lip: 0px;
-  --lip-pressed: 0px;
+  /* Every button has a lip, inside its own box: 4px of a darker step along its foot, 2px while pressed. */
+  --lip: 4px;
+  --lip-pressed: 2px;
+  /* The card: one corner, and the inner corner for what sits in it (a tile, a row, a field). */
+  --card-r: 18px;
+  --tile-r: 14px;
 
   /* Motion: snappy. --ease settles; --ease-pop overshoots a hair, for things that appear. */
   --dur-fast: 120ms;
@@ -157,8 +165,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Type: titles in the display face, uppercase; everything else in the text face. */
-h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 400; text-transform: uppercase; }
+/* Type: titles in the heavy cut, in sentence case; everything else in the text face. */
+h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 800; text-transform: none; }
 h1 { font-size: clamp(32px, 5vw, 56px); line-height: 1.05; }
 h2 { font-size: clamp(24px, 3.2vw, 32px); line-height: 1.1; }
 h3 { font-size: 19px; line-height: 1.26; }
@@ -189,37 +197,38 @@ code { font-family: var(--code); font-size: 0.86em; }
 .rows .end { margin-left: auto; }
 
 /*
- * Buttons, in the display face, 50px tall unless a row or the main action says otherwise (46 and 60).
- * The main one is the sign's red (.primary), one per view. A ghost has three pixels of ink around it and nothing in
- * it: that's .second, a.button, and a plain <button> a component hasn't styled.
+ * Buttons: one family, 48px tall, the heavy cut at 16, a lip along the foot that sinks when pressed. The main one is
+ * red (.primary), one per view. The others (.second, a.button, a plain <button> a component hasn't styled) are a soft
+ * grey with a grey lip: never outlined. A button a component draws itself (an icon key, a dot on a map) keeps its own
+ * look, and gets no lip unless it asks.
  */
 button, input, select, textarea { font: inherit; color: inherit; }
 button {
-  min-height: 50px;
-  padding: 0 20px;
+  min-height: 48px;
+  padding: 0 16px;
   border: none;
-  border-radius: var(--r-md);
-  background: var(--fill);
+  border-radius: 12px;
+  background: var(--sunken);
   color: var(--text);
   font-family: var(--display);
-  font-size: 18px;
-  font-weight: 400;
-  line-height: 1.1;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
 }
-button:hover:not(:disabled) { background: var(--fill-hover); }
+button:hover:not(:disabled) { background: var(--fill); }
 button.primary, a.button.primary {
+  padding-bottom: var(--lip);
   background: var(--accent-fill);
   color: var(--on-accent);
-  box-shadow: none;
+  box-shadow: inset 0 calc(-1 * var(--lip)) 0 var(--accent-lip);
 }
 button.primary:hover:not(:disabled), a.button.primary:hover { background: var(--accent-fill-hover); }
-button.primary:active:not(:disabled), a.button.primary:active { transform: translateY(1px); }
-/* The way back in a step-by-step sheet ("Back", "Not now", "Skip"), and any unstyled button: the ghost. */
-button.second, :where(button:not([class])) { background: transparent; box-shadow: var(--quiet-edge); }
-button.second:hover:not(:disabled), :where(button:not([class])):hover:not(:disabled) { background: var(--tile); }
-button.second:active:not(:disabled) { transform: translateY(1px); }
+button.primary:active:not(:disabled), a.button.primary:active { transform: translateY(2px); box-shadow: inset 0 calc(-1 * var(--lip-pressed)) 0 var(--accent-lip); }
+button.second, :where(button:not([class])) { padding-bottom: var(--lip); background: var(--sunken); box-shadow: var(--quiet-edge); }
+button.second:hover:not(:disabled), :where(button:not([class])):hover:not(:disabled) { background: var(--fill); }
+button.second:active:not(:disabled), :where(button:not([class])):active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 calc(-1 * var(--lip-pressed)) 0 var(--quiet-lip); }
 button:disabled { opacity: 0.42; cursor: default; }
 /* A button that reads like a word in a sentence: for secondary actions. */
 button.link, .more {
@@ -239,8 +248,8 @@ button.link, .more {
 button.link:hover:not(:disabled) { background: none; text-decoration: underline; text-underline-offset: 3px; }
 button.link.danger { color: var(--danger); }
 /* A link that does a button's job, like "Log in with GitHub". */
-a.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: var(--r-md); background: transparent; color: var(--text); box-shadow: var(--quiet-edge); font-family: var(--display); font-size: 18px; font-weight: 400; line-height: 1.1; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
-a.button:hover { background: var(--tile); text-decoration: none; }
+a.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 16px var(--lip); border-radius: 12px; background: var(--sunken); color: var(--text); box-shadow: var(--quiet-edge); font-family: var(--display); font-size: 16px; font-weight: 800; line-height: 1.2; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+a.button:hover { background: var(--fill); text-decoration: none; }
 /* "‹ Back to somewhere", above a page's headline. */
 .back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin-bottom: 8px; font-size: 14px; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
@@ -248,11 +257,11 @@ a.button:hover { background: var(--tile); text-decoration: none; }
 /* :where keeps this at element weight, so any component class can resize a field. */
 input:where(:not([type="checkbox"], [type="radio"], [type="range"])), select, textarea {
   width: 100%;
-  min-height: 50px;
-  padding: 10px 12px;
-  border: 3px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface);
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sunken);
   color: var(--text);
   font-size: 16px;
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
@@ -261,7 +270,7 @@ textarea { resize: vertical; line-height: 1.47; }
 select { width: auto; }
 ::placeholder { color: var(--muted); opacity: 1; }
 input:focus, select:focus, textarea:focus { outline: 3px solid var(--ring); outline-offset: 2px; }
-input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); }
+input[aria-invalid="true"], textarea[aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--danger); }
 
 /* Jumping to a section shouldn't hide its heading under the top bar. */
 [id] { scroll-margin-top: 64px; }
@@ -299,13 +308,19 @@ kbd {
   min-width: 22px;
   height: 22px;
   padding: 0 5px;
-  border-radius: var(--r-xs);
-  background: var(--ink);
-  color: #ffffff;
+  padding-bottom: 2px;
+  border-radius: 6px;
+  background: var(--sunken);
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--quiet-lip);
   font: 800 13px/1 var(--font);
   vertical-align: 0.1em;
 }
-:is(.primary, .pill) kbd { background: var(--surface); color: var(--text); }
+:is(.pill) kbd { background: var(--surface); color: var(--text); }
+/* In the main button, a soft chip of the button's own white: the key that presses it (↵). */
+.primary kbd { min-width: 22px; height: 22px; padding-bottom: 0; background: rgba(255, 255, 255, 0.22); color: inherit; box-shadow: none; font-size: 12px; }
+/* In a grey button, one step darker. */
+:is(.second, a.button) kbd { background: var(--fill); color: var(--text); font-size: 12px; }
 
 /* A switch, drawn as a sign's tick box: empty when it's off, a tick on ink when it's on. The press area reaches past
    the box, so a finger finds it. */
@@ -337,10 +352,11 @@ button.toggle[role="switch"][aria-checked][aria-checked="true"]::before {
 button.toggle[role="switch"][aria-checked] .knob { display: none; }
 
 /* A segmented control: the parts apart, the chosen one on ink. */
-.segmented { display: flex; gap: 3px; }
-.segmented > button { display: inline-flex; align-items: center; gap: 6px; min-height: 46px; padding: 0 10px; border-radius: var(--r-sm); background: var(--fill); color: var(--text); font-family: var(--font); font-size: 15px; font-weight: 800; }
-.segmented > button:hover:not(:disabled) { background: var(--fill-hover); }
-.segmented > button:is(.on, [aria-checked="true"]), .segmented > button:is(.on, [aria-checked="true"]):hover:not(:disabled) { background: var(--text); color: var(--surface); }
+/* A segmented control: the tabs' rail, the chosen part lifted out in white. */
+.segmented { display: flex; gap: 4px; padding: 4px; border-radius: var(--tile-r); background: var(--sunken); }
+.segmented > button { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 10px; border-radius: 10px; background: transparent; color: var(--muted); box-shadow: none; font-family: var(--font); font-size: 15px; font-weight: 800; }
+.segmented > button:hover:not(:disabled) { background: transparent; color: var(--text); }
+.segmented > button:is(.on, [aria-checked="true"]), .segmented > button:is(.on, [aria-checked="true"]):hover:not(:disabled) { background: var(--surface); color: var(--text); box-shadow: 0 2px 0 rgba(23, 21, 26, 0.14); }
 
 /* Accessible names that don't show. */
 .sr-only {
@@ -360,24 +376,61 @@ button.toggle[role="switch"][aria-checked] .knob { display: none; }
 .toast { margin: 0; padding: 9px 16px; border-radius: var(--r-md); background: var(--surface); color: var(--text); box-shadow: var(--lift); font-size: 15px; line-height: 1.3; text-align: center; }
 .toast .said { font-weight: 800; }
 
-/* The sign: a round-cornered window with a line in the panel's colour for an edge, a title band, a white body. Sign.vue
-   draws it for a small card; a panel that has to fit its own head and tabs (Inside.vue, ListCard.vue) uses the classes.
-   Set --panel on it to change the colour. */
-.sign { --panel: var(--panel-red); border-radius: 15px; color: var(--text); box-shadow: var(--shadow); }
-.sign-frame { display: flex; flex-direction: column; min-height: 0; height: 100%; border: 3px solid var(--panel); border-radius: 15px; background: var(--surface); }
-/* A band is the same height with or without a line under its title: 72 on a small card, 88 on a large one. */
-.sign-band { position: relative; flex: none; display: flex; flex-direction: column; justify-content: center; min-width: 0; height: 72px; padding: 0 62px 0 16px; border-radius: 12px 12px 0 0; background: var(--panel); color: var(--on-panel); }
-.sign-band.large { height: 88px; }
-.sign-band > h1, .sign-band > h2 { min-width: 0; margin: 0; font-size: 24px; line-height: 1.08; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sign-band.large > h1, .sign-band.large > h2 { font-size: 34px; }
-.sign-sub { margin: 2px 0 0; font-size: 16px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sign-x { position: absolute; top: 50%; right: 10px; display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; margin-top: -22px; padding: 0; border-radius: var(--r-md); background: var(--surface); color: var(--panel); font: 400 20px/1 var(--display); }
-.sign-x:hover:not(:disabled) { background: var(--tile); }
-.sign-x:focus-visible { outline-color: var(--surface); }
-.sign-body { flex: 1 1 auto; min-height: 0; padding: 12px 14px 14px; border-radius: 0 0 12px 12px; background: var(--surface); }
-.sign.green { --panel: var(--panel-green); }
-.sign.blue { --panel: var(--panel-blue); }
-.sign.black { --panel: var(--panel-black); }
+/* The card ("sign", its old name): white, one corner, the flat shadow, no border, no band. Its head (.sign-band) is
+   white too: an optional icon tile (.chip) on the left, the title, one muted line under it, and the close key (.sign-x)
+   at the top right. LobbyCard.vue draws it for a small card; a panel that has to fit its own head and tabs (Inside.vue,
+   ListCard.vue) uses the classes. The old colour names (.green, .blue, .black) only tint the icon's tile now. */
+.sign { --chip-fg: var(--accent); --chip-bg: var(--accent-soft); border-radius: var(--card-r); color: var(--text); box-shadow: var(--shadow); }
+.sign-frame { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; border-radius: var(--card-r); background: var(--surface); }
+.sign-band {
+  position: relative;
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  column-gap: 14px;
+  row-gap: 4px;
+  min-width: 0;
+  min-height: 80px;
+  padding: 20px 72px 14px 20px;
+  border-radius: var(--card-r) var(--card-r) 0 0;
+  background: var(--surface);
+  color: var(--text);
+}
+.sign-band:has(> .chip, > .icon-tile) { grid-template-columns: 44px minmax(0, 1fr); }
+/* No close key (the tutorial's cards): the words may run to the card's edge. */
+.sign:not(:has(.sign-x)) .sign-band { padding-right: 20px; }
+.sign-band > :is(.chip, .icon-tile) { grid-row: 1 / span 2; align-self: start; }
+.sign-band.large { min-height: 88px; }
+.sign-band > h1, .sign-band > h2 { min-width: 0; margin: 0; padding-top: 1px; font-size: 22px; line-height: 28px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sign-band.large > h1, .sign-band.large > h2 { font-size: 24px; line-height: 30px; }
+.sign-sub { margin: 0; min-width: 0; font-size: 15px; font-weight: 600; line-height: 21px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The icon's tile: 44px, the soft red, the icon in the red. `.icon-tile` anywhere; `.chip` too, but only as a card
+   head's first child (elsewhere "chip" already names other things: Minimap, HouseInside, LobbyView). */
+.icon-tile, .sign-band > .chip { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--chip-bg, var(--accent-soft)); color: var(--chip-fg, var(--accent)); }
+.icon-tile svg, .sign-band > .chip svg { width: 22px; height: 22px; }
+/* Close: a grey key, top right. Its "X" is drawn, so the old markup (a span with an X) needs nothing new. */
+.sign-x { position: absolute; z-index: 2; top: 20px; right: 20px; display: grid; place-items: center; width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 12px; background: var(--sunken); color: var(--text); box-shadow: none; font: 800 0/1 var(--font); }
+.sign-x:not(:has(svg))::before, .sign-x:not(:has(svg))::after { content: ""; position: absolute; width: 17px; height: 2.4px; border-radius: 2px; background: currentColor; rotate: 45deg; }
+.sign-x:not(:has(svg))::after { rotate: -45deg; }
+.sign-x > span { display: none; }
+.sign-x:hover:not(:disabled) { background: var(--fill); }
+.sign-body { flex: 1 1 auto; min-height: 0; padding: 4px 20px 20px; border-radius: 0 0 var(--card-r) var(--card-r); background: var(--surface); }
+.sign.green { --chip-fg: var(--live); --chip-bg: var(--live-soft); }
+.sign.blue { --chip-fg: var(--free); --chip-bg: var(--free-soft); }
+.sign.black { --chip-fg: var(--text); --chip-bg: var(--sunken); }
+/* A tile inside a card: the soft paper, the inner corner. Rows, stats, a field's group. */
+.tile-box { border-radius: var(--tile-r); background: var(--tile); }
+/* A small heading inside a card: capitals, spaced, muted. */
+.label { margin: 0; font-size: 12px; line-height: 16px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+/* A news line's symbol: done (a tick on green), failed (a cross on red), waiting for you (a white dot on ink). */
+.status-mark { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; }
+.status-mark.ok { background: var(--live-soft); color: var(--live); }
+.status-mark.fail { background: var(--accent-soft); color: var(--accent); }
+.status-mark.todo { background: var(--text); }
+.status-mark.todo::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--surface); }
+.status-mark.none::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.status-mark svg { width: 12px; height: 12px; }
 /* A free room, the sticker that can't be missed. */
 .sticker { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px 4px 9px; background: var(--sticker); color: var(--ink); font-family: var(--display); rotate: -3deg; box-shadow: 0 2px 0 rgba(20, 12, 18, 0.3); white-space: nowrap; }
 .sticker .n { font-size: 34px; line-height: 1; }
@@ -434,19 +487,19 @@ button.toggle[role="switch"][aria-checked] .knob { display: none; }
 .lobby-arrow.on { opacity: 1; scale: 1; }
 .lobby-label.house .swatch { flex: none; width: 10px; height: 10px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--hairline); }
 
-/* A dialog with steps (knocking, renting a server): a sign too, whose band is the heading of the step you're on, with
-   the step dots along its foot. UiSteps and the dialogs' own forms keep their markup. */
-dialog.step-sign { --panel: var(--panel-red); padding: 0; border: 0; border-radius: 15px; background: none; color: var(--text); box-shadow: var(--shadow); }
-.step-sign .inner { position: relative; border: 3px solid var(--panel); border-radius: 15px; background: var(--surface); }
-.step-sign .inner .steps { gap: 0; border-radius: var(--r-md); background: var(--surface); }
-.step-sign .inner .dots { position: absolute; z-index: 1; top: 60px; left: 22px; gap: 5px; }
-.step-sign .inner .d { width: 6px; height: 6px; background: rgba(255, 255, 255, 0.45); }
-.step-sign .inner .d.done { background: var(--on-panel); }
-.step-sign .inner .d.on { width: 18px; border-radius: 3px; background: var(--on-panel); }
-.step-sign .inner .form { padding: 0 14px 14px; }
-.step-sign .inner .form > h2 { display: flex; align-items: center; height: 72px; margin: 0 -14px; padding: 0 62px 0 16px; border-radius: var(--r-md) var(--r-md) 0 0; background: var(--panel); color: var(--on-panel); font-size: 24px; line-height: 1.08; overflow: hidden; }
-.step-sign .inner .x { position: absolute; z-index: 1; top: 17px; right: 13px; display: grid; place-items: center; width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); font: 400 20px/1 var(--display); }
-.step-sign .inner .x:hover:not(:disabled) { background: var(--tile); }
+/* A dialog with steps (knocking, renting a server): the same white card, the step's heading as its title, and the
+   step dots under the title. UiSteps and the dialogs' own forms keep their markup. */
+dialog.step-sign { padding: 0; border: 0; border-radius: var(--card-r); background: none; color: var(--text); box-shadow: var(--shadow); }
+.step-sign .inner { position: relative; border-radius: var(--card-r); background: var(--surface); }
+.step-sign .inner .steps { gap: 0; border-radius: var(--card-r); background: var(--surface); }
+.step-sign .inner .dots { position: absolute; z-index: 1; top: 56px; left: 20px; gap: 5px; }
+.step-sign .inner .d { width: 6px; height: 6px; background: var(--line); }
+.step-sign .inner .d.done { background: var(--muted); }
+.step-sign .inner .d.on { width: 18px; border-radius: 3px; background: var(--text); }
+.step-sign .inner .form { padding: 0 20px 20px; }
+.step-sign .inner .form > h2 { display: flex; align-items: flex-start; min-height: 80px; margin: 0 -20px; padding: 20px 72px 30px 20px; background: var(--surface); color: var(--text); font-size: 22px; line-height: 28px; overflow: hidden; }
+.step-sign .inner .x { position: absolute; z-index: 1; top: 20px; right: 20px; display: grid; place-items: center; width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 12px; background: var(--sunken); color: var(--text); box-shadow: none; font: 800 18px/1 var(--font); }
+.step-sign .inner .x:hover:not(:disabled) { background: var(--fill); }
 /* On a phone it's a sheet along the bottom edge. */
 @media (max-width: 520px) {
   dialog.step-sign { width: 100%; max-width: 100%; margin: auto 0 0; padding-bottom: max(7px, env(safe-area-inset-bottom)); }

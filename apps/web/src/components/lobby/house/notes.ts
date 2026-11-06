@@ -3,29 +3,38 @@
 // (apps/api/src/houses/fridge.ts and chores.service.ts write them). The panel says "news" and "notes" because a
 // newcomer has no reason to know the fridge joke.
 //
-// This file decides how a note looks (which icon, which colour), when it was pinned in words, and the tab's one
-// sentence. No DOM and no Vue here, so it's tested in notes.test.ts.
+// This file decides how a note looks (its symbol, its line and what goes under it), when it was pinned in words, how
+// the notes group by day, and the tab's one sentence. No DOM and no Vue here, so it's tested in notes.test.ts.
 import { locale } from "../../../i18n";
 import type { FridgeNote } from "../../../types";
 import { commonWords as w } from "../../words";
-import type { IconName } from "./icons";
+import { houseWords as hw } from "./words";
 
-// A note's tone is all we know of its kind, and enough: good news, a heads-up, something broken, plain info.
-// `colour` names a token in style.css (--live, --warn, --danger, or the muted text for plain info).
-export interface NoteLook {
-  icon: IconName;
-  colour: "live" | "warn" | "danger" | "quiet";
-}
+// A note's tone is all we know of its kind, and enough. The tab says it with one quiet symbol per line, never a coloured
+// row (Jib, 6 Nov): done (a tick), broken (a cross), or something waiting for you (a white dot on ink). Plain info,
+// someone moving in say, reads as done. The names are style.css's `.status-mark` kinds.
+export type NoteMark = "ok" | "fail" | "todo";
 
-const LOOKS: Record<FridgeNote["tone"], NoteLook> = {
-  thanks: { icon: "heart", colour: "live" },
-  warning: { icon: "warn", colour: "warn" },
-  danger: { icon: "alert", colour: "danger" },
-  info: { icon: "info", colour: "quiet" },
+const MARKS: Record<FridgeNote["tone"], NoteMark> = {
+  thanks: "ok",
+  info: "ok",
+  warning: "todo",
+  danger: "fail",
 };
 
-export function noteLook(tone: FridgeNote["tone"]): NoteLook {
-  return LOOKS[tone] ?? LOOKS.info;
+export function noteMark(tone: FridgeNote["tone"]): NoteMark {
+  return MARKS[tone] ?? "ok";
+}
+
+/** A note's first sentence as its line, the rest under it, smaller: "skindiff#85 merged without review" over "Strict
+ *  house: not online. A review unblocks it." A note of one sentence keeps its words as they are. */
+export function splitNote(text: string): { head: string; rest: string } {
+  const cut = text.match(/^(.+?)[.!?]\s+(?=\p{Lu})/u);
+  if (!cut) return { head: text, rest: "" };
+  const rest = text.slice(cut[0].length).trim();
+  // The line keeps its own "!" or "?", only a full stop goes: it's a line now, not a sentence among others.
+  const head = cut[0].trim().replace(/\.$/, "");
+  return { head, rest };
 }
 
 const WEEK_MS = 7 * 24 * 3_600_000;
@@ -64,4 +73,28 @@ export function noteWhen(iso: string, now = new Date()): string {
     case "older":
       return at.toLocaleDateString(locale(), { day: "numeric", month: "short" });
   }
+}
+
+/** The heading of a day's notes: "Today", "Yesterday", or the date in full ("31 October", "31 octobre"). */
+export function noteDay(iso: string, now = new Date()): string {
+  switch (whenKind(iso, now)) {
+    case "today":
+      return hw.today;
+    case "yesterday":
+      return w.yesterday;
+    case "older":
+      return new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "long" });
+  }
+}
+
+/** The notes in the order they came, in one group per day. */
+export function byDay<N extends Pick<FridgeNote, "at">>(notes: N[], now = new Date()): { day: string; notes: N[] }[] {
+  const days: { key: number; day: string; notes: N[] }[] = [];
+  for (const n of notes) {
+    const key = dayStart(new Date(n.at));
+    const last = days[days.length - 1];
+    if (last && last.key === key) last.notes.push(n);
+    else days.push({ key, day: noteDay(n.at, now), notes: [n] });
+  }
+  return days.map(({ day, notes }) => ({ day, notes }));
 }

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// The bell in the top bar: how many notifications are unread (a small yellow count), and, pressed, a flat card
-// under it with the latest ones as dense rows: who (their face), what (one line, bell.ts), and what you can do
+// The bell in the top bar: a small dot when something is unread (how many is in its hidden name), and, pressed, a
+// white card under it with the latest ones in two groups, what waits for you, then the rest. Each line is a quiet
+// symbol (done, went wrong, waiting for you), what happened (one line, bell.ts), its time, and what you can do
 // (move in or say no to an invitation, open a knock or a house, find a plot to rent together, open the post or the
 // chat where someone replied to you or mentioned you, top up for rent you were short of). Opening it marks
-// them read; the ones that were new keep a dot while it stays open. Esc or a click outside closes it.
+// them read; the ones that were new stay with what waits for you while it's open. Esc or a click outside closes it.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { chatSheet, openChat } from "../../conversations";
@@ -11,11 +12,9 @@ import { acceptNotice, arenaWanted, creditWanted, declineNotice, loadNotices, ma
 import { loadMe, me } from "../../session";
 import { settings } from "../../settings";
 import type { Notice } from "../../types";
-import Avatar from "../Avatar.vue";
 import Icon from "../lobby/house/Icon.vue";
 import { noteWhen } from "../lobby/house/notes";
-import ListRow from "../lobby/panel/ListRow.vue";
-import { type NoticeAction, noticeRow } from "./bell";
+import { type NoticeAction, noticeMark, noticeRow } from "./bell";
 import { bellWords as w } from "./words";
 
 const route = useRoute();
@@ -29,8 +28,23 @@ const fresh = ref(new Set<string>());
 const busy = ref<string | null>(null);
 const refused = ref<Record<string, string>>({});
 
-const rows = computed(() => notices.items.map((n) => ({ n, ...noticeRow(n) })));
-const badge = computed(() => (notices.unread > 9 ? "9+" : String(notices.unread)));
+// Each line with its symbol. What waits for you comes first: an answer to give, rent to top up, a knock to vote on, and
+// anything new since you last looked that has a way to act on it (a mention to open).
+const rows = computed(() =>
+  notices.items.map((n) => {
+    const row = noticeRow(n);
+    const mark = noticeMark(n, row);
+    const todo = mark === "todo" || (fresh.value.has(n.id) && row.actions.length > 0);
+    return { n, ...row, mark: todo ? ("todo" as const) : mark, todo };
+  }),
+);
+const groups = computed(() =>
+  [
+    { key: "todo", head: w.toDoHead, rows: rows.value.filter((r) => r.todo) },
+    { key: "earlier", head: w.earlierHead, rows: rows.value.filter((r) => !r.todo) },
+  ].filter((g) => g.rows.length),
+);
+const toDo = computed(() => rows.value.filter((r) => r.todo).length);
 
 // Logged in: fetch now, and again whenever the tab comes back into view (the live line covers the rest).
 watch(
@@ -53,7 +67,7 @@ async function toggle() {
   document.addEventListener("pointerdown", outside, true);
   if (notices.unread) void markNoticesRead();
   await nextTick();
-  (card.value?.querySelector<HTMLElement>(".act") ?? card.value?.querySelector<HTMLElement>(".x"))?.focus();
+  (card.value?.querySelector<HTMLElement>(".act") ?? card.value?.querySelector<HTMLElement>(".sign-x"))?.focus();
 }
 
 function close(refocus = true) {
@@ -139,53 +153,52 @@ function go(to: Parameters<typeof router.push>[0] | null) {
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M12 2a6 6 0 0 0-6 6c0 6-3 8-3 9h18c0-1-3-3-3-9a6 6 0 0 0-6-6zM9.5 19a2.5 2.5 0 0 0 5 0z" />
       </svg>
-      <span v-if="notices.unread" class="badge" aria-hidden="true">{{ badge }}</span>
+      <span v-if="notices.unread" class="dot" aria-hidden="true" />
     </button>
 
     <Transition name="pop">
-      <section v-if="open" ref="card" class="card sign blue" role="dialog" :aria-label="w.label" @keydown.esc.stop="close()">
+      <section v-if="open" ref="card" class="card sign" role="dialog" :aria-label="w.label" @keydown.esc.stop="close()">
         <div class="sign-frame">
           <header class="sign-band">
+            <span class="chip"><Icon name="bell" :size="22" /></span>
             <h2>{{ w.label }}</h2>
+            <p v-if="toDo" class="sign-sub">{{ w.toDo(toDo) }}</p>
             <button class="sign-x" :aria-label="w.close" @click="close()"><span aria-hidden="true">X</span></button>
           </header>
           <div class="sign-body body">
             <p v-if="!rows.length" class="empty">{{ w.empty }}</p>
-            <ul v-else class="list">
-              <ListRow v-for="row in rows" :key="row.n.id" :title="row.title" :class="{ fresh: fresh.has(row.n.id) }">
-                <template #lead>
-                  <Avatar v-if="row.n.from" :person="row.n.from" :size="46" decorative />
-                  <span v-else class="lead-icon"><Icon :name="row.n.kind === 'rent_paid' || row.n.kind === 'rent_due' ? 'coin' : 'house'" :size="22" /></span>
-                </template>
-                <span class="detail">
-                  <span class="when">{{ noteWhen(row.n.createdAt) }}</span>
-                  <template v-if="refused[row.n.id]"> · <span class="refused" role="alert">{{ refused[row.n.id] }}</span></template>
-                  <template v-else-if="row.sub"> · {{ row.sub }}</template>
-                </span>
-                <template v-if="row.actions.length" #end>
-                  <span class="acts">
-                    <template v-for="a in row.actions" :key="a">
-                      <!-- Saying yes, finding a plot and topping up are words; no and open are icons with their names. -->
-                      <button v-if="a === 'accept' || a === 'plot' || a === 'credit'" type="button" class="act" :class="{ yes: a === 'accept' }" :disabled="busy === row.n.id" @click="act(row.n, a)">
-                        {{ a === "accept" ? row.acceptWord : a === "credit" ? w.topUp : w.findPlot }}
-                      </button>
-                      <button
-                        v-else
-                        type="button"
-                        class="act icon"
-                        :disabled="busy === row.n.id"
-                        :aria-label="a === 'decline' ? w.noThanks : w.openName(row.title)"
-                        :title="a === 'decline' ? w.noThanks : w.open"
-                        @click="act(row.n, a)"
-                      >
-                        <svg v-if="a === 'decline'" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
-                        <Icon v-else name="next" :size="18" />
-                      </button>
-                    </template>
+            <section v-for="g in groups" :key="g.key" class="group">
+              <h3 class="label">{{ g.head }}</h3>
+              <ul class="list">
+                <li v-for="row in g.rows" :key="row.n.id" class="line">
+                  <span class="status-mark" :class="row.mark" role="img" :aria-label="w.markName[row.mark]">
+                    <Icon v-if="row.mark === 'ok'" name="tick" :size="12" />
+                    <svg v-else-if="row.mark === 'fail'" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
                   </span>
-                </template>
-              </ListRow>
-            </ul>
+                  <div class="text">
+                    <p class="title">{{ row.title }}</p>
+                    <p v-if="refused[row.n.id]" class="sub refused" role="alert">{{ refused[row.n.id] }}</p>
+                    <p v-else-if="row.sub" class="sub">{{ row.sub }}</p>
+                    <div v-if="row.actions.length" class="acts">
+                      <template v-for="a in row.actions" :key="a">
+                        <!-- Saying yes is the line's main button; no, open, a plot and topping up are grey. -->
+                        <button
+                          type="button"
+                          class="act"
+                          :class="{ primary: a === 'accept' }"
+                          :disabled="busy === row.n.id"
+                          :aria-label="a === 'house' || a === 'knock' || a === 'chat' ? w.openName(row.title) : undefined"
+                          @click="act(row.n, a)"
+                        >
+                          {{ a === "accept" ? row.acceptWord : a === "decline" ? w.noThanks : a === "credit" ? w.topUp : a === "plot" ? w.findPlot : w.open }}
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                  <span class="when">{{ noteWhen(row.n.createdAt) }}</span>
+                </li>
+              </ul>
+            </section>
           </div>
         </div>
       </section>
@@ -195,41 +208,40 @@ function go(to: Parameters<typeof router.push>[0] | null) {
 
 <style scoped>
 .bell { position: relative; display: flex; }
-/* The key itself is drawn by the bar (App.vue), like the chat's and the gear. The count, in yellow: something waits. */
-.badge { position: absolute; top: 5px; right: 5px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--sticker); color: var(--ink); font: 800 14px/22px var(--font); text-align: center; }
-/* The notifications, a sign under the keys on the right. */
+/* The key itself is drawn by the bar (App.vue), like the chat's and the gear. Something unread: a small white dot in
+   the key's corner, white because the key is the sign's red. */
+.dot { position: absolute; top: 9px; right: 9px; width: 10px; height: 10px; border-radius: 50%; background: var(--on-panel); box-shadow: 0 0 0 2px var(--panel-red); }
+/* The notifications, a white card under the keys on the right. */
 .card {
   position: fixed;
   top: 98px;
   right: 24px;
   z-index: 60;
-  width: min(420px, calc(100vw - 32px));
+  width: min(440px, calc(100vw - 32px));
   max-height: min(640px, calc(100dvh - 120px));
   display: flex;
   flex-direction: column;
   color: var(--text);
 }
-.body { overflow-y: auto; overscroll-behavior: contain; }
-.empty { margin: 0; color: var(--muted); font-size: 15px; }
+.body { display: grid; align-content: start; gap: 14px; overflow-y: auto; overscroll-behavior: contain; }
+.empty { margin: 0; color: var(--muted); font-size: 15px; font-weight: 600; }
+.group { display: grid; gap: 2px; }
+.group .label { padding: 0 4px 2px; }
 .list { list-style: none; margin: 0; padding: 0; display: grid; }
-.list :deep(.list-row) { flex-wrap: wrap; gap: 8px 10px; padding: 10px 0; }
-.list :deep(.list-row .text) { flex: 1 1 200px; }
-.list :deep(.list-row .title) { font-size: 16px; line-height: 1.15; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
-/* The actions take the row's full width under the words, as in a stack of cards. */
-.list :deep(.list-row .end) { flex: 1 1 100%; }
-/* New since you last looked: a small yellow dot before the face. */
-.list :deep(.list-row.fresh) { position: relative; }
-.list :deep(.list-row.fresh)::before { content: ""; position: absolute; left: -9px; top: 26px; width: 8px; height: 8px; border-radius: 50%; background: var(--sticker); box-shadow: 0 0 0 1px var(--ink); }
-.lead-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: var(--r-md); background: var(--tile); color: var(--panel); }
-.detail { font-size: 15px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.when { font-variant-numeric: tabular-nums; }
+/* A line: its symbol, what happened and what to do about it, its time on the right. No lines between, air instead. */
+.line { display: flex; align-items: flex-start; gap: 12px; padding: 10px 4px; }
+.line .status-mark { width: 22px; height: 22px; }
+.text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
+.title { margin: 0; font-size: 15px; font-weight: 800; line-height: 20px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sub { margin: 0; font-size: 13px; font-weight: 600; line-height: 18px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .refused { color: var(--danger); }
-.acts { flex: 1; display: flex; align-items: center; gap: 6px; }
-.acts .act { flex: 1; justify-content: center; white-space: nowrap; }
-.acts .act.icon { flex: none; width: 46px; padding: 0; }
-/* The yes is this row's main action, the sign's red. */
-.acts .act.yes, .acts .act.yes:hover:not(:disabled) { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
-.acts .act:not(.yes) { background: transparent; box-shadow: var(--quiet-edge); }
+.when { flex: none; font-size: 13px; font-weight: 600; line-height: 20px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* The line's buttons: small (40) with their lip, the yes in red, the others grey. */
+.acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.act { min-height: 40px; padding: 0 14px 3px; border-radius: 10px; background: var(--sunken); box-shadow: inset 0 -3px 0 var(--quiet-lip); font-size: 14px; white-space: nowrap; --lip: 3px; }
+.act:hover:not(:disabled) { background: var(--fill); }
+.act.primary { background: var(--accent-fill); box-shadow: inset 0 -3px 0 var(--accent-lip); }
+.act.primary:hover:not(:disabled) { background: var(--accent-fill-hover); }
 .pop-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .pop-leave-active { transition: opacity var(--dur-fast) var(--ease); }
 .pop-enter-from { opacity: 0; transform: translateY(-6px); }

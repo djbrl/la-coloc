@@ -367,12 +367,12 @@ describe("showing it off", () => {
 describe("the walkthrough", () => {
   const through = (m: TutorialMachine) => m.tourCards.forEach(() => m.send({ type: "next" }));
 
-  it("stops everything at the start of the quest and shows the controls one card at a time", () => {
+  it("shows the controls one card at a time at the start of the quest, with the keys still yours", () => {
     const m = new TutorialMachine();
     m.start();
     m.send({ type: "start" });
     expect(m.step).toBe("intro");
-    expect(SETUP.intro.controls).toMatchObject({ walk: false, dash: false, turn: false });
+    expect(SETUP.intro.controls).toMatchObject({ walk: true, dash: true, turn: true, targets: "houses" });
     expect(SETUP.intro.reveal).toEqual(["keys"]);
     expect(m.tourCards).toEqual(["help", "walk", "dash", "use"]);
     m.send({ type: "next" });
@@ -399,7 +399,7 @@ describe("the walkthrough", () => {
     m.send({ type: "end" });
     expect(m.step).toBe("tour");
     expect(m.chapter).toBeNull();
-    expect(SETUP.tour.controls).toMatchObject({ walk: false, dash: false, turn: false });
+    expect(SETUP.tour.controls).toMatchObject({ walk: true, dash: true, turn: true });
     expect(m.tourCards).toEqual(["search", "map", "pick", "chat", "bell", "settings"]);
     through(m);
     expect(m.active).toBe(false);
