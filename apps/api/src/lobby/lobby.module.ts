@@ -4,5 +4,5 @@ import { NotificationsModule } from "../notifications/notifications.module";
 import { LobbyController } from "./lobby.controller";
 import { LobbyGateway } from "./lobby.gateway";
 
-@Module({ imports: [NotificationsModule, ChatModule], controllers: [LobbyController], providers: [LobbyGateway] })
+@Module({ imports: [NotificationsModule, ChatModule], controllers: [LobbyController], providers: [LobbyGateway], exports: [LobbyGateway] })
 export class LobbyModule {}

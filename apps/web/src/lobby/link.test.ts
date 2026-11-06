@@ -127,6 +127,30 @@ describe("the pass on the shared site", () => {
   });
 });
 
+describe("presence, for friends' lists", () => {
+  it("says a status only when it changes, again after the line comes back, and hears the friends nudge", async () => {
+    FakeSocket.script = (s) => {
+      if (FakeSocket.all.length === 1) s.say({ type: "friends" });
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => ticketJson(null)));
+    const onFriends = vi.fn();
+    const { LobbyLink } = await import("./link");
+    const link = new LobbyLink({ ...events, onFriends });
+    link.enter("Dakar");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(onFriends).toHaveBeenCalledTimes(1);
+    link.setPresence("online");
+    link.setPresence("idle");
+    link.setPresence("idle");
+    const first = FakeSocket.all[0];
+    expect(first.sent.map((m) => JSON.parse(m))).toEqual([{ type: "place", place: "Dakar" }, { type: "status", status: "idle" }]);
+    first.hangUp();
+    await vi.advanceTimersByTimeAsync(1_100);
+    link.close();
+    expect(FakeSocket.all[1].sent.map((m) => JSON.parse(m))).toEqual([{ type: "place", place: "Dakar" }, { type: "status", status: "idle" }]);
+  });
+});
+
 describe("movement frames", () => {
   it("reads who moved where from 8 bytes each, and skips a number it doesn't know", async () => {
     const { readMoves } = await import("./link");

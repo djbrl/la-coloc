@@ -103,6 +103,11 @@ const fr: Record<string, (r: Refusal) => string> = {
   inviteExpired: () => "Cette invitation a expiré.",
   inviteLapsed: () => "Cette invitation n'est plus valable.",
 
+  // Friends.
+  alreadyFriends: () => "Vous êtes déjà amis.",
+  notFriends: () => "Cette personne n'est pas dans vos amis.",
+  friendRequestLapsed: () => "Cette demande d'ami n'est plus valable.",
+
   noRoom: () => "Cette chambre n'existe pas.",
 
   // A full house's group chat.

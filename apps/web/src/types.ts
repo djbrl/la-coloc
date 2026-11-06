@@ -416,7 +416,10 @@ export type NotificationKind =
   | "guest_declined"
   // Words meant for you: a reply under your board post or one you replied to, and "@you" in a public chat (`chat`).
   | "post_reply"
-  | "mention";
+  | "mention"
+  // Someone asks to be your friend (answered like an invitation), then friend_accepted tells them you said yes.
+  | "friend_request"
+  | "friend_accepted";
 export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
 
 export interface Notice {
@@ -440,7 +443,27 @@ export interface Notices {
   unread: number;
   items: Notice[];
   // Your invitations still waiting for an answer: the person card says "Invited" instead of offering another.
-  sent: { id: string; kind: "house_invite" | "rent_together"; to: string; houseId: string | null }[];
+  sent: { id: string; kind: "house_invite" | "rent_together" | "friend_request"; to: string; houseId: string | null }[];
+}
+
+// ---- Friends (GET /api/friends, apps/api/src/friends/friends.service.ts) ----
+
+// How present someone is: connected and active, connected with no input for a while, connected with the tab hidden, or not
+// connected at all.
+export type FriendStatus = "online" | "idle" | "away" | "offline";
+
+export interface Friend extends Person {
+  status: FriendStatus;
+  // The city they walk in, while connected and in one.
+  city: string | null;
+}
+
+export interface Friends {
+  friends: Friend[];
+  // Waiting for your answer (the bell's accept and decline), the newest first.
+  requests: { id: string; from: Person; createdAt: string }[];
+  // Yours, still waiting.
+  sent: { id: string; to: Person }[];
 }
 
 // ---- The chat (apps/api/src/chat): direct messages, a city's room and its board ----

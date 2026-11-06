@@ -169,6 +169,13 @@
       "when": 1793662178278,
       "tag": "0023_groovy_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793929679769,
+      "tag": "0024_friendships",
+      "breakpoints": true
     }
   ]
 }

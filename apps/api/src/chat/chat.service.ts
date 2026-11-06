@@ -23,6 +23,7 @@ import { blockBetween, blockedBy, channelMessages, person } from "../doorbell/qu
 import { isChatGuest } from "../houses/guests";
 import type { MessageView, PersonView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
+import { unfriend } from "../notifications/friends";
 import { NotificationsService } from "../notifications/notifications.service";
 import { CITIES, CITY_HISTORY, cityChannel, dmChannel, dmPeople, MAX_MESSAGE } from "./channels";
 import { Limiter, MESSAGES, POSTS, slowDown } from "./limiter";
@@ -279,6 +280,8 @@ export class ChatService {
   async block(userId: string, login: string) {
     const other = await this.someone(userId, login);
     await this.db.insert(blocks).values({ blockerId: userId, blockedId: other.id }).onConflictDoNothing();
+    // A block ends a friendship, and any friend request between them. Unblocking doesn't bring it back.
+    await unfriend(this.db, userId, other.id);
   }
 
   async unblock(userId: string, login: string) {

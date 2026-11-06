@@ -29,6 +29,8 @@ export const icons = {
   knock: "M5 4h14v16H5z M9 9a3 3 0 0 1 6 0v3a3 3 0 0 1-6 0z M12 15v2",
   // Two people.
   people: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0z M22 21v-2a4 4 0 0 0-3-3.9 M16 3.1a4 4 0 0 1 0 7.8",
+  // A person and a plus: add a friend.
+  addFriend: "M15 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M12.5 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0z M19 8v6 M16 11h6",
   // An arrow into a door: log in.
   login: "M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4 M10 17l5-5-5-5 M15 12H3",
   // An arrow out of a door: logging out.

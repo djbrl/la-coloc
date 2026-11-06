@@ -5,11 +5,18 @@
 // A city holds as many lobbies as it needs, 32 people each: a newcomer takes the first with room, so nobody ever draws
 // more than 32 people. Everyone in a lobby has a small number, their slot, so that movement can travel as a few bytes:
 // moves are only remembered here, and `frames()`, ten times a second, says them all at once (see `frameOf`).
+//
+// It also keeps how present each person is, for their friends' lists: online, idle (no input for a while) or away
+// (the tab is hidden), as each tab says on change with a `status` message. Several tabs: the most present one
+// counts. Nobody's lobby hears it; `statusChanges()` names whose status or city changed, for the gateway.
 import type { Badge } from "@coloc/db";
 import { z } from "zod";
 
 export const AVATARS = ["female", "male"].flatMap((s) => "abcdef".split("").map((l) => `${s}-${l}`));
 export const EMOTES = ["yes", "no"] as const;
+// What a tab says about the person behind it. Not connected at all is "offline", which no tab says.
+export const STATUSES = ["online", "idle", "away"] as const;
+export type Status = (typeof STATUSES)[number] | "offline";
 
 // A neighbourhood is far smaller than this; anything outside is a bug or a cheat.
 const coord = z.number().finite().min(-300).max(300);
@@ -19,6 +26,7 @@ export const ClientMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("place"), place: z.string().min(1).max(60), lobby: z.number().int().min(1).max(9999).optional() }),
   z.object({ type: z.literal("move"), x: coord, z: coord, ry: z.number().finite().min(-10).max(10), moving: z.boolean() }),
   z.object({ type: z.literal("emote"), name: z.enum(EMOTES) }),
+  z.object({ type: z.literal("status"), status: z.enum(STATUSES) }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessage>;
 
@@ -57,7 +65,9 @@ export type ServerMessage =
   // Something new under your bell (an invitation, a knock): the page fetches /api/notifications. Only to you.
   | { type: "notice" }
   // A new direct message for you (or one you sent from another tab): the page fetches /api/chat/conversations.
-  | { type: "chat" };
+  | { type: "chat" }
+  // A friend came, went, changed status or city, or your friends changed: the page fetches /api/friends.
+  | { type: "friends" };
 
 export interface Viewer {
   login: string;
@@ -76,7 +86,8 @@ export type Out =
   | { to: "lobby"; lobby: Lobby; except: string; msg: ServerMessage }
   | { to: "all"; msg: ServerMessage };
 
-const LIMITS = { move: { count: 20, perMs: 1000 }, emote: { count: 2, perMs: 2000 }, place: { count: 5, perMs: 5000 } };
+// A status only changes when someone comes back or leaves the keyboard: a few in ten seconds is already a lot.
+const LIMITS = { move: { count: 20, perMs: 1000 }, emote: { count: 2, perMs: 2000 }, place: { count: 5, perMs: 5000 }, status: { count: 6, perMs: 10_000 } };
 
 // One copy of a city. `watchers` are connections (visitors too), `players` the people who count towards its size.
 export interface Lobby {
@@ -93,6 +104,8 @@ type Seated = Player & { at: Lobby | null };
 interface Conn {
   login: string | null;
   at: Lobby | null;
+  // What this tab last said: a tab starts online.
+  status: (typeof STATUSES)[number];
 }
 
 const FRAME_MOVER = 8;
@@ -123,14 +136,18 @@ export class Presence {
   private cities = new Map<string, Lobby[]>();
   private moved = new Set<Lobby>();
   private recent = new Map<string, Record<keyof typeof LIMITS, number[]>>();
+  // What friends were last told about each person ("idle Dakar"), and who changed since `statusChanges()`.
+  private told = new Map<string, string>();
+  private changed = new Set<string>();
 
   constructor(private readonly size = LOBBY_SIZE) {}
 
   join(conn: string, viewer: Viewer | null): Out[] {
-    this.conns.set(conn, { login: viewer?.login ?? null, at: null });
+    this.conns.set(conn, { login: viewer?.login ?? null, at: null, status: "online" });
     if (viewer) {
       if (!this.players.has(viewer.login)) this.players.set(viewer.login, { ...viewer, slot: 0, x: 0, z: 0, ry: 0, moving: false, at: null });
       this.tabsOf(viewer.login).add(conn);
+      this.touch(viewer.login);
     }
     // Nobody sees you until you say which neighbourhood you're in. Until then, the head count is all you get.
     return [{ to: "one", conn, msg: this.census() }];
@@ -144,7 +161,17 @@ export class Presence {
     if (!parsed.success) return [];
     const msg = parsed.data;
     if (!this.allow(conn, msg.type, now)) return [];
-    if (msg.type === "place") return this.moveTo(conn, c, msg.place, msg.lobby);
+    if (msg.type === "place") {
+      const out = this.moveTo(conn, c, msg.place, msg.lobby);
+      if (c.login) this.touch(c.login);
+      return out;
+    }
+    // Only for friends' lists: a visitor has none, and it needs no lobby.
+    if (msg.type === "status") {
+      c.status = msg.status;
+      if (c.login) this.touch(c.login);
+      return [];
+    }
 
     // Visitors only watch; nobody moves before arriving somewhere; and a tab left behind in another lobby only watches.
     const player = c.login ? this.players.get(c.login) : undefined;
@@ -183,11 +210,13 @@ export class Presence {
     // Still here in another tab: stay.
     if (tabs.size) {
       if (c.at) this.tidy(c.at);
+      this.touch(c.login);
       return [];
     }
     this.tabs.delete(c.login);
     const player = this.players.get(c.login);
     this.players.delete(c.login);
+    this.touch(c.login);
     const out: Out[] = [];
     if (player?.at) {
       out.push(this.stand(player, conn));
@@ -209,6 +238,29 @@ export class Presence {
 
   online(): string[] {
     return [...this.players.keys()];
+  }
+
+  /** How present `login` is: their most present tab (online, then idle, then away), or offline with none. */
+  statusOf(login: string): Status {
+    let best: Status = "offline";
+    for (const conn of this.tabs.get(login) ?? []) {
+      const s = this.conns.get(conn)?.status;
+      if (s && (best === "offline" || STATUSES.indexOf(s) < STATUSES.indexOf(best))) best = s;
+    }
+    return best;
+  }
+
+  /** The city `login` walks in, or null: not in one yet, or in a private place (their workshop, "tutorial:<login>"). */
+  cityOf(login: string): string | null {
+    const place = this.players.get(login)?.at?.place;
+    return place && !place.includes(":") ? place : null;
+  }
+
+  /** Everyone whose status or city changed since the last call: their friends' lists should look again. */
+  statusChanges(): string[] {
+    const out = [...this.changed];
+    this.changed.clear();
+    return out;
   }
 
   counts(): Record<string, number> {
@@ -298,6 +350,17 @@ export class Presence {
     this.moved.delete(lobby);
   }
 
+  // Notes a change in what friends see of `login`, if there is one. Away and back between two calls of
+  // statusChanges() still counts once.
+  private touch(login: string) {
+    const status = this.statusOf(login);
+    const now = status === "offline" ? "offline" : `${status} ${this.cityOf(login) ?? ""}`;
+    if ((this.told.get(login) ?? "offline") === now) return;
+    if (status === "offline") this.told.delete(login);
+    else this.told.set(login, now);
+    this.changed.add(login);
+  }
+
   private tabsOf(login: string): Set<string> {
     let tabs = this.tabs.get(login);
     if (!tabs) this.tabs.set(login, (tabs = new Set()));
@@ -305,7 +368,7 @@ export class Presence {
   }
 
   private allow(conn: string, kind: keyof typeof LIMITS, now: number): boolean {
-    const r = this.recent.get(conn) ?? { move: [], emote: [], place: [] };
+    const r = this.recent.get(conn) ?? { move: [], emote: [], place: [], status: [] };
     const limit = LIMITS[kind];
     r[kind] = r[kind].filter((t) => now - t < limit.perMs);
     if (r[kind].length >= limit.count) return false;

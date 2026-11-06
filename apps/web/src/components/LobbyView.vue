@@ -20,6 +20,8 @@ import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhoo
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
 import { chatPinged, chatSheet, lastSent, openChat } from "../conversations";
+import { watchPresence } from "../activity";
+import { loadFriends } from "../friends";
 import { arenaWanted, loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
@@ -139,6 +141,8 @@ let lobby: Lobby | null = null;
 // The engine's arena part, if it has one.
 const stadium = () => lobby as (Lobby & ArenaEngine) | null;
 let link: LobbyLink | null = null;
+// Stops watching how present you are (activity.ts), which the line tells your friends.
+let stopPresence: (() => void) | null = null;
 // A house you just started: walk to it once the city stream has pushed it.
 let awaiting: string | null = null;
 // The city was opened on a place (`?in=house:…`, a shared link): the tutorial waits, and offers itself in a corner.
@@ -630,8 +634,11 @@ onMounted(() => {
     // Something new under your bell: the top bar's bell fetches it.
     onNotice: () => void loadNotices(),
     onChat: chatPinged,
+    // A friend came, went, or changed status: the friends list fetches itself again.
+    onFriends: () => void loadFriends(),
   });
   link.enter(city.value);
+  stopPresence = watchPresence((p) => link?.setPresence(p));
 });
 
 // ---- The city stream: what changed since the last word ----
@@ -711,6 +718,8 @@ onBeforeUnmount(() => {
   host.value?.removeEventListener("pointerdown", touchStage);
   link?.close();
   link = null;
+  stopPresence?.();
+  stopPresence = null;
   lobby?.dispose();
   lobby = null;
   tutorial.dispose();
