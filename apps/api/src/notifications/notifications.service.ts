@@ -22,6 +22,9 @@
 //
 // And a flatmate's failed build (build_failed), so you can offer a hand. Only your own house hears about it, only
 // here, and never the person who ran it: they're already looking at it.
+//
+// And rent: your share of a month taken from your credit (rent_paid), or not, for want of it (rent_due). Those are
+// written by houses/rent.ts, where the money moves.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, notifications, roomTeammates, rooms, users } from "@coloc/db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or } from "drizzle-orm";
@@ -77,6 +80,9 @@ export interface NotificationView {
   // The knock it's about (knock, knock_answer), and how the vote went (knock_answer).
   applicationId: string | null;
   verdict: "admitted" | "declined" | null;
+  // Rent (rent_paid, rent_due): how much, in FCFA, and for which month ("2026-11").
+  amount: number | null;
+  month: string | null;
   createdAt: string;
   read: boolean;
 }
@@ -102,6 +108,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   // The login of someone who just got a notification: the lobby's live line tells them, if they're online.
   readonly pushes = new Subject<string>();
   private deploys?: Subscription;
+  private rentNews?: Subscription;
 
   constructor(
     @Inject(DB) private readonly db: Db,
@@ -116,10 +123,15 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     this.deploys = this.houses.deployFinished.subscribe((e) => {
       this.fromDeploy(e.houseId, e.deployment).catch(() => undefined);
     });
+    // Rent writes its own news (houses/rent.ts); the live line still has to ring the bell.
+    this.rentNews = this.houses.rentCollector.news.subscribe((userId) => {
+      this.loginOf(userId).then((login) => this.pushes.next(login), () => undefined);
+    });
   }
 
   onModuleDestroy() {
     this.deploys?.unsubscribe();
+    this.rentNews?.unsubscribe();
   }
 
   // ---- Invitations ----
@@ -438,6 +450,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         room: r.room,
         applicationId: r.payload.applicationId ?? null,
         verdict: r.payload.verdict ?? null,
+        amount: r.payload.amount ?? null,
+        month: r.payload.month ?? null,
         createdAt: r.createdAt.toISOString(),
         read: r.readAt !== null,
       })),

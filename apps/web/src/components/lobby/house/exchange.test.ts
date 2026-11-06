@@ -37,6 +37,8 @@ describe("the house's exchange, in words", () => {
     expect(lineWords(awa, "awa")).toEqual({ reviews: `You reviewed 4 PRs: ${fcfa(2000)} off.`, owes: `You owe ${fcfa(1000)}.` });
     expect(lineWords(line("moussa"), null).reviews).toBe("Moussa hasn't reviewed a PR yet.");
     expect(lineWords(line("moussa", { paid: true }), null).owes).toBe(`Moussa paid ${fcfa(3000)}.`);
+    // Rent taken at the start of the month: what was taken, though reviews since brought `due` down.
+    expect(lineWords(line("moussa", { paid: true, paidAmount: 3000, due: 2000 }), null).owes).toBe(`Moussa paid ${fcfa(3000)}.`);
     expect(lineWords(line("moussa", { reviews: 8, credit: 3000, due: 0 }), "moussa").owes).toBe("You owe nothing this month.");
     // Skipped chores: their part of everyone's credits is added, and said.
     expect(lineWords(line("bob", { skipped: 1, surcharge: 500, due: 3500 }), null).owes).toBe(`Skipped reviews add ${fcfa(500)}. Bob owes ${fcfa(3500)}.`);

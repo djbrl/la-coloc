@@ -33,6 +33,11 @@ export const bellWords = defineWords(
     knockNo: (house: string) => `${house} said no this time.`,
     knockNoWhy: "Knock on another house?",
     buildFailed: (who: string) => `${who}'s build failed`,
+    // Rent, taken from your credit: "Rent: 3 000 FCFA for Sacré-Cœur, November". Or not, for want of credit.
+    rentPaid: (amount: string, house: string, month: string) => `Rent: ${amount} for ${house}, ${month}`,
+    rentDue: (amount: string, house: string, month: string) => `Rent due: ${amount} for ${house}, ${month}`,
+    rentDueWhy: "Not enough credit. Top up and it's paid.",
+    topUp: "Top up",
     // Teaming up on one room's project, between flatmates.
     teamInvite: (who: string) => `${who} asks you to team up on their project`,
     teamAsk: (who: string) => `${who} wants to join your project`,
@@ -105,6 +110,10 @@ export const bellWords = defineWords(
     knockNo: (house) => `${house} a dit non cette fois.`,
     knockNoWhy: "Frapper à une autre maison ?",
     buildFailed: (who) => `La construction de ${who} a échoué`,
+    rentPaid: (amount, house, month) => `Loyer : ${amount} pour ${house}, ${month}`,
+    rentDue: (amount, house, month) => `Loyer dû : ${amount} pour ${house}, ${month}`,
+    rentDueWhy: "Crédit insuffisant. Rechargez, et il sera payé.",
+    topUp: "Recharger",
     teamInvite: (who) => `${who} vous propose de rejoindre son projet`,
     teamAsk: (who) => `${who} veut rejoindre votre projet`,
     teamRoom: (room, house) => (house ? `Chambre ${room}, ${house}.` : `Chambre ${room}.`),

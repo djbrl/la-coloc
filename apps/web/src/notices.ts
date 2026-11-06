@@ -11,6 +11,8 @@ export const notices = reactive<Notices & { loaded: boolean }>({ unread: 0, item
 export const movedIn = ref<{ houseId: string; house: string; room: string } | null>(null);
 // "Find a plot" from a rent-together notification: the lobby walks you to the nearest empty plot.
 export const plotWanted = ref(0);
+// "Top up" from a rent_due notification: the lobby opens your credit's card.
+export const creditWanted = ref(0);
 
 let asking: Promise<void> | null = null;
 

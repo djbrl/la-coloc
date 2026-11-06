@@ -20,7 +20,7 @@ import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhoo
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
 import { chatPinged, chatSheet, lastSent, openChat } from "../conversations";
-import { loadNotices, movedIn, plotWanted } from "../notices";
+import { creditWanted, loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
 import { openStream, type Stream } from "../stream";
@@ -119,6 +119,8 @@ if (creditBack) {
   const { credit: _, ...rest } = route.query;
   void router.replace({ query: rest });
 }
+// "Top up" under the bell (rent you were short of) opens it too.
+watch(creditWanted, () => (creditOpen.value = true));
 const query = ref("");
 // Who's in this lobby when Find opened, for its rows.
 const peopleHere = ref<{ login: string; name: string }[]>([]);

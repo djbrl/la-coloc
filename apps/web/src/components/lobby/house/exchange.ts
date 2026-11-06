@@ -50,7 +50,8 @@ export function lineWords(line: BillLine, me: string | null): { reviews: string;
   const skipped = line.surcharge > 0 ? w.skipped(fcfa(line.surcharge)) : "";
   // An Arena prize won this month: La Coloc pays that part, not the house.
   const prize = line.prize && line.prize > 0 ? w.arenaPrize(fcfa(line.prize)) : "";
-  const owes = line.paid ? w.hasPaid(who, you, fcfa(line.due)) : line.due <= 0 ? `${prize}${w.owesNothing(who, you)}` : `${skipped}${prize}${w.owes(who, you, fcfa(line.due))}`;
+  // Paid: what was taken then (rent goes early in the month; reviews done since lower `due`, not what was paid).
+  const owes = line.paid ? w.hasPaid(who, you, fcfa(line.paidAmount ?? line.due)) : line.due <= 0 ? `${prize}${w.owesNothing(who, you)}` : `${skipped}${prize}${w.owes(who, you, fcfa(line.due))}`;
   return { reviews, owes };
 }
 

@@ -1,11 +1,13 @@
 // What each notification says under the bell, and what you can do about it. Pure, so it's tested: Bell.vue only
 // draws the rows. One short line (who did what), a quieter line under it, and at most two actions.
 import type { Notice } from "../../types";
+import { monthName } from "../lobby/house/exchange";
+import { fcfa } from "../lobby/house/server";
 import { bellWords as w } from "./words";
 
 // accept / decline: answer an invitation (to a house, to rent together, to team up). house: open the house it's about. knock: open the knock's thread.
-// plot: walk to an empty plot (renting together).
-export type NoticeAction = "accept" | "decline" | "house" | "knock" | "plot";
+// plot: walk to an empty plot (renting together). credit: open your credit, to top up (rent you were short of).
+export type NoticeAction = "accept" | "decline" | "house" | "knock" | "plot" | "credit";
 
 export interface NoticeRow {
   title: string;
@@ -44,6 +46,12 @@ export function noticeRow(n: Notice): NoticeRow {
       return n.verdict === "admitted" ? row(w.knockYes(house), null, n.house ? ["house"] : []) : row(w.knockNo(house), w.knockNoWhy, n.applicationId ? ["knock"] : []);
     case "build_failed":
       return row(w.buildFailed(who), n.room ? w.teamRoom(n.room, house) : null, n.house ? ["house"] : []);
+    // Rent, taken from your credit when you moved in and every month since: one line, the amount and the house. Short
+    // of credit, it waits: topping up pays it.
+    case "rent_paid":
+      return row(w.rentPaid(fcfa(n.amount ?? 0), house, monthName(n.month ?? "")), null);
+    case "rent_due":
+      return row(w.rentDue(fcfa(n.amount ?? 0), house, monthName(n.month ?? "")), w.rentDueWhy, ["credit"]);
     // Teaming up on one room's project, between flatmates. An invitation onto their project, or an ask to join yours,
     // is answered like an invitation; then the sender hears how it went.
     case "team_invite":

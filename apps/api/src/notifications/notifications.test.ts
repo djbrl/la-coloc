@@ -168,7 +168,11 @@ describe("answering a house invitation", () => {
     expect(await new MembershipsService(db).housesOf(ids.fatou)).toEqual([{ id: "sacre-coeur", name: "Sacré-Cœur", role: "flatmate", room: "room-4", rooms: ["room-4"] }]);
     const notes = (await houses.view("sacre-coeur", ids.jib))!.notes!.map((n) => n.text);
     expect(notes).toContain("Fatou moved in. Welcome home!");
-    expect((await service.list(ids.fatou)).items[0].state).toBe("accepted");
+    // Her invitation, answered, and under it her first rent (rent.test.ts has the rest of it).
+    expect((await service.list(ids.fatou)).items.map((n) => [n.kind, n.state])).toEqual([
+      ["rent_paid", null],
+      ["house_invite", "accepted"],
+    ]);
     const jibs = await service.list(ids.jib);
     expect(jibs.items[0]).toMatchObject({ kind: "invite_accepted", from: { login: "fatou" }, room: "room-4" });
     expect(jibs.sent).toEqual([]);
@@ -288,7 +292,10 @@ describe("the doorbell's news", () => {
     for (const who of ["jib", "awa", "moussa"]) expect((await service.list(ids[who])).items[0]).toMatchObject({ kind: "knock", from: { login: "fatou" }, applicationId: id, room: "room-4" });
     expect((await service.list(ids.fatou)).items).toEqual([]);
     for (const who of ["jib", "awa"]) await doorbell.vote(id, ids[who], true);
-    expect((await service.list(ids.fatou)).items[0]).toMatchObject({ kind: "knock_answer", verdict: "admitted", applicationId: id, house: { id: "sacre-coeur" } });
+    // The newest is her first rent, taken as she moved in (rent.test.ts); the answer comes just before it.
+    const [rent, answer] = (await service.list(ids.fatou)).items;
+    expect(rent).toMatchObject({ kind: "rent_paid", house: { id: "sacre-coeur" } });
+    expect(answer).toMatchObject({ kind: "knock_answer", verdict: "admitted", applicationId: id, house: { id: "sacre-coeur" } });
   });
 
   it("has nothing to accept on news", async () => {

@@ -17,6 +17,7 @@
 | **Review** (a *chore* in the code) | Reading a flatmate's pull request on GitHub; La Coloc picks the reviewer in turn. |
 | **Bill** | The house's monthly server cost, split between flatmates by room size and CPU used. |
 | **Rent credit** | Each review you do takes 500 FCFA off your line of the bill. |
+| **Rent** | Your line of the bill, taken from your credit when you move in and then every month, with a line under the bell each time. |
 | **Tontine** | A turn that passes from flatmate to flatmate every two weeks, so the house rallies behind one project at a time. |
 | **News** (the *fridge* in the code) | Short notes the house posts by itself: a project went live, a room ran out of memory, someone moved in. |
 | **Channel** | The house's group chat, for flatmates only; a knock has its own thread. |

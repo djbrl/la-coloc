@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { language } from "../../i18n";
 import type { Notice } from "../../types";
+import { fcfa } from "../lobby/house/server";
 import { noticeRow } from "./bell";
+
+afterEach(() => {
+  language.lang = "en";
+});
 
 const base: Notice = {
   id: "n1",
@@ -80,5 +86,14 @@ describe("teaming up under the bell", () => {
     expect(noticeRow({ ...base, kind: "guest_ask", room: null, state: "declined" }).sub).toBe("You said no.");
     expect(noticeRow({ ...base, kind: "guest_accepted", state: null, room: null }).actions).toEqual(["house"]);
     expect(noticeRow({ ...base, kind: "guest_declined", state: null, room: null }).actions).toEqual([]);
+  });
+
+  it("says the rent taken in one line, the amount and the house, and offers a top-up when it couldn't be", () => {
+    const rent = { ...base, kind: "rent_paid" as const, state: null, from: null, room: null, amount: 3_000, month: "2026-11" };
+    expect(noticeRow(rent)).toEqual({ title: `Rent: ${fcfa(3_000)} for Sacré-Cœur, November`, sub: null, actions: [], acceptWord: "Move in" });
+    expect(noticeRow({ ...rent, kind: "rent_due" })).toMatchObject({ title: `Rent due: ${fcfa(3_000)} for Sacré-Cœur, November`, sub: "Not enough credit. Top up and it's paid.", actions: ["credit"] });
+    language.lang = "fr";
+    expect(noticeRow(rent).title).toBe(`Loyer\u00a0: ${fcfa(3_000)} pour Sacré-Cœur, novembre`);
+    expect(noticeRow({ ...rent, kind: "rent_due" }).sub).toBe("Crédit insuffisant. Rechargez, et il sera payé.");
   });
 });

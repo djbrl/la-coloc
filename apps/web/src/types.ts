@@ -193,6 +193,8 @@ export interface BillLine {
   // What they owe: share − credit + surcharge − prize.
   due: number;
   paid: boolean;
+  // What was taken when it was paid (rent goes out early in the month, `due` moves with reviews after). Null: unpaid.
+  paidAmount?: number | null;
 }
 
 export interface Bill {
@@ -429,7 +431,10 @@ export type NotificationKind =
   // Someone asks to join a full house's group chat (each flatmate gets one, the first answer counts), then how it went.
   | "guest_ask"
   | "guest_accepted"
-  | "guest_declined";
+  | "guest_declined"
+  // Rent, taken from your credit when you move in and every month after (`amount`, `month`), or due for want of it.
+  | "rent_paid"
+  | "rent_due";
 export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
 
 export interface Notice {
@@ -443,6 +448,9 @@ export interface Notice {
   // The knock it's about, and how its vote went.
   applicationId: string | null;
   verdict: "admitted" | "declined" | null;
+  // Rent: how much, in FCFA, and for which month ("2026-11").
+  amount?: number | null;
+  month?: string | null;
   createdAt: string;
   read: boolean;
 }
