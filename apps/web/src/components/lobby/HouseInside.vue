@@ -22,13 +22,14 @@ import { dueOf, dueWords, reviewSummary, reviewTitle, splitReviews } from "./hou
 import { canKnock, chatKey, crewOf, foldedRooms, footFor, myRooms, personActions, type RoomKey, ROWS_SHOWN, type Seat, type Situation } from "./house/crew";
 import FloorPlan from "./house/FloorPlan.vue";
 import { billHead, type BillLine, lineWords, linesYoursFirst, reviewsLine, ruleLine, tontineLine, toPay } from "./house/exchange";
+import { exampleBill, exampleReviews } from "./house/examples";
 import Icon from "./house/Icon.vue";
 import { notesSummary } from "./house/notes";
 import PayBill from "./house/PayBill.vue";
 import RentServer from "./house/RentServer.vue";
 import RoomDetails from "./house/RoomDetails.vue";
 import ShareHouse from "./house/ShareHouse.vue";
-import { evenSplit, fcfa, rentOfPerson, rentWithOneMore, type ServerInfo } from "./house/server";
+import { evenSplit, fcfa, OPERATORS, rentOfPerson, rentWithOneMore, type ServerInfo } from "./house/server";
 import { houseWords as w } from "./house/words";
 import ListRow from "./panel/ListRow.vue";
 import Panel from "./panel/Panel.vue";
@@ -141,8 +142,16 @@ const foot = computed(() => footFor(situation.value));
 const seats = computed(() => (house.value ? crewOf(house.value, viewer.value?.login ?? null) : []));
 
 const nameOf = (p: { name: string | null; login: string }) => p.name ?? p.login;
+// The workshop, for one of its newcomers: nobody else lives there, so its reviews and its bill are made-up examples
+// (house/examples.ts), each tab saying so once.
+const example = computed(() => !!house.value?.tutorial && member.value);
+const you = computed((): Person => {
+  const login = viewer.value?.login ?? "";
+  return house.value?.members.find((m) => m.login === login) ?? { login, name: null, avatarUrl: null };
+});
+const chores = computed(() => (example.value && !house.value?.chores?.length ? exampleReviews(you.value) : house.value?.chores));
 // The house's open reviews (the API's chores), yours apart from the others', most urgent first (chores.ts).
-const reviews = computed(() => splitReviews(house.value?.chores, viewer.value?.login ?? null));
+const reviews = computed(() => splitReviews(chores.value, viewer.value?.login ?? null));
 const myChores = computed(() => reviews.value.mine);
 const notes = computed(() => house.value?.notes ?? []);
 
@@ -179,7 +188,8 @@ const chatGuest = computed(() => !member.value && viewer.value?.guest === "accep
 // reviews have nothing to show yet, so their tabs wait until someone moves in. The foot invites them.
 const alone = computed(() => {
   const h = house.value;
-  if (!member.value || !h) return false;
+  // The workshop shows every tab: the quest walks through them, and its examples fill them.
+  if (!member.value || !h || h.tutorial) return false;
   return h.rooms.filter((r) => r.occupant).length <= 1 && !seats.value.some((s) => s.kind === "knock") && !h.guests?.length && !h.chores?.length && !h.channel?.length;
 });
 
@@ -441,7 +451,7 @@ const roomRows = computed(() => {
 
 // The bill (flatmates only): the month's total, then one line per flatmate, yours first, each said in two
 // sentences: what their reviews took off, and what they owe. An API without the bill yet gives the even split.
-const bill = computed(() => house.value?.bill ?? null);
+const bill = computed(() => house.value?.bill ?? (example.value && house.value ? exampleBill(you.value, house.value.operators ?? OPERATORS) : null));
 const billLines = computed(() => (bill.value ? linesYoursFirst(bill.value.lines, me.value) : []));
 const lived = computed(() => house.value?.rooms.filter((r) => r.occupant) ?? []);
 const share = computed(() => (house.value?.monthlyCostFcfa ? evenSplit(house.value.monthlyCostFcfa, lived.value.length) : null));
@@ -590,6 +600,7 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
            on GitHub. The rest of the house's reviews wait behind a quiet button, unless you have none of your own.
            The summary sentence above the list (Panel) already says what to do, or that there's nothing. -->
       <template v-else-if="shownTab === 'chores'">
+        <span v-if="example" class="example-tag">{{ w.exampleTag }}</span>
         <UiNote v-if="rulesNote" :note="rulesNote" />
         <!-- Whose turn it is (its faces in order, the one whose turn it is lit), and the month's reviews with the
              house's review rule. -->
@@ -669,6 +680,7 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
              sentence for it on hover and for a screen reader), and a tick once paid. Then your part, big. The whole
              bill is the tab's summary, above (Panel). -->
         <template v-else-if="bill">
+          <span v-if="example" class="example-tag">{{ w.exampleTag }}</span>
           <ul class="plain lines bill-lines">
             <ListRow v-for="l in billLines" :key="l.login" :title="nameOf(personOf(l))" :sub="lineWords(l, me).reviews" :mine="l.login === me">
               <template #meta>
@@ -773,6 +785,8 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
 .turns > .now { box-shadow: 0 0 0 3px var(--sticker); margin: 0 4px 0 3px; }
 
 .plain { list-style: none; margin: 0; padding: 0; }
+/* The workshop's made-up reviews and bill say so once, with a small tag at the top of the tab. */
+.example-tag { justify-self: start; align-self: flex-start; flex: none; padding: 3px 8px; border-radius: var(--r-xs); background: var(--sticker); color: var(--ink); font: 800 12px/1.2 var(--font); text-transform: uppercase; letter-spacing: 0.04em; }
 .lines { display: grid; align-content: start; line-height: 1.3; }
 .lines :deep(.list-row) { min-height: 76px; }
 .lines :deep(.lead) { color: var(--ink); }

@@ -3,6 +3,7 @@
 // stands still (the step's controls are off and the layer takes every click), Next moves on, Escape or Skip leaves. It
 // sits on the page's body, so it can also dim the top bar and point at what's in it.
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { ringAround } from "./spot";
 import { keyParts, TOUR_TARGET, TOUR_TEXT } from "./tour";
 import type { TourCardName } from "./tutorial";
 import { tutorialWords as w } from "./words";
@@ -14,15 +15,13 @@ const text = computed(() => TOUR_TEXT[props.card]);
 const parts = computed(() => keyParts((props.touch && text.value.touch) || text.value.keys));
 const last = computed(() => props.n === props.total);
 
-// Where the ring goes: the thing's place on screen, a little bigger than it.
-const RING_GAP = 6;
+// Where the ring goes: the thing's place on screen, a little bigger than it (spot.ts, like the spotlight's hole).
 const ring = ref<{ left: string; top: string; width: string; height: string } | null>(null);
 function measure() {
   const selector = TOUR_TARGET[props.card];
   const box = selector ? document.querySelector(selector)?.getBoundingClientRect() : null;
-  ring.value = box?.width
-    ? { left: `${box.left - RING_GAP}px`, top: `${box.top - RING_GAP}px`, width: `${box.width + RING_GAP * 2}px`, height: `${box.height + RING_GAP * 2}px` }
-    : null;
+  const r = box?.width ? ringAround(box) : null;
+  ring.value = r ? { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` } : null;
 }
 
 const go = ref<HTMLButtonElement | null>(null);

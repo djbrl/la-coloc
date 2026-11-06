@@ -28,8 +28,8 @@ const props = defineProps<{
   knockable: boolean;
   // Rooms lit for a moment (the foot asked you to pick one).
   lit: string[];
-  // The workshop: a room is waiting for you, with its own tile at the start. The quest's coach may be the one to
-  // press instead, and the tile then keeps quiet.
+  // The workshop: a room is waiting for you, with its own tile at the start. The quest's spotlight points at it
+  // (`data-spot`); while its coach has a main action of its own, the tile keeps quiet.
   take: boolean;
   coached?: boolean;
   taking: boolean;
@@ -81,7 +81,7 @@ function said(room: Room): string {
 
     <ul class="room-tiles" :class="{ three: !grid && count() > 4, tall: !grid && count() <= 2, spaced: grid }" :style="rows" :aria-label="w.rooms">
       <li v-if="take">
-        <button v-if="!coached" type="button" class="cell open" :disabled="taking" @click="emit('take')">
+        <button v-if="!coached" type="button" class="cell open" data-spot="take" :disabled="taking" @click="emit('take')">
           <span class="plus"><Icon name="plus" :size="40" /></span>
           <span class="for">{{ w.roomForYou }}</span>
           <span class="rent key">{{ w.takeIt }}</span>

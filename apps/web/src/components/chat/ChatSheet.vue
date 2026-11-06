@@ -103,12 +103,14 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* A black sign on the right, under the keys: the city stays in view on its left. */
+/* A black sign on the right, under the keys: the city stays in view on its left. Above a house's window (60): a chat
+   opened from inside one (a flatmate's Chat key) shows over it, instead of waiting hidden behind it until the window
+   closes (Jib, 6 11). Opening a window closes the chat (LobbyView). */
 .chat-sheet {
   position: fixed;
   top: 98px;
   right: 24px;
-  z-index: 55;
+  z-index: 62;
   width: min(420px, calc(100vw - 32px));
   height: min(640px, calc(100dvh - 122px));
 }

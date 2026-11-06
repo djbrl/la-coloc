@@ -12,7 +12,7 @@
 //   5 launch   watch it build, as a show: the crane, four plain stages, fireworks
 //   6 open     your address, big, one press to open it
 //   7 share    copy it, send it on WhatsApp, scan it with your phone
-//   8 house    meet the house: the flatmates, reviews, the news board; then "Well done"
+//   8 house    meet the house, one tab at a time: who lives here, its channel, reviews, news, the bill; then "Well done"
 // After it the real city, with its welcome and a short walkthrough of what's new on screen.
 import type { TutorialState } from "../../../types";
 
@@ -122,8 +122,9 @@ export interface TourMemory {
   see(name: string): void;
 }
 
-// The cards of chapter 8, one idea each: who lives here, reviews, the news board.
-export const HOUSE_CARDS = ["flatmates", "reviews", "news"] as const;
+// The cards of chapter 8, one tab of the house's window each, in the tabs' order: who lives here, its channel (where
+// the house says hello), reviews and the bill (examples in the workshop, so there's something to look at), the news.
+export const HOUSE_CARDS = ["flatmates", "channel", "reviews", "news", "bill"] as const;
 export type HouseCard = (typeof HOUSE_CARDS)[number];
 
 // Where your project comes from in chapter 4: nothing chosen yet, GitHub opened in another tab (we wait for the

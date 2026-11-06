@@ -2,8 +2,9 @@
 // The coach: one flat card at the bottom of the screen during the quest, saying the one thing to do now. No line on
 // top names the chapter (the tracker does; the card says it to screen readers): one or two sentences, the step's
 // own piece (the two ways to bring a project, the launch's track, your address, the postcard to share, a card about the house), and at most one main action.
-// A small × leaves the quest (settings bring it back). The steps themselves live in tutorial.ts; this only shows
-// them. The big moments in the middle of the screen (the keys, "Well done") are KeysCard.vue and HomeCard.vue.
+// No ×: closing a message must never end the quest (Jib, 6 11). Leaving it is said in words, on the first card ("Not
+// now") or in the settings. A step that points at a control in the house's window has a spotlight on it instead
+// (Spotlight.vue). The steps themselves live in tutorial.ts; this only shows them. The big moments in the middle of the screen (the keys, "Well done") are KeysCard.vue and HomeCard.vue.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { caps } from "../../../lobby/keys";
 import { bare, explain } from "../panel/words";
@@ -13,7 +14,7 @@ import RepoPicker from "../../RepoPicker.vue";
 import ShareCard from "./ShareCard.vue";
 import { opensAnywhere } from "./share";
 import { CHAPTERS, HOUSE_CARDS, isLive, type TutorialMachine } from "./tutorial";
-import { tutorialWords as w } from "./words";
+import { houseLineOf, tutorialWords as w } from "./words";
 import type { RepoChoices } from "../../../types";
 
 const props = defineProps<{
@@ -79,8 +80,8 @@ function otherProject() {
 
 // Chapter 8's cards: an icon and a title each, and one sentence.
 const houseCard = computed(() => HOUSE_CARDS[props.machine.card]);
-const houseIcon: Record<(typeof HOUSE_CARDS)[number], QuestIconName> = { flatmates: "people", reviews: "reviews", news: "news" };
-const houseLine = computed(() => (houseCard.value === "flatmates" ? w.flatmatesLine : houseCard.value === "reviews" ? w.reviewsLine(props.credit) : w.newsLine));
+const houseIcon: Record<(typeof HOUSE_CARDS)[number], QuestIconName> = { flatmates: "people", channel: "chat", reviews: "reviews", news: "news", bill: "bill" };
+const houseLine = computed(() => houseLineOf(houseCard.value, props.credit));
 const lastCard = computed(() => props.machine.card === HOUSE_CARDS.length - 1);
 
 // Enter and Space press the focused button; they must not reach the engine, where Enter means "use what's in
@@ -107,8 +108,6 @@ onBeforeUnmount(() => clearTimeout(timer));
 <template>
   <!-- No eyebrow over the step (the tracker at the top already shows the chapter): it's in the box's hidden name. -->
   <div class="coach" :class="[`at-${step}`]" role="dialog" :aria-label="label" @keydown="onKey">
-    <button type="button" class="x" :aria-label="w.skip" @click="emit('stop')"><span aria-hidden="true">X</span></button>
-
     <div class="body" aria-live="polite">
       <template v-if="waiting && needsApi && !live">
         <p class="text">{{ w.waiting }}</p>
@@ -276,13 +275,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 @keyframes coach-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
-/* The close key sits in the corner; the step's first line leaves room for it. */
 .coach { position: relative; padding-top: 14px; }
-.body > :first-child { padding-right: 46px; }
-/* The share card keeps that room itself, on its heading only: the card below it has the coach's whole width. */
-.at-share .body > :first-child { padding-right: 0; }
-.x { position: absolute; top: 6px; right: 6px; flex: none; width: 46px; height: 46px; min-height: 0; padding: 0; display: grid; place-items: center; border-radius: var(--r-sm); background: none; color: var(--text); font: 400 18px/1 var(--display); }
-.x:hover:not(:disabled) { background: var(--fill); color: var(--text); }
 .body { display: grid; gap: 6px; }
 .text { margin: 0; font: 700 19px/1.3 var(--display); }
 .sub { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }

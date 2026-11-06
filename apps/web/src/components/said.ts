@@ -41,6 +41,9 @@ const knockEn = {
   taken: (_p: P) => "Someone else moved into this room first. Knock on another one?",
   withdrawn: (_p: P) => "They withdrew their knock.",
   invited: (_p: P) => "They moved in at a flatmate's invitation.",
+  // The workshop's own lines, in a newcomer's channel there: its hello, and its answer to their first word.
+  welcome: (p: P) => `Hello ${p.name}, welcome to ${p.house}! This is the house's channel: say hi anytime.`,
+  workshopReply: (p: P) => `Thanks, ${p.name}! In a house in the city, your flatmates read you here.`,
 };
 
 // Why a deploy failed, in French: the caretaker reports it in English (apps/agent: deploy.ts, docker.ts, git.ts). A
@@ -101,6 +104,8 @@ const knockWords = defineWords("said.knock", knockEn, {
   taken: () => "Quelqu'un d'autre a emménagé dans cette chambre avant. Frapper à une autre ?",
   withdrawn: () => "La personne a retiré sa demande.",
   invited: () => "La personne a emménagé sur l'invitation d'un coloc.",
+  welcome: (p) => `Bonjour ${p.name}, bienvenue à ${p.house} ! C'est le salon de la maison : dites bonjour quand vous voulez.`,
+  workshopReply: (p) => `Merci, ${p.name} ! Dans une maison de la ville, vos colocs vous lisent ici.`,
 });
 
 function say(words: Record<string, (p: P) => string>, said: Said | null | undefined, fallback: string): string {

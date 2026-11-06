@@ -63,5 +63,7 @@ describe("what someone with several rooms pays", () => {
     expect(rentOf(house, { occupant: awa })).toBe(4000);
     expect(rentOfPerson(house, "awa")).toBe(8000);
     expect(rentOfPerson(house, "moussa")).toBeNull();
+    // The workshop: alone in it, still a share of a house of four.
+    expect(rentOfPerson({ monthlyCostFcfa: null, tutorial: true, rooms: [{ occupant: { login: "awa" } }] }, "awa")).toBe(3000);
   });
 });

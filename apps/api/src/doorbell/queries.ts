@@ -7,6 +7,15 @@ import { readKnockLine } from "../houses/lines";
 export const HISTORY = 50;
 
 export const houseChannel = (houseId: string) => `house:${houseId}`;
+// The workshop's living room is one per newcomer, so nobody else's words are in it: "house:atelier/<their id>". It
+// still starts "house:", so a demo reset empties it with the rest.
+export const workshopChannel = (houseId: string, userId: string) => `house:${houseId}/${userId}`;
+/** The house a living room belongs to, and for a newcomer's own one in the workshop, whose it is. */
+export function houseOfChannel(channel: string): { houseId: string; owner: string | null } | null {
+  if (!channel.startsWith("house:")) return null;
+  const [houseId, owner] = channel.slice(6).split("/");
+  return { houseId, owner: owner ?? null };
+}
 export const applicationChannel = (applicationId: string) => `application:${applicationId}`;
 
 // `github` when the row says (a full users row): their login is a real GitHub handle, so the web links it.

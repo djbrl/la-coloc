@@ -13,14 +13,13 @@ import { HousesService } from "../houses/houses.service";
 import { knockText, noteText } from "../houses/lines";
 import { MAX_ROOMS_PER_PERSON } from "../houses/money";
 import { moveInto, roomsRented } from "../houses/move-in";
-import { applicationChannel, channelMessages, houseChannel, person, tally } from "./queries";
+import { applicationChannel, channelMessages, houseChannel, person, tally, workshopChannel } from "./queries";
 
 export const MAX_MESSAGE = 2000;
 const BURST = { messages: 20, perMs: 60_000 };
-// The workshop's answer to a newcomer's first word in its channel. Scripted: nobody really lives there.
+// The workshop's answer to a newcomer's first word in their channel there. Said by the house: nobody lives there.
 const WORKSHOP_REPLY_MS = 1500;
 const guestWelcome = (first: string) => `Come in, ${first}. No room left, but the kitchen's always open. What are you building?`;
-const workshopReply = (first: string) => `Dalal ak jàmm, ${first}! Happy you're here. Ask us anything, we all started with the same page.`;
 
 // What the doorbell tells its listeners (the notifications): someone knocked, or a knock was answered.
 export type KnockEvent =
@@ -125,23 +124,24 @@ export class DoorbellService {
 
   async postToHouse(houseId: string, authorId: string, body: string) {
     if (!(await this.houses.membership(houseId, authorId)) && !(await isChatGuest(this.db, houseId, authorId))) throw new ForbiddenException({ message: "Only flatmates can talk in the living room.", code: "flatmatesOnlyTalk" });
-    const channel = houseChannel(houseId);
+    // In the workshop each newcomer talks in a channel of their own; its chef, who runs it, in the shared one.
+    const [house] = await this.db.select({ tutorial: houses.tutorial, chefId: houses.chefId }).from(houses).where(eq(houses.id, houseId));
+    const solo = !!house?.tutorial && house.chefId !== authorId;
+    const channel = solo ? workshopChannel(houseId, authorId) : houseChannel(houseId);
     const [said] = await this.db.select({ n: count() }).from(messages).where(and(eq(messages.channel, channel), eq(messages.authorId, authorId)));
     await this.post(channel, authorId, body);
     this.houses.changes.next(houseId);
-    if (said.n === 0) await this.answerFirstWord(houseId, authorId);
+    if (said.n === 0 && solo) await this.answerFirstWord(houseId, authorId, channel);
   }
 
-  // Your first message in the workshop's channel gets an answer from its host, a moment later. "First" is read from
-  // the channel itself, so it happens once per person, survives a refresh, and a demo reset (which empties the
+  // Your first message in your workshop channel gets an answer from the house itself, a moment later. "First" is read
+  // from the channel, so it happens once per person, survives a refresh, and a demo reset (which empties the
   // channels) starts it over.
-  private async answerFirstWord(houseId: string, authorId: string) {
-    const [house] = await this.db.select({ tutorial: houses.tutorial, chefId: houses.chefId }).from(houses).where(eq(houses.id, houseId));
-    if (!house?.tutorial || !house.chefId || house.chefId === authorId) return;
+  private async answerFirstWord(houseId: string, authorId: string, channel: string) {
     const [author] = await this.db.select({ name: users.name, login: users.login }).from(users).where(eq(users.id, authorId));
     const first = (author.name ?? author.login).trim().split(/\s+/)[0];
     const reply = async () => {
-      await this.db.insert(messages).values({ channel: houseChannel(houseId), authorId: house.chefId, body: workshopReply(first) });
+      await this.db.insert(messages).values({ channel, authorId: null, body: knockText("workshopReply", { name: first }) });
       this.houses.changes.next(houseId);
     };
     setTimeout(() => void reply().catch((err) => this.log.warn(`couldn't answer in the workshop: ${err.message}`)), this.replyDelayMs).unref();

@@ -91,18 +91,6 @@ const CHANNELS: Record<string, [login: string, body: string][]> = {
     ["jib", "I'll take it after lunch. Then I'm off to the match."],
     ["awa", "Good luck to Ouakam! Ba suba."],
   ],
-  atelier: [
-    ["ndeye", "Dalal ak jàmm! Welcome to L'Atelier. Take a room, put the Hello page online, then come say hi here."],
-    ["aissatou", "Done! My page shows a photo of Gorée now."],
-    ["babacar", "Mine says nanga def in the morning and bonsoir at night."],
-    ["ndeye", "Bravo à vous deux. Next step: link a GitHub repo, and every merge goes online by itself."],
-    ["aissatou", "Is the port always 3000?"],
-    ["babacar", "It's the PORT variable. Read it from the environment and you're fine."],
-    ["aissatou", "Merci Babacar, ça marche."],
-    ["babacar", "Ma Météo Bot dit qu'il fera 31 degrés demain à Dakar."],
-    ["aissatou", "Again? We need a bot that sends rain instead."],
-    ["ndeye", "When you're ready, knock on a house in the city. They vote, and you move in."],
-  ],
   almadies: [
     ["aminata", "Taxi Clando matched 40 airport rides this week."],
     ["cheikh", "Nice. Wolof NLP now knows 12 000 words. Jërëjëf for the reviews."],

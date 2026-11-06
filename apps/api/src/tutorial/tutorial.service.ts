@@ -4,11 +4,12 @@
 // deploys, the linked repo, the furthest chapter reached). Taking the tutorial again removes that room, so the next
 // run starts from nothing.
 import { ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import { type Db, deployments, fridgeNotes, houses, memberships, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
+import { type Db, deployments, fridgeNotes, houses, memberships, messages, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
 import { and, asc, eq } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
 import type { User } from "../auth/auth.service";
 import { isCoreDown } from "../core/core";
+import { workshopChannel } from "../doorbell/queries";
 import { DB } from "../db/db.module";
 import type { GithubAppConfig } from "../github/github.config";
 import { GITHUB_CONFIG } from "../github/github.controller";
@@ -228,7 +229,7 @@ export class TutorialService {
 
   /**
    * For taking the tutorial again: the newcomer's workshop room goes (its containers, its row, everything filed
-   * under it), they stop being a flatmate there, and the tutorial counts as not done.
+   * under it), and their channel there, they stop being a flatmate there, and the tutorial counts as not done.
    */
   async reset(user: User): Promise<{ ok: true }> {
     const house = await this.workshop();
@@ -259,6 +260,8 @@ export class TutorialService {
         .delete(memberships)
         .where(and(eq(memberships.houseId, house.id), eq(memberships.userId, user.id), eq(memberships.role, "flatmate")));
     }
+    // Their own channel there goes too: the next run starts with the house's hello alone.
+    await this.db.delete(messages).where(eq(messages.channel, workshopChannel(house.id, user.id)));
     await this.db.update(users).set({ tutorialDoneAt: null, tutorialChapter: null }).where(eq(users.id, user.id));
     this.houses.changes.next(house.id);
     return { ok: true };

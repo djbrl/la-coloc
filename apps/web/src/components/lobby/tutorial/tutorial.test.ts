@@ -261,12 +261,12 @@ describe("the quest", () => {
     const m = new TutorialMachine();
     m.start();
     playTo(m, "house");
-    expect(m.card).toBe(0);
-    m.send({ type: "next" });
-    expect(m.card).toBe(1);
-    m.send({ type: "next" });
-    expect(m.card).toBe(2);
-    m.send({ type: "next" });
+    // One card per tab of the house's window, in the tabs' order.
+    expect(HOUSE_CARDS).toEqual(["flatmates", "channel", "reviews", "news", "bill"]);
+    for (let i = 0; i < HOUSE_CARDS.length; i++) {
+      expect([m.step, m.card]).toEqual(["house", i]);
+      m.send({ type: "next" });
+    }
     expect(m.step).toBe("home");
   });
 

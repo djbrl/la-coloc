@@ -19,7 +19,7 @@ import { passerbyName } from "@coloc/domain";
 import { and, count, desc, eq, gt, gte, inArray, like, max, ne, notInArray, or, sql } from "drizzle-orm";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
-import { blockBetween, blockedBy, channelMessages, person } from "../doorbell/queries";
+import { blockBetween, blockedBy, channelMessages, houseOfChannel, person } from "../doorbell/queries";
 import { isChatGuest } from "../houses/guests";
 import type { MessageView, PersonView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
@@ -403,7 +403,10 @@ export class ChatService {
     if (channel.startsWith("city:") || channel.startsWith("arena:") || channel.startsWith("post:")) return true;
     const pair = dmPeople(channel);
     if (pair) return pair.includes(userId);
-    if (channel.startsWith("house:")) return !!(await this.houses.membership(channel.slice(6), userId)) || (await isChatGuest(this.db, channel.slice(6), userId));
+    const house = houseOfChannel(channel);
+    // A newcomer's own channel in the workshop is theirs alone.
+    if (house?.owner) return house.owner === userId;
+    if (house) return !!(await this.houses.membership(house.houseId, userId)) || (await isChatGuest(this.db, house.houseId, userId));
     if (channel.startsWith("application:")) {
       const [app] = await this.db.select().from(applications).where(eq(applications.id, channel.slice(12)));
       return !!app && (app.applicantId === userId || !!(await this.houses.membership(app.houseId, userId)));
