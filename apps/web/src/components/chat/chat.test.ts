@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { badge, chatTabs, linkParts, messageAction, pickTab, stripBidi } from "./chat";
+import { badge, buttonDot, chatTabs, linkParts, messageAction, pickTab, shownNews, stripBidi } from "./chat";
 
 describe("the chat sheet's tabs", () => {
   it("are the city's room and board for a visitor, plus messages once logged in, plus the house when you have one", () => {
@@ -30,6 +30,23 @@ describe("Chat on someone you see", () => {
 describe("the chat button's count", () => {
   it("says nothing at zero and stops at 9+", () => {
     expect([badge(0), badge(1), badge(9), badge(10), badge(-1)]).toEqual(["", "1", "9", "9+", ""]);
+  });
+});
+
+describe("what's new in the city", () => {
+  const news = { chat: 3, board: 1 };
+  it("shows on the City and Board tabs, except the one you're looking at", () => {
+    expect(shownNews(news, { open: false, tab: "city" })).toEqual({ chat: 3, board: 1 });
+    expect(shownNews(news, { open: true, tab: "city" })).toEqual({ chat: 0, board: 1 });
+    expect(shownNews(news, { open: true, tab: "board" })).toEqual({ chat: 3, board: 0 });
+    expect(shownNews(news, { open: true, tab: "dm" })).toEqual({ chat: 3, board: 1 });
+  });
+
+  it("puts a dot on the chat button only when no direct message is waiting (those have their count)", () => {
+    expect(buttonDot(0, news)).toBe(true);
+    expect(buttonDot(0, { chat: 0, board: 1 })).toBe(true);
+    expect(buttonDot(2, news)).toBe(false);
+    expect(buttonDot(0, { chat: 0, board: 0 })).toBe(false);
   });
 });
 

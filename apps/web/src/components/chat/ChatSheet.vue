@@ -1,14 +1,16 @@
 <script setup lang="ts">
 // The chat sheet: one flat floating card over the city (docked on the right on a wide screen, a sheet along the
 // bottom on a phone), so talking never leaves the game. Four tabs, as icon keys: your direct messages, the city's
-// room, the city's board, and your house's living room. Visitors get the city's room and board, to read.
+// room, the city's board, and your house's living room. Visitors get the city's room and board, to read. Messages
+// counts what's unread, City what's new since you looked, Board has a dot for a new post (cityNews.ts).
 // Esc (or the close key) closes it; the city keeps going behind it.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { cityNews, followCityNews } from "../../cityNews";
 import { chatSheet, conversations, loadBlocks, loadConversations } from "../../conversations";
 import { me } from "../../session";
 import CityBoard from "./CityBoard.vue";
 import CityRoom from "./CityRoom.vue";
-import { badge, type ChatTab, chatTabs, pickTab } from "./chat";
+import { badge, type ChatTab, chatTabs, pickTab, shownNews } from "./chat";
 import DirectMessages from "./DirectMessages.vue";
 import HouseRoom from "./HouseRoom.vue";
 import { chatWords as w } from "./words";
@@ -16,6 +18,8 @@ import { chatWords as w } from "./words";
 const tabs = computed(() => chatTabs(me.value));
 const tab = computed(() => pickTab(chatSheet.tab, tabs.value));
 const sheet = ref<HTMLElement | null>(null);
+const news = computed(() => shownNews(cityNews, chatSheet));
+const stopNews = followCityNews();
 
 // Opened: the tab holding the keyboard, so Esc and the arrows work at once (a conversation focuses its own box).
 watch(
@@ -50,7 +54,10 @@ watch(
 );
 const onVisible = () => document.visibilityState === "visible" && void loadConversations();
 onMounted(() => document.addEventListener("visibilitychange", onVisible));
-onBeforeUnmount(() => document.removeEventListener("visibilitychange", onVisible));
+onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", onVisible);
+  stopNews();
+});
 </script>
 
 <template>
@@ -79,6 +86,8 @@ onBeforeUnmount(() => document.removeEventListener("visibilitychange", onVisible
             >
               {{ w.tabs[t] }}
               <span v-if="t === 'dm' && conversations.unread" class="tab-count" aria-hidden="true">{{ badge(conversations.unread) }}</span>
+              <span v-else-if="t === 'city' && news.chat" class="tab-count" aria-hidden="true">{{ badge(news.chat) }}</span>
+              <span v-else-if="t === 'board' && news.board" class="tab-dot" aria-hidden="true" />
             </button>
           </div>
           <div class="body" role="tabpanel" :aria-label="w.tabs[tab]">
@@ -111,6 +120,8 @@ onBeforeUnmount(() => document.removeEventListener("visibilitychange", onVisible
 .tab[aria-selected="true"], .tab[aria-selected="true"]:hover:not(:disabled) { background: var(--text); color: var(--surface); }
 .tab:focus-visible { outline-offset: 1px; }
 .tab-count { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--sticker); color: var(--ink); font: 800 13px/20px var(--font); text-align: center; }
+/* A new post: the bell's "new" dot, quieter than a count. */
+.tab-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sticker); box-shadow: 0 0 0 1px var(--ink); }
 .body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .pop-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .pop-leave-active { transition: opacity var(--dur-fast) var(--ease); }

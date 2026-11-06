@@ -63,6 +63,8 @@ export class BoardService {
     this.chat.brake(authorId, "posts");
     const now = new Date();
     const [row] = await this.db.insert(boardPosts).values({ city, authorId, tag: input.tag, title, body, createdAt: now, activeAt: now }).returning({ id: boardPosts.id });
+    // You've seen the board you just posted on.
+    await this.chat.markCityRead(city, authorId, "board");
     this.chat.changes.next({ city, what: "board" });
     return { id: row.id };
   }
@@ -83,6 +85,7 @@ export class BoardService {
       await tx.delete(messages).where(eq(messages.channel, postChannel(p.id)));
       await tx.delete(boardPosts).where(eq(boardPosts.id, p.id));
     });
+    await this.chat.notifications.forgetChannel(postChannel(p.id));
     this.chat.changes.next({ city: p.city, what: "board" });
   }
 

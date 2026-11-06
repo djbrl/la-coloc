@@ -31,6 +31,21 @@ export function badge(unread: number): string {
   return unread > 9 ? "9+" : String(unread);
 }
 
+export interface CityNews {
+  chat: number;
+  board: number;
+}
+
+/** The city's news as the chat shows it (cityNews.ts): the tab you're looking at has nothing new, by definition. */
+export function shownNews(news: CityNews, sheet: { open: boolean; tab: ChatTab }): CityNews {
+  return { chat: sheet.open && sheet.tab === "city" ? 0 : news.chat, board: sheet.open && sheet.tab === "board" ? 0 : news.board };
+}
+
+/** The chat button's dot: something new in the city, and no direct message waiting (those have their count). */
+export function buttonDot(dms: number, news: CityNews): boolean {
+  return dms <= 0 && (news.chat > 0 || news.board > 0);
+}
+
 export interface TextPart {
   text: string;
   // An http(s) address: drawn as a link that opens in a new tab, without telling the site where you came from.

@@ -429,7 +429,10 @@ export type NotificationKind =
   // Someone asks to join a full house's group chat (each flatmate gets one, the first answer counts), then how it went.
   | "guest_ask"
   | "guest_accepted"
-  | "guest_declined";
+  | "guest_declined"
+  // Words meant for you: a reply under your board post or one you replied to, and "@you" in a public chat (`chat`).
+  | "post_reply"
+  | "mention";
 export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
 
 export interface Notice {
@@ -443,6 +446,8 @@ export interface Notice {
   // The knock it's about, and how its vote went.
   applicationId: string | null;
   verdict: "admitted" | "declined" | null;
+  // Where a post_reply or a mention was said (a city's room, its arena, or a board post); null once the post is gone.
+  chat?: { place: "city" | "arena" | "post"; city: string; post: { id: string; title: string; mine: boolean } | null } | null;
   createdAt: string;
   read: boolean;
 }

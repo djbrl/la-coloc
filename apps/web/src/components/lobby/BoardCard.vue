@@ -2,8 +2,10 @@
 // The chores board on the market square: which houses in this city have code reviews waiting, and how many are
 // late. A review is a chore: a flatmate reviews a housemate's pull request, and it takes a little off their rent.
 // Only the counts are public (the pull requests' titles are for the flatmates); each house is one row that takes
-// you to it. Under them, the city's own board (the chat sheet's Board tab): posts about houses, flatmates, projects.
+// you to it. Under them, the city's own board (the chat sheet's Board tab): posts about houses, flatmates, projects,
+// with a dot when there's one you haven't seen (cityNews.ts).
 import { computed } from "vue";
+import { cityNews } from "../../cityNews";
 import type { CityHouse } from "../../types";
 import Icon from "./house/Icon.vue";
 import LobbyCard from "./LobbyCard.vue";
@@ -11,6 +13,7 @@ import { cardWords as w } from "./words";
 
 const props = defineProps<{ city: string; houses: CityHouse[] }>();
 const emit = defineEmits<{ open: [houseId: string]; cityBoard: []; close: [] }>();
+const newPost = computed(() => cityNews.city === props.city && cityNews.board > 0);
 
 // The houses with reviews waiting, the busiest first.
 const waiting = computed(() =>
@@ -42,7 +45,9 @@ function line(h: CityHouse): string {
         </button>
       </li>
     </ul>
-    <button class="big city" :aria-label="w.cityBoardName(city)" @click="emit('cityBoard')"><Icon name="board" :size="20" /> {{ w.cityBoard }}</button>
+    <button class="big city" :aria-label="w.cityBoardName(city)" @click="emit('cityBoard')">
+      <Icon name="board" :size="20" /> {{ w.cityBoard }}<span v-if="newPost" class="new" aria-hidden="true" />
+    </button>
   </LobbyCard>
 </template>
 
@@ -56,5 +61,7 @@ function line(h: CityHouse): string {
 .pin strong { font-weight: 800; }
 .pin svg { color: var(--muted); }
 .city.big { width: 100%; }
+/* A post you haven't seen on the city's board: the bell's "new" dot. */
+.new { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sticker); box-shadow: 0 0 0 1px var(--ink); }
 .late { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--danger); }
 </style>
