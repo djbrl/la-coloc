@@ -89,6 +89,8 @@ export const icons = {
   flag: "M5 21V4 M5 4h11l-2 4 2 4H5",
   // A circle with a bar across: block someone.
   block: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M5.6 5.6l12.8 12.8",
+  // A bell struck through: muted.
+  mute: "M6 16v-5a6 6 0 0 1 9.5-4.9 M18 11v5l1.5 2H8 M10 20.5a2 2 0 0 0 4 0 M3 3l18 18",
   // A bin: delete.
   trash: "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6",
   // A cork board with two notes pinned: the city board.

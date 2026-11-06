@@ -79,6 +79,28 @@ export const chatWords = defineWords(
     // The house.
     houseTitle: (house: string) => `${house}, flatmates only`,
     pickHouse: "Which house",
+    // A conversation's "…" menu, in the window's header: a person's, or a group chat's.
+    options: "Options",
+    optionsName: (name: string) => `Options for ${name}`,
+    addFriend: "Add as friend",
+    friends: "Friends",
+    friendAsked: "Friend request sent",
+    mute: "Mute",
+    unmute: "Unmute",
+    muted: "Muted",
+    blockedWord: "Blocked",
+    cancel: "Cancel",
+    // A mention of you, for a screen reader.
+    mentionsYou: "mentions you",
+    // For the admins' bell: who reported what.
+    reportLine: (who: string, kind: "message" | "post" | "person" | "group", about: string | null) =>
+      kind === "person" ? `${who} reported @${about ?? "someone"}` : kind === "group" ? `${who} reported a group chat` : `${who} reported a ${kind} by @${about ?? "someone"}`,
+    // Settings: everyone you blocked or muted, each with its way back.
+    safetyTitle: "Blocked and muted",
+    safetyNone: "Nobody",
+    safetyCount: (n: number) => plural(n, "person or chat", "people or chats"),
+    safetyEmpty: "Nobody blocked or muted.",
+    place: { city: (name: string) => `${name}, city chat`, arena: (name: string) => `${name}, Arena chat`, house: (name: string) => `${name}, house chat` },
   },
   {
     buttonName: (unread: number) => (unread ? `Discussions, ${unread} non lus` : "Discussions"),
@@ -129,5 +151,27 @@ export const chatWords = defineWords(
     logInToPost: "Connectez-vous pour publier.",
     houseTitle: (house: string) => `${house}, entre colocs`,
     pickHouse: "Quelle maison",
+    options: "Options",
+    optionsName: (name: string) => `Options pour ${name}`,
+    addFriend: "Ajouter en ami",
+    friends: "Amis",
+    friendAsked: "Demande envoyée",
+    mute: "Mettre en sourdine",
+    unmute: "Enlever la sourdine",
+    muted: "En sourdine",
+    blockedWord: "Bloqué",
+    cancel: "Annuler",
+    mentionsYou: "vous mentionne",
+    reportLine: (who, kind, about) =>
+      kind === "person"
+        ? `${who} a signalé @${about ?? "quelqu'un"}`
+        : kind === "group"
+          ? `${who} a signalé une discussion de groupe`
+          : `${who} a signalé ${kind === "post" ? "une annonce" : "un message"} de @${about ?? "quelqu'un"}`,
+    safetyTitle: "Bloqués et en sourdine",
+    safetyNone: "Personne",
+    safetyCount: (n: number) => pluriel(n, "personne ou discussion", "personnes ou discussions"),
+    safetyEmpty: "Personne de bloqué ni en sourdine.",
+    place: { city: (name: string) => `${name}, discussion de la ville`, arena: (name: string) => `${name}, discussion de l'Arène`, house: (name: string) => `${name}, discussion de la maison` },
   },
 );

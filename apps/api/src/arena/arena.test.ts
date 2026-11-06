@@ -16,6 +16,7 @@ import { ChatService } from "../chat/chat.service";
 import { DoorbellService } from "../doorbell/doorbell.service";
 import { HousesService } from "../houses/houses.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { SafetyService } from "../safety/safety.service";
 import { seedCity } from "../seed/city";
 import { ArenaController } from "./arena.controller";
 import { ArenaService, judgedLabel, SUBMISSIONS } from "./arena.service";
@@ -64,6 +65,8 @@ async function newcomer(login: string, githubId: number) {
 }
 
 const user = async (login: string) => (await db.query.users.findFirst({ where: (u, { eq }) => eq(u.login, login) }))!;
+// Blocking and reporting are the safety service's (safety/safety.service.ts).
+const safetyOf = () => new SafetyService(db, new HousesService(db), chat.notifications, { admins: [] });
 
 async function refusal(p: Promise<unknown>): Promise<{ status: number; code: unknown } | "ok"> {
   try {
@@ -513,7 +516,7 @@ describe("the arena's chat room", () => {
 
   it("hides what people you blocked said, and keeps the city room's length and brake", async () => {
     await arena.say("Dakar", ids.sam, "Bonjour l'arène");
-    await chat.block(ids.fatou, "sam");
+    await safetyOf().block(ids.fatou, "sam");
     expect((await arena.messages("Dakar", ids.fatou)).messages).toEqual([]);
     expect((await arena.messages("Dakar", ids.lena)).messages).toHaveLength(1);
     expect(await refusal(arena.say("Dakar", ids.fatou, "x".repeat(1001)))).toEqual({ status: 400, code: "tooLong" });
@@ -524,8 +527,8 @@ describe("the arena's chat room", () => {
 
   it("can be reported like the city's", async () => {
     const { id } = await arena.say("Dakar", ids.sam, "Spam");
-    await chat.report(ids.fatou, { kind: "message", id });
-    expect((await chat.reports())[0]).toMatchObject({ channel: "arena:Dakar", author: "sam" });
+    await safetyOf().report(ids.fatou, { kind: "message", id });
+    expect((await safetyOf().reports())[0]).toMatchObject({ channel: "arena:Dakar", author: "sam" });
   });
 });
 

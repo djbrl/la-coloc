@@ -16,6 +16,7 @@ import { openStream, type Stream } from "../../stream";
 import type { HouseView, Person, Room } from "../../types";
 import Avatar from "../Avatar.vue";
 import ChatPanel from "../ChatPanel.vue";
+import ChatOptions from "../chat/ChatOptions.vue";
 import FridgeDoor from "../FridgeDoor.vue";
 import KnockSteps from "../KnockSteps.vue";
 import UiNote, { loud, type Note } from "../UiNote.vue";
@@ -504,8 +505,10 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
         <PanelHead :title="house.name" :state="houseState(house.status, house.agentOnline, house.demo)" :line="line">
           <template #lead><span class="icon-tile"><Icon name="house" :size="22" /></span></template>
           <!-- The chef of a house being made: copy an invite link. Any other house (not the workshop): share it. -->
-          <template v-if="(chef && making) || (shareable && !inviteFoot)" #aside>
-            <button v-if="chef && making" type="button" class="chip" :aria-label="copied ? w.inviteCopied : w.copyInvite" @click="copyLink">
+          <template v-if="(shownTab === 'channel' && viewer) || (chef && making) || (shareable && !inviteFoot)" #aside>
+            <!-- On the Channel tab: the house chat's "…" (Mute, Report), as in the chat sheet. -->
+            <ChatOptions v-if="shownTab === 'channel' && viewer" :group="{ channel: `house:${house.id}`, name: house.name }" />
+            <button v-else-if="chef && making" type="button" class="chip" :aria-label="copied ? w.inviteCopied : w.copyInvite" @click="copyLink">
               <Icon :name="copied ? 'tick' : 'link'" :size="16" /><span class="chip-word">{{ copied ? w.copied : w.invite }}</span>
             </button>
             <ShareHouse v-else :house-id="house.id" :name="house.name" :city="house.city" />

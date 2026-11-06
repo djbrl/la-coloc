@@ -4,8 +4,8 @@
 // sends new ones. Placed in a column with a fixed height (a panel's body), it fills what's left: the messages scroll
 // inside it and the composer stays at the bottom. On a page that grows, it grows.
 //
-// Everything said is plain text: Vue writes it as text, and only http(s) addresses become links (linkParts), which
-// open in a new tab without telling the site where you came from.
+// Everything said is plain text: Vue writes it as text, and only http(s) addresses become links, which open in a new
+// tab without telling the site where you came from; "@login" is highlighted, yours more (chat/SaidText.vue).
 //
 // `tools`: someone else's message gets a "…" with Message, Report and Block. `removable`: your own get a Delete
 // (the parent deletes, on `remove`).
@@ -17,7 +17,7 @@ import { postJSON } from "../session";
 import type { Message } from "../types";
 import Avatar from "./Avatar.vue";
 import BadgeChip from "./arena/BadgeChip.vue";
-import { linkParts } from "./chat/chat";
+import SaidText from "./chat/SaidText.vue";
 import { chatWords as cw } from "./chat/words";
 import Icon from "./lobby/house/Icon.vue";
 import { knockLine } from "./said";
@@ -154,7 +154,7 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
                 <BadgeChip v-if="m.author.badge" class="worn" :badge="m.author.badge" />
                 <span class="at">{{ time(m.at) }}</span>
               </p>
-              <p class="said"><template v-for="(part, i) in linkParts(m.body)" :key="i"><a v-if="part.href" :href="part.href" target="_blank" rel="noopener noreferrer nofollow ugc">{{ part.text }}</a><template v-else>{{ part.text }}</template></template></p>
+              <p class="said"><SaidText :text="m.body" :me="me" /></p>
             </div>
             <!-- A message's tools, under it while open: one row of small keys. -->
             <div v-if="menuFor === m.id" class="tools">
@@ -217,7 +217,8 @@ const nameOf = (m: Message) => m.author?.name ?? m.author?.login ?? "";
 .who .worn { height: 22px; font-size: 14px; }
 .at { font-size: 14px; font-weight: 600; color: var(--muted); }
 .said { margin-top: 4px; font-size: 16px; line-height: 1.2; white-space: pre-wrap; overflow-wrap: anywhere; }
-.said a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+/* In your own bubble (ink), someone else's name is in the sticker's yellow, to read on the dark. */
+.mine .said :deep(.mention:not(.me)) { color: var(--sticker); }
 .mine .bubble { background: var(--text); color: var(--surface); }
 .mine .at { color: inherit; }
 /* The "…" beside a message: quiet until the pointer is on the message or it holds the focus. */

@@ -16,6 +16,9 @@ const houseId = computed(() => (picked.value && houses.value.some((h) => h.id ==
 const messages = ref<Message[]>([]);
 const houseName = computed(() => houses.value.find((h) => h.id === houseId.value)?.name ?? "");
 let stream: Stream | null = null;
+// The house shown: the chat sheet's header offers its "…" (Mute, Report) for it.
+const emit = defineEmits<{ house: [house: { id: string; name: string } | null] }>();
+watch([houseId, houseName], ([id, name]) => emit("house", id ? { id, name } : null), { immediate: true });
 
 async function fetchHouse() {
   const id = houseId.value;

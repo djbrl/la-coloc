@@ -56,6 +56,38 @@ export interface TextPart {
   text: string;
   // An http(s) address: drawn as a link that opens in a new tab, without telling the site where you came from.
   href?: string;
+  // "@login": drawn as a highlighted name, the login lower-cased. `me`: it's you, so it stands out more.
+  mention?: string;
+  me?: boolean;
+}
+
+// "@login", as the API reads it (apps/api/src/notifications/message-news.ts): not inside an email address or a word.
+// GitHub logins: letters, digits and dashes, 39 at most.
+const MENTION_RE = /(?<![\w@.-])@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/g;
+
+/**
+ * Cuts a message into text, links and mentions (see `linkParts`). A mention is only looked for outside links, so
+ * "https://x.dev/@fatou" stays one link. `me`: your login, so "@you" is marked as yours.
+ */
+export function messageParts(raw: string, me: string | null = null): TextPart[] {
+  const mine = me?.toLowerCase() ?? null;
+  const parts: TextPart[] = [];
+  for (const part of linkParts(raw)) {
+    if (part.href) {
+      parts.push(part);
+      continue;
+    }
+    let at = 0;
+    for (const m of part.text.matchAll(MENTION_RE)) {
+      const start = m.index ?? 0;
+      if (start > at) parts.push({ text: part.text.slice(at, start) });
+      const login = m[1].toLowerCase();
+      parts.push({ text: m[0], mention: login, ...(login === mine ? { me: true } : {}) });
+      at = start + m[0].length;
+    }
+    if (at < part.text.length) parts.push({ text: part.text.slice(at) });
+  }
+  return parts;
 }
 
 // An address, until a space or something that can't be part of one. Only http and https: never javascript: or data:.

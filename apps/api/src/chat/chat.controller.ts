@@ -1,8 +1,8 @@
-// The chat's routes: direct messages, a city's room and its board, blocking and reporting. Thin, like the other
+// The chat's routes: direct messages, a city's room and its board. Thin, like the other
 // controllers: who's asking, a zod check of the body, then the services, which hold every rule.
 //
 // Reading a city's room or board needs no login (visitors read); writing anything does.
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, HttpCode, MessageEvent, Param, Post, Req, Sse, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, MessageEvent, Param, Post, Req, Sse, UnauthorizedException } from "@nestjs/common";
 import { filter, interval, map, merge, Observable } from "rxjs";
 import { z } from "zod";
 import { isAdmin } from "../auth/auth.config";
@@ -20,8 +20,6 @@ const PostBody = z.object({
   body: z.string().max(MAX_POST + 100),
 });
 const ReadBody = z.object({ what: z.enum(["chat", "board"]) });
-const BlockBody = z.object({ login: z.string().min(1).max(60) });
-const ReportBody = z.object({ kind: z.enum(["message", "post"]), id: z.string().min(1).max(60), reason: z.string().trim().max(300).nullish() });
 
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   const r = schema.safeParse(body ?? {});
@@ -62,41 +60,7 @@ export class ChatController {
     return this.chat.sendDm(user.id, login, parse(MessageBody, body).body);
   }
 
-  // ---- Blocking and reporting ----
-
-  @Get("chat/blocks")
-  async blocks(@Req() req: HttpRequest) {
-    return this.chat.blocks((await this.user(req)).id);
-  }
-
-  @Post("chat/blocks")
-  @HttpCode(200)
-  async block(@Body() body: unknown, @Req() req: HttpRequest) {
-    const user = await this.user(req);
-    await this.chat.block(user.id, parse(BlockBody, body).login);
-    return { ok: true };
-  }
-
-  @Delete("chat/blocks/:login")
-  async unblock(@Param("login") login: string, @Req() req: HttpRequest) {
-    await this.chat.unblock((await this.user(req)).id, login);
-    return { ok: true };
-  }
-
-  @Post("reports")
-  async report(@Body() body: unknown, @Req() req: HttpRequest) {
-    const user = await this.user(req);
-    await this.chat.report(user.id, parse(ReportBody, body));
-    return { ok: true };
-  }
-
-  // The admins' list (COLOC_ADMINS). Nothing else to it: they read, and act by hand.
-  @Get("reports")
-  async reports(@Req() req: HttpRequest) {
-    const user = await this.user(req);
-    if (!isAdmin(this.auth.config, user.login)) throw new ForbiddenException({ message: "Only the city's admins can read reports.", code: "adminsOnly" });
-    return { reports: await this.chat.reports() };
-  }
+  // (Blocking, muting and reporting are safety/safety.controller.ts's.)
 
   // ---- A city's room and board ----
 

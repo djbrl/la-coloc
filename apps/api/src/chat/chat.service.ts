@@ -1,6 +1,7 @@
-// Talking in La Coloc beyond a house: direct messages between two people, each city's public room, and the safety
-// around them (blocking someone, reporting what they wrote, a brake on posting). The city board's posts are in
-// board.service.ts; the house's living room and a knock's thread stay in the doorbell.
+// Talking in La Coloc beyond a house: direct messages between two people, each city's public room, and a brake on
+// posting. The city board's posts are in board.service.ts; the house's living room and a knock's thread stay in the
+// doorbell. Blocking, muting and reporting are safety/safety.service.ts's: a block hides words here (`blockedBy`),
+// a mute only keeps them from counting as unread (`mutedPeople`, `mutedChannels`).
 //
 // Every conversation is a channel in the `messages` table (channels.ts says which). Nothing here is HTML: the text
 // is stored as typed, and the web shows it as text.
@@ -12,32 +13,34 @@
 // Who notices what: a direct message counts on the chat button (`conversations`). A reply under your board post, or
 // "@you" anywhere public, goes under your bell (notifications/message-news.ts). The city's room and its board tell
 // nobody in particular: their tabs count what's new since you last looked (`cityUnread`), so nobody's bell rings for
-// every hello.
+// every hello. Someone you muted (or a city's room you muted) never counts.
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { applications, blocks, boardPosts, chatReads, type Db, houses, messages, type ReportKind, reports, users } from "@coloc/db";
+import { boardPosts, chatReads, type Db, houses, messages, users } from "@coloc/db";
 import { passerbyName } from "@coloc/domain";
 import { and, count, desc, eq, gt, gte, inArray, like, max, ne, notInArray, or, sql } from "drizzle-orm";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import { blockBetween, blockedBy, channelMessages, houseOfChannel, person } from "../doorbell/queries";
-import { isChatGuest } from "../houses/guests";
 import type { MessageView, PersonView } from "../houses/house.types";
 import { HousesService } from "../houses/houses.service";
-import { unfriend } from "../notifications/friends";
 import { NotificationsService } from "../notifications/notifications.service";
+import { mutedChannels, mutedPeople } from "../safety/mutes";
 import { CITIES, CITY_HISTORY, cityChannel, dmChannel, dmPeople, MAX_MESSAGE } from "./channels";
 import { Limiter, MESSAGES, POSTS, slowDown } from "./limiter";
 
 type UserRow = typeof users.$inferSelect;
 
-/** One conversation in your list: who with, the last thing said, and how many of theirs you haven't read. */
+/** One conversation in your list: who with, the last thing said, and how many of theirs you haven't read (none
+ *  while you've muted them). */
 export interface ConversationItem {
   with: PersonView;
   last: { body: string; at: string; mine: boolean };
   unread: number;
+  muted: boolean;
 }
 
-/** What's new in a city since you last looked: messages in its room (others', not of people you blocked), new posts. */
+/** What's new in a city since you last looked: messages in its room (others', not of people you blocked or muted, and
+ *  none while you've muted the room), new posts (not of people you blocked or muted). */
 export interface CityUnreadView {
   chat: number;
   board: number;
@@ -56,24 +59,12 @@ export interface ConversationsView {
 /** One conversation, opened. `canWrite` false says why in `why` (a block). */
 export interface ConversationView {
   with: PersonView & { example: boolean };
-  // You blocked them (you can unblock from here).
+  // You blocked them (you can unblock from here), or muted them.
   blocked: boolean;
+  muted: boolean;
   canWrite: boolean;
   why: string | null;
   messages: MessageView[];
-}
-
-/** One report, as the admins read it. */
-export interface ReportView {
-  id: string;
-  kind: ReportKind;
-  targetId: string;
-  channel: string;
-  body: string;
-  reason: string | null;
-  reporter: string;
-  author: string | null;
-  createdAt: string;
 }
 
 // "arena": the arena's room, entrants, leaderboard or challenge changed (arena/arena.service.ts).
@@ -130,7 +121,9 @@ export class ChatService {
   /** How much is new in a city's room and on its board since you last looked (see `markCityRead`). */
   async cityUnread(city: string, userId: string): Promise<CityUnreadView> {
     await this.mustBeCity(city);
-    const hidden = await blockedBy(this.db, userId);
+    // Blocked (hidden) or muted (quiet): either way, their words don't count.
+    const hidden = [...(await blockedBy(this.db, userId)), ...(await mutedPeople(this.db, userId))];
+    const roomMuted = (await mutedChannels(this.db, userId)).includes(cityChannel(city));
     const marks = await this.db
       .select()
       .from(chatReads)
@@ -160,7 +153,7 @@ export class ChatService {
           hidden.length ? notInArray(boardPosts.authorId, hidden) : undefined,
         ),
       );
-    return { chat: chat.n, board: board.n };
+    return { chat: roomMuted ? 0 : chat.n, board: board.n };
   }
 
   /** You looked at a city's room (its latest message) or its board (its newest post): nothing there is new any more. */
@@ -181,6 +174,7 @@ export class ChatService {
   /** Your conversations, the most recent first, without the people you blocked. */
   async conversations(userId: string): Promise<ConversationsView> {
     const hidden = new Set(await blockedBy(this.db, userId));
+    const quiet = new Set(await mutedPeople(this.db, userId));
     const lasts = await this.db
       .select({ channel: messages.channel, last: max(messages.id) })
       .from(messages)
@@ -211,7 +205,8 @@ export class ChatService {
       const u = people.get(l.other);
       const m = lastRows.get(l.channel);
       if (!u || !m) continue;
-      items.push({ with: person(u), last: { body: m.body, at: m.at.toISOString(), mine: m.authorId === userId }, unread: unread.get(l.channel) ?? 0 });
+      const muted = quiet.has(l.other);
+      items.push({ with: person(u), last: { body: m.body, at: m.at.toISOString(), mine: m.authorId === userId }, unread: muted ? 0 : (unread.get(l.channel) ?? 0), muted });
     }
     return { unread: items.reduce((n, i) => n + i.unread, 0), items };
   }
@@ -225,7 +220,8 @@ export class ChatService {
     const list = await channelMessages(this.db, channel, CITY_HISTORY, userId);
     await this.markRead(userId, channel);
     const why = block === "mine" ? "You blocked them." : block === "theirs" ? "They aren't taking messages from you." : null;
-    return { with: { ...person(other), example }, blocked: block === "mine", canWrite: !why, why, messages: list };
+    const muted = (await mutedPeople(this.db, userId)).includes(other.id);
+    return { with: { ...person(other), example }, blocked: block === "mine", muted, canWrite: !why, why, messages: list };
   }
 
   /** A direct message to `login`. Not to yourself, or anyone either of you blocked. An example person answers once. */
@@ -263,76 +259,6 @@ export class ChatService {
   // Someone nobody plays: a seeded flatmate or a passer-by.
   private async isMadeUp(other: UserRow): Promise<boolean> {
     return passerbyName(other.login) !== undefined || (await this.notifications.isExample(other));
-  }
-
-  // ---- Blocking ----
-
-  async blocks(userId: string): Promise<{ people: PersonView[] }> {
-    const rows = await this.db
-      .select({ u: users })
-      .from(blocks)
-      .innerJoin(users, eq(users.id, blocks.blockedId))
-      .where(eq(blocks.blockerId, userId))
-      .orderBy(desc(blocks.createdAt));
-    return { people: rows.map((r) => person(r.u)) };
-  }
-
-  async block(userId: string, login: string) {
-    const other = await this.someone(userId, login);
-    await this.db.insert(blocks).values({ blockerId: userId, blockedId: other.id }).onConflictDoNothing();
-    // A block ends a friendship, and any friend request between them. Unblocking doesn't bring it back.
-    await unfriend(this.db, userId, other.id);
-  }
-
-  async unblock(userId: string, login: string) {
-    const [other] = await this.db.select().from(users).where(eq(users.login, login));
-    if (!other) return;
-    await this.db.delete(blocks).where(and(eq(blocks.blockerId, userId), eq(blocks.blockedId, other.id)));
-  }
-
-  // ---- Reports ----
-
-  /**
-   * Reports a message or a board post. Only something you can read, and not your own. Reporting the same thing
-   * twice is fine: it counts once. A copy of the words is kept for the admins.
-   */
-  async report(userId: string, input: { kind: ReportKind; id: string; reason?: string | null }) {
-    let found: { channel: string; authorId: string | null; body: string } | null = null;
-    if (input.kind === "message") {
-      const id = Number(input.id);
-      if (!Number.isSafeInteger(id) || id <= 0) throw new NotFoundException({ message: "There's no such message.", code: "noMessage" });
-      const [m] = await this.db.select().from(messages).where(eq(messages.id, id));
-      if (m && (await this.canRead(m.channel, userId))) found = { channel: m.channel, authorId: m.authorId, body: m.body };
-    } else {
-      if (!/^[0-9a-f-]{36}$/.test(input.id)) throw new NotFoundException({ message: "There's no such post.", code: "noPost" });
-      const [p] = await this.db.select().from(boardPosts).where(eq(boardPosts.id, input.id));
-      if (p) found = { channel: cityChannel(p.city), authorId: p.authorId, body: `${p.title}\n\n${p.body}` };
-    }
-    if (!found) throw new NotFoundException(input.kind === "message" ? { message: "There's no such message.", code: "noMessage" } : { message: "There's no such post.", code: "noPost" });
-    if (found.authorId === userId) throw new BadRequestException({ message: "That's yours: delete it instead.", code: "reportOwn" });
-    if (!found.authorId) throw new BadRequestException({ message: "That's the house speaking: there's nobody to report.", code: "reportHouse" });
-    await this.db
-      .insert(reports)
-      .values({ reporterId: userId, kind: input.kind, targetId: String(input.id), channel: found.channel, authorId: found.authorId, body: found.body, reason: input.reason ?? null })
-      .onConflictDoNothing();
-  }
-
-  /** The latest reports, for the admins. */
-  async reports(): Promise<ReportView[]> {
-    const rows = await this.db.select().from(reports).orderBy(desc(reports.createdAt)).limit(200);
-    const ids = [...new Set(rows.flatMap((r) => [r.reporterId, r.authorId]).filter((id): id is string => !!id))];
-    const logins = new Map(ids.length ? (await this.db.select({ id: users.id, login: users.login }).from(users).where(inArray(users.id, ids))).map((u) => [u.id, u.login]) : []);
-    return rows.map((r) => ({
-      id: r.id,
-      kind: r.kind,
-      targetId: r.targetId,
-      channel: r.channel,
-      body: r.body,
-      reason: r.reason,
-      reporter: logins.get(r.reporterId) ?? "?",
-      author: r.authorId ? (logins.get(r.authorId) ?? null) : null,
-      createdAt: r.createdAt.toISOString(),
-    }));
   }
 
   // ---- Shared ----
@@ -395,23 +321,6 @@ export class ChatService {
     await this.db.insert(users).values({ login, name }).onConflictDoNothing();
     const [made] = await this.db.select().from(users).where(eq(users.login, login));
     return made;
-  }
-
-  // Whether `userId` may read a channel: a city's room, its arena's and a post's replies are public; a DM is its two people's;
-  // a house's living room is its flatmates' and the guests they let in; a knock's thread, the applicant's and the house's.
-  private async canRead(channel: string, userId: string): Promise<boolean> {
-    if (channel.startsWith("city:") || channel.startsWith("arena:") || channel.startsWith("post:")) return true;
-    const pair = dmPeople(channel);
-    if (pair) return pair.includes(userId);
-    const house = houseOfChannel(channel);
-    // A newcomer's own channel in the workshop is theirs alone.
-    if (house?.owner) return house.owner === userId;
-    if (house) return !!(await this.houses.membership(house.houseId, userId)) || (await isChatGuest(this.db, house.houseId, userId));
-    if (channel.startsWith("application:")) {
-      const [app] = await this.db.select().from(applications).where(eq(applications.id, channel.slice(12)));
-      return !!app && (app.applicantId === userId || !!(await this.houses.membership(app.houseId, userId)));
-    }
-    return false;
   }
 }
 

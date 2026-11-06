@@ -26,10 +26,14 @@
 // And words meant for you (message-news.ts): a reply under your board post (post_reply), and "@you" (mention).
 // And friends (askFriend): friend_request is answered like an invitation, and saying yes makes a friendship
 // (friends.ts) and tells the sender (friend_accepted). A no isn't sent back.
+// And reports (safety/safety.service.ts): someone reported a person, a message, a post or a group chat, and each
+// admin hears of it (report), with what was reported in the payload.
+// Someone you muted (safety/mutes.ts) rings no bell: their news isn't written, and their invitations arrive already
+// read, so you can still answer them where they're listed.
 // And rent: your share of a month taken from your credit (rent_paid), or not, for want of it (rent_due). Those are
 // written by houses/rent.ts, where the money moves.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { boardPosts, type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, notifications, rooms, users } from "@coloc/db";
+import { boardPosts, type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, type NotificationPayload, notifications, rooms, users } from "@coloc/db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { Subject, type Subscription } from "rxjs";
 import type { AuthConfig } from "../auth/auth.config";
@@ -42,6 +46,7 @@ import { guestStanding, isChatGuest } from "../houses/guests";
 import { HousesService } from "../houses/houses.service";
 import { MAX_ROOMS_PER_PERSON } from "../houses/money";
 import { moveInto, roomsRented } from "../houses/move-in";
+import { mutedPerson } from "../safety/mutes";
 import { messageNews } from "./message-news";
 import { areFriends, befriend } from "./friends";
 
@@ -89,6 +94,8 @@ export interface NotificationView {
   // Rent (rent_paid, rent_due): how much, in FCFA, and for which month ("2026-11").
   amount: number | null;
   month: string | null;
+  // A report (for the admins): what kind, who it's about, and its first words.
+  report?: NotificationPayload["report"] | null;
   createdAt: string;
   read: boolean;
 }
@@ -413,6 +420,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         ...(r.payload.channel ? { chat: chatOf(r.payload.channel) } : {}),
         amount: r.payload.amount ?? null,
         month: r.payload.month ?? null,
+        ...(r.payload.report ? { report: r.payload.report } : {}),
         createdAt: r.createdAt.toISOString(),
         read: r.readAt !== null,
       })),
@@ -445,6 +453,11 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       if (bumped.length) this.pushes.next(await this.loginOf(n.userId));
       else await this.create({ userId: n.userId, kind: n.kind, fromId: authorId, payload: { channel } });
     }
+  }
+
+  /** A report was filed (safety.service.ts): each admin in `adminIds` hears of it, from the one who reported. */
+  async reportFiled(adminIds: string[], reporterId: string, report: NonNullable<NotificationPayload["report"]>) {
+    for (const userId of adminIds) await this.create({ userId, kind: "report", fromId: reporterId, payload: { report } });
   }
 
   /** A board post was deleted: the lines about it go with it, since there's nothing left to open. */
@@ -545,9 +558,16 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // Writes one notification and rings their bell. From someone they muted: news isn't written at all, and an
+  // invitation arrives already read, without a ring (it can still be answered where it's listed).
   private async create(values: typeof notifications.$inferInsert): Promise<{ id: string }> {
-    const [row] = await this.db.insert(notifications).values(values).returning({ id: notifications.id });
-    this.pushes.next(await this.loginOf(values.userId));
+    const muted = !!values.fromId && (await mutedPerson(this.db, values.userId, values.fromId));
+    if (muted && !isInvite(values.kind)) return { id: "" };
+    const [row] = await this.db
+      .insert(notifications)
+      .values(muted ? { ...values, readAt: new Date() } : values)
+      .returning({ id: notifications.id });
+    if (!muted) this.pushes.next(await this.loginOf(values.userId));
     return row;
   }
 

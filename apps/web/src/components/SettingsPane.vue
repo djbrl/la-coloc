@@ -13,7 +13,10 @@ import BadgeChip from "./arena/BadgeChip.vue";
 import { arenaWords as aw } from "./arena/words";
 import { type Lang, language, setLang } from "../i18n";
 import { settings, settingsPane } from "../settings";
+import { loadSafety, safety } from "../conversations";
 import Avatar from "./Avatar.vue";
+import SafetyList from "./chat/SafetyList.vue";
+import { chatWords as cw } from "./chat/words";
 import Icon from "./lobby/house/Icon.vue";
 import ListRow from "./lobby/panel/ListRow.vue";
 import { settingsWords as w } from "./words";
@@ -24,6 +27,9 @@ const panel = ref<HTMLElement | null>(null);
 let opener: Element | null = null;
 // "Reset the demo city" asks once more inline; this is whether it's asking.
 const confirming = ref(false);
+// The list of who you blocked or muted, open under its row.
+const showSafety = ref(false);
+const safetyCount = computed(() => safety.blocked.length + safety.muted.length + safety.groups.length);
 
 // The choices of each row. Their words are functions, so each is read in the language chosen now (words.ts).
 // The three looks: the site's day or night, or the system's choice.
@@ -63,6 +69,7 @@ watch(
       // What this server allows you is asked each time the pane opens: the demo reset depends on who's logged in.
       void loadConfig();
       void loadApp();
+      void loadSafety();
       await nextTick();
       panel.value?.focus();
       window.addEventListener("keydown", onKey);
@@ -73,6 +80,7 @@ watch(
       typed.value = "";
       leaveError.value = "";
       app.removed = false;
+      showSafety.value = false;
       (opener as HTMLElement | null)?.focus?.();
     }
   },
@@ -373,6 +381,17 @@ async function resetDemo() {
 
       </ul>
 
+      <!-- Everyone you blocked or muted, and muted chats: a row with how many, that opens the list in place. -->
+      <template v-if="me">
+        <div class="acts">
+          <button class="act" :aria-expanded="showSafety" @click="showSafety = !showSafety">
+            <span>{{ cw.safetyTitle }}</span>
+            <span class="act-end"><span class="count">{{ safetyCount || cw.safetyNone }}</span><Icon name="next" :size="18" class="turn" :class="{ down: showSafety }" /></span>
+          </button>
+        </div>
+        <SafetyList v-if="showSafety" />
+      </template>
+
       <!-- Starting over: rows like the others, a word and an arrow. The demo's reset asks once more, in place. -->
       <div v-if="!confirming" class="acts">
         <button class="act" @click="replayWelcome"><span>{{ w.welcomeAgain }}</span><Icon name="next" :size="18" /></button>
@@ -498,6 +517,10 @@ async function resetDemo() {
 .act { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0 8px; border-radius: 10px; background: none; box-shadow: none; color: var(--text); font: 800 15px/1.2 var(--font); text-align: left; }
 .act svg { color: var(--muted); }
 .act:hover:not(:disabled) { background: var(--tile); }
+.act-end { display: inline-flex; align-items: center; gap: 8px; }
+.act .count { color: var(--muted); font-weight: 700; }
+.act .turn { transition: rotate var(--dur-fast) var(--ease); }
+.act .turn.down { rotate: 90deg; }
 .act.danger { color: var(--danger); }
 .act.danger svg { color: inherit; }
 

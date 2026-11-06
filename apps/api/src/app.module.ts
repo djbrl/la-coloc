@@ -14,6 +14,7 @@ import { GithubClientModule } from "./github/github-client.module";
 import { GithubModule } from "./github/github.module";
 import { GithubReposModule } from "./github/repos.module";
 import { RoomsModule } from "./rooms/rooms.module";
+import { SafetyModule } from "./safety/safety.module";
 import { HousesModule } from "./houses/houses.module";
 import { LobbyModule } from "./lobby/lobby.module";
 import { NotificationsModule } from "./notifications/notifications.module";
@@ -21,5 +22,5 @@ import { ShareModule } from "./share/share.module";
 import { SshModule } from "./ssh/ssh.module";
 import { TutorialModule } from "./tutorial/tutorial.module";
 
-@Module({ imports: [DbModule, CoreModule, AuthModule, HousesModule, AgentsModule, DoorbellModule, GithubClientModule, RoomsModule, GithubModule, GithubReposModule, NotificationsModule, ChatModule, ArenaModule, LobbyModule, FriendsModule, TutorialModule, DemoModule, ShareModule, SshModule, CreditModule, AccountModule] })
+@Module({ imports: [DbModule, CoreModule, AuthModule, HousesModule, AgentsModule, DoorbellModule, GithubClientModule, RoomsModule, GithubModule, GithubReposModule, NotificationsModule, ChatModule, SafetyModule, ArenaModule, LobbyModule, FriendsModule, TutorialModule, DemoModule, ShareModule, SshModule, CreditModule, AccountModule] })
 export class AppModule {}

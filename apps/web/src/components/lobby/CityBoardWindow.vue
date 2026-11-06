@@ -4,13 +4,17 @@
 // like the chat sheet. Its tabs, on one grey rail: City (the city's public room, CityRoom.vue) and Board (the posts:
 // looking for a house, flatmates, help; CityBoard.vue); a third, Reviews, only while houses here have code reviews
 // waiting, each house one row that takes you to it. A tab with something new since you looked (cityNews.ts) has a
-// small red dot after its word. Esc (or the close key) closes it; the city keeps going behind it.
+// small red dot after its word. Esc (or the close key) closes it; the city keeps going behind it. On the City tab, the
+// header has the city chat's "…" (Mute, Report: ChatOptions.vue). The window is its full height from the start, so it
+// never jumps when messages load or an error line appears.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { cityNews, followCityNews } from "../../cityNews";
-import { boardSheet, chatSheet } from "../../conversations";
+import { boardSheet, chatSheet, loadSafety } from "../../conversations";
+import { me } from "../../session";
 import type { CityHouse } from "../../types";
 import { type BoardTab, boardTabs, pickTab, shownNews } from "../chat/chat";
 import CityBoard from "../chat/CityBoard.vue";
+import ChatOptions from "../chat/ChatOptions.vue";
 import CityRoom from "../chat/CityRoom.vue";
 import Icon from "./house/Icon.vue";
 import ListRow from "./panel/ListRow.vue";
@@ -39,6 +43,7 @@ const stopNews = followCityNews();
 onBeforeUnmount(stopNews);
 // Opened: the chosen tab holds the keyboard, so Esc and the arrows work at once.
 onMounted(async () => {
+  void loadSafety();
   await nextTick();
   root.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
 });
@@ -60,10 +65,11 @@ function tabKey(e: KeyboardEvent) {
 <template>
   <section ref="root" class="board-window sign" role="dialog" :aria-label="w.title" @keydown.esc.stop="close">
     <div class="sign-frame">
-      <header class="sign-band">
+      <header class="sign-band" :class="{ 'has-options': me && tab === 'city' }">
         <span class="chip"><Icon name="board" :size="22" /></span>
         <h2>{{ w.title }}</h2>
         <p class="sign-sub">{{ sub }}</p>
+        <ChatOptions v-if="me && tab === 'city'" class="band-options" :group="{ channel: `city:${chatSheet.city}`, name: chatSheet.city }" />
         <button type="button" class="sign-x" :aria-label="w.close" @click="close"><span aria-hidden="true">X</span></button>
       </header>
       <div class="sign-body inner">
@@ -104,7 +110,7 @@ function tabKey(e: KeyboardEvent) {
 
 <style scoped>
 /* A white card on the right, under the keys, like the chat sheet: the city (and the board) stay in view on its left.
-   As tall as what's in it, up to most of the window; the room and the posts scroll inside themselves. */
+   Its full height from the start, so it never grows when messages load; the room and the posts scroll inside. */
 .board-window {
   position: fixed;
   top: 98px;
@@ -113,10 +119,13 @@ function tabKey(e: KeyboardEvent) {
   display: flex;
   flex-direction: column;
   width: min(420px, calc(100vw - 32px));
-  max-height: min(640px, calc(100dvh - 122px));
+  height: min(640px, calc(100dvh - 122px));
   animation: board-pop var(--dur-slow) var(--ease-pop);
 }
 .board-window > .sign-frame { flex: 1 1 auto; min-height: 0; height: auto; }
+/* The City tab's "…", left of the close key. */
+.has-options { padding-right: 120px; }
+.band-options { position: absolute; top: 20px; right: 68px; }
 .inner { display: flex; flex-direction: column; gap: 12px; }
 /* The tabs: one control, a grey rail, the chosen tab lifted out in white. */
 .tabs { flex: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; min-width: 0; border-radius: var(--tile-r); background: var(--sunken); }
@@ -142,7 +151,7 @@ function tabKey(e: KeyboardEvent) {
 }
 /* A phone: a sheet along the bottom edge, most of the screen's height. */
 @media (max-width: 520px) {
-  .board-window { top: auto; bottom: 0; right: 0; left: 0; width: 100%; max-height: 86dvh; }
+  .board-window { top: auto; bottom: 0; right: 0; left: 0; width: 100%; height: 86dvh; }
 }
 @media (prefers-reduced-motion: reduce) {
   .board-window { animation: none; }

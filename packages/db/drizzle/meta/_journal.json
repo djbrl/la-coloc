@@ -176,6 +176,13 @@
       "when": 1793929679769,
       "tag": "0024_friendships",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793998870137,
+      "tag": "0025_safety",
+      "breakpoints": true
     }
   ]
 }
