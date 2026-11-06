@@ -13,6 +13,8 @@ export const movedIn = ref<{ houseId: string; house: string; room: string } | nu
 export const plotWanted = ref(0);
 // A mention in the Arena's room, opened from the bell: the lobby opens its Arena.
 export const arenaWanted = ref(0);
+// "Top up" from a rent_due notification: the lobby opens your credit's card.
+export const creditWanted = ref(0);
 
 let asking: Promise<void> | null = null;
 

@@ -34,6 +34,7 @@ import { happenings } from "./happenings";
 import { billedRooms } from "./leases";
 import { plainNote, readNote } from "./lines";
 import { billReference, monthEnd, monthOf, monthStart, operatorsFor, PROJECT_COST_FCFA, REVIEW_CREDIT_FCFA, TONTINE_ANCHOR, WORKSHOP_ID } from "./money";
+import { RentCollector } from "./rent";
 import { PLAN_COST_FCFA } from "./server";
 import { alias } from "drizzle-orm/pg-core";
 import type {
@@ -142,9 +143,12 @@ export class HousesService {
 
   // People's fake money: a house's server, its rent and its projects are paid from it.
   readonly credit: CreditService;
+  // Each flatmate's line of the bill, taken from that credit at move-in and every month after (rent.ts).
+  readonly rentCollector: RentCollector;
 
   constructor(@Inject(DB) private readonly db: Db) {
     this.credit = new CreditService(db);
+    this.rentCollector = new RentCollector(db, this);
     this.changes
       .pipe(
         tap(() => this.cityAsked++),
@@ -787,7 +791,7 @@ export class HousesService {
       REVIEW_CREDIT_FCFA,
     );
     const paid = await this.db
-      .select({ userId: billPayments.userId })
+      .select({ userId: billPayments.userId, amount: billPayments.amount })
       .from(billPayments)
       .where(and(eq(billPayments.houseId, h.id), eq(billPayments.month, month)));
     // Arena prizes won this month (first places), by winner: La Coloc pays them, so they come off the winner's own
@@ -819,6 +823,8 @@ export class HousesService {
           prize: Math.min(prizeOf(l.memberId), Math.max(0, l.due)),
           due: Math.max(0, l.due - prizeOf(l.memberId)),
           paid: paid.some((p) => p.userId === l.memberId),
+          // What was taken: rent goes out early in the month, and reviews done since lower `due`, not what was paid.
+          paidAmount: paid.find((p) => p.userId === l.memberId)?.amount ?? null,
         };
       }),
       pool,
@@ -829,23 +835,38 @@ export class HousesService {
 
   /**
    * A flatmate's line of this month's bill is paid. `charge`: out of their credit (the server's first month is already
-   * paid for when it comes here). Paying twice changes nothing. Returns the month and what was due.
+   * paid for when it comes here). Paying twice changes nothing. Returns the month, what was due, and `fresh`: this call
+   * is the one that paid it.
    */
-  async markBillPaid(houseId: string, userId: string, charge = false): Promise<{ month: string; amount: number }> {
-    const h = await this.db.query.houses.findFirst({
-      where: eq(houses.id, houseId),
-      with: { rooms: true, memberships: { with: { user: true }, orderBy: [asc(memberships.tontinePosition), asc(memberships.joinedAt)] } },
-    });
+  async markBillPaid(houseId: string, userId: string, charge = false, now = new Date()): Promise<{ month: string; amount: number; fresh: boolean }> {
+    const h = await this.billHouse(houseId);
     if (!h) throw new NotFoundException();
     const me = h.memberships.find((m) => m.userId === userId);
     if (!me) throw new ConflictException("Only flatmates pay this house's bill.");
-    const bill = await this.bill(h, new Date());
+    const bill = await this.bill(h, now);
     if (!bill) throw new ConflictException("This house has no bill to pay.");
     const line = bill.lines.find((l) => l.login === me.user.login)!;
     if (charge && !line.paid && line.due > 0) await this.credit.spend(userId, line.due, "rent", `bill:${houseId}:${bill.month}:${userId}`);
-    await this.db.insert(billPayments).values({ houseId, userId, month: bill.month, amount: line.due }).onConflictDoNothing();
+    const made = await this.db.insert(billPayments).values({ houseId, userId, month: bill.month, amount: line.due }).onConflictDoNothing().returning({ month: billPayments.month });
     this.changes.next(houseId);
-    return { month: bill.month, amount: line.due };
+    return { month: bill.month, amount: line.due, fresh: made.length > 0 };
+  }
+
+  /** One flatmate's line of the month's bill: what they owe, and whether it's paid. Null: no bill, or not a flatmate. */
+  async billLine(houseId: string, userId: string, now = new Date()): Promise<{ month: string; due: number; paid: boolean } | null> {
+    const h = await this.billHouse(houseId);
+    const me = h?.memberships.find((m) => m.userId === userId);
+    const bill = h && me ? await this.bill(h, now) : null;
+    const line = bill?.lines.find((l) => l.login === me!.user.login);
+    return bill && line ? { month: bill.month, due: line.due, paid: line.paid } : null;
+  }
+
+  // What the bill needs of a house (BillHouse).
+  private billHouse(houseId: string) {
+    return this.db.query.houses.findFirst({
+      where: eq(houses.id, houseId),
+      with: { rooms: true, memberships: { with: { user: true }, orderBy: [asc(memberships.tontinePosition), asc(memberships.joinedAt)] } },
+    });
   }
 
   private async openChores(houseId: string): Promise<ChoreView[]> {

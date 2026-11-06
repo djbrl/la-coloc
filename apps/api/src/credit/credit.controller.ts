@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Optional,
 import { CATALOGUE } from "../arena/catalogue";
 import type { HttpRequest, HttpResponse } from "../auth/http";
 import { AuthService } from "../auth/auth.service";
+import { HousesService } from "../houses/houses.service";
 import { PROJECT_COST_FCFA, REVIEW_CREDIT_FCFA, WELCOME_CREDIT_FCFA } from "../houses/money";
 import { CreditService } from "./credit.service";
 import { Paydunya } from "./paydunya";
@@ -17,7 +18,11 @@ export class CreditController {
     private readonly auth: AuthService,
     // Null without PayDunya keys: then nobody is offered a top-up.
     @Optional() @Inject(PAYDUNYA) private readonly paydunya: Paydunya | null = null,
+    // For the rent someone was short of: a top-up pays it at once (houses/rent.ts).
+    @Optional() private readonly houses?: HousesService,
   ) {}
+
+  private readonly payRent = (userId: string) => this.houses?.rentCollector.chargePerson(userId) ?? Promise.resolve();
 
   // Your credit: what you have, what you did with it lately, what earns more, and what you can buy.
   @Get()
@@ -56,7 +61,7 @@ export class CreditController {
   @Get("top-up/back")
   async back(@Query("token") token: string | undefined, @Res() res: HttpResponse) {
     let added = 0;
-    if (this.paydunya && token) added = (await settleTopUp(this.paydunya, this.credit, token).catch(() => ({ added: 0 }))).added;
+    if (this.paydunya && token) added = (await settleTopUp(this.paydunya, this.credit, token, this.payRent).catch(() => ({ added: 0 }))).added;
     res.redirect(302, `${this.auth.config.publicUrl}/?credit=${added ? "added" : "open"}`);
   }
 
@@ -67,7 +72,7 @@ export class CreditController {
   async notice(@Body() body: { data?: { hash?: unknown; invoice?: { token?: unknown } } }) {
     const token = body?.data?.invoice?.token;
     if (this.paydunya && this.paydunya.signedByPaydunya(body?.data?.hash) && typeof token === "string") {
-      await settleTopUp(this.paydunya, this.credit, token);
+      await settleTopUp(this.paydunya, this.credit, token, this.payRent);
     }
     return { ok: true };
   }

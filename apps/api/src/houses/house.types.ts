@@ -149,6 +149,8 @@ export interface BillLineView {
   // What they owe: share − credit + surcharge − prize, never below zero.
   due: number;
   paid: boolean;
+  // What was taken when it was paid (rent goes out early in the month; `due` moves with reviews after). Null: unpaid.
+  paidAmount: number | null;
 }
 
 export interface BillView {

@@ -2,12 +2,12 @@
 // The bell in the top bar: how many notifications are unread (a small yellow count), and, pressed, a flat card
 // under it with the latest ones as dense rows: who (their face), what (one line, bell.ts), and what you can do
 // (move in or say no to an invitation, open a knock or a house, find a plot to rent together, open the post or the
-// chat where someone replied to you or mentioned you). Opening it marks
+// chat where someone replied to you or mentioned you, top up for rent you were short of). Opening it marks
 // them read; the ones that were new keep a dot while it stays open. Esc or a click outside closes it.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { chatSheet, openChat } from "../../conversations";
-import { acceptNotice, arenaWanted, declineNotice, loadNotices, markNoticesRead, movedIn, notices, plotWanted } from "../../notices";
+import { acceptNotice, arenaWanted, creditWanted, declineNotice, loadNotices, markNoticesRead, movedIn, notices, plotWanted } from "../../notices";
 import { loadMe, me } from "../../session";
 import { settings } from "../../settings";
 import type { Notice } from "../../types";
@@ -80,6 +80,13 @@ async function act(n: Notice, action: NoticeAction) {
     plotWanted.value++;
     return go(route.path === "/" ? null : "/");
   }
+  if (action === "credit") {
+    // Your credit's card lives in the city: open it there (from another page, the address asks it to open itself).
+    // The list view has no card: the house's bill tab says what's owed, and pays it.
+    if (settings.view !== "lobby") return go(n.house ? houseLink(n.house.id) : null);
+    if (route.path === "/") creditWanted.value++;
+    return go(route.path === "/" ? null : { path: "/", query: { credit: "open" } });
+  }
   busy.value = n.id;
   if (action === "decline") {
     const sent = await declineNotice(n.id);
@@ -148,7 +155,7 @@ function go(to: Parameters<typeof router.push>[0] | null) {
               <ListRow v-for="row in rows" :key="row.n.id" :title="row.title" :class="{ fresh: fresh.has(row.n.id) }">
                 <template #lead>
                   <Avatar v-if="row.n.from" :person="row.n.from" :size="46" decorative />
-                  <span v-else class="lead-icon"><Icon name="house" :size="22" /></span>
+                  <span v-else class="lead-icon"><Icon :name="row.n.kind === 'rent_paid' || row.n.kind === 'rent_due' ? 'coin' : 'house'" :size="22" /></span>
                 </template>
                 <span class="detail">
                   <span class="when">{{ noteWhen(row.n.createdAt) }}</span>
@@ -158,9 +165,9 @@ function go(to: Parameters<typeof router.push>[0] | null) {
                 <template v-if="row.actions.length" #end>
                   <span class="acts">
                     <template v-for="a in row.actions" :key="a">
-                      <!-- Saying yes, and finding a plot, are words; no and open are icons with their names. -->
-                      <button v-if="a === 'accept' || a === 'plot'" type="button" class="act" :class="{ yes: a === 'accept' }" :disabled="busy === row.n.id" @click="act(row.n, a)">
-                        {{ a === "accept" ? row.acceptWord : w.findPlot }}
+                      <!-- Saying yes, finding a plot and topping up are words; no and open are icons with their names. -->
+                      <button v-if="a === 'accept' || a === 'plot' || a === 'credit'" type="button" class="act" :class="{ yes: a === 'accept' }" :disabled="busy === row.n.id" @click="act(row.n, a)">
+                        {{ a === "accept" ? row.acceptWord : a === "credit" ? w.topUp : w.findPlot }}
                       </button>
                       <button
                         v-else

@@ -411,8 +411,8 @@ export const chores = pgTable(
   (t) => [uniqueIndex("chores_pr").on(t.repoId, t.prNumber), index("chores_house_status").on(t.houseId, t.status)],
 );
 
-// Someone marked their line of a month's bill as paid. A mock for the contest: no money moves yet; the bill tab
-// says so. One row per flatmate per house per month ("2026-10").
+// A flatmate's line of a month's bill is paid, from their fake credit: by itself at move-in and each month
+// (apps/api/src/houses/rent.ts), or from the bill tab. One row per flatmate per house per month ("2026-10").
 export const billPayments = pgTable(
   "bill_payments",
   {
@@ -461,7 +461,11 @@ export type NotificationKind =
   // Someone asks to be your friend: answered like an invitation. friend_accepted tells them you said yes (a no is
   // never sent back).
   | "friend_request"
-  | "friend_accepted";
+  | "friend_accepted"
+  // Rent (apps/api/src/houses/rent.ts): your share of a house's month was taken from your credit, or it couldn't be
+  // because your credit is too low (once a month; topping up pays it). The amount and month are in the payload.
+  | "rent_paid"
+  | "rent_due";
 
 // Only invitations (house_invite, rent_together, guest_ask, and the retired team_invite and team_ask) have a state; the other kinds are news, and
 // leave it null.
@@ -472,7 +476,10 @@ export interface NotificationPayload {
   applicationId?: string;
   verdict?: "admitted" | "declined";
   // The chat channel a post_reply or a mention is about: "city:Dakar", "arena:Dakar" or "post:<id>".
-  channel?: string;
+  channel?: string
+  // Rent: how much, in whole FCFA, and for which month ("2026-11").
+  amount?: number;
+  month?: string;
 }
 
 // La Coloc's own notifications, shown under the bell. GitHub can't message a user for us, so the news lives here.

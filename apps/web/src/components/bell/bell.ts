@@ -1,12 +1,15 @@
 // What each notification says under the bell, and what you can do about it. Pure, so it's tested: Bell.vue only
 // draws the rows. One short line (who did what), a quieter line under it, and at most two actions.
 import type { Notice } from "../../types";
+import { monthName } from "../lobby/house/exchange";
+import { fcfa } from "../lobby/house/server";
 import { friendWords as fw } from "../list/words";
 import { bellWords as w } from "./words";
 
 // accept / decline: answer an invitation (to a house, to rent together, to a chat). house: open the house it's about. knock: open the knock's thread.
 // plot: walk to an empty plot (renting together). chat: open where it was said (the post, the city's room, the Arena).
-export type NoticeAction = "accept" | "decline" | "house" | "knock" | "plot" | "chat";
+// credit: open your credit, to top up (rent you were short of).
+export type NoticeAction = "accept" | "decline" | "house" | "knock" | "plot" | "chat" | "credit";
 
 export interface NoticeRow {
   title: string;
@@ -45,6 +48,12 @@ export function noticeRow(n: Notice): NoticeRow {
       return n.verdict === "admitted" ? row(w.knockYes(house), null, n.house ? ["house"] : []) : row(w.knockNo(house), w.knockNoWhy, n.applicationId ? ["knock"] : []);
     case "build_failed":
       return row(w.buildFailed(who), n.room ? w.roomIn(n.room, house) : null, n.house ? ["house"] : []);
+    // Rent, taken from your credit when you moved in and every month since: one line, the amount and the house. Short
+    // of credit, it waits: topping up pays it.
+    case "rent_paid":
+      return row(w.rentPaid(fcfa(n.amount ?? 0), house, monthName(n.month ?? "")), null);
+    case "rent_due":
+      return row(w.rentDue(fcfa(n.amount ?? 0), house, monthName(n.month ?? "")), w.rentDueWhy, ["credit"]);
     // A full house's group chat: a flatmate lets someone from outside in, and they hear how it went.
     case "guest_ask":
       if (n.state === "open") return row(w.guestAsk(who, house), null, ["accept", "decline"], w.letIn);

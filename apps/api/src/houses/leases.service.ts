@@ -3,7 +3,8 @@
 // Ending a lease takes effect in two steps. Right away the room is free for anyone, with nothing of its last occupant
 // left in it. The money waits for the month to end: a lease_ends row keeps the room on their line (houses.service.ts,
 // the bill), and if it was their last room here they stay a flatmate until then, with no room (memberships.leaving_month).
-// settleLeases does the second step, lazily: when the API starts and every hour, for any month that's over.
+// settleLeases does the second step, lazily: when the API starts and every hour, for any month that's over. The same
+// timer then charges the month's rent to whoever hasn't paid it yet (rent.ts).
 import { ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
 import { applications, chores, type Db, deployments, houses, leaseEnds, memberships, messages, repos, roomSecrets, rooms } from "@coloc/db";
 import { and, asc, count, eq, inArray, isNotNull, lt } from "drizzle-orm";
@@ -47,6 +48,8 @@ export class LeasesService implements OnModuleInit, OnModuleDestroy {
     });
     if (!moved) throw new ConflictException({ message: "Someone else took that room first.", code: "roomTakenFirst" });
     await this.houses.note(houseId, { tone: "info", room: roomName, text: noteText("tookRoom", { name: user.name ?? user.login }) });
+    // Already paid this month: the bigger line starts next month. Not paid yet (short of credit): it goes now if it can.
+    await this.houses.rentCollector.movedIn(houseId, user.id);
     return { room: roomName };
   }
 
@@ -154,6 +157,9 @@ export class LeasesService implements OnModuleInit, OnModuleDestroy {
   private async settleQuietly(firstRun = false): Promise<void> {
     try {
       await this.settleLeases();
+      // Then the month's rent, once those whose lease ran out are gone: the first run of a month charges everyone,
+      // the others only whoever is still owing (rent.ts).
+      await this.houses.rentCollector.chargeAll();
     } catch (e) {
       if (!isCoreDown(e)) this.log.warn(`couldn't settle leases: ${(e as Error).message}`);
       if (firstRun) {

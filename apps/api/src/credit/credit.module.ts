@@ -1,9 +1,12 @@
 import { Module } from "@nestjs/common";
+import { HousesModule } from "../houses/houses.module";
 import { CreditController, PAYDUNYA } from "./credit.controller";
 import { CreditService } from "./credit.service";
 import { loadPaydunyaConfig, Paydunya } from "./paydunya";
 
 @Module({
+  // A top-up pays any rent someone was short of (HousesService.rentCollector).
+  imports: [HousesModule],
   controllers: [CreditController],
   providers: [
     CreditService,

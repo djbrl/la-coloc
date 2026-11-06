@@ -8,11 +8,15 @@ export const TOP_UP_AMOUNTS_FCFA = [2_000, 5_000, 10_000];
 
 export const topUpKey = (token: string) => `topup:${token}`;
 
-/** What PayDunya says about this invoice, and whether this call is the one that added the credit. */
-export async function settleTopUp(paydunya: Paydunya, credit: CreditService, token: string): Promise<{ status: string; added: number }> {
+/**
+ * What PayDunya says about this invoice, and whether this call is the one that added the credit. `then`: what to do
+ * for the person once it's added (pay any rent they were short of).
+ */
+export async function settleTopUp(paydunya: Paydunya, credit: CreditService, token: string, then?: (userId: string) => Promise<void>): Promise<{ status: string; added: number }> {
   const invoice = await paydunya.confirm(token);
   if (!invoice) return { status: "unknown", added: 0 };
   if (invoice.status !== "completed" || !invoice.userId || !TOP_UP_AMOUNTS_FCFA.includes(invoice.amount)) return { status: invoice.status, added: 0 };
   const added = await credit.earn(invoice.userId, invoice.amount, "topup", topUpKey(token));
+  if (added) await then?.(invoice.userId);
   return { status: invoice.status, added: added ? invoice.amount : 0 };
 }

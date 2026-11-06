@@ -128,6 +128,13 @@ A server's first month, rent and a project's first time online spend it. A revie
 Limits: one server and three projects a person (`houses/money.ts`). Replacing it with real money means swapping
 `houses/payment.ts` and these few calls.
 
+Rent goes by itself (`houses/rent.ts`): a flatmate's line of the month's bill is taken the moment they move in (a knock
+admitted, an invitation accepted, another room taken, or the server paid for after they joined), then for each new month
+by the hourly settle in `leases.service.ts`. A `rent` credit entry keyed by house, month and person, and a
+`bill_payments` row, mean one month is never taken twice. Each charge is a `rent_paid` notification. Short of credit,
+nothing goes below zero: the month stays unpaid, a `rent_due` says so once, and the next run or a PayDunya top-up pays
+it. Never in the workshop or an example house. An unpaid month has no other consequence.
+
 ## A full house's chat
 
 `house_guests` (migration 0019) holds who asked to join a full house's channel. A flatmate answers under the bell, and a

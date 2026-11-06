@@ -223,7 +223,8 @@ export class DoorbellService {
 
   /**
    * After someone moved into a room (by a vote, or by an invitation): anyone else knocking on that room is told it's
-   * taken, and the fridge door welcomes them. `exceptApplication`: the knock that moved them in, already closed.
+   * taken, the fridge door welcomes them, and their rent starts. `exceptApplication`: the knock that moved them in,
+   * already closed.
    */
   async movedIn(houseId: string, room: string, name: string, exceptApplication?: string) {
     const others = await this.db
@@ -243,6 +244,9 @@ export class DoorbellService {
       await this.tell({ type: "answered", applicationId: other.id, houseId, room, applicantId: other.applicantId, verdict: "declined" });
     }
     await this.houses.note(houseId, { tone: "thanks", room, text: noteText("movedIn", { name }) });
+    // Rent is due from the day you move in: this month's share goes now (rent.ts).
+    const [moved] = await this.db.select({ id: rooms.occupantId }).from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.name, room)));
+    if (moved?.id) await this.houses.rentCollector.movedIn(houseId, moved.id);
   }
 
   /** Closes someone's own open knock on a house they just moved into another way (an invitation). */

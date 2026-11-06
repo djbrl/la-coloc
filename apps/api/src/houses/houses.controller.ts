@@ -142,6 +142,8 @@ export class HousesController {
       if (renew) this.agents.hangUp(id, "the house's key was replaced");
       const receipt = await takePayment({ amount: monthlyCostFcfa, operator: "credit", reference: billReference(id, monthOf(new Date())) });
       await this.houses.markBillPaid(id, user.id);
+      // Whoever moved in while the house was being set up pays their share now that it has a bill.
+      await this.houses.rentCollector.chargeHouse(id);
       this.landlord.start(id, domain);
       return { plan, monthlyCostFcfa, ...receipt };
     } catch (e) {
@@ -161,8 +163,8 @@ export class HousesController {
     return { rules: await this.houses.setRules(id, input.strictReviews, user.name ?? user.login) };
   }
 
-  // A flatmate pays their own line of this month's bill from their credit. Fake money for now; the next step is a
-  // mobile-money aggregator (PayDunya, CinetPay, FedaPay or Kkiapay).
+  // A flatmate pays their own line of this month's bill from their credit. Rent goes by itself (rent.ts); this is for
+  // a month it couldn't take, once they have the credit.
   @Post(":id/bill/paid")
   @HttpCode(200)
   async billPaid(@Param("id") id: string, @Req() req: HttpRequest) {
@@ -170,7 +172,7 @@ export class HousesController {
     if (!user) throw new UnauthorizedException("Log in first.");
     if (!(await this.houses.exists(id))) throw new NotFoundException();
     if (!(await this.houses.membership(id, user.id))) throw new ForbiddenException("Only flatmates pay this house's bill.");
-    return { ok: true, ...(await this.houses.markBillPaid(id, user.id, true)) };
+    return { ok: true, ...(await this.houses.rentCollector.pay(id, user.id)) };
   }
 
   // Empties a room: every container in it is stopped and removed. The base for eviction, so chef only.
