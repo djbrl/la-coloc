@@ -79,7 +79,7 @@ describe("asking someone to be friends", () => {
     expect(pushed).toEqual(["sam"]);
     expect((await friends.list(ids.sam)).requests).toEqual([{ id, from: expect.objectContaining({ login: "fatou" }), createdAt: expect.any(String) }]);
     expect((await friends.list(ids.fatou)).sent).toEqual([{ id, to: expect.objectContaining({ login: "sam" }) }]);
-    expect((await service.list(ids.fatou)).sent).toEqual([{ id, kind: "friend_request", to: "sam", houseId: null, room: null }]);
+    expect((await service.list(ids.fatou)).sent).toEqual([{ id, kind: "friend_request", to: "sam", houseId: null }]);
     expect(await logins("sam")).toEqual([]);
   });
 
