@@ -10,6 +10,6 @@ import { LeasesService } from "./leases.service";
   imports: [forwardRef(() => AgentsModule)],
   controllers: [HousesController, CityController, LeasesController],
   providers: [HousesService, LeasesService, { provide: Landlord, inject: [HousesService], useFactory: (houses: HousesService) => new Landlord(houses) }],
-  exports: [HousesService, Landlord],
+  exports: [HousesService, LeasesService, Landlord],
 })
 export class HousesModule {}

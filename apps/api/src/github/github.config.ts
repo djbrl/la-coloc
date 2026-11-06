@@ -10,6 +10,14 @@ export interface GithubAppConfig {
   slug?: string;
 }
 
+/** Where someone installs the App on their repos (or reinstalls it), when this server has one. */
+export function appInstallUrl(cfg: Pick<GithubAppConfig, "slug"> | null | undefined): string | null {
+  return cfg?.slug ? `https://github.com/apps/${cfg.slug}/installations/new` : null;
+}
+
+/** The same, from the environment, for parts of the API that don't hold the App's keys. */
+export const envInstallUrl = (env = process.env) => (env.COLOC_GITHUB_APP_ID ? appInstallUrl({ slug: env.COLOC_GITHUB_APP_SLUG || undefined }) : null);
+
 export function loadGithubAppConfig(env = process.env): GithubAppConfig | null {
   const appId = env.COLOC_GITHUB_APP_ID;
   // The key itself, or (development) the path of the .pem file scripts/github-app.mjs wrote.

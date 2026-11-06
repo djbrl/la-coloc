@@ -20,6 +20,26 @@ import { moveInto, roomsRented } from "./move-in";
 const HOUR_MS = 60 * 60 * 1000;
 const RETRY_DB_MS = 10_000;
 
+type Runner = Pick<Db, "update" | "delete">;
+
+/**
+ * A room with nothing of its last occupant left in it: free, no project, no repo, no secrets, no team, no history.
+ * Shared by ending a lease and deleting an account. The containers are the caretaker's (removeContainers).
+ */
+export async function clearRoom(tx: Runner, room: { id: string; houseId: string; name: string }): Promise<void> {
+  await tx
+    .update(rooms)
+    .set({ occupantId: null, status: "empty", url: null, project: null, projectDescription: null, ad: null, lastDeployId: null, branch: null, buildPath: ".", port: null, source: null })
+    .where(eq(rooms.id, room.id));
+  await tx.delete(roomTeammates).where(eq(roomTeammates.roomId, room.id));
+  await tx.delete(roomSecrets).where(and(eq(roomSecrets.houseId, room.houseId), eq(roomSecrets.room, room.name)));
+  // A build still on its way has no record to report to any more (recordDeployStatus ignores it).
+  await tx.delete(deployments).where(and(eq(deployments.houseId, room.houseId), eq(deployments.room, room.name)));
+  // Its repo goes with it, and so do the reviews still waiting on that repo.
+  const unlinked = await tx.delete(repos).where(and(eq(repos.houseId, room.houseId), eq(repos.room, room.name))).returning({ id: repos.githubId });
+  if (unlinked.length) await tx.delete(chores).where(and(eq(chores.status, "open"), inArray(chores.repoId, unlinked.map((r) => r.id))));
+}
+
 @Injectable()
 export class LeasesService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger("leases");
@@ -60,32 +80,28 @@ export class LeasesService implements OnModuleInit, OnModuleDestroy {
     if (house.tutorial || house.demo || room.demo) throw new ConflictException({ message: "This room has no lease to end.", code: "leaseNotHere" });
     const month = monthOf(now);
     await this.db.transaction(async (tx) => {
-      await tx
-        .update(rooms)
-        .set({ occupantId: null, status: "empty", url: null, project: null, projectDescription: null, ad: null, lastDeployId: null, branch: null, buildPath: ".", port: null, source: null })
-        .where(eq(rooms.id, room.id));
-      await tx.delete(roomTeammates).where(eq(roomTeammates.roomId, room.id));
-      await tx.delete(roomSecrets).where(and(eq(roomSecrets.houseId, houseId), eq(roomSecrets.room, roomName)));
-      // A build still on its way has no record to report to any more (recordDeployStatus ignores it).
-      await tx.delete(deployments).where(and(eq(deployments.houseId, houseId), eq(deployments.room, roomName)));
-      // Its repo goes with it, and so do the reviews still waiting on that repo.
-      const unlinked = await tx.delete(repos).where(and(eq(repos.houseId, houseId), eq(repos.room, roomName))).returning({ id: repos.githubId });
-      if (unlinked.length) await tx.delete(chores).where(and(eq(chores.status, "open"), inArray(chores.repoId, unlinked.map((r) => r.id))));
+      await clearRoom(tx, room);
       // Already on someone's line this month (they left, this person moved in, and now this person leaves too): it stays there.
       await tx.insert(leaseEnds).values({ houseId, room: roomName, userId: user.id, month, memoryMb: room.memoryMb, endedAt: now }).onConflictDoNothing();
       // Their last room here: they stay until the month is over, on the bill and in the chat.
       const [{ left }] = await tx.select({ left: count() }).from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.occupantId, user.id)));
       if (left === 0) await tx.update(memberships).set({ leavingMonth: month }).where(and(eq(memberships.houseId, houseId), eq(memberships.userId, user.id)));
     });
-    // The caretaker stops any build on its way, then clears the room, so nothing of theirs can start in it afterwards.
-    // Offline, it does when it's back: containers in a room nobody built for are a leftover (applySnapshot).
+    await this.removeContainers(houseId, roomName);
+    await this.houses.note(houseId, { tone: "info", room: roomName, text: noteText("endedLease", { name: user.name ?? user.login }) });
+    return { until: monthEnd(month).toISOString() };
+  }
+
+  /**
+   * The caretaker stops any build on its way, then clears the room, so nothing of its last occupant can start in it
+   * afterwards. Offline, it does when it's back: containers in a room nobody built for are a leftover (applySnapshot).
+   */
+  async removeContainers(houseId: string, roomName: string): Promise<void> {
     if (this.agents.isOnline(houseId)) {
       this.agents.send(houseId, { type: "cancel_build", room: roomName });
       this.agents.send(houseId, { type: "remove_room", room: roomName });
     }
     await this.houses.emptyRoom(houseId, roomName);
-    await this.houses.note(houseId, { tone: "info", room: roomName, text: noteText("endedLease", { name: user.name ?? user.login }) });
-    return { until: monthEnd(month).toISOString() };
   }
 
   /**
@@ -105,7 +121,12 @@ export class LeasesService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async settleHouse(houseId: string, gone: string[]): Promise<void> {
+  /**
+   * `gone` stop being flatmates of the house now: off its teams, their open reviews dropped. If the chef was one of
+   * them, the first in the tontine line becomes chef. A house with nobody left closes, and its server stops. Used when a
+   * month is over (settleLeases) and when someone deletes their account.
+   */
+  async settleHouse(houseId: string, gone: string[]): Promise<void> {
     const outcome = await this.db.transaction(async (tx) => {
       const houseRooms = await tx.select({ id: rooms.id }).from(rooms).where(eq(rooms.houseId, houseId));
       if (houseRooms.length) await tx.delete(roomTeammates).where(and(inArray(roomTeammates.roomId, houseRooms.map((r) => r.id)), inArray(roomTeammates.userId, gone)));

@@ -15,6 +15,7 @@ import { language, setLang } from "../i18n";
 import { headsOnPicture, setVisiting, windowOnPicture } from "../landing";
 import type { LandingRoom } from "../lobby/landingRoom";
 import { lobbyUi, settings } from "../settings";
+import AccountGone from "../components/AccountGone.vue";
 import LandingStory from "../components/landing/LandingStory.vue";
 import { storyWords } from "../components/landing/words";
 
@@ -175,6 +176,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="landing" :class="{ entering }">
+    <AccountGone />
     <header class="top">
       <span class="brand">La Coloc</span>
       <nav :aria-label="w.nav">

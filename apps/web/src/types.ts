@@ -392,6 +392,8 @@ export interface RoomManage {
     source: string | null;
   };
   github: { fullName: string; url: string } | null;
+  // Where to install the GitHub App, when this server has one: for a GitHub repo that isn't linked through it.
+  installUrl?: string | null;
   secrets: { name: string; updatedAt: string }[];
   secretsEnabled: boolean;
   deployments: {

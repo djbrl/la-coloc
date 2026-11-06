@@ -141,6 +141,18 @@ The billing cycle is the calendar month (UTC). Ending a lease (`POST .../leave`,
 
 `settleLeases` does the second step, when the API starts and every hour: it removes people who have left, passes the chef's role to the first in the tontine line if the chef was one of them (the only time the chef changes), and closes a house with nobody left.
 
+## Leaving La Coloc
+
+Settings ends with two ways out (`apps/api/src/account/`). **Remove the GitHub App** uninstalls the App from the
+person's own account (`DELETE /app/installations/{id}`) and unlinks their repos: rooms keep their last build and the
+repo's address, and the Code tab says they no longer update on merge. Login still works. **Delete my account** asks for
+the login typed out, then empties their rooms like an ended lease, lets each house go on without them like the end of a
+month (`settleHouse`: the next in the tontine line becomes chef, a house left empty closes), uninstalls the App, and
+deletes the person: most tables cascade, chat channels named after them go by hand, and a house's history (builds,
+reviews of their pull requests) keeps its rows with no name. We never keep a GitHub token, so to revoke the login itself
+the browser takes one last trip through GitHub's login, whose token is used only for `DELETE /applications/{id}/grant`.
+If GitHub doesn't answer, the account is deleted anyway and the landing links to GitHub's pages to finish by hand.
+
 ## Uploading a project
 
 Wherever a repo is asked for, `RepoPicker.vue` lists the repos the person let the GitHub App see (`GET /api/github/repos`, `github/repos.service.ts`, shared with the quest). In a room, picking one links it (`POST .../import`) and the caretaker reads it straight away (`POST .../inspect`). A public link or a Docker Hub image takes one Import press and is read the same way. One screen then says what was found, and the main button is Put it online. There is no separate check step.

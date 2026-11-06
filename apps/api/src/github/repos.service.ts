@@ -11,7 +11,7 @@ import { noteText } from "../houses/lines";
 import { projectFrom } from "../rooms/rooms.service";
 import { GITHUB_CLIENT, repoList } from "./chores.service";
 import type { GhRepoInfo, GithubAppClient } from "./github.client";
-import type { GithubAppConfig } from "./github.config";
+import { appInstallUrl, type GithubAppConfig } from "./github.config";
 import { GITHUB_CONFIG } from "./github.controller";
 
 type Room = typeof rooms.$inferSelect;
@@ -43,7 +43,7 @@ export class GithubRepos {
     const seen = list
       .map((r) => ({ id: r.id, fullName: r.full_name, description: r.description, language: r.language, private: r.private, pushedAt: r.pushed_at }))
       .sort((a, b) => (b.pushedAt ?? "").localeCompare(a.pushedAt ?? ""));
-    const installUrl = this.config?.slug ? `https://github.com/apps/${this.config.slug}/installations/new` : null;
+    const installUrl = appInstallUrl(this.config);
     return { repos: seen, reason: installation ? null : ("not-installed" as const), installUrl };
   }
 

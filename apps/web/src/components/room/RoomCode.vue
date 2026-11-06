@@ -11,7 +11,7 @@ import UiNote, { loud, type Note } from "../UiNote.vue";
 import { sendJSON } from "../../session";
 import type { RepoChoice, RoomManage } from "../../types";
 import RoomServerOff from "./RoomServerOff.vue";
-import { canChangeCode, codeBody, codeRows, imageNameOk, imageRef, parsePort, readTrouble, type SettingsForm } from "./room";
+import { canChangeCode, codeBody, codeRows, followsNoMerges, imageNameOk, imageRef, parsePort, readTrouble, type SettingsForm } from "./room";
 import { roomWords as w } from "./words";
 
 const props = defineProps<{
@@ -44,6 +44,7 @@ type Route = "github" | "repo" | "image";
 
 const IMAGE = "docker://";
 const rows = computed(() => codeRows(props.data.settings, props.data.github));
+const noMerges = computed(() => followsNoMerges(props.data.settings, props.data.github));
 const serverUp = computed(() => props.data.house.agentOnline);
 const canChange = computed(() => canChangeCode(props.data));
 const hasCode = computed(() => !!props.data.github || !!props.data.settings.source);
@@ -235,11 +236,16 @@ onBeforeUnmount(() => {
 
     <template v-if="!serverUp || !canChange || screen === 'facts'">
       <dl v-if="hasCode || !canChange" class="facts">
-        <div v-for="r in rows" :key="r.term" class="fact">
+        <div v-for="(r, i) in rows" :key="r.term" class="fact" :class="{ tall: i === 0 && noMerges }">
           <dt>{{ r.term }}</dt>
           <dd :class="{ unset: r.unset }">
             <a v-if="r.href" :href="r.href" target="_blank" rel="noopener" class="mono">{{ r.value }}<span class="sr-only">{{ w.newTab }}</span></a>
             <span v-else :class="{ mono: !r.unset }">{{ r.value }}</span>
+            <!-- Under the repo: it no longer follows merges, and the way back. -->
+            <span v-if="i === 0 && noMerges" class="merges">
+              {{ w.noMergeUpdates }}
+              <a v-if="data.installUrl" :href="data.installUrl" target="_blank" rel="noopener">{{ w.installApp }}<span class="sr-only">{{ w.newTab }}</span></a>
+            </span>
           </dd>
         </div>
       </dl>
@@ -347,6 +353,10 @@ dt { flex: none; font-size: 14px; font-weight: 600; color: var(--muted); }
 dd { margin: 0; min-width: 0; font-size: 15px; font-weight: 700; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 dd a { color: var(--accent); }
 dd.unset { color: var(--muted); font-weight: 400; }
+/* The repo with its "doesn't update on merge" line under it: two lines, so the row grows. */
+.fact.tall { padding-block: 8px; }
+.fact.tall dd { display: grid; justify-items: end; gap: 2px; }
+.merges { font-size: 13px; font-weight: 600; color: var(--muted); white-space: normal; }
 .bar { display: flex; gap: 8px; }
 
 /* One screen at a time, in one column, with its buttons at the bottom. */

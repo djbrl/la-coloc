@@ -221,8 +221,11 @@ describe("installing the App during the tutorial", () => {
     // Someone else adding repos to it later becomes the one who may pick them.
     await svc.handle("installation_repositories", { action: "added", installation: { id: 4, account: { login: "dakar-devs" } }, sender: { id: 2, login: "awa" }, repositories_added: [] });
     expect((await db.select().from(githubInstallations))[0].installerGithubId).toBe(2);
-    expect(await svc.handle("installation", { action: "deleted", installation: { id: 4 }, sender: jib })).toBe("forgot the installation");
+    // Removed on GitHub: the repo it linked stops following merges, and its room keeps the address.
+    expect(await svc.handle("installation", { action: "deleted", installation: { id: 4 }, sender: jib })).toBe("forgot the installation and unlinked 1");
     expect(await db.select().from(githubInstallations)).toEqual([]);
+    expect(await db.select().from(repos).where(eq(repos.installationId, 4))).toEqual([]);
+    expect(await svc.handle("installation", { action: "deleted", installation: { id: 4 }, sender: jib })).toBe("forgot the installation");
   });
 
   it("works for repos added to an installation too", async () => {

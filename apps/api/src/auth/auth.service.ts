@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { type Db, type PublicRepo, sessions, users } from "@coloc/db";
 import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
@@ -11,6 +11,9 @@ export const AUTH_CONFIG = Symbol("AUTH_CONFIG");
 export const SESSION_COOKIE = "coloc_session";
 export const STATE_COOKIE = "coloc_oauth_state";
 export const SESSION_DAYS = 30;
+// A login trip's state starts with this when it's a deleted account's trip to make GitHub forget us, not a login.
+export const FORGET_STATE = "forget.";
+const GITHUB_TIMEOUT_MS = 8000;
 
 export type User = typeof users.$inferSelect;
 
@@ -52,6 +55,7 @@ function tokenHash(token: string): string {
 
 @Injectable()
 export class AuthService {
+  private readonly log = new Logger("auth");
   // Swappable in tests, so the GitHub flow can be checked without calling GitHub.
   fetch: typeof globalThis.fetch = (...args) => globalThis.fetch(...args);
 
@@ -122,6 +126,13 @@ export class AuthService {
    * on). We don't keep GitHub's token: it's used for these two reads and forgotten.
    */
   async githubProfile(code: string): Promise<GithubProfile> {
+    const accessToken = await this.exchangeCode(code);
+    const profile = await this.githubUser(accessToken);
+    return { ...profile, repos: await this.publicRepos(profile.login, accessToken) };
+  }
+
+  // GitHub's one-time code, traded for the person's token.
+  private async exchangeCode(code: string, timeoutMs?: number): Promise<string> {
     if (!this.config.github) throw new Error("GitHub login isn't configured");
     const tokenRes = await this.fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
@@ -132,16 +143,80 @@ export class AuthService {
         code,
         redirect_uri: `${this.config.publicUrl}/api/auth/github/callback`,
       }),
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     });
     const token = (await tokenRes.json()) as { access_token?: string; error?: string };
     if (!token.access_token) throw new Error(`GitHub refused the login: ${token.error ?? tokenRes.status}`);
+    return token.access_token;
+  }
 
+  private async githubUser(accessToken: string, timeoutMs?: number): Promise<GithubProfile> {
     const userRes = await this.fetch("https://api.github.com/user", {
-      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token.access_token}`, "User-Agent": "coloc.dev" },
+      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${accessToken}`, "User-Agent": "coloc.dev" },
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     });
     if (!userRes.ok) throw new Error(`couldn't read the GitHub profile (${userRes.status})`);
-    const profile = (await userRes.json()) as GithubProfile;
-    return { ...profile, repos: await this.publicRepos(profile.login, token.access_token) };
+    return (await userRes.json()) as GithubProfile;
+  }
+
+  // ---- Forgetting a deleted account on GitHub ----
+  //
+  // We never keep a person's GitHub token, and GitHub only revokes an authorization given one. So once an account is
+  // deleted, the browser goes through GitHub's login once more (instant: they already said yes to the App), and the
+  // token that comes back is used for one thing: telling GitHub to drop the authorization, and every token with it.
+  // Each trip is tied to the deleted account's GitHub id, kept in memory for ten minutes, and used once.
+  private forgets = new Map<string, { githubId: number; expires: number }>();
+
+  /** The state for a forget trip (it goes in the state cookie too), and where to send the browser. */
+  startForget(githubId: number): { state: string; url: string } {
+    const now = Date.now();
+    for (const [s, v] of this.forgets) if (v.expires < now) this.forgets.delete(s);
+    const state = `${FORGET_STATE}${randomBytes(16).toString("base64url")}`;
+    this.forgets.set(state, { githubId, expires: now + 10 * 60_000 });
+    return { state, url: this.githubAuthorizeUrl(state) };
+  }
+
+  /**
+   * Back from GitHub on a forget trip: revokes the App's authorization for the deleted account. False when it couldn't
+   * (an unknown or old trip, GitHub down, or a different GitHub account signed in, whose token is revoked alone).
+   */
+  async forgetOnGithub(code: string, state: string): Promise<boolean> {
+    const trip = this.forgets.get(state);
+    this.forgets.delete(state);
+    if (!trip || trip.expires < Date.now() || !this.config.github) return false;
+    try {
+      const token = await this.exchangeCode(code, GITHUB_TIMEOUT_MS);
+      const who = await this.githubUser(token, GITHUB_TIMEOUT_MS);
+      if (who.id !== trip.githubId) {
+        // Someone else's GitHub is signed in in this browser: leave nothing behind for them, and say it didn't work.
+        await this.revoke("token", token);
+        return false;
+      }
+      return await this.revoke("grant", token);
+    } catch (e) {
+      this.log.warn(`couldn't revoke a deleted account's GitHub authorization: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  // DELETE /applications/{client_id}/grant drops the person's whole authorization (and every token); …/token only that
+  // token. Both answer with the App's own client id and secret.
+  private async revoke(what: "grant" | "token", accessToken: string): Promise<boolean> {
+    const { clientId, clientSecret } = this.config.github!;
+    const res = await this.fetch(`https://api.github.com/applications/${encodeURIComponent(clientId)}/${what}`, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+        "Content-Type": "application/json",
+        "User-Agent": "coloc.dev",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: JSON.stringify({ access_token: accessToken }),
+      signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS),
+    });
+    if (!res.ok) this.log.warn(`GitHub refused to revoke the ${what} (${res.status})`);
+    return res.ok;
   }
 
   // Their public repos, best first. Never fails the login: if GitHub doesn't answer, we keep what we had.

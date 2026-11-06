@@ -34,6 +34,8 @@ const NOTES = {
   firstProject: "{name} put their first project online. Welcome!",
   tookRoom: "{name} took another room.",
   endedLease: "{name} ended their lease. A room is free.",
+  // Someone deleted their account: no name, since nothing of theirs stays.
+  flatmateLeft: "A flatmate left La Coloc. A room is free.",
   newChef: "{name} is the house's chef now.",
 } as const;
 

@@ -30,6 +30,7 @@ const notesEn = {
   firstProject: (p: P) => `${p.name} put their first project online. Welcome!`,
   tookRoom: (p: P) => `${p.name} took another room.`,
   endedLease: (p: P) => `${p.name} ended their lease. A room is free.`,
+  flatmateLeft: (_p: P) => "A flatmate left La Coloc. A room is free.",
   newChef: (p: P) => `${p.name} is the house's chef now.`,
 };
 
@@ -89,6 +90,7 @@ const noteWords = defineWords("said.notes", notesEn, {
   firstProject: (p) => `${p.name} a mis en ligne son premier projet. Bienvenue !`,
   tookRoom: (p) => `${p.name} a pris une autre chambre.`,
   endedLease: (p) => `${p.name} a rendu son bail. Une chambre est libre.`,
+  flatmateLeft: () => "Un colocataire a quitté La Coloc. Une chambre est libre.",
   newChef: (p) => `${p.name} est maintenant chef de la maison.`,
 });
 

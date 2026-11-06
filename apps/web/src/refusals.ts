@@ -10,6 +10,8 @@ export type Refusal = { message: string; code?: unknown; [blank: string]: unknow
 
 const fr: Record<string, (r: Refusal) => string> = {
   logInFirst: () => "Connectez-vous d'abord.",
+  // Deleting your account.
+  typeYourLogin: () => "Tapez votre identifiant pour confirmer.",
 
   // Buying credit with PayDunya.
   topUpClosed: () => "On ne peut pas acheter de crédit ici.",
