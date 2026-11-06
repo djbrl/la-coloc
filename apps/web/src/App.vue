@@ -8,6 +8,9 @@ import CoreStatus from "./components/CoreStatus.vue";
 import FriendsButton from "./components/friends/FriendsButton.vue";
 import SettingsPane from "./components/SettingsPane.vue";
 import Icon from "./components/lobby/house/Icon.vue";
+import { boardSheet, chatSheet } from "./conversations";
+import { friendsSheet } from "./friends";
+import { escapeKey, oneAtATime } from "./oneWindow";
 import { me, meLoaded } from "./session";
 import { lobbyUi, settings, settingsPane } from "./settings";
 import { hudWords as w } from "./components/lobby/words";
@@ -27,6 +30,16 @@ onMounted(() => {
   if (keysEl.value) keysWatcher.observe(keysEl.value);
 });
 onBeforeUnmount(() => keysWatcher?.disconnect());
+
+// One window at a time (oneWindow.ts): the top bar's windows, and the city board's, which live for the whole page. The
+// bell, a house's window and the lobby's own windows sign up where they live. Esc closes the one on top, anywhere.
+oneAtATime("chat", { isOpen: () => chatSheet.open, close: () => (chatSheet.open = false) });
+oneAtATime("friends", { isOpen: () => friendsSheet.open, close: () => (friendsSheet.open = false) });
+oneAtATime("board", { isOpen: () => boardSheet.open, close: () => (boardSheet.open = false) });
+oneAtATime("settings", { isOpen: () => settingsPane.open, close: () => (settingsPane.open = false), ownEscape: true });
+const onEscape = (e: KeyboardEvent) => escapeKey(e);
+onMounted(() => window.addEventListener("keydown", onEscape));
+onBeforeUnmount(() => window.removeEventListener("keydown", onEscape));
 
 // Your house, in the top bar: in the lobby it opens inside the city (never leaving the game); in the list view it's
 // the house's page.

@@ -10,6 +10,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { useRoute, useRouter } from "vue-router";
 import { chatSheet, openChat } from "../../conversations";
 import { acceptNotice, arenaWanted, creditWanted, declineNotice, loadNotices, markNoticesRead, movedIn, notices, plotWanted } from "../../notices";
+import { oneAtATime } from "../../oneWindow";
 import { loadMe, me } from "../../session";
 import { settings } from "../../settings";
 import type { Notice } from "../../types";
@@ -55,9 +56,12 @@ watch(
 );
 const onVisible = () => document.visibilityState === "visible" && void loadNotices();
 onMounted(() => document.addEventListener("visibilitychange", onVisible));
+// One window at a time (oneWindow.ts): opening the bell closes the chat, and the chat closes the bell.
+const letGo = oneAtATime("bell", { isOpen: () => open.value, close: () => close(false) });
 onBeforeUnmount(() => {
   document.removeEventListener("visibilitychange", onVisible);
   document.removeEventListener("pointerdown", outside, true);
+  letGo();
 });
 
 async function toggle() {

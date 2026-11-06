@@ -23,6 +23,7 @@ import { boardSheet, chatPinged, chatSheet, lastSent, openBoard } from "../conve
 import { watchPresence } from "../activity";
 import { friends, loadFriends } from "../friends";
 import { arenaWanted, creditWanted, loadNotices, movedIn, plotWanted } from "../notices";
+import { oneAtATime, windows } from "../oneWindow";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
 import { openStream, type Stream } from "../stream";
@@ -571,6 +572,36 @@ function focusStage() {
   if (lobby) lobby.takeKeys();
   else host.value?.focus({ preventScroll: true });
 }
+/** A window closed: the keys go back to the city, unless it closed because another one opened (that one has them). */
+function backToCity() {
+  if (!windows.anyOpen()) focusStage();
+}
+
+// ---- Windows: one at a time, Esc closes the top one, a click on the city closes them (oneWindow.ts) ----
+
+// The lobby's own windows sign up with the page's list (App.vue signs up the top bar's). A house's window and your
+// credit (a native dialog) close themselves on Escape.
+const letGo = [
+  oneAtATime("house", { isOpen: () => !!place.value, close: () => closeInside(), ownEscape: true }),
+  oneAtATime("card", { isOpen: () => !!card.value, close: () => closeCard() }),
+  oneAtATime("find", { isOpen: () => sheet.value === "find", close: () => (sheet.value = "") }),
+  oneAtATime("travel", { isOpen: () => sheet.value === "travel", close: () => (sheet.value = "") }),
+  oneAtATime("map", { isOpen: () => bigMap.value, close: () => (bigMap.value = false) }),
+  oneAtATime("keys", { isOpen: () => keysOpen.value, close: () => (keysOpen.value = false) }),
+  oneAtATime("credit", { isOpen: () => creditOpen.value, close: () => (creditOpen.value = false), ownEscape: true }),
+  // A welcome, a tutorial card in the middle, the keys to a new room, a knock or a rent dialog: Esc is theirs.
+  windows.hold(() => blocking.value || centred.value),
+];
+onBeforeUnmount(() => letGo.forEach((f) => f()));
+
+// A click (or a tap) on the city while a window is open closes it, and that's all it does: you don't walk, and no card
+// opens. Caught on the way down, before the engine hears it.
+function clickOutside(e: PointerEvent) {
+  if (!host.value?.contains(e.target as Node) || windows.held() || !windows.anyOpen()) return;
+  e.stopPropagation();
+  windows.closeAll();
+  focusStage();
+}
 /**
  * Whether a key press is for the city (WCAG 2.1.4): the stage has focus, or nothing has (the page itself, or a button
  * that was hidden under the focus) after the stage was touched, and the shortcuts are on in settings. The engine
@@ -599,6 +630,7 @@ onMounted(() => {
   // Never stuck: a slow model doesn't hold the whole city back.
   setTimeout(finish, 9000);
   window.addEventListener("keydown", onKey);
+  window.addEventListener("pointerdown", clickOutside, true);
   // Browsers keep audio asleep until the first click or key press: that's when the sounds wake up.
   window.addEventListener("pointerdown", unlock, { once: true });
   window.addEventListener("keydown", unlock, { once: true });
@@ -757,6 +789,7 @@ watch(
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey);
+  window.removeEventListener("pointerdown", clickOutside, true);
   window.removeEventListener("pointerdown", unlock);
   window.removeEventListener("keydown", unlock);
   host.value?.removeEventListener("pointerdown", touchStage);
@@ -916,7 +949,7 @@ watch(
     if (open) play("open");
     else if (before) {
       play("close");
-      if (!chatSheet.open) focusStage();
+      backToCity();
     }
   },
 );
@@ -1037,7 +1070,7 @@ watch(cardKey, (now, before) => {
   if (now) play("open");
   else if (before) {
     play("close");
-    focusStage();
+    backToCity();
   }
 });
 
@@ -1145,7 +1178,7 @@ function insideChanged(now: Place | null) {
 function closeInside() {
   place.value = null;
   showInUrl("");
-  focusStage();
+  backToCity();
 }
 
 // The window docks on the right of a wide screen, so the camera moves you to the left half while it's open.
@@ -1216,16 +1249,21 @@ watchEffect(() => {
 watch(sheet, async (now) => {
   await nextTick();
   if (now) sheetEl.value?.querySelector<HTMLElement>("input, .entry")?.focus();
-  else focusStage();
+  else backToCity();
 });
 // The big map and the key list take focus themselves; when they close, it goes back to the stage.
 watch([bigMap, keysOpen], ([map, keys], [mapBefore, keysBefore]) => {
-  if ((!map && mapBefore) || (!keys && keysBefore)) focusStage();
+  if ((!map && mapBefore) || (!keys && keysBefore)) backToCity();
 });
 
 // The lobby's own keys (walking, E, Q, R, [ ], Shift) live in the engine. These are the ones around it.
-// Escape closes what's open wherever the focus is; the letters only work while the city has the keys.
+// Escape stops your walk wherever the focus is, and the page closes the window on top (App.vue, oneWindow.ts); the
+// letters only work while the city has the keys.
 function onKey(e: KeyboardEvent) {
+  if (e.key === "Escape") {
+    lobby?.halt();
+    return;
+  }
   const el = e.target as HTMLElement | null;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1233,14 +1271,6 @@ function onKey(e: KeyboardEvent) {
   // visitors' one, and the tutorial's cards at either end) have their own too.
   if (knock.value || rent.value || place.value || keysFor.value || !ready.value || failed.value || welcoming.value || creating.value || creditOpen.value) return;
   if (centred.value) return;
-  if (e.key === "Escape") {
-    if (bigMap.value) bigMap.value = false;
-    else if (keysOpen.value) keysOpen.value = false;
-    else if (sheet.value) sheet.value = "";
-    else if (card.value) closeCard();
-    else if (boardSheet.open) boardSheet.open = false;
-    return;
-  }
   // The big map and the key list hold the focus while they're open, so their own key closes them from there.
   const overlay = bigMap.value || keysOpen.value;
   if (!overlay && !cityHasKeys()) return;
