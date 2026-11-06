@@ -10,6 +10,7 @@ import { HousesService } from "../houses/houses.service";
 import { noteText } from "../houses/lines";
 import { REVIEW_CREDIT_FCFA } from "../houses/money";
 import type { GithubAppClient } from "./github.client";
+import { unlinkRepos } from "./unlink";
 
 export const GITHUB_CLIENT = Symbol("GITHUB_CLIENT");
 export const CHORE_HOURS = 24;
@@ -98,8 +99,14 @@ export class ChoresService implements OnModuleInit, OnModuleDestroy {
       return this.linkRepos(p);
     }
     if (event === "installation" && p.action === "deleted" && p.installation) {
-      await this.db.delete(githubInstallations).where(eq(githubInstallations.id, p.installation.id));
-      return "forgot the installation";
+      // Removed on GitHub's side (or from Settings, which already did this): its repos stop following merges.
+      const id = p.installation.id;
+      const unlinked = await this.db.transaction(async (tx) => {
+        await tx.delete(githubInstallations).where(eq(githubInstallations.id, id));
+        return unlinkRepos(tx, eq(repos.installationId, id));
+      });
+      for (const houseId of new Set(unlinked.map((r) => r.houseId))) this.houses.changes.next(houseId);
+      return unlinked.length ? `forgot the installation and unlinked ${unlinked.length}` : "forgot the installation";
     }
     if (event === "pull_request" && ["opened", "reopened", "ready_for_review"].includes(p.action ?? "")) return this.assign(p);
     if (event === "pull_request_review" && p.action === "submitted") return this.reviewed(p);

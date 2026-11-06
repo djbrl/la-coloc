@@ -2,11 +2,11 @@
 // Settings, as a game's options menu: a floating card in the middle of the screen, one row per setting (a sentence
 // that says what it does now on the left, its control on the right), then the ways to start over (the welcome, the tutorial, and, when
 // this server allows it, the whole demo) as big buttons. The arrow keys move a choice inside a row, as in a game.
-import { computed, type FunctionalComponent, h, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, type FunctionalComponent, h, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { setVisiting } from "../landing";
 import { config, loadConfig, loadMe, logout, me, postJSON, sendJSON } from "../session";
-import type { Badge } from "../types";
+import type { Badge, ConnectedRepos } from "../types";
 import { say } from "./arena/arena";
 import BadgeChip from "./arena/BadgeChip.vue";
 import { arenaWords as aw } from "./arena/words";
@@ -61,12 +61,17 @@ watch(
       opener = document.activeElement;
       // What this server allows you is asked each time the pane opens: the demo reset depends on who's logged in.
       void loadConfig();
+      void loadApp();
       await nextTick();
       panel.value?.focus();
       window.addEventListener("keydown", onKey);
     } else {
       window.removeEventListener("keydown", onKey);
       confirming.value = false;
+      asking.value = "";
+      typed.value = "";
+      leaveError.value = "";
+      app.removed = false;
       (opener as HTMLElement | null)?.focus?.();
     }
   },
@@ -159,6 +164,82 @@ async function leave() {
   setVisiting(false);
   close();
   router.push("/");
+}
+
+// ---- Leaving: the GitHub App, and the whole account ----
+
+// Whether the GitHub App is on their own account, asked each time the pane opens (GET /api/github/repos says why a
+// list is empty). "off": this server has no App, or they didn't log in with GitHub: no row at all.
+const app = reactive<{ state: "unknown" | "installed" | "absent" | "off"; installUrl: string | null; orgs: string[]; removed: boolean }>({
+  state: "unknown",
+  installUrl: null,
+  orgs: [],
+  removed: false,
+});
+async function loadApp() {
+  if (!me.value) return;
+  try {
+    const res = await fetch("/api/github/repos");
+    // GitHub not answering: offer the removal anyway, which will say so if it's still down.
+    if (!res.ok) return void (app.state = "installed");
+    const data = (await res.json()) as ConnectedRepos;
+    app.installUrl = data.installUrl;
+    app.state = data.reason === "off" || data.reason === "no-github" ? "off" : data.reason === "not-installed" ? "absent" : "installed";
+  } catch {
+    app.state = "unknown";
+  }
+}
+
+// Which question is open in place of the two rows, the login typed to confirm, and the key that asked (for the focus).
+const asking = ref<"" | "remove" | "delete">("");
+const typed = ref("");
+const leaveBusy = ref(false);
+const leaveError = ref("");
+const removeKey = ref<HTMLButtonElement | null>(null);
+const deleteKey = ref<HTMLButtonElement | null>(null);
+const keepLeaving = ref<HTMLButtonElement | null>(null);
+const loginField = ref<HTMLInputElement | null>(null);
+const typedOk = computed(() => !!me.value && typed.value.trim().toLowerCase() === me.value.login.toLowerCase());
+
+async function askLeave(what: "" | "remove" | "delete") {
+  const was = asking.value;
+  asking.value = what;
+  typed.value = "";
+  leaveError.value = "";
+  await nextTick();
+  if (what === "delete") loginField.value?.focus();
+  else if (what === "remove") keepLeaving.value?.focus();
+  else (was === "remove" ? removeKey : deleteKey).value?.focus();
+}
+
+async function removeApp() {
+  leaveBusy.value = true;
+  leaveError.value = "";
+  const res = await postJSON<{ unlinked: number; orgs: string[] }>("/api/me/github/remove", {});
+  leaveBusy.value = false;
+  if (!res.ok) return void (leaveError.value = res.message);
+  Object.assign(app, { state: "absent", orgs: res.data.orgs ?? [], removed: true });
+  await askLeave("");
+}
+
+// Deleted: logged out on this page too. Then one trip through GitHub so it forgets La Coloc, when it can be told;
+// otherwise straight to the landing, which says what's left to remove on GitHub.
+async function deleteAccount() {
+  if (!typedOk.value || leaveBusy.value) return;
+  leaveBusy.value = true;
+  leaveError.value = "";
+  const res = await postJSON<{ forgetUrl: string | null; manual: boolean }>("/api/me/delete", { login: typed.value.trim() });
+  if (!res.ok) {
+    leaveBusy.value = false;
+    leaveError.value = res.message;
+    return;
+  }
+  me.value = null;
+  setVisiting(false);
+  close();
+  if (res.data.forgetUrl) return void location.assign(res.data.forgetUrl);
+  leaveBusy.value = false;
+  await router.push({ path: "/", query: { deleted: res.data.manual ? "github" : "1" } });
 }
 
 // ---- Reset the demo ----
@@ -314,6 +395,51 @@ async function resetDemo() {
           </template>
         </ListRow>
       </ul>
+      <!-- Leaving, at the very end: the GitHub App on your repos, then your whole account. Each asks once more, in
+           place of the rows; deleting wants your login typed out. -->
+      <template v-if="me">
+        <div v-if="!asking" class="acts">
+          <a v-if="app.state === 'absent' && app.installUrl" class="act" :href="app.installUrl" target="_blank" rel="noopener">
+            <span>{{ w.installApp }}</span><Icon name="external" :size="20" />
+          </a>
+          <button v-else-if="app.state === 'installed'" ref="removeKey" class="act" @click="askLeave('remove')"><span>{{ w.removeApp }}</span><Icon name="next" :size="20" /></button>
+          <p v-if="app.removed" class="done" role="status">
+            <Icon name="tick" :size="18" />{{ w.removed }}
+            <template v-if="app.orgs.length">
+              {{ w.stillOn }}
+              <template v-for="(org, i) in app.orgs" :key="org">{{ i ? ", " : "" }}<a :href="`https://github.com/organizations/${org}/settings/installations`" target="_blank" rel="noopener">{{ org }}</a></template>.
+            </template>
+          </p>
+          <button ref="deleteKey" class="act danger" @click="askLeave('delete')"><span>{{ w.deleteAccount }}</span><Icon name="next" :size="20" /></button>
+        </div>
+        <div v-else-if="asking === 'remove'" class="confirm" role="group" aria-labelledby="remove-question">
+          <p id="remove-question" class="question"><Icon name="warn" :size="20" />{{ w.removeQuestion }}</p>
+          <p class="what">{{ w.removeWhat }}</p>
+          <div class="choice">
+            <button ref="keepLeaving" :disabled="leaveBusy" @click="askLeave('')">{{ w.keep }}</button>
+            <button class="danger-fill" :disabled="leaveBusy" @click="removeApp">{{ w.remove }}</button>
+          </div>
+        </div>
+        <form v-else class="confirm" aria-labelledby="delete-question" novalidate @submit.prevent="deleteAccount">
+          <p id="delete-question" class="question"><Icon name="warn" :size="20" />{{ w.deleteQuestion }}</p>
+          <p class="what">{{ w.deleteWhat }}</p>
+          <input
+            ref="loginField"
+            v-model="typed"
+            class="login"
+            :placeholder="w.typeLogin(me.login)"
+            :aria-label="w.typeLogin(me.login)"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          />
+          <div class="choice">
+            <button type="button" :disabled="leaveBusy" @click="askLeave('')">{{ w.keep }}</button>
+            <button type="submit" class="danger-fill" :disabled="leaveBusy || !typedOk">{{ w.delete }}</button>
+          </div>
+        </form>
+        <p v-if="leaveError" class="error" role="alert">{{ leaveError }}</p>
+      </template>
       <p v-if="wearError" class="error" role="alert">{{ wearError }}</p>
       <p v-if="tutorialError" class="error" role="alert">{{ tutorialError }}</p>
       <p v-if="resetError" class="error" role="alert">{{ resetError }}</p>
@@ -374,6 +500,12 @@ async function resetDemo() {
 .danger-fill { background: var(--danger); color: var(--on-danger); }
 .danger-fill:hover:not(:disabled) { background: var(--danger); opacity: 0.9; }
 .error { margin: 0; font-size: 14px; color: var(--danger); }
+/* Leaving: what it does in one line, and the login to type. */
+a.act { text-decoration: none; }
+.what { margin: -4px 0 0; font-size: 14px; color: var(--text); }
+.login { min-height: 46px; padding: 0 12px; border: 3px solid var(--text); border-radius: var(--r-md); background: var(--surface); color: var(--text); font: 700 16px/1.2 var(--font); }
+.done { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0 8px; font-size: 14px; font-weight: 600; }
+.done a { color: var(--accent); }
 
 .handle { font-size: 14px; color: var(--handle); }
 

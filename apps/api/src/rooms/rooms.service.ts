@@ -3,6 +3,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { type Db, deployments, houses, memberships, repos, roomSecrets, rooms, users } from "@coloc/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { DB } from "../db/db.module";
+import { envInstallUrl } from "../github/github.config";
 import { HousesService, person } from "../houses/houses.service";
 import { monthEnd, monthOf } from "../houses/money";
 import { SECRETS } from "./room-deployer";
@@ -130,6 +131,8 @@ export class RoomsService {
         source: room.source?.startsWith("file://") ? "file://" : room.source,
       },
       github: repo ? { fullName: repo.fullName, url: `https://github.com/${repo.fullName}` } : null,
+      // Where to install the App, for a room whose GitHub repo isn't linked (it doesn't update on merge). Null: no App here.
+      installUrl: envInstallUrl(),
       secrets: secrets.map((s) => ({ name: s.name, updatedAt: s.updatedAt.toISOString() })),
       secretsEnabled: !!this.box,
       deployments: history.map((d) => ({

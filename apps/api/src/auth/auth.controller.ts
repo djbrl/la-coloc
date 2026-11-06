@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCod
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { isAdmin } from "./auth.config";
-import { AuthService, SESSION_COOKIE, SESSION_DAYS, STATE_COOKIE } from "./auth.service";
+import { AuthService, FORGET_STATE, SESSION_COOKIE, SESSION_DAYS, STATE_COOKIE } from "./auth.service";
 import { clearCookie, clientIp, type HttpRequest, type HttpResponse, parseCookies, setCookie } from "./http";
 import { MembershipsService } from "./memberships.service";
 import { isCoreDown } from "../core/core";
@@ -50,6 +50,13 @@ export class AuthController {
   async githubCallback(@Req() req: HttpRequest, @Res() res: HttpResponse, @Query("code") code?: string, @Query("state") state?: string) {
     const expected = parseCookies(req.headers.cookie)[STATE_COOKIE];
     clearCookie(res, STATE_COOKIE, this.auth.config.secureCookies);
+    // A deleted account's trip to make GitHub forget us (account/): never a login. Back to the landing either way,
+    // which says whether they still have something to remove on GitHub themselves.
+    if (expected?.startsWith(FORGET_STATE)) {
+      const forgotten = !!code && state === expected && (await this.auth.forgetOnGithub(code, expected));
+      res.redirect(302, `${this.auth.config.publicUrl}/?deleted=${forgotten ? "1" : "github"}`);
+      return;
+    }
     if (!code || !state || !expected || state !== expected) {
       res.redirect(302, `${this.auth.config.publicUrl}/login?error=state`);
       return;

@@ -45,6 +45,9 @@ export const roomWords = defineWords(
     defaultPort: (port: number) => `Default (${port})`,
     // The tutorial's starter, cloned from the host machine: never its path.
     starterPage: "Starter page",
+    // A GitHub repo the App isn't linked to (removed in Settings, or a pasted link): no updates on merge.
+    noMergeUpdates: "Doesn't update on merge.",
+    installApp: "Install the App",
 
     // room.ts: a build in the history, and its steps.
     previewOf: (ref: string) => `Preview of ${ref}`,
@@ -347,6 +350,8 @@ export const roomWords = defineWords(
     repoRoot: "La racine du dépôt",
     defaultPort: (port) => `Par défaut (${port})`,
     starterPage: "Page de départ",
+    noMergeUpdates: "Ne se met pas à jour au merge.",
+    installApp: "Installer l'app",
 
     previewOf: (ref) => `Aperçu de ${ref}`,
     updateOf: (ref) => `Mise à jour de ${ref}`,

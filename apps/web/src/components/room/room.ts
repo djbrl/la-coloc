@@ -147,6 +147,14 @@ export function codeRows(settings: Pick<Settings, "source" | "branch" | "buildPa
   ];
 }
 
+/**
+ * A GitHub repo the App isn't linked to: the room keeps its last build but doesn't follow merges (the App was removed
+ * from the repo, or the link was pasted by hand). The Code tab says so under the repo, with a way to install the App.
+ */
+export function followsNoMerges(settings: Pick<Settings, "source">, github: Github): boolean {
+  return !github && !!settings.source?.startsWith("https://github.com/");
+}
+
 /** The same rows for a form being edited, before it's saved. */
 export function draftRows(form: SettingsForm, github: Github): CodeRow[] {
   const port = parsePort(form.port);

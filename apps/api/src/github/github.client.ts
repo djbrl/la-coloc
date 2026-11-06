@@ -59,13 +59,31 @@ export class GithubAppClient {
    * The App's installation on this person's own account, or null if they haven't installed it there. With their
    * GitHub id, also null when the account behind that login today is someone else's (they renamed, a stranger took it).
    */
-  async userInstallation(login: string, githubId?: number): Promise<number | null> {
-    const res = await this.fetch(`${API}/users/${encodeURIComponent(login)}/installation`, { headers: this.headers(`Bearer ${appJwt(this.cfg)}`) });
+  async userInstallation(login: string, githubId?: number, timeoutMs?: number): Promise<number | null> {
+    const res = await this.fetch(`${API}/users/${encodeURIComponent(login)}/installation`, {
+      headers: this.headers(`Bearer ${appJwt(this.cfg)}`),
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+    });
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`couldn't look up ${login}'s installation (${res.status})`);
     const found = (await res.json()) as { id: number; account?: { id?: number } };
     if (githubId !== undefined && found.account?.id !== undefined && found.account.id !== githubId) return null;
     return found.id;
+  }
+
+  /**
+   * Uninstalls the App from an account: GitHub drops its access to every repo there and stops sending its events.
+   * Already gone (404) counts as done. Throws when GitHub refuses or doesn't answer in time.
+   */
+  async deleteInstallation(installationId: number, timeoutMs = 8000): Promise<void> {
+    const res = await this.fetch(`${API}/app/installations/${installationId}`, {
+      method: "DELETE",
+      headers: this.headers(`Bearer ${appJwt(this.cfg)}`),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok && res.status !== 404) throw new Error(`GitHub refused to remove installation ${installationId} (${res.status})`);
+    this.tokens.delete(installationId);
+    for (const [repo, known] of this.repoInstallations) if (known.id === installationId) this.repoInstallations.delete(repo);
   }
 
   /** The repos an installation covers (the first hundred: plenty for a newcomer). */
