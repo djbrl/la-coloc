@@ -4,8 +4,8 @@ import type { Notice } from "../../types";
 import { bellWords as w } from "./words";
 
 // accept / decline: answer an invitation (to a house, to rent together, to a chat). house: open the house it's about. knock: open the knock's thread.
-// plot: walk to an empty plot (renting together).
-export type NoticeAction = "accept" | "decline" | "house" | "knock" | "plot";
+// plot: walk to an empty plot (renting together). chat: open where it was said (the post, the city's room, the Arena).
+export type NoticeAction = "accept" | "decline" | "house" | "knock" | "plot" | "chat";
 
 export interface NoticeRow {
   title: string;
@@ -53,6 +53,18 @@ export function noticeRow(n: Notice): NoticeRow {
       return row(w.guestYes(house), null, n.house ? ["house"] : []);
     case "guest_declined":
       return row(w.guestNo(house), null);
+    // Words meant for you. The line is about the latest one; the next one updates it until you've read it.
+    case "post_reply": {
+      const post = n.chat?.post;
+      if (!post) return row(w.alsoReplied(who), w.postGone);
+      return row(post.mine ? w.replied(who) : w.alsoReplied(who), w.postTitle(post.title), ["chat"]);
+    }
+    case "mention": {
+      const c = n.chat;
+      if (!c) return row(w.mentionedBoard(who), w.postGone);
+      if (c.place === "post") return row(w.mentionedBoard(who), c.post ? w.postTitle(c.post.title) : null, ["chat"]);
+      return row(c.place === "arena" ? w.mentionedArena(who, c.city) : w.mentionedCity(who, c.city), null, ["chat"]);
+    }
     default:
       // A kind this page doesn't know yet (a newer API): who it's from, and nothing to do.
       return row(who, null);

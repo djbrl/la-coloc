@@ -5,6 +5,7 @@
 // Live through the city's stream (a "board" ping, then a fetch).
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useWhenBack } from "../../core";
+import { markCitySeen } from "../../cityNews";
 import { chatSheet, openChat, report } from "../../conversations";
 import { me, postJSON, sendJSON } from "../../session";
 import { openStream, type Stream } from "../../stream";
@@ -27,6 +28,8 @@ const listEl = ref<HTMLElement | null>(null);
 const sure = ref(false);
 const reported = ref(false);
 let stream: Stream | null = null;
+// The newest post already marked seen.
+let seen: string | null = null;
 
 const cityUrl = (city: string) => `/api/cities/${encodeURIComponent(city)}`;
 
@@ -36,6 +39,12 @@ async function fetchBoard() {
     const res = await fetch(`${cityUrl(city)}/board`);
     if (!res.ok || city !== chatSheet.city) return;
     posts.value = ((await res.json()) as { posts: BoardPost[] }).posts;
+    // On screen, so seen: the Board tab's dot goes. Once per newest post, not on every fetch.
+    const newest = posts.value.reduce((at, p) => (p.createdAt > at ? p.createdAt : at), "");
+    if (newest !== seen) {
+      seen = newest;
+      void markCitySeen(city, "board");
+    }
   } catch {
     // Keep what we had.
   }
@@ -71,6 +80,7 @@ watch(
   (city) => {
     stream?.close();
     posts.value = [];
+    seen = null;
     void fetchBoard();
     stream = openStream(`${cityUrl(city)}/stream`, { board: refresh });
   },

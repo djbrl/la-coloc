@@ -452,7 +452,12 @@ export type NotificationKind =
   // answer counts for all of them). guest_accepted / guest_declined tell the one who asked.
   | "guest_ask"
   | "guest_accepted"
-  | "guest_declined";
+  | "guest_declined"
+  // Words meant for you (apps/api/src/notifications/message-news.ts): a reply under your board post or one you replied
+  // to (post_reply), and "@yourlogin" in a city's room, its arena's or a post's replies (mention). payload.channel
+  // says where. One unread line per place, updated by the next message rather than doubled.
+  | "post_reply"
+  | "mention";
 
 // Only invitations (house_invite, rent_together, guest_ask, and the retired team_invite and team_ask) have a state; the other kinds are news, and
 // leave it null.
@@ -462,6 +467,8 @@ export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expi
 export interface NotificationPayload {
   applicationId?: string;
   verdict?: "admitted" | "declined";
+  // The chat channel a post_reply or a mention is about: "city:Dakar", "arena:Dakar" or "post:<id>".
+  channel?: string;
 }
 
 // La Coloc's own notifications, shown under the bell. GitHub can't message a user for us, so the news lives here.
@@ -500,7 +507,9 @@ export const blocks = pgTable(
 );
 
 // How far someone has read a conversation: the id of the last message they saw there. What comes after, written by
-// the other person, is unread. Only direct conversations keep one.
+// the other person, is unread. Direct conversations keep one, and so does a city's room ("city:<City>"), for the
+// count on its tab. A city's board ("board:<City>") keeps the time of the newest post seen, in ms, since posts have
+// no increasing id.
 export const chatReads = pgTable(
   "chat_reads",
   {

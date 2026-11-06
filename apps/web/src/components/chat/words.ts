@@ -23,6 +23,8 @@ export const chatWords = defineWords(
   {
     // The button in the top bar, and the sheet.
     buttonName: (unread: number) => (unread ? `Chat, ${unread} unread` : "Chat"),
+    // Nothing for you directly, but the city's room or board moved since you looked.
+    buttonNews: "Chat, new in the city",
     label: "Chat",
     close: "Close",
     back: "Back",
@@ -75,6 +77,7 @@ export const chatWords = defineWords(
   },
   {
     buttonName: (unread: number) => (unread ? `Discussions, ${unread} non lus` : "Discussions"),
+    buttonNews: "Discussions, du nouveau en ville",
     label: "Discussions",
     close: "Fermer",
     back: "Retour",

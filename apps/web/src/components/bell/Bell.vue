@@ -1,11 +1,13 @@
 <script setup lang="ts">
 // The bell in the top bar: how many notifications are unread (a small yellow count), and, pressed, a flat card
 // under it with the latest ones as dense rows: who (their face), what (one line, bell.ts), and what you can do
-// (move in or say no to an invitation, open a knock or a house, find a plot to rent together). Opening it marks
+// (move in or say no to an invitation, open a knock or a house, find a plot to rent together, open the post or the
+// chat where someone replied to you or mentioned you). Opening it marks
 // them read; the ones that were new keep a dot while it stays open. Esc or a click outside closes it.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { acceptNotice, declineNotice, loadNotices, markNoticesRead, movedIn, notices, plotWanted } from "../../notices";
+import { chatSheet, openChat } from "../../conversations";
+import { acceptNotice, arenaWanted, declineNotice, loadNotices, markNoticesRead, movedIn, notices, plotWanted } from "../../notices";
 import { loadMe, me } from "../../session";
 import { settings } from "../../settings";
 import type { Notice } from "../../types";
@@ -73,6 +75,7 @@ async function act(n: Notice, action: NoticeAction) {
   if (busy.value) return;
   if (action === "house" && n.house) return go(houseLink(n.house.id));
   if (action === "knock" && n.applicationId) return go(knockLink(n.applicationId));
+  if (action === "chat" && n.chat) return openWhere(n.chat);
   if (action === "plot") {
     plotWanted.value++;
     return go(route.path === "/" ? null : "/");
@@ -101,6 +104,19 @@ async function act(n: Notice, action: NoticeAction) {
       router.push(houseLink(house.id));
     }
   }
+}
+
+// Where a reply or a mention was said: the post, or the city's room, in the chat sheet (over whatever page you're on);
+// the Arena's room is in the lobby's Arena.
+function openWhere(c: NonNullable<Notice["chat"]>) {
+  if (c.place === "arena") {
+    arenaWanted.value++;
+    return go(route.path === "/" ? null : "/");
+  }
+  close(false);
+  chatSheet.city = c.city;
+  if (c.place === "post" && c.post) openChat("board", { post: c.post.id });
+  else openChat("city");
 }
 
 function go(to: Parameters<typeof router.push>[0] | null) {

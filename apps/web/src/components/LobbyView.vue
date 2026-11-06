@@ -20,7 +20,7 @@ import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhoo
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
 import { chatPinged, chatSheet, lastSent, openChat } from "../conversations";
-import { loadNotices, movedIn, plotWanted } from "../notices";
+import { arenaWanted, loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
 import { openStream, type Stream } from "../stream";
@@ -976,6 +976,13 @@ watch(plotWanted, () => {
   if (!key) return;
   closeInside();
   lobby?.goToPlot(key);
+});
+
+// Someone mentioned you in the Arena's room (the bell's open key): its panel, at its gate.
+watch(arenaWanted, () => {
+  if (inWorkshop.value) return;
+  closeInside();
+  openArena();
 });
 
 // Moved in through an invitation (the bell's "Move in"): the keys, as in the quest, then the house's window.

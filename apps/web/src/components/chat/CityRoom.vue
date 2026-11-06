@@ -4,6 +4,7 @@
 // people you blocked stay hidden).
 import { onBeforeUnmount, ref, watch } from "vue";
 import { useWhenBack } from "../../core";
+import { markCitySeen } from "../../cityNews";
 import { chatSheet, openChat } from "../../conversations";
 import { me } from "../../session";
 import { openStream, type Stream } from "../../stream";
@@ -14,6 +15,8 @@ import { chatWords as w } from "./words";
 
 const messages = ref<Message[]>([]);
 let stream: Stream | null = null;
+// The newest message already marked read.
+let seen: string | null = null;
 
 const url = (city: string) => `/api/cities/${encodeURIComponent(city)}`;
 
@@ -23,6 +26,12 @@ async function fetchRoom() {
     const res = await fetch(`${url(city)}/chat`);
     if (!res.ok || city !== chatSheet.city) return;
     messages.value = ((await res.json()) as { messages: Message[] }).messages;
+    // On screen, so read: the City tab's count clears. Once per newest message, not on every fetch.
+    const last = messages.value.at(-1)?.id ?? "";
+    if (last !== seen) {
+      seen = last;
+      void markCitySeen(city, "chat");
+    }
   } catch {
     // Keep what we had.
   }
@@ -33,6 +42,7 @@ watch(
   (city) => {
     stream?.close();
     messages.value = [];
+    seen = null;
     void fetchRoom();
     stream = openStream(`${url(city)}/stream`, { chat: () => void fetchRoom() });
   },

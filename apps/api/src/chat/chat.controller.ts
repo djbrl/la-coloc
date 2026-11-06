@@ -19,6 +19,7 @@ const PostBody = z.object({
   title: z.string().max(MAX_TITLE + 50),
   body: z.string().max(MAX_POST + 100),
 });
+const ReadBody = z.object({ what: z.enum(["chat", "board"]) });
 const BlockBody = z.object({ login: z.string().min(1).max(60) });
 const ReportBody = z.object({ kind: z.enum(["message", "post"]), id: z.string().min(1).max(60), reason: z.string().trim().max(300).nullish() });
 
@@ -123,6 +124,21 @@ export class ChatController {
     const user = await this.user(req);
     const { tag, title, body: text } = parse(PostBody, body);
     return this.board.create(city, user.id, { tag: tag as (typeof TAGS)[number], title, body: text });
+  }
+
+  // What's new in the city's room and on its board since you last looked: the counts on the chat's tabs.
+  @Get("cities/:city/unread")
+  async cityUnread(@Param("city") city: string, @Req() req: HttpRequest) {
+    return this.chat.cityUnread(city, (await this.user(req)).id);
+  }
+
+  // You looked at the city's room or its board.
+  @Post("cities/:city/read")
+  @HttpCode(200)
+  async markCityRead(@Param("city") city: string, @Body() body: unknown, @Req() req: HttpRequest) {
+    const user = await this.user(req);
+    await this.chat.markCityRead(city, user.id, parse(ReadBody, body).what);
+    return { ok: true };
   }
 
   // Something new in the city's room ("chat"), on its board ("board") or in its Arena ("arena"): the page fetches it. (An event needs some

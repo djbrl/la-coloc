@@ -8,10 +8,15 @@
 // Live updates: a direct message nudges both people's open tabs on the lobby's live line (`pushes`, a login each;
 // the page then asks for its conversations). A city's room and board ping `changes`, which the city's stream
 // (chat.controller.ts) passes on to whoever has the chat open; their page then fetches what's new.
+//
+// Who notices what: a direct message counts on the chat button (`conversations`). A reply under your board post, or
+// "@you" anywhere public, goes under your bell (notifications/message-news.ts). The city's room and its board tell
+// nobody in particular: their tabs count what's new since you last looked (`cityUnread`), so nobody's bell rings for
+// every hello.
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { applications, blocks, boardPosts, chatReads, type Db, houses, messages, type ReportKind, reports, users } from "@coloc/db";
 import { passerbyName } from "@coloc/domain";
-import { and, count, desc, eq, gt, inArray, like, max, ne, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, like, max, ne, notInArray, or, sql } from "drizzle-orm";
 import { Subject } from "rxjs";
 import { DB } from "../db/db.module";
 import { blockBetween, blockedBy, channelMessages, person } from "../doorbell/queries";
@@ -30,6 +35,16 @@ export interface ConversationItem {
   last: { body: string; at: string; mine: boolean };
   unread: number;
 }
+
+/** What's new in a city since you last looked: messages in its room (others', not of people you blocked), new posts. */
+export interface CityUnreadView {
+  chat: number;
+  board: number;
+}
+
+// Someone who never opened a city's room or board counts only the last day's, not its whole history.
+const FIRST_LOOK_MS = 24 * 3600 * 1000;
+const boardMark = (city: string) => `board:${city}`;
 
 export interface ConversationsView {
   // Unread messages over all your conversations: the count on the chat button.
@@ -83,7 +98,7 @@ export class ChatService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly houses: HousesService,
-    private readonly notifications: NotificationsService,
+    readonly notifications: NotificationsService,
   ) {}
 
   // ---- A city's room ----
@@ -105,8 +120,59 @@ export class ChatService {
   async postToCity(city: string, authorId: string, body: string): Promise<{ id: string }> {
     await this.mustBeCity(city);
     const id = await this.write(cityChannel(city), authorId, body);
+    // You've seen the room you just spoke in.
+    await this.markRead(authorId, cityChannel(city));
     this.changes.next({ city, what: "chat" });
     return { id };
+  }
+
+  /** How much is new in a city's room and on its board since you last looked (see `markCityRead`). */
+  async cityUnread(city: string, userId: string): Promise<CityUnreadView> {
+    await this.mustBeCity(city);
+    const hidden = await blockedBy(this.db, userId);
+    const marks = await this.db
+      .select()
+      .from(chatReads)
+      .where(and(eq(chatReads.userId, userId), inArray(chatReads.channel, [cityChannel(city), boardMark(city)])));
+    const chatMark = marks.find((m) => m.channel === cityChannel(city));
+    const postMark = marks.find((m) => m.channel === boardMark(city));
+    const firstLook = new Date(Date.now() - FIRST_LOOK_MS);
+    const [chat] = await this.db
+      .select({ n: count() })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.channel, cityChannel(city)),
+          ne(messages.authorId, userId),
+          chatMark ? gt(messages.id, chatMark.lastReadId) : gte(messages.at, firstLook),
+          hidden.length ? notInArray(messages.authorId, hidden) : undefined,
+        ),
+      );
+    const [board] = await this.db
+      .select({ n: count() })
+      .from(boardPosts)
+      .where(
+        and(
+          eq(boardPosts.city, city),
+          ne(boardPosts.authorId, userId),
+          gt(boardPosts.createdAt, postMark ? new Date(postMark.lastReadId) : firstLook),
+          hidden.length ? notInArray(boardPosts.authorId, hidden) : undefined,
+        ),
+      );
+    return { chat: chat.n, board: board.n };
+  }
+
+  /** You looked at a city's room (its latest message) or its board (its newest post): nothing there is new any more. */
+  async markCityRead(city: string, userId: string, what: "chat" | "board") {
+    await this.mustBeCity(city);
+    if (what === "chat") return this.markRead(userId, cityChannel(city));
+    // Rounded up to the next ms: Postgres keeps microseconds, so a floor would leave that post new forever.
+    const [newest] = await this.db
+      .select({ ms: sql<string | null>`ceil(extract(epoch from max(${boardPosts.createdAt})) * 1000)` })
+      .from(boardPosts)
+      .where(eq(boardPosts.city, city));
+    if (!newest?.ms) return;
+    await this.mark(userId, boardMark(city), Number(newest.ms));
   }
 
   // ---- Direct messages ----
@@ -274,6 +340,15 @@ export class ChatService {
     const text = cleanText(body, MAX_MESSAGE);
     this.brake(authorId, "messages");
     const [row] = await this.db.insert(messages).values({ channel, authorId, body: text }).returning({ id: messages.id });
+    // The people it's meant for hear of it (a reply under their post, "@them"). The message is written already, so a
+    // failure here is only logged: refusing now would make them send it twice.
+    if (/^(city|arena|post):/.test(channel)) {
+      try {
+        await this.notifications.aboutMessage(channel, Number(row.id), authorId, text);
+      } catch (err) {
+        this.log.warn(`couldn't tell anyone about a message: ${(err as Error).message}`);
+      }
+    }
     return String(row.id);
   }
 
@@ -290,9 +365,14 @@ export class ChatService {
   private async markRead(userId: string, channel: string) {
     const [last] = await this.db.select({ id: max(messages.id) }).from(messages).where(eq(messages.channel, channel));
     if (!last?.id) return;
+    await this.mark(userId, channel, Number(last.id));
+  }
+
+  // Moves a read marker forward, never back (two tabs may report out of order).
+  private async mark(userId: string, channel: string, lastReadId: number) {
     await this.db
       .insert(chatReads)
-      .values({ userId, channel, lastReadId: Number(last.id) })
+      .values({ userId, channel, lastReadId })
       .onConflictDoUpdate({ target: [chatReads.userId, chatReads.channel], set: { lastReadId: sql`greatest(${chatReads.lastReadId}, excluded.last_read_id)` } });
   }
 

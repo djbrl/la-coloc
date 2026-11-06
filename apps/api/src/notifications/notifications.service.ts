@@ -22,9 +22,11 @@
 //
 // And a flatmate's failed build (build_failed), so you can offer a hand. Only your own house hears about it, only
 // here, and never the person who ran it: they're already looking at it.
+//
+// And words meant for you (message-news.ts): a reply under your board post (post_reply), and "@you" (mention).
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, notifications, rooms, users } from "@coloc/db";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or } from "drizzle-orm";
+import { boardPosts, type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, notifications, rooms, users } from "@coloc/db";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { Subject, type Subscription } from "rxjs";
 import type { AuthConfig } from "../auth/auth.config";
 import { AUTH_CONFIG } from "../auth/auth.service";
@@ -36,6 +38,7 @@ import { guestStanding, isChatGuest } from "../houses/guests";
 import { HousesService } from "../houses/houses.service";
 import { MAX_ROOMS_PER_PERSON } from "../houses/money";
 import { moveInto, roomsRented } from "../houses/move-in";
+import { messageNews } from "./message-news";
 
 // An invitation nobody answered for a week is stale: the room may have changed, the person moved on.
 export const INVITE_DAYS = 7;
@@ -74,6 +77,9 @@ export interface NotificationView {
   // The knock it's about (knock, knock_answer), and how the vote went (knock_answer).
   applicationId: string | null;
   verdict: "admitted" | "declined" | null;
+  // Where a post_reply or a mention was said: a city's room, its arena, or under a board post (its title, and whether
+  // it's yours). Null for the other kinds, and once the post is gone.
+  chat?: { place: "city" | "arena" | "post"; city: string; post: { id: string; title: string; mine: boolean } | null } | null;
   createdAt: string;
   read: boolean;
 }
@@ -330,6 +336,17 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     const people = await this.usersById(rows.map((r) => r.fromId).filter((x): x is string => !!x));
     const houseIds = [...new Set(rows.map((r) => r.houseId).filter((x): x is string => !!x))];
     const hs = houseIds.length ? await this.db.select({ id: houses.id, name: houses.name, city: houses.city }).from(houses).where(inArray(houses.id, houseIds)) : [];
+    const postIds = [...new Set(rows.map((r) => r.payload.channel).filter((c): c is string => !!c?.startsWith("post:")).map((c) => c.slice(5)))];
+    const posts = postIds.length ? await this.db.select({ id: boardPosts.id, title: boardPosts.title, city: boardPosts.city, authorId: boardPosts.authorId }).from(boardPosts).where(inArray(boardPosts.id, postIds)) : [];
+    const chatOf = (channel: string | undefined): NotificationView["chat"] => {
+      if (!channel) return null;
+      const at = channel.indexOf(":");
+      const place = channel.slice(0, at);
+      const rest = channel.slice(at + 1);
+      if (place === "city" || place === "arena") return { place, city: rest, post: null };
+      const p = place === "post" ? posts.find((x) => x.id === rest) : undefined;
+      return p ? { place: "post", city: p.city, post: { id: p.id, title: p.title, mine: p.authorId === userId } } : null;
+    };
     return {
       unread,
       items: rows.map((r) => ({
@@ -341,6 +358,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         room: r.room,
         applicationId: r.payload.applicationId ?? null,
         verdict: r.payload.verdict ?? null,
+        ...(r.payload.channel ? { chat: chatOf(r.payload.channel) } : {}),
         createdAt: r.createdAt.toISOString(),
         read: r.readAt !== null,
       })),
@@ -354,6 +372,30 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       .update(notifications)
       .set({ readAt: new Date() })
       .where(and(eq(notifications.userId, userId), isNull(notifications.readAt), ids ? inArray(notifications.id, ids.length ? ids : [""]) : undefined));
+  }
+
+  // ---- Words meant for you ----
+
+  /**
+   * A new message in a city's room, its arena or under a board post (chat.service.ts `write`): a line under the bell
+   * for each person it's meant for (message-news.ts). Someone who hasn't read their line about that place yet keeps
+   * that one, brought to the top with the latest writer, instead of a second line.
+   */
+  async aboutMessage(channel: string, messageId: number, authorId: string, body: string) {
+    for (const n of await messageNews(this.db, channel, messageId, authorId, body)) {
+      const bumped = await this.db
+        .update(notifications)
+        .set({ fromId: authorId, createdAt: new Date() })
+        .where(and(eq(notifications.userId, n.userId), eq(notifications.kind, n.kind), isNull(notifications.readAt), sql`${notifications.payload}->>'channel' = ${channel}`))
+        .returning({ id: notifications.id });
+      if (bumped.length) this.pushes.next(await this.loginOf(n.userId));
+      else await this.create({ userId: n.userId, kind: n.kind, fromId: authorId, payload: { channel } });
+    }
+  }
+
+  /** A board post was deleted: the lines about it go with it, since there's nothing left to open. */
+  async forgetChannel(channel: string) {
+    await this.db.delete(notifications).where(sql`${notifications.payload}->>'channel' = ${channel}`);
   }
 
   // ---- Rules ----

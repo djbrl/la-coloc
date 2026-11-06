@@ -63,3 +63,27 @@ describe("a house chat under the bell", () => {
     expect(noticeRow({ ...base, kind: "guest_declined", state: null, room: null }).actions).toEqual([]);
   });
 });
+
+describe("words meant for you under the bell", () => {
+  const awa = { login: "awa", name: "Awa Ndiaye", avatarUrl: null };
+  const news = { ...base, state: null, from: awa, house: null, room: null };
+  const post = { id: "p1", title: "Cherche coloc", mine: true };
+
+  it("says someone replied to your post, with its title, and opens it", () => {
+    const reply: Notice = { ...news, kind: "post_reply", chat: { place: "post", city: "Dakar", post } };
+    expect(noticeRow(reply)).toEqual({ title: "Awa replied to your post", sub: "“Cherche coloc”", actions: ["chat"], acceptWord: "Move in" });
+    expect(noticeRow({ ...reply, chat: { place: "post", city: "Dakar", post: { ...post, mine: false } } }).title).toBe("Awa also replied");
+  });
+
+  it("says who mentioned you, and where", () => {
+    const mention: Notice = { ...news, kind: "mention", chat: { place: "city", city: "Dakar", post: null } };
+    expect(noticeRow(mention)).toMatchObject({ title: "Awa mentioned you in Dakar", sub: null, actions: ["chat"] });
+    expect(noticeRow({ ...mention, chat: { place: "arena", city: "Dakar", post: null } }).title).toBe("Awa mentioned you in Dakar's Arena");
+    expect(noticeRow({ ...mention, chat: { place: "post", city: "Dakar", post } })).toMatchObject({ title: "Awa mentioned you on the board", sub: "“Cherche coloc”", actions: ["chat"] });
+  });
+
+  it("has nothing to open once the post is gone", () => {
+    expect(noticeRow({ ...news, kind: "post_reply", chat: null })).toMatchObject({ sub: "That post is gone.", actions: [] });
+    expect(noticeRow({ ...news, kind: "mention", chat: null }).actions).toEqual([]);
+  });
+});
