@@ -22,6 +22,9 @@
 //
 // And a flatmate's failed build (build_failed), so you can offer a hand. Only your own house hears about it, only
 // here, and never the person who ran it: they're already looking at it.
+//
+// And friends (askFriend): friend_request is answered like an invitation, and saying yes makes a friendship
+// (friends.ts) and tells the sender (friend_accepted). A no isn't sent back.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, notifications, roomTeammates, rooms, users } from "@coloc/db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or } from "drizzle-orm";
@@ -36,6 +39,7 @@ import { guestStanding, isChatGuest } from "../houses/guests";
 import { HousesService } from "../houses/houses.service";
 import { MAX_ROOMS_PER_PERSON } from "../houses/money";
 import { moveInto, roomsRented } from "../houses/move-in";
+import { areFriends, befriend } from "./friends";
 import { joinTeam, onTeam, TEAM_MAX, teamSize } from "./teams";
 
 // An invitation nobody answered for a week is stale: the room may have changed, the person moved on.
@@ -56,11 +60,12 @@ const LAPSED: Record<string, string> = {
   "That room has changed hands, so the request lapsed.": "teamRoomChanged",
   "One of you doesn't live in that house any more, so the request lapsed.": "teamLeftHouse",
   "You don't live in that house any more, so the request lapsed.": "guestLeftHouse",
+  "That friend request lapsed.": "friendRequestLapsed",
 };
 
 // The kinds that are invitations (they have a state, and are answered), and the ones the day's brake counts.
-const INVITES: NotificationKind[] = ["house_invite", "rent_together", "team_invite", "team_ask", "guest_ask"];
-type InviteKind = "house_invite" | "rent_together" | "team_invite" | "team_ask";
+const INVITES: NotificationKind[] = ["house_invite", "rent_together", "team_invite", "team_ask", "guest_ask", "friend_request"];
+type InviteKind = "house_invite" | "rent_together" | "team_invite" | "team_ask" | "friend_request";
 
 type UserRow = typeof users.$inferSelect;
 type Row = typeof notifications.$inferSelect;
@@ -165,6 +170,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
    */
   async accept(userId: string, id: string): Promise<{ kind: NotificationKind; house: { id: string; name: string; city: string } | null; room: string | null }> {
     const n = await this.openInvite(userId, id);
+    if (n.kind === "friend_request") return this.acceptFriend(userId, n);
     if (n.kind === "team_invite" || n.kind === "team_ask") return this.acceptTeam(userId, n);
     if (n.kind === "guest_ask") return this.answerGuest(userId, n, "accepted");
     const [me] = await this.db.select().from(users).where(eq(users.id, userId));
@@ -219,6 +225,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (!(await this.decide(n, "declined"))) throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
+    // A friend request's no isn't sent back. Asking again waits a day, like any invitation (brake).
+    if (n.kind === "friend_request") return;
     if (n.fromId) {
       const kind = n.kind === "rent_together" ? "rent_together_no" : n.kind === "team_invite" || n.kind === "team_ask" ? "team_declined" : "invite_declined";
       await this.create({ userId: n.fromId, kind, fromId: userId, houseId: n.houseId, room: n.room });
@@ -405,6 +413,40 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     await this.create({ userId: n.fromId, kind: answer === "accepted" ? "guest_accepted" : "guest_declined", fromId: userId, houseId: house.id });
     this.houses.changes.next(house.id);
     return { kind: n.kind, house: { id: house.id, name: house.name, city: house.city }, room: null };
+  }
+
+  // ---- Friends ----
+
+  /**
+   * Asks `toLogin` to be friends. The same refusals as an invitation (yourself, an example person, a block either way,
+   * one open request per pair, not again the day they said no, the day's limit), and not someone who's a friend
+   * already. If they had asked you first, this is a yes to their request: you're friends at once.
+   */
+  async askFriend(senderId: string, toLogin: string): Promise<{ id: string; friends: boolean }> {
+    const to = await this.recipient(senderId, toLogin);
+    if (await areFriends(this.db, senderId, to.id)) throw new ConflictException({ message: "You're friends already.", code: "alreadyFriends" });
+    const [theirs] = await this.db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.kind, "friend_request"), eq(notifications.fromId, to.id), eq(notifications.userId, senderId), eq(notifications.state, "open")))
+      .limit(1);
+    if (theirs && theirs.createdAt.getTime() >= Date.now() - INVITE_DAYS * DAY_MS) {
+      await this.acceptFriend(senderId, theirs);
+      return { id: theirs.id, friends: true };
+    }
+    await this.brake(senderId, to.id, "friend_request");
+    const { id } = await this.create({ userId: to.id, kind: "friend_request", fromId: senderId, state: "open" });
+    return { id, friends: false };
+  }
+
+  // Says yes to a friend request: a block since it was sent makes it lapse; otherwise they're friends, and the sender
+  // is told.
+  private async acceptFriend(userId: string, n: Row): Promise<{ kind: NotificationKind; house: null; room: null }> {
+    if (!n.fromId || (await blockBetween(this.db, userId, n.fromId))) return this.expire(n, "That friend request lapsed.");
+    if (!(await this.decide(n, "accepted"))) throw new ConflictException({ message: "This invitation has already been answered.", code: "inviteAnswered" });
+    await befriend(this.db, userId, n.fromId);
+    await this.create({ userId: n.fromId, kind: "friend_accepted", fromId: userId });
+    return { kind: n.kind, house: null, room: null };
   }
 
   // ---- The bell ----

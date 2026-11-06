@@ -4,6 +4,7 @@
 //
 // A city has several lobbies of at most 32 people (apps/api/src/lobby/presence.ts), and each person in ours has a small
 // number, their slot. Movement arrives ten times a second as one binary frame: see `readMoves`.
+import type { Presence } from "../activity";
 import type { Badge } from "./badge";
 import type { Emote } from "./Lobby";
 
@@ -42,7 +43,9 @@ type ServerMessage =
   // Something new under your bell: fetch the notifications.
   | { type: "notice" }
   // A new direct message: fetch the conversations.
-  | { type: "chat" };
+  | { type: "chat" }
+  // A friend's status or city changed, or your friends did: fetch the friends list.
+  | { type: "friends" };
 
 export interface LinkEvents {
   // A fresh list of everyone here (on every (re)connect), and which lobby of the city this is.
@@ -58,6 +61,8 @@ export interface LinkEvents {
   onNotice?(): void;
   // A new direct message (or one you sent from another tab).
   onChat?(): void;
+  // A friend came, went, or changed status or city.
+  onFriends?(): void;
 }
 
 const MOVER_BYTES = 8;
@@ -85,6 +90,8 @@ export class LobbyLink {
   private lobby: number | undefined;
   // Who's who in this lobby.
   private slots = new Map<number, string>();
+  // How present we are, for friends' lists (activity.ts). A new line starts online on the server too.
+  private presence: Presence = "online";
 
   constructor(private events: LinkEvents) {
     void this.open();
@@ -104,6 +111,13 @@ export class LobbyLink {
 
   move(state: { x: number; z: number; ry: number; moving: boolean }) {
     this.send({ type: "move", ...state });
+  }
+
+  /** Says how present we are (online, idle, away), only when it changes. Said again after a reconnect. */
+  setPresence(presence: Presence) {
+    if (presence === this.presence) return;
+    this.presence = presence;
+    this.send({ type: "status", status: presence });
   }
 
   close() {
@@ -148,6 +162,7 @@ export class LobbyLink {
       if (where.ticket) this.send({ type: "ticket", ticket: where.ticket });
       // Back to the same lobby, if it still has room: the people you were with are there.
       if (this.place) this.send({ type: "place", place: this.place, ...(this.lobby ? { lobby: this.lobby } : {}) });
+      if (this.presence !== "online") this.send({ type: "status", status: this.presence });
     };
     ws.onmessage = (e) => {
       // The server really spoke: only now is the line known to work (a server that accepts and then hangs up at
@@ -174,6 +189,7 @@ export class LobbyLink {
       } else if (m.type === "census") this.events.onCensus(m.counts, m.lobbies ?? {});
       else if (m.type === "notice") this.events.onNotice?.();
       else if (m.type === "chat") this.events.onChat?.();
+      else if (m.type === "friends") this.events.onFriends?.();
     };
     ws.onclose = () => {
       this.events.onStatus(false);

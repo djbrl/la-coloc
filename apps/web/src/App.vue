@@ -5,6 +5,7 @@ import Bell from "./components/bell/Bell.vue";
 import ChatButton from "./components/chat/ChatButton.vue";
 import ChatSheet from "./components/chat/ChatSheet.vue";
 import CoreStatus from "./components/CoreStatus.vue";
+import FriendsButton from "./components/friends/FriendsButton.vue";
 import SettingsPane from "./components/SettingsPane.vue";
 import Icon from "./components/lobby/house/Icon.vue";
 import { me, meLoaded } from "./session";
@@ -55,6 +56,8 @@ const gear = (() => {
           <!-- The chat: for everyone (visitors read the city's room and board). -->
           <ChatButton />
           <template v-if="me">
+            <!-- Your friends, who's around, and a message away (components/friends). -->
+            <FriendsButton />
             <!-- Your house: an icon key, its name for a screen reader and on hover. -->
             <RouterLink v-for="h in me.houses" :key="h.id" :to="houseLink(h.id)" class="item icon house" :title="h.name">
               <Icon name="house" />

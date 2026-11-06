@@ -1,6 +1,7 @@
 // What each notification says under the bell, and what you can do about it. Pure, so it's tested: Bell.vue only
 // draws the rows. One short line (who did what), a quieter line under it, and at most two actions.
 import type { Notice } from "../../types";
+import { friendWords as fw } from "../list/words";
 import { bellWords as w } from "./words";
 
 // accept / decline: answer an invitation (to a house, to rent together, to team up). house: open the house it's about. knock: open the knock's thread.
@@ -67,6 +68,13 @@ export function noticeRow(n: Notice): NoticeRow {
       return row(w.guestYes(house), null, n.house ? ["house"] : []);
     case "guest_declined":
       return row(w.guestNo(house), null);
+    // Friends: a request, answered like an invitation, and the yes coming back.
+    case "friend_request":
+      if (n.state === "open") return row(fw.request(who), null, ["accept", "decline"], fw.add);
+      if (n.state === "accepted") return row(fw.request(who), fw.youreFriends);
+      return row(fw.request(who), n.state === "declined" ? w.youSaidNo : n.state === "withdrawn" ? w.takenBack : w.lapsed);
+    case "friend_accepted":
+      return row(fw.accepted(who), null);
     default:
       // A kind this page doesn't know yet (a newer API): who it's from, and nothing to do.
       return row(who, null);

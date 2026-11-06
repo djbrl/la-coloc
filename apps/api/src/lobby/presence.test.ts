@@ -210,3 +210,82 @@ describe("movement frames", () => {
     expect(p.frames()).toEqual([]);
   });
 });
+
+describe("status, for friends' lists", () => {
+  it("is online once connected, with the city once in one, and offline once gone", () => {
+    const p = new Presence();
+    expect(p.statusOf("jib")).toBe("offline");
+    p.join("c1", jib);
+    expect(p.statusOf("jib")).toBe("online");
+    expect(p.cityOf("jib")).toBeNull();
+    p.receive("c1", { type: "place", place: "Dakar" });
+    expect(p.cityOf("jib")).toBe("Dakar");
+    p.leave("c1");
+    expect(p.statusOf("jib")).toBe("offline");
+    expect(p.cityOf("jib")).toBeNull();
+  });
+
+  it("follows what the tab says: idle, away, online again", () => {
+    const p = new Presence();
+    inDakar(p, "c1", jib);
+    expect(p.receive("c1", { type: "status", status: "idle" })).toEqual([]);
+    expect(p.statusOf("jib")).toBe("idle");
+    p.receive("c1", { type: "status", status: "away" });
+    expect(p.statusOf("jib")).toBe("away");
+    p.receive("c1", { type: "status", status: "online" });
+    expect(p.statusOf("jib")).toBe("online");
+  });
+
+  it("counts the most present of someone's tabs", () => {
+    const p = new Presence();
+    inDakar(p, "c1", jib);
+    inDakar(p, "c2", jib);
+    p.receive("c1", { type: "status", status: "away" });
+    expect(p.statusOf("jib")).toBe("online");
+    p.receive("c2", { type: "status", status: "idle" });
+    expect(p.statusOf("jib")).toBe("idle");
+    p.leave("c2");
+    expect(p.statusOf("jib")).toBe("away");
+  });
+
+  it("names whose status or city changed since last asked, once each, and only real changes", () => {
+    const p = new Presence();
+    p.join("c1", jib);
+    p.receive("c1", { type: "place", place: "Dakar" });
+    expect(p.statusChanges()).toEqual(["jib"]);
+    expect(p.statusChanges()).toEqual([]);
+    // Saying the same again changes nothing.
+    p.receive("c1", { type: "status", status: "online" });
+    expect(p.statusChanges()).toEqual([]);
+    p.receive("c1", { type: "status", status: "idle" });
+    p.receive("c1", { type: "place", place: "Lomé" });
+    inDakar(p, "c2", awa);
+    expect(p.statusChanges().sort()).toEqual(["awa", "jib"]);
+    // A second tab, online while the first is idle: news. Its going: news again.
+    p.join("c3", jib);
+    expect(p.statusChanges()).toEqual(["jib"]);
+    p.leave("c3");
+    expect(p.statusChanges()).toEqual(["jib"]);
+    p.leave("c1");
+    expect(p.statusChanges()).toEqual(["jib"]);
+  });
+
+  it("ignores visitors, the workshop's city, bad statuses and floods", () => {
+    const p = new Presence();
+    inDakar(p, "v", null);
+    p.receive("v", { type: "status", status: "idle" });
+    expect(p.statusChanges()).toEqual([]);
+    p.join("c1", jib);
+    p.receive("c1", { type: "place", place: "tutorial:jib" });
+    expect(p.cityOf("jib")).toBeNull();
+    p.receive("c1", { type: "status", status: "busy" });
+    p.receive("c1", { type: "status" });
+    expect(p.statusOf("jib")).toBe("online");
+    // Six changes in ten seconds, then the rest are dropped until the window passes.
+    for (let i = 0; i < 6; i++) p.receive("c1", { type: "status", status: i % 2 ? "online" : "away" }, 1000 + i);
+    p.receive("c1", { type: "status", status: "idle" }, 2000);
+    expect(p.statusOf("jib")).toBe("online");
+    p.receive("c1", { type: "status", status: "idle" }, 12_000);
+    expect(p.statusOf("jib")).toBe("idle");
+  });
+});

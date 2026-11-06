@@ -1,6 +1,7 @@
 import { Logger, type OnModuleDestroy, Optional } from "@nestjs/common";
 import { OnGatewayConnection, WebSocketGateway } from "@nestjs/websockets";
 import { randomUUID } from "node:crypto";
+import { Subject } from "rxjs";
 import type WebSocket from "ws";
 import { z } from "zod";
 import { AuthService, SESSION_COOKIE, type User } from "../auth/auth.service";
@@ -20,11 +21,14 @@ const Pass = z.object({ type: z.literal("ticket"), ticket: z.string().min(1).max
 // The lobby's live line: positions and emotes, relayed between everyone walking around. Logged-in people appear;
 // visitors only watch. Only pages from our own site may connect (a WebSocket ignores CORS, so we check Origin).
 // It also tells someone, on their own line only, that something new is under their bell, or that a direct message
-// came in (one word each; the page then asks the API, so nothing private travels on the line).
+// came in, or that a friend's status changed (one word each; the page then asks the API, so nothing private travels
+// on the line).
 @WebSocketGateway({ path: "/lobby-ws" })
 export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
   private readonly log = new Logger("lobby");
   readonly presence = new Presence();
+  // Logins whose status or city just changed, a few at a time: the friends list (friends.service.ts) tells their friends.
+  readonly statusChanges = new Subject<string[]>();
   private sockets = new Map<string, WebSocket>();
 
   private readonly unsubscribe: () => void;
@@ -55,10 +59,10 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
   }
 
   /**
-   * "Look at your bell" (`notice`) or "look at your messages" (`chat`): a one-word message to each of `login`'s open
-   * tabs. Offline, they see it on their next load.
+   * "Look at your bell" (`notice`), "look at your messages" (`chat`) or "look at your friends" (`friends`): a one-word
+   * message to each of `login`'s open tabs. Offline, they see it on their next load.
    */
-  notice(login: string, type: "notice" | "chat" = "notice") {
+  notice(login: string, type: "notice" | "chat" | "friends" = "notice") {
     if (!login) return;
     this.send(this.presence.connectionsOf(login).map((conn) => ({ to: "one" as const, conn, msg: { type } })));
   }
@@ -183,6 +187,8 @@ export class LobbyGateway implements OnGatewayConnection, OnModuleDestroy {
         const s = this.sockets.get(id);
         if (s?.readyState === 1) s.send(frame);
       }
+    const changed = this.presence.statusChanges();
+    if (changed.length) this.statusChanges.next(changed);
     if (!this.censusDue || now - this.censusAt < CENSUS_MS) return;
     this.censusDue = false;
     this.censusAt = now;

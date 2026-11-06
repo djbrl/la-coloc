@@ -452,7 +452,11 @@ export type NotificationKind =
   // answer counts for all of them). guest_accepted / guest_declined tell the one who asked.
   | "guest_ask"
   | "guest_accepted"
-  | "guest_declined";
+  | "guest_declined"
+  // Someone asks to be your friend: answered like an invitation. friend_accepted tells them you said yes (a no is
+  // never sent back).
+  | "friend_request"
+  | "friend_accepted";
 
 // Only invitations (house_invite, rent_together, team_invite, team_ask) have a state; the other kinds are news, and
 // leave it null.
@@ -497,6 +501,19 @@ export const blocks = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] })],
+);
+
+// Two people who said yes to being friends: they see each other's status (online, idle, away) and city in their
+// friends list. One row per pair, the ids sorted like a direct channel's name, so a pair can't be friends twice.
+// Either can end it, and a block ends it too (apps/api/src/notifications/friends.ts).
+export const friendships = pgTable(
+  "friendships",
+  {
+    userA: uuid("user_a").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userB: uuid("user_b").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userA, t.userB] }), index("friendships_b").on(t.userB)],
 );
 
 // How far someone has read a conversation: the id of the last message they saw there. What comes after, written by

@@ -16,7 +16,7 @@ import { downWords } from "./core";
 import { defineWords, dictionaries, language, nbsp, startingLang, type Words } from "./i18n";
 
 // Every dictionary the site has. Importing the modules above registers them; a new one belongs in this list.
-const AREAS = ["landing", "explain", "states", "house", "tutorial", "tour", "welcome", "settings", "lobby", "common", "cards", "credit", "hud", "join", "rent", "list", "login", "room", "down", "arena", "missions"];
+const AREAS = ["landing", "explain", "states", "house", "tutorial", "tour", "welcome", "settings", "lobby", "common", "cards", "credit", "hud", "join", "rent", "list", "login", "friends", "room", "down", "arena", "missions"];
 
 // Every path to a leaf ("tour.next", "room.live"), with what's there.
 function leaves(words: object, path = ""): Map<string, unknown> {

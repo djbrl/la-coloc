@@ -8,6 +8,9 @@
 // to their profile, and someone else's card has a key for it too.
 import { computed, ref } from "vue";
 import { openChat } from "../../conversations";
+import { acceptFriend, askFriend, friends, friendsSheet, takeBackFriend } from "../../friends";
+import { friendKey } from "../friends/friends";
+import { friendWords as fw } from "../list/words";
 import { inviteToHouse, notices, rentTogether, withdrawInvite } from "../../notices";
 import { me } from "../../session";
 import type { Badge, CityHouse } from "../../types";
@@ -89,6 +92,30 @@ const offered = computed(() => {
 });
 const first = computed(() => props.name.split(" ")[0]);
 
+// The friend key beside Chat (friends/friends.ts): add them, say yes to their request, take yours back, or open the
+// friends list when you're friends already.
+const friend = computed(() => friendKey({ login: props.login, isMe: props.isMe, example: madeUp.value }, me.value, friends));
+const friendName = computed(() => {
+  const k = friend.value;
+  if (!k) return "";
+  return k.kind === "friends" ? fw.isFriend(props.name) : k.kind === "asked" ? fw.askedName(props.name) : k.kind === "accept" ? fw.acceptName(props.name) : fw.addName(props.name);
+});
+async function friendAct() {
+  const k = friend.value;
+  if (busy.value || !k) return;
+  if (k.kind === "friends") {
+    friendsSheet.open = true;
+    return;
+  }
+  busy.value = true;
+  error.value = "";
+  said.value = "";
+  const sent = k.kind === "add" ? await askFriend(props.login) : k.kind === "accept" ? await acceptFriend(k.id) : await takeBackFriend(k.id);
+  busy.value = false;
+  if (!sent.ok) error.value = sent.message;
+  else if (k.kind === "add") said.value = fw.sentTo(props.login);
+}
+
 // Sending an invitation: a sentence once it's sent, or the API's refusal in its own words.
 const busy = ref(false);
 const said = ref("");
@@ -145,13 +172,19 @@ async function send(kind: "invite" | "share" | "withdraw") {
     <p v-else-if="madeUp" class="soft small">{{ w.exampleLine }}</p>
 
     <div class="menu">
-      <!-- Chat first: never missing on someone who isn't you. -->
-      <RouterLink v-if="message?.kind === 'login'" to="/login" class="big primary" :aria-label="w.messageLoginName(name)">
-        <Icon name="chat" :size="20" /> {{ hw.person.chat }}
-      </RouterLink>
-      <button v-else-if="message" class="big primary" :aria-label="w.messageName(name)" @click="openChat('dm', { with: login })">
-        <Icon name="chat" :size="20" /> {{ hw.person.chat }}
-      </button>
+      <!-- Chat first: never missing on someone who isn't you. Beside it, the friend key: an icon, its name for a
+           screen reader and on hover. -->
+      <div v-if="message" class="talk">
+        <RouterLink v-if="message.kind === 'login'" to="/login" class="big primary" :aria-label="w.messageLoginName(name)">
+          <Icon name="chat" :size="20" /> {{ hw.person.chat }}
+        </RouterLink>
+        <button v-else class="big primary" :aria-label="w.messageName(name)" @click="openChat('dm', { with: login })">
+          <Icon name="chat" :size="20" /> {{ hw.person.chat }}
+        </button>
+        <button v-if="friend" type="button" class="big friend-key" :class="friend.kind" :disabled="busy" :aria-label="friendName" :title="friendName" @click="friendAct">
+          <Icon :name="friend.kind === 'asked' ? 'tick' : friend.kind === 'friends' ? 'people' : 'addFriend'" :size="22" />
+        </button>
+      </div>
 
       <div v-if="offer?.kind === 'invite' && offer.rooms.length > 1 && !offer.example" class="segmented rooms" role="radiogroup" :aria-label="bw.whichRoom">
         <button v-for="r in offer.rooms" :key="r" type="button" role="radio" :aria-checked="offered === r" @click="pickedRoom = r">
@@ -198,6 +231,13 @@ async function send(kind: "invite" | "share" | "withdraw") {
 .desc { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 /* Their name on GitHub, on the band. */
 .handle { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+/* Chat and the friend key: Chat takes the width, the friend key is square. Friends already, or asked: it says so in
+   green; their request waiting: the sign's red, like a yes. */
+.talk { display: flex; gap: 8px; }
+.talk > .primary { flex: 1 1 auto; min-width: 0; }
+.talk .friend-key { flex: none; width: 60px; padding: 0; }
+.talk .friend-key.friends, .talk .friend-key.asked { color: var(--live); }
+.talk .friend-key.accept, .talk .friend-key.accept:hover:not(:disabled) { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
 /* The keys after Chat: side by side when both fit, each stepping back from it. */
 .moves { display: flex; flex-wrap: wrap; gap: 8px; }
 .moves > * { flex: 1 1 150px; min-width: 0; }

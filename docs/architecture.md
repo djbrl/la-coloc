@@ -86,6 +86,10 @@ room's CPU and memory, which feed the bill.
 - A city holds as many lobbies as it needs, 32 people each: a newcomer takes the first with room, so no page ever draws
   more than 32 people online. Visitors watch without taking a place. The head count stays per city, and a city with
   several lobbies shows a button to change (`apps/api/src/lobby/presence.ts`).
+- Each tab also says how present its person is, only when it changes: `{ type: "status", status: "idle" }` after five
+  minutes without input, `"away"` while the tab is hidden, `"online"` again (`apps/web/src/activity.ts`). The API
+  keeps it in memory with the rest, takes the most present of someone's tabs, and sends their friends a one-word
+  `friends`; their page then asks `GET /api/friends` for the list with statuses and cities (`apps/api/src/friends`).
 - Movement goes out ten times a second as one binary frame per lobby, 8 bytes per mover: a small number for who (their
   slot in the lobby, given in the JSON `snapshot` and `join`), x, z and heading. Joining, leaving and waves stay JSON.
 - The city stream (`GET /api/city/stream`) says the whole city when it opens, then only the houses that changed. The
