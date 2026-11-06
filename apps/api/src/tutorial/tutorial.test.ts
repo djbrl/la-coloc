@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { type Db, deployments, fridgeNotes, githubInstallations, memberships, repos, rooms, users } from "@coloc/db";
+import { type Db, deployments, fridgeNotes, githubInstallations, memberships, messages, repos, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import type { ApiToAgent, DeployCommand } from "@coloc/protocol";
 import { HttpException } from "@nestjs/common";
@@ -323,6 +323,8 @@ describe("taking the tutorial again", () => {
     await me.updateMe(req, { tutorialDone: true });
     await tutorial.progress(req, { chapter: "open" });
     expect((await tutorial.state(req)).done).toBe(true);
+    const fatouId = (await user("fatou")).id;
+    await db.insert(messages).values({ channel: `house:atelier/${fatouId}`, authorId: fatouId, body: "Salut !" });
 
     expect(await tutorial.reset(req)).toEqual({ ok: true });
     expect(sent).toEqual([{ type: "remove_room", room: "fatou" }]);
@@ -341,8 +343,38 @@ describe("taking the tutorial again", () => {
     expect(state.room).toBeNull();
     expect(state.done).toBe(false);
     expect(state.chapter).toBeNull();
-    // The welcome note went with the room.
+    // The welcome note went with the room, and what they said in their channel there.
     expect((await db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, "atelier"))).some((n) => n.room === "fatou")).toBe(false);
+    expect(await db.select().from(messages).where(eq(messages.channel, `house:atelier/${fatouId}`))).toEqual([]);
+  });
+});
+
+describe("the workshop, as each newcomer sees it", () => {
+  it("shows only you: no host, no learners, no other newcomer, in its rooms, its people or its news", async () => {
+    await tutorial.room(await loggedIn("koffi"), response());
+    await tutorial.room(req, response());
+    const v = (await houses.view("atelier", (await user("fatou")).id))!;
+    expect(v.rooms.map((r) => r.name)).toEqual(["fatou"]);
+    expect(v.members.map((m) => m.login)).toEqual(["fatou"]);
+    expect(v.chef).toBeNull();
+    expect(v.ledger.map((l) => l.login)).toEqual(["fatou"]);
+    expect([v.doorbell, v.chores, v.guests]).toEqual([[], [], []]);
+    expect(v.notes!.map((n) => n.room)).toEqual(["fatou"]);
+    // Before taking a room: nobody at all.
+    const before = (await houses.view("atelier", (await loggedIn("amina"), (await user("amina")).id)))!;
+    expect([before.rooms, before.members]).toEqual([[], []]);
+  });
+
+  it("says hello in your channel, as the house, by your first name", async () => {
+    await db.update(users).set({ name: "Fatou Diop" }).where(eq(users.login, "fatou"));
+    await tutorial.room(req, response());
+    const v = (await houses.view("atelier", (await user("fatou")).id))!;
+    expect(v.channel).toHaveLength(1);
+    expect(v.channel![0]).toMatchObject({
+      author: null,
+      said: { kind: "welcome", params: { name: "Fatou", house: "L'Atelier" } },
+      body: "Hello Fatou, welcome to L'Atelier! This is the house's channel: say hi anytime.",
+    });
   });
 });
 

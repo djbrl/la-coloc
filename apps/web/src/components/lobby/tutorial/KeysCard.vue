@@ -21,6 +21,11 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ next: [] }>();
 
+// The key's paper tag holds about eight characters of the monospace beside its punch hole: a longer name ends in an
+// ellipsis there (the line under the key, and its hover, carry the whole name).
+const TAG_CHARS = 8;
+const tagName = (room: string) => (room.length > TAG_CHARS ? `${room.slice(0, TAG_CHARS - 1)}…` : room);
+
 const go = ref<HTMLButtonElement | null>(null);
 const focusGo = () => setTimeout(() => go.value?.focus({ preventScroll: true }), 0);
 onMounted(focusGo);
@@ -76,11 +81,13 @@ function onKey(e: KeyboardEvent) {
           <path d="M40 62l-6 20" class="string" />
           <rect x="4" y="80" width="88" height="30" rx="5" class="paper" />
           <circle cx="14" cy="95" r="3" class="punch" />
-          <text x="54" y="99" text-anchor="middle" class="name">{{ room.length > 10 ? `${room.slice(0, 9)}…` : room }}</text>
+          <text x="56" y="99" text-anchor="middle" class="name">{{ tagName(room) }}</text>
         </g>
       </svg>
       <h2 id="quest-keys-title"><span class="sr-only">{{ w.keysTag }}. </span>{{ w.keysTitle }}</h2>
-      <p>{{ w.keysLine(room, house) }}</p>
+      <!-- "Room <name>, <house>.": a long name shortens to an ellipsis in its box; the whole of it is in the text (for a
+           screen reader) and on hover. -->
+      <p class="where">{{ w.keysRoom }} <span class="room-name" :title="room">{{ room }}</span>{{ w.keysAt(house) }}</p>
       <p class="soft">{{ explain.room(memoryMb ?? 256, cpus ?? 0.5) }}</p>
       <div class="nav">
         <button ref="go" type="button" class="primary go" @click="emit('next')">{{ w.moveIn }} <kbd>↵</kbd></button>
@@ -121,6 +128,8 @@ function onKey(e: KeyboardEvent) {
 h2 { margin: 0; font-size: 40px; line-height: 1; }
 p { margin: 0; font-size: 17px; line-height: 1.45; }
 .soft { color: var(--muted); font-size: 15px; }
+.card > * { min-width: 0; }
+.room-name { display: inline-block; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .rent-title { font-size: 30px; }
 .amount { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 2px 8px; color: var(--muted); }
 .amount strong { font: 400 44px/1.05 var(--display); color: var(--panel-red); white-space: nowrap; }

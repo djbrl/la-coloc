@@ -8,8 +8,8 @@
 // "Bob's deploy failed: lol" is a possible name. So each blank of a note is written between two invisible marks,
 // Unicode's isolates (U+2068 and U+2069, the standard way to put someone's text inside a sentence), and the marks
 // are first taken out of the value itself. Reading a note finds its blanks between the marks, with no guessing.
-// Notes written before the marks are read the old way, refs and hours held to their shape. Knock lines have one
-// blank at most, so they need no marks.
+// Notes written before the marks are read the old way, refs and hours held to their shape. Knock lines hold a first
+// name or a house's name at most, so they need no marks.
 
 // Order matters where one template could swallow another: the longer, more specific one comes first.
 const NOTES = {
@@ -44,6 +44,10 @@ const KNOCK = {
   taken: "Someone else moved into this room first. Knock on another one?",
   withdrawn: "They withdrew their knock.",
   invited: "They moved in at a flatmate's invitation.",
+  // The workshop's own lines, in a newcomer's channel there (nobody else is in it): its hello, never stored
+  // (HousesService.view), and its answer to their first word (DoorbellService).
+  welcome: "Hello {name}, welcome to {house}! This is the house's channel: say hi anytime.",
+  workshopReply: "Thanks, {name}! In a house in the city, your flatmates read you here.",
 } as const;
 
 export type NoteKind = keyof typeof NOTES;

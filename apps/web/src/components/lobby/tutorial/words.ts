@@ -16,7 +16,7 @@ const CHAPTER_NAMES: Record<Chapter, string> = {
   house: "Meet the house",
 };
 const STAGE_NAMES: Record<Stage, string> = { fetch: "Fetching your code", build: "Building", start: "Starting", live: "Live" };
-const HOUSE_CARD_TITLES: Record<HouseCard, string> = { flatmates: "Your flatmates", reviews: "Reviews", news: "News" };
+const HOUSE_CARD_TITLES: Record<HouseCard, string> = { flatmates: "Your flatmates", channel: "The channel", reviews: "Reviews", news: "News", bill: "The bill" };
 
 export const tutorialWords = defineWords(
   "tutorial",
@@ -67,7 +67,9 @@ export const tutorialWords = defineWords(
     rentHow: "How you pay",
     rentMonth: "a month",
     keysTitle: "It's yours",
-    keysLine: (room: string, house: string) => `Room ${room}, ${house}.`,
+    // "Room <name>, <house>.": the name between the two, in its own box so a long one ends in an ellipsis.
+    keysRoom: "Room",
+    keysAt: (house: string) => `, ${house}.`,
     keysTag: "Your room",
     moveIn: "Move in",
 
@@ -131,18 +133,19 @@ export const tutorialWords = defineWords(
 
     // Chapter 8: meet the house, one idea per card.
     houseTitles: HOUSE_CARD_TITLES,
-    flatmatesLine: "Your flatmates. Pick one to chat.",
+    flatmatesLine: "Who lives here. For now, just you.",
+    channelLine: "The house's chat. It just said hello.",
     reviewsLine: (credit: string) => `Each review takes ${credit} off your rent.`,
     newsLine: "What happens in the house. Your move is here.",
+    billLine: "The server's cost, split between flatmates.",
     houseCardOf: (n: number, total: number) => `${n}/${total}`,
     next: "Next",
     gotIt: "Got it",
 
     // "Well done": the end of the quest. It leads to the city, whose card alone says welcome.
-    homeSticker: "Tutorial done",
     homeTitle: (first: string) => `Well done, ${first}`,
     homeTitlePlain: "Well done",
-    homeLine: "Keys in hand, a project online, flatmates to read your code. The city's waiting.",
+    homeLine: "Your room is yours, your project is online. The city's waiting.",
     intoCity: "Into the city",
     tourSkip: "Skip",
 
@@ -198,7 +201,8 @@ export const tutorialWords = defineWords(
     rentHow: "Comment vous payez",
     rentMonth: "par mois",
     keysTitle: "Elle est à vous",
-    keysLine: (room, house) => `Chambre ${room}, ${house}.`,
+    keysRoom: "Chambre",
+    keysAt: (house) => `, ${house}.`,
     keysTag: "Votre chambre",
     moveIn: "Emménager",
 
@@ -256,21 +260,28 @@ export const tutorialWords = defineWords(
     postcardFrom: (house, city) => `Depuis ${house}, ${city}`,
     later: "Plus tard",
 
-    houseTitles: { flatmates: "Vos colocs", reviews: "Revues", news: "Nouvelles" },
-    flatmatesLine: "Vos colocs. Choisissez-en un pour discuter.",
+    houseTitles: { flatmates: "Vos colocs", channel: "Le salon", reviews: "Revues", news: "Nouvelles", bill: "La facture" },
+    flatmatesLine: "Qui vit ici. Pour l'instant, vous seul.",
+    channelLine: "La discussion de la maison. Elle vient de vous dire bonjour.",
     reviewsLine: (credit) => `Chaque revue retire ${credit} de votre loyer.`,
     newsLine: "Ce qui se passe dans la maison. Votre arrivée y est.",
+    billLine: "Le coût du serveur, partagé entre colocs.",
     houseCardOf: (n, total) => `${n}/${total}`,
     next: "Suivant",
     gotIt: "Compris",
 
-    homeSticker: "Tutoriel terminé",
     homeTitle: (first) => `Bravo, ${first}`,
     homeTitlePlain: "Bravo",
-    homeLine: "Les clés en main, un projet en ligne, des colocs pour relire votre code. La ville vous attend.",
+    homeLine: "Votre chambre est à vous, votre projet est en ligne. La ville vous attend.",
     intoCity: "Vers la ville",
     tourSkip: "Passer",
 
     workshopTagline: "Là où les nouveaux prennent leur première chambre.",
   },
 );
+
+/** Chapter 8's line for a card (Coach.vue, and the spotlight in LobbyView.vue). `credit`: what a review takes off. */
+export function houseLineOf(card: HouseCard, credit: string): string {
+  const w = tutorialWords;
+  return { flatmates: w.flatmatesLine, channel: w.channelLine, reviews: w.reviewsLine(credit), news: w.newsLine, bill: w.billLine }[card];
+}

@@ -164,19 +164,31 @@ describe("the vote", () => {
 });
 
 describe("the workshop's answer to your first word", () => {
-  const channelOf = async (viewer: string) => (await houses.view("atelier", ids[viewer]))!.channel!.filter((m) => m.author?.login === "ndeye" && m.body.includes("Fatou"));
+  // The house's own answer: no author, so no person seems to sit in the workshop.
+  const channelOf = async (viewer: string) => (await houses.view("atelier", ids[viewer]))!.channel!.filter((m) => m.said?.kind === "workshopReply");
 
   beforeEach(async () => {
     doorbell.replyDelayMs = 1;
     await db.insert(memberships).values({ houseId: "atelier", userId: ids.fatou });
   });
 
-  it("answers once, by your first name, however many times you talk", async () => {
+  it("answers once, as the house, by your first name, however many times you talk", async () => {
     await doorbell.postToHouse("atelier", ids.fatou, "Salut !");
     await vi.waitFor(async () => expect(await channelOf("fatou")).toHaveLength(1));
     await doorbell.postToHouse("atelier", ids.fatou, "Encore moi");
     await new Promise((r) => setTimeout(r, 20));
+    const [answer] = await channelOf("fatou");
+    expect(answer).toMatchObject({ author: null, said: { kind: "workshopReply", params: { name: "Fatou" } } });
     expect(await channelOf("fatou")).toHaveLength(1);
+  });
+
+  it("keeps each newcomer's words in a channel of their own", async () => {
+    await db.insert(memberships).values({ houseId: "atelier", userId: ids.koffi });
+    await doorbell.postToHouse("atelier", ids.fatou, "Salut !");
+    await doorbell.postToHouse("atelier", ids.koffi, "Hello from Lomé");
+    const said = async (who: string) => (await houses.view("atelier", ids[who]))!.channel!.filter((m) => m.author).map((m) => [m.author!.login, m.body]);
+    expect(await said("fatou")).toEqual([["fatou", "Salut !"]]);
+    expect(await said("koffi")).toEqual([["koffi", "Hello from Lomé"]]);
   });
 
   it("stays quiet in a real house", async () => {

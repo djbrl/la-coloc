@@ -62,7 +62,8 @@ describe("HousesService", () => {
     const fatou = (await db.insert((await import("@coloc/db")).users).values({ login: "fatou" }).returning())[0];
     await db.insert(roomRows).values({ houseId: "atelier", name: "fatou", occupantId: fatou.id, memoryMb: 256, cpus: 0.5, status: "live", url: "http://x" });
     await svc.applySnapshot("atelier", { type: "rooms_snapshot", rooms: [] });
-    const rooms = Object.fromEntries((await svc.view("atelier"))!.rooms.map((r) => [r.name, [r.status, r.url, r.demo]]));
+    const rows = await db.select().from(roomRows).where(eq(roomRows.houseId, "atelier"));
+    const rooms = Object.fromEntries(rows.map((r) => [r.name, [r.status, r.url, r.demo]]));
     expect(rooms).toEqual({
       aissatou: ["live", null, true],
       babacar: ["live", null, true],
@@ -149,8 +150,8 @@ describe("the seed", () => {
     for (const h of CITY) if (h.rooms.length) expect(h.rooms.map((r) => r.who)).toContain(h.chef);
   });
 
-  it("makes the workshop feel lived in: a host as chef and four learners, each with a small first project", async () => {
-    const v = (await svc.view("atelier"))!;
+  it("runs the workshop with a host, and two learners' example rooms nobody else is shown", async () => {
+    const v = (await svc.view("atelier", await userId("ndeye")))!;
     expect(v).toMatchObject({ tutorial: true, demo: false, status: "live" });
     expect(v.chef!.login).toBe("ndeye");
     expect(v.members.map((m) => [m.login, m.role])).toEqual([
@@ -164,6 +165,9 @@ describe("the seed", () => {
       expect(r.project).toBeTruthy();
       expect(r.projectDescription).toMatch(/\.$/);
     }
+    // Someone logged out sees nobody in it.
+    const outside = (await svc.view("atelier"))!;
+    expect([outside.rooms, outside.members, outside.chef]).toEqual([[], [], null]);
     // Only the workshop has example rooms; everywhere else rooms are what they say.
     expect((await svc.view("sacre-coeur"))!.rooms.every((r) => !r.demo)).toBe(true);
     expect((await svc.view("sacre-coeur"))!.tutorial).toBe(false);

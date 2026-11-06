@@ -172,6 +172,9 @@ export const houseWords = defineWords(
     back: "Back",
     marking: "One moment…",
     markPaid: "Pay from my credit",
+    // The workshop's reviews and bill are made up, so a newcomer sees what they look like (examples.ts): one small tag.
+    exampleTag: "Example",
+    examplePrs: { greeting: "Say hello in Wolof too", prices: "Cache the market prices", login: "Fix the login redirect" },
   },
   {
     missing: "Cette maison n'existe pas.",
@@ -321,5 +324,7 @@ export const houseWords = defineWords(
     back: "Retour",
     marking: "Un instant…",
     markPaid: "Payer avec mon crédit",
+    exampleTag: "Exemple",
+    examplePrs: { greeting: "Dire bonjour en wolof aussi", prices: "Mettre les prix du marché en cache", login: "Réparer la redirection après connexion" },
   },
 );

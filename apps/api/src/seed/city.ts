@@ -103,8 +103,9 @@ export const CITY: SeedHouse[] = [
   },
   {
     // Newcomers take their first room here during the tutorial; each room is removed when its tutorial restarts.
-    // The host and two learners live here already, so with you it's a house of four: their rooms are examples
-    // (`demo`), seeded online with no address, and nothing runs in them.
+    // The host runs it and two learners' example rooms (`demo`, online with no address, nothing running) stay in the
+    // data, but a newcomer never sees them, nor anyone else's room: the workshop shows each newcomer only themselves
+    // (HousesService.view). Its channel says hello by itself, so it has no seeded lines.
     id: "atelier",
     name: "L'Atelier",
     city: "Dakar",

@@ -27,6 +27,7 @@ export const questIcons = {
   search: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z M15.5 15.5L20 20",
   lock: "M6 11h12v9H6z M8.5 11V8a3.5 3.5 0 0 1 7 0v3",
   news: "M9 3h6 M10 3v6l-4 5h12l-4-5V3 M12 14v7",
+  bill: "M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z M9 8h6 M9 12h6",
 } as const;
 export type QuestIconName = keyof typeof questIcons;
 </script>

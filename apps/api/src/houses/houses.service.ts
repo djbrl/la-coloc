@@ -28,12 +28,12 @@ import { auditTime, concatMap, filter, Subject, tap } from "rxjs";
 import { isCoreDown } from "../core/core";
 import { CreditService, projectKey } from "../credit/credit.service";
 import { DB } from "../db/db.module";
-import { channelMessages, houseChannel, openDoorbell } from "../doorbell/queries";
+import { channelMessages, houseChannel, openDoorbell, workshopChannel } from "../doorbell/queries";
 import { guestStanding } from "./guests";
 import { type Draft, noteForDeploy, noteForRoomEvent } from "./fridge";
 import { happenings } from "./happenings";
 import { billedRooms } from "./leases";
-import { plainNote, readNote } from "./lines";
+import { knockText, plainNote, readNote } from "./lines";
 import { billReference, monthEnd, monthOf, monthStart, operatorsFor, PROJECT_COST_FCFA, REVIEW_CREDIT_FCFA, TONTINE_ANCHOR, WORKSHOP_ID } from "./money";
 import { PLAN_COST_FCFA } from "./server";
 import { alias } from "drizzle-orm/pg-core";
@@ -443,12 +443,20 @@ export class HousesService {
     if (!h) return null;
 
     const now = new Date();
+    const team = await this.teams([houseId]);
+    // The workshop is each newcomer's own (Jib, 6 11): whoever else took a room there, and the seeded host and
+    // learners, are left out, so anybody present is just you. Only your rooms (or one you team up on), your place
+    // among its people, your news, and a channel of your own. Its chef, who runs it, still sees all of it.
+    const solo = h.tutorial && !(viewerId && h.chefId === viewerId);
+    const yours = (r: (typeof h.rooms)[number]) =>
+      !!viewerId && !r.demo && (r.occupantId === viewerId || (team.get(`${h.id}/${r.name}`) ?? []).some((u) => u.id === viewerId));
+    const shownRooms = solo ? h.rooms.filter(yours) : h.rooms;
+    const shownMembers = solo ? h.memberships.filter((m) => m.userId === viewerId) : h.memberships;
     const mine = viewerId ? h.memberships.find((m) => m.userId === viewerId) : undefined;
     // A flatmate may rent several rooms here: in the house's order, so the first is always the same one.
-    const myRooms = viewerId ? h.rooms.filter((r) => r.occupantId === viewerId).map((r) => r.name) : [];
+    const myRooms = viewerId ? shownRooms.filter((r) => r.occupantId === viewerId).map((r) => r.name) : [];
     const viewerRow = viewerId ? (mine?.user ?? (await this.db.query.users.findFirst({ where: eq(users.id, viewerId) }))) : undefined;
     const live = this.usage.get(houseId);
-    const team = await this.teams([houseId]);
 
     let recentDeployments: DeploymentView[] | null = null;
     let notes: FridgeNoteView[] | null = null;
@@ -457,14 +465,25 @@ export class HousesService {
     let openChores: ChoreView[] | null = null;
     let myApplication: string | null = null;
     // People let into the house's chat from outside, for those who can read it; and this viewer's own standing.
-    const guestRows = await this.db.select({ userId: houseGuests.userId, status: houseGuests.status, askedAt: houseGuests.askedAt, decidedAt: houseGuests.decidedAt, user: users }).from(houseGuests).innerJoin(users, eq(users.id, houseGuests.userId)).where(eq(houseGuests.houseId, houseId));
+    const guestRows = solo
+      ? []
+      : await this.db.select({ userId: houseGuests.userId, status: houseGuests.status, askedAt: houseGuests.askedAt, decidedAt: houseGuests.decidedAt, user: users }).from(houseGuests).innerJoin(users, eq(users.id, houseGuests.userId)).where(eq(houseGuests.houseId, houseId));
     const myGuest = mine ? null : guestStanding(guestRows.find((g) => g.userId === viewerId));
     const linked = mine ? await this.db.select({ room: repos.room, fullName: repos.fullName }).from(repos).where(eq(repos.houseId, houseId)) : [];
-    if (mine) {
+    if (mine && solo) {
+      // Only what happened in your own rooms, and the house's hello at the top of your own channel.
+      const ds = await this.db.select().from(deployments).where(eq(deployments.houseId, houseId)).orderBy(desc(deployments.createdAt)).limit(RECENT * 5);
+      const ns = await this.db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, houseId)).orderBy(desc(fridgeNotes.at)).limit(RECENT * 5);
+      recentDeployments = ds.filter((d) => myRooms.includes(d.room)).slice(0, RECENT).map(deploymentView);
+      notes = ns.filter((n) => n.room && myRooms.includes(n.room)).slice(0, RECENT).map(noteView);
+      doorbell = [];
+      channel = [workshopWelcome(h, mine), ...(await channelMessages(this.db, workshopChannel(houseId, viewerId!), undefined, viewerId))];
+      openChores = [];
+    } else if (mine) {
       const ds = await this.db.select().from(deployments).where(eq(deployments.houseId, houseId)).orderBy(desc(deployments.createdAt)).limit(RECENT);
       const ns = await this.db.select().from(fridgeNotes).where(eq(fridgeNotes.houseId, houseId)).orderBy(desc(fridgeNotes.at)).limit(RECENT);
       recentDeployments = ds.map(deploymentView);
-      notes = ns.map((n) => ({ id: n.id, tone: n.tone, text: plainNote(n.text), said: readNote(n.text), room: n.room, at: n.at.toISOString(), count: n.count }));
+      notes = ns.map(noteView);
       doorbell = await openDoorbell(this.db, houseId, h.memberships.length);
       channel = await channelMessages(this.db, houseChannel(houseId), undefined, viewerId);
       openChores = await this.openChores(houseId);
@@ -491,9 +510,9 @@ export class HousesService {
       agentOnline: this.online.has(h.id),
       monthlyCostFcfa: h.monthlyCostFcfa,
       rules: h.rules,
-      chef: person(h.chef),
-      members: h.memberships.map((m) => ({ ...person(m.user)!, role: m.role })),
-      rooms: h.rooms.map((r) => ({
+      chef: solo ? null : person(h.chef),
+      members: shownMembers.map((m) => ({ ...person(m.user)!, role: m.role })),
+      rooms: shownRooms.map((r) => ({
         name: r.name,
         limits: { memoryMb: r.memoryMb, cpus: r.cpus },
         // Nobody lives in a free room, so nothing of theirs is online there, whatever a leftover container says.
@@ -528,8 +547,8 @@ export class HousesService {
       chores: openChores,
       // The chef only: which server they rented and whether its key exists. Never the key or its hash.
       server: mine?.role === "chef" ? { plan: h.plan, keyMade: !!h.agentSecretHash } : null,
-      ledger: await this.ledger(houseId, h.memberships.map((m) => ({ id: m.userId, login: m.user.login }))),
-      reviewsThisMonth: await this.reviewsThisMonth(houseId, now),
+      ledger: await this.ledger(houseId, shownMembers.map((m) => ({ id: m.userId, login: m.user.login }))),
+      reviewsThisMonth: solo ? 0 : await this.reviewsThisMonth(houseId, now),
       tontine: h.tutorial ? null : tontineView(h.memberships, h.rooms, now),
       bill: mine ? await this.bill(h, now) : null,
     };
@@ -985,6 +1004,19 @@ function cityTontine(members: MemberRow[], rs: RoomRow[], now: Date) {
 
 function deploymentView(d: typeof deployments.$inferSelect): DeploymentView {
   return { id: d.id, room: d.room, kind: d.kind, ref: d.ref, status: d.status, detail: d.detail, updatedAt: d.updatedAt.toISOString() };
+}
+
+function noteView(n: typeof fridgeNotes.$inferSelect): FridgeNoteView {
+  return { id: n.id, tone: n.tone, text: plainNote(n.text), said: readNote(n.text), room: n.room, at: n.at.toISOString(), count: n.count };
+}
+
+/**
+ * The first line of a newcomer's channel in the workshop: the house itself says hello, by their first name. It isn't
+ * stored (each newcomer has their own), and it's the house speaking, not a person, so nobody seems to sit there.
+ */
+export function workshopWelcome(h: { id: string; name: string }, m: { joinedAt: Date; user: { name: string | null; login: string } }): MessageView {
+  const params = { name: (m.user.name ?? m.user.login).trim().split(/\s+/)[0], house: h.name };
+  return { id: `welcome:${h.id}`, author: null, body: knockText("welcome", params), said: { kind: "welcome", params }, at: m.joinedAt.toISOString() };
 }
 
 // Repo URLs may carry a GitHub token; never store or show it.

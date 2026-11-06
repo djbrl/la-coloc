@@ -50,17 +50,18 @@ import TouchDash from "./lobby/TouchDash.vue";
 import PersonCard from "./lobby/PersonCard.vue";
 import { type Place, placeKey } from "./lobby/place";
 import RentSteps from "./lobby/RentSteps.vue";
-import { evenSplit, fcfa, houseCost, OPERATORS, plans } from "./lobby/house/server";
+import { evenSplit, fcfa, houseCost, OPERATORS, plans, WORKSHOP_SHARES } from "./lobby/house/server";
 import Coach from "./lobby/tutorial/Coach.vue";
 import HomeCard from "./lobby/tutorial/HomeCard.vue";
 import KeysCard from "./lobby/tutorial/KeysCard.vue";
 import QuestTracker from "./lobby/tutorial/QuestTracker.vue";
+import Spotlight from "./lobby/tutorial/Spotlight.vue";
 import { keyParts } from "./lobby/tutorial/tour";
 import TourCard from "./lobby/tutorial/TourCard.vue";
 import { CHAPTERS, FREE, HOUSE_CARDS, type Piece, PIECES, SETUP, STEPS, TUTORIAL_HOUSE } from "./lobby/tutorial/tutorial";
 import { useTutorial } from "./lobby/tutorial/useTutorial";
 import Welcome from "./lobby/tutorial/Welcome.vue";
-import { tutorialWords as qw } from "./lobby/tutorial/words";
+import { houseLineOf, tutorialWords as qw } from "./lobby/tutorial/words";
 import LoadingScreen from "./LoadingScreen.vue";
 import CharacterCreation from "./CharacterCreation.vue";
 import { digits, needsCharacter } from "./credit";
@@ -324,6 +325,7 @@ watch(
 function enterTutorial() {
   if (!lobby || !me.value || inWorkshop.value) return;
   tutorialChip.value = false;
+  chatSheet.open = false;
   card.value = null;
   knock.value = null;
   rent.value = null;
@@ -342,6 +344,8 @@ function enterTutorial() {
 // Out of the workshop (finished or skipped): the real city comes back, and so does everyone in it.
 function leaveWorkshop() {
   if (place.value) closeInside();
+  // A chat left open in the workshop doesn't greet you in the city (Jib, 6 11: "the chat opens by itself").
+  chatSheet.open = false;
   card.value = null;
   bigMap.value = false;
   keysOpen.value = false;
@@ -411,14 +415,24 @@ watch(
 const firstRent = computed(() => {
   const view = tutorial.view.value;
   const total = (view && houseCost(view)) ?? plans[1].fcfa;
-  const lived = Math.max(1, view?.rooms.filter((r) => r.occupant).length ?? 1);
-  return { share: evenSplit(total, lived), total, operators: view?.operators?.length ? view.operators : OPERATORS };
+  return { share: evenSplit(total, WORKSHOP_SHARES), total, operators: view?.operators?.length ? view.operators : OPERATORS };
 });
 // Chapter 8: the house's window opens again, on the tab each card talks about; "Well done" closes it.
 const questTab = computed(() => {
   if (!inWorkshop.value || t.step !== "house") return undefined;
-  return ({ flatmates: "people", reviews: "chores", news: "fridge" } as const)[HOUSE_CARDS[t.card]];
+  return ({ flatmates: "people", channel: "channel", reviews: "chores", news: "fridge", bill: "bill" } as const)[HOUSE_CARDS[t.card]];
 });
+
+// The steps that point at a control in the workshop's window get a spotlight on it, in place of the coach (Jib, 6 11):
+// taking the free room (its square on the floor plan), then each of the house's tabs.
+const spot = computed(() => {
+  if (!inWorkshop.value || centred.value || creating.value || place.value?.kind !== "house" || place.value.id !== TUTORIAL_HOUSE) return null;
+  if (t.step === "room") return { target: '[data-spot="take"]', focus: "target" as const, side: "below" as const };
+  // A tab's line goes above it, over the window's head, so the tab's content shows under the dim.
+  if (t.step === "house" && questTab.value) return { target: `#tab-${questTab.value}`, focus: "line" as const, side: "above" as const };
+  return null;
+});
+const questLabel = computed(() => (t.chapter ? `${qw.quest}. ${qw.chapterOf(CHAPTERS.indexOf(t.chapter) + 1, CHAPTERS.length, qw.chapters[t.chapter])}` : qw.quest));
 watch(
   () => (t.active ? t.step : null),
   (step) => {
@@ -1038,6 +1052,7 @@ function goInside(p: Place) {
 // Whatever was open on top of the city closes; the sheet takes its place. Early in the tutorial it waits.
 function openInside(p: Place) {
   if (!picking.value) return;
+  chatSheet.open = false;
   card.value = null;
   knock.value = null;
   sheet.value = "";
@@ -1362,7 +1377,7 @@ function statsOf(name: string) {
            screen, where the window docks on the right, the column moves out of its way. -->
       <div class="hud centre" :class="{ lifted: inWorkshop, aside: inWorkshop && !!place }">
         <Coach
-          v-if="inWorkshop && !centred && !creating"
+          v-if="inWorkshop && !centred && !creating && !spot"
           :key="t.step"
           :machine="t"
           :missing="tutorial.missing.value"
@@ -1461,8 +1476,6 @@ function statsOf(name: string) {
       <HomeCard
         v-if="inWorkshop && t.step === 'home'"
         :first="myFirstName"
-        :room="t.state?.room?.name ?? null"
-        :url="t.state?.room?.url ?? null"
         :busy="tutorial.busy.value"
         :error="tutorial.error.value"
         @finish="tutorial.finish"
@@ -1509,11 +1522,24 @@ function statsOf(name: string) {
       :key="placeKey(place)"
       :start="place"
       :tab="questTab"
-      :coached="inWorkshop && !centred"
+      :coached="inWorkshop && !centred && t.step !== 'room'"
       @change="insideChanged"
       @close="closeInside"
       @link="insideLink"
     />
+    <!-- The tutorial's spotlight on the control a step is about, in the workshop's window: the free room, then each tab
+         of the house with its one line and Next. -->
+    <Spotlight v-if="spot" :key="spot.target" :target="spot.target" :label="questLabel" :focus="spot.focus" :side="spot.side">
+      <p v-if="t.step === 'room'" class="spot-text">{{ tutorial.waiting.value ? qw.waiting : qw.room }}</p>
+      <template v-else>
+        <p class="spot-text">{{ qw.houseTitles[HOUSE_CARDS[t.card]] }}</p>
+        <p class="spot-line">{{ houseLineOf(HOUSE_CARDS[t.card], credit) }}</p>
+        <div class="spot-nav">
+          <span class="spot-count" aria-hidden="true">{{ qw.houseCardOf(t.card + 1, HOUSE_CARDS.length) }}</span>
+          <button type="button" class="primary go spot-go" @click="t.send({ type: 'next' })">{{ t.card === HOUSE_CARDS.length - 1 ? qw.gotIt : qw.next }}</button>
+        </div>
+      </template>
+    </Spotlight>
 
     <!-- The arena, opened at the stadium's entrance: a floating card on the right, like a house's window. -->
     <ArenaPanel v-if="card?.kind === 'arena' && !place" :key="cardKey" :city="card.city" :crowd="crowd" @close="closeCard" />
@@ -1813,4 +1839,11 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .atlas .africa { width: auto; height: 30dvh; max-height: none; }
   .atlas .entries { max-height: none; overflow: visible; }
 }
+/* The spotlight's line (Spotlight.vue holds the card): a bold sentence, and on the house's tabs a line and Next. */
+.spot-text { margin: 0; font: 700 18px/1.3 var(--display); }
+.spot-line { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
+.spot-nav { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+.spot-count { margin-right: auto; font: 600 14px/1 var(--num); color: var(--muted); }
+.spot-go { min-height: 46px; padding: 0 18px; border-radius: var(--r-md); font-size: 16px; }
+.spot-go:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
 </style>

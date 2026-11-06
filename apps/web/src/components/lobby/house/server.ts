@@ -47,6 +47,9 @@ export function houseCost(house: { monthlyCostFcfa: number | null; tutorial?: bo
   return house.monthlyCostFcfa ?? (house.tutorial ? plans[1].fcfa : null);
 }
 
+// The workshop shows each newcomer only themselves, but its rent is a room's share in a house of four, like most.
+export const WORKSHOP_SHARES = 4;
+
 type RentHouse = { monthlyCostFcfa: number | null; tutorial?: boolean; rooms: { occupant: { login: string } | null }[]; bill?: { lines: { login: string; due: number }[] } | null };
 
 // What a room pays a month. Its occupant's line on this month's bill if the viewer can see the bill (reviews already
@@ -58,6 +61,7 @@ export function rentOf(house: RentHouse, room: { occupant: { login: string } | n
   const cost = houseCost(house);
   if (!cost) return null;
   const lived = house.rooms.filter((r) => r.occupant).length;
+  if (house.tutorial) return evenSplit(cost, WORKSHOP_SHARES);
   return evenSplit(cost, room.occupant ? lived : lived + 1);
 }
 
