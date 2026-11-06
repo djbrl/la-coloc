@@ -65,7 +65,7 @@ The rest of this page is the long way, piece by piece: useful to understand it, 
 | 1 | Docker: Traefik and Postgres (started once, runs in the background) | 8000, 5433 |
 | 2 | The API | 4100 |
 | 3 | Sacré-Cœur's caretaker | none, it dials out |
-| 4 | L'Atelier's caretaker (the quest's workshop) | none |
+| 4 | The workshop's caretaker (the quest's house, shown as La Coloc) | none |
 | 5 | The website | 5175 |
 | 6 | Optional: the GitHub webhook relay (`npm run dev:webhooks`) | none |
 
@@ -135,7 +135,7 @@ Stop the API before running it again. If it fails with `Failed query: CREATE SCH
 isn't ready yet: wait five seconds and retry.
 
 Only two houses are real (a caretaker on your machine runs them): **Sacré-Cœur** in Dakar (rooms `jib`, `awa`,
-`moussa` and a free `room-4`) and **L'Atelier**, the workshop. The others are examples with made-up people.
+`moussa` and a free `room-4`) and **La Coloc**, the workshop. The others are examples with made-up people.
 
 ## 5. Terminal 2: the API
 
@@ -161,7 +161,7 @@ COLOC_USAGE_INTERVAL_MS=5000 \
   npm run caretaker -w @coloc/agent
 ```
 
-L'Atelier (the quest needs it to put your page online). It may build from one folder on disk: your clone, the same
+The workshop, shown as La Coloc (the quest needs it to put your page online). It may build from one folder on disk: your clone, the same
 `file://` address as `COLOC_TUTORIAL_REPO` in step 2.
 
 ```bash

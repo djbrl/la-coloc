@@ -90,6 +90,24 @@ function otherProject() {
   emit("back");
 }
 
+// Chapter 6: the address's copy key says "Copied" for a moment. No clipboard (an old browser, no permission): the
+// address is on the card to copy by hand.
+const copied = ref(false);
+let copiedTimer = 0;
+async function copyUrl() {
+  if (!url.value) return;
+  try {
+    await navigator.clipboard.writeText(url.value);
+  } catch {
+    return;
+  }
+  copied.value = true;
+  clearTimeout(copiedTimer);
+  copiedTimer = window.setTimeout(() => (copied.value = false), COPIED_MS);
+}
+const COPIED_MS = 1600;
+onBeforeUnmount(() => clearTimeout(copiedTimer));
+
 // Chapter 8's cards: an icon and a title each, and one sentence.
 const houseCard = computed(() => HOUSE_CARDS[props.machine.card]);
 const houseIcon: Record<(typeof HOUSE_CARDS)[number], QuestIconName> = { flatmates: "people", channel: "chat", reviews: "reviews", news: "news", bill: "bill" };
@@ -143,7 +161,7 @@ onBeforeUnmount(() => clearTimeout(timer));
         <p class="sub">{{ w.roomWhy }}</p>
       </template>
 
-      <!-- 4 · Bring a project: two big tiles, or the GitHub path one step at a time. -->
+      <!-- 4 · Deploy a project: two big tiles, or the GitHub path one step at a time. -->
       <template v-else-if="picking">
         <p class="text">{{ w.pickTitle }}</p>
         <p class="sub">{{ w.pickWhy }}</p>
@@ -196,10 +214,15 @@ onBeforeUnmount(() => clearTimeout(timer));
         @other="otherProject"
       />
 
-      <!-- 6 · Open it: the address, big, and one press. -->
+      <!-- 6 · Open it: the address, big, with its copy key. -->
       <template v-else-if="step === 'open'">
         <p class="text">{{ w.openTitle }}</p>
-        <p v-if="url" class="url">{{ bare(url) }}</p>
+        <div v-if="url" class="url-row">
+          <p class="url">{{ bare(url) }}</p>
+          <button type="button" class="copy" :class="{ done: copied }" :aria-label="copied ? w.copied : w.copyAddressName" @click="copyUrl">
+            <QuestIcon :name="copied ? 'tick' : 'copy'" :size="16" /><span>{{ copied ? w.copied : w.copyAddress }}</span>
+          </button>
+        </div>
         <p class="sub">{{ url && !opensAnywhere(url) ? w.openWhyHere : w.openWhy }}</p>
       </template>
 
@@ -243,18 +266,13 @@ onBeforeUnmount(() => clearTimeout(timer));
         <button v-else type="button" class="quiet" :disabled="busy || waiting" @click="emit('run', 'starter')">{{ w.useStarter }}</button>
         <button ref="go" type="button" class="primary go" :disabled="busy || waiting" @click="emit('run', 'github')">{{ w.putOnline }}</button>
       </template>
-      <a
-        v-else-if="step === 'open' && url"
-        ref="go"
-        class="button primary go wide"
-        :href="url"
-        target="_blank"
-        rel="noopener"
-        @click="emit('opened')"
-        @auxclick="emit('opened')"
-      >
-        {{ w.openIt }} <QuestIcon name="open" :size="18" /><span class="sr-only">{{ w.opensInTab }}</span>
-      </a>
+      <!-- Your address: going to see it is the grey key; "Next" moves on without it. -->
+      <template v-else-if="step === 'open' && url">
+        <a class="button quiet" :href="url" target="_blank" rel="noopener" @click="emit('opened')" @auxclick="emit('opened')">
+          {{ w.openIt }} <QuestIcon name="open" :size="16" /><span class="sr-only">{{ w.opensInTab }}</span>
+        </a>
+        <button ref="go" type="button" class="primary go" @click="emit('next')">{{ w.next }}</button>
+      </template>
       <button v-else-if="step === 'share'" type="button" class="quiet" @click="emit('later')">{{ w.later }}</button>
       <template v-else-if="step === 'house'">
         <span class="count" aria-hidden="true">{{ w.houseCardOf(machine.card + 1, HOUSE_CARDS.length) }}</span>
@@ -293,7 +311,12 @@ onBeforeUnmount(() => clearTimeout(timer));
 .line { margin: 0; font-size: 15px; line-height: 21px; color: var(--muted); }
 .error { color: var(--danger); }
 /* Your address, big, in the monospace: the thing to remember. A long one wraps rather than push the card wider. */
-.url { margin: 8px 0 4px; padding: 10px 14px; border-radius: 12px; background: var(--tile); font: 500 15px/1.4 var(--code); color: var(--accent); overflow-wrap: anywhere; }
+.url-row { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; padding: 8px 8px 8px 14px; border-radius: 12px; background: var(--tile); }
+.url { flex: 1 1 auto; min-width: 0; margin: 0; font: 500 15px/1.4 var(--code); color: var(--accent); overflow-wrap: anywhere; }
+/* Copying is a small white key on the address's tile (as on the postcard, ShareCard.vue). */
+.copy { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 3px; border-radius: 10px; background: var(--surface); color: var(--text); box-shadow: inset 0 -3px 0 var(--quiet-lip); font-size: 14px; font-weight: 800; }
+.copy:hover:not(:disabled) { background: var(--surface); }
+.copy.done { color: var(--live); }
 /* "Try it": the arrows as raised caps on a soft strip (ArrowKeys.vue). They're a hint: the city has the keys. */
 .caps { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
 .caps .label { margin-right: 6px; }

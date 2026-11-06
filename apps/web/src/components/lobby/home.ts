@@ -1,6 +1,6 @@
 // Your way home, and finding a house, for the lobby (LobbyView.vue). Pure, so the rules are tested.
 //
-// - Your room: the one in your house, else the one you took in the tutorial's workshop (L'Atelier). The HUD's home
+// - Your room: the one in your house, else the one you took in the tutorial's workshop (La Coloc). The HUD's home
 //   button opens it (`?in=room:<house>:<room>`).
 // - The workshop isn't on the city's list (the API keeps it off the map), so for someone who lives there it's
 //   added to "Find a house", built from its house view.

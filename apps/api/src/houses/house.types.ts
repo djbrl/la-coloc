@@ -93,7 +93,7 @@ export interface HouseView {
   tagline: string | null;
   status: HouseStatus;
   demo: boolean;
-  // The tutorial's workshop (L'Atelier).
+  // The tutorial's workshop (La Coloc).
   tutorial: boolean;
   domain: string;
   agentOnline: boolean;

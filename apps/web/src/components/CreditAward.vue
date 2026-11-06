@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The credit, given with some ceremony but in a window like the other steps (carte blanche): the sum counts up from 0 on its tile,
-// and when it lands, the coin's sound. What earns more sits below it. The key was there all along, so nobody has to sit
+// and when it lands, the coin's sound. How to get more sits below it: two ways to earn it, and buying it (the credit's
+// card has the amounts). The key was there all along, so nobody has to sit
 // through it. Calmer motion shows the final number at once. The amount is whatever /api/me says.
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { play } from "../lobby/sound";
@@ -55,6 +56,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
           <ul class="earn">
             <li><Icon name="check" :size="18" />{{ w.review }}</li>
             <li><Icon name="trophy" :size="18" />{{ w.arena }}</li>
+            <li><Icon name="plus" :size="18" />{{ w.buy }}</li>
           </ul>
         </div>
         <p v-if="error" class="error" role="alert">{{ error }}</p>

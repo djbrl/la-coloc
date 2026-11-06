@@ -442,6 +442,8 @@ const firstRent = computed(() => {
   const total = (view && houseCost(view)) ?? plans[1].fcfa;
   return { share: evenSplit(total, WORKSHOP_SHARES), total, shares: WORKSHOP_SHARES, operators: view?.operators?.length ? view.operators : OPERATORS };
 });
+// Your room's memory and processors, for the rent card's "what you get".
+const myRoomLimits = computed(() => tutorial.view.value?.rooms.find((r) => r.name === t.state?.room?.name)?.limits);
 // Chapter 8: the house's window opens again, on the tab each card talks about; "Well done" closes it.
 const questTab = computed(() => {
   if (!inWorkshop.value || t.step !== "house") return undefined;
@@ -1349,17 +1351,18 @@ function statsOf(name: string) {
         <Icon name="people" :size="18" />
         <span>{{ lobbyHere }}</span>
       </button>
-      <button v-if="shows('place')" class="hud place" :aria-label="inWorkshop ? w.inWorkshop(placeName) : w.inCity(crumb)" @click="openSheet('travel')">
+      <!-- Not in the quest: there's nowhere else to go yet. -->
+      <button v-if="shows('place') && !inWorkshop" class="hud place" :aria-label="w.inCity(crumb)" @click="openSheet('travel')">
         <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 4.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z" /></svg>
         <span class="city">{{ crumb }}</span>
       </button>
 
       <!-- Top left: the search, one key until you press it (or F). The field opens in the same place. -->
       <!-- Next to it: your credit, the coin and what's left. -->
-      <button v-if="shows('tools') && me?.credit !== undefined" class="hud coin-key" :aria-label="cw.chip(fcfa(me.credit))" :title="cw.chip(fcfa(me.credit))" @click="creditOpen = true">
+      <button v-if="shows('tools') && me?.credit !== undefined" class="hud coin-key" :class="{ alone: inWorkshop }" :aria-label="cw.chip(fcfa(me.credit))" :title="cw.chip(fcfa(me.credit))" @click="creditOpen = true">
         <Icon name="coin" :size="24" /><span>{{ digits(me.credit) }}</span>
       </button>
-      <button v-if="shows('tools')" class="hud find-key" :aria-label="w.find" :title="w.find" @click="openSheet('find')">
+      <button v-if="shows('tools') && !inWorkshop" class="hud find-key" :aria-label="w.find" :title="w.find" @click="openSheet('find')">
         <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="3" /><path d="M16 16l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
       </button>
 
@@ -1547,6 +1550,8 @@ function statsOf(name: string) {
         v-if="inWorkshop && t.step === 'keys' && t.state?.room"
         :room="t.state.room.name"
         :house="t.state.house.name"
+        :memory-mb="myRoomLimits?.memoryMb"
+        :cpus="myRoomLimits?.cpus"
         :rent="firstRent"
         :credit="credit"
         @next="t.send({ type: 'next' })"
@@ -1765,6 +1770,8 @@ function statsOf(name: string) {
 .find-key, .coin-key { top: 24px; display: flex; align-items: center; height: 62px; min-height: 0; border-radius: var(--tile-r); background: var(--surface); color: var(--text); box-shadow: var(--lift); }
 .find-key { left: 24px; width: 62px; justify-content: center; padding: 0; }
 .coin-key { left: calc(24px + 62px + 8px); gap: 8px; padding: 0 16px; font: 800 18px/1 var(--num); font-variant-numeric: tabular-nums; }
+/* In the quest the search is hidden: the coin takes its corner. */
+.coin-key.alone { left: 24px; }
 .find-key:hover:not(:disabled), .coin-key:hover:not(:disabled) { background: var(--tile); }
 .find-key:active:not(:disabled), .coin-key:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(20, 12, 18, 0.45); }
 .find-key svg, .coin-key svg { flex: none; color: var(--accent); }
@@ -1903,6 +1910,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 @media (max-width: 520px) {
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
   .coin-key { top: 12px; left: calc(12px + 46px + 6px); height: 46px; padding: 0 10px; gap: 5px; font-size: 15px; }
+  .coin-key.alone { left: 12px; }
   .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
   .lobby-number { top: 66px; right: calc(12px + var(--keys-width, 0px) + 6px); }

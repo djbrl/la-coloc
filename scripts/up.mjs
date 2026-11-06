@@ -6,7 +6,7 @@
 //   2. starts the API at once, on $PORT (Multiprise's) or 4100. It copes with the database not being up yet: the
 //      city shows "can't be reached" for a few seconds and heals by itself;
 //   3. starts Docker Desktop if it isn't running, then Postgres and Traefik (dev/docker-compose.yml);
-//   4. starts both caretakers (Sacré-Cœur and L'Atelier), restarting one that crashes;
+//   4. starts both caretakers (Sacré-Cœur and the workshop), restarting one that crashes;
 //   5. starts the GitHub webhook relay, if dev/.env.github has a smee channel;
 //   6. shares the city (scripts/share.mjs: a Cloudflare tunnel and the site on Vercel), unless COLOC_SHARE=0 or
 //      cloudflared / the Vercel CLI aren't installed. While sharing, GitHub login sends people back to the Vercel site.

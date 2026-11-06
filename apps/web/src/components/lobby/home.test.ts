@@ -16,7 +16,7 @@ const room = (name: string, who: { login: string; name: string | null } | null, 
 const workshop = (myRoom: string | null) =>
   ({
     id: "atelier",
-    name: "L'Atelier",
+    name: "La Coloc",
     city: "Atelier",
     country: "",
     tagline: null,
@@ -65,6 +65,6 @@ describe("finding a house", () => {
     expect(workshopRow(workshop(null))).toBeNull();
     const row = workshopRow(workshop("nadia-dev"))!;
     expect(row.id).toBe("atelier");
-    expect(findHouses([...houses, row], "nadia").map((h) => h.name)).toEqual(["L'Atelier"]);
+    expect(findHouses([...houses, row], "nadia").map((h) => h.name)).toEqual(["La Coloc"]);
   });
 });

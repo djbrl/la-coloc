@@ -31,11 +31,11 @@ describe("sentences the API wrote", () => {
   });
 
   it("say the workshop's hello by name, in both languages", () => {
-    const hello = { body: "x", said: { kind: "welcome", params: { name: "Fatou", house: "L'Atelier" } } };
-    expect(knockLine(hello)).toBe("Hello Fatou, welcome to L'Atelier! This is the house's channel: say hi anytime.");
+    const hello = { body: "x", said: { kind: "welcome", params: { name: "Fatou", house: "La Coloc" } } };
+    expect(knockLine(hello)).toBe("Hello Fatou, welcome to La Coloc! This is the house's channel: say hi anytime.");
     language.lang = "fr";
     // French spaces before "!" and ":" don't break (i18n.ts): compared as plain spaces.
-    expect(knockLine(hello).replace(/\s/g, " ")).toBe("Bonjour Fatou, bienvenue à L'Atelier ! C'est le salon de la maison : dites bonjour quand vous voulez.");
+    expect(knockLine(hello).replace(/\s/g, " ")).toBe("Bonjour Fatou, bienvenue à La Coloc ! C'est le salon de la maison : dites bonjour quand vous voulez.");
   });
 
   it("say why a deploy failed in French when the caretaker used known words, and keep the rest as it came", () => {

@@ -25,7 +25,7 @@
 | **City room** | A city's public chat: anyone reads it, logged-in people write. |
 | **Board** | A city's small forum: tagged posts (looking for a house, flatmates, a project, help) with replies. Not the market's chores board, which lists reviews waiting. |
 | **Block** | Stops direct messages both ways with someone, and hides what they write from you. |
-| **Workshop** | L'Atelier, a hidden practice house in Dakar where newcomers get a first room during the quest. |
+| **Workshop** | La Coloc, a hidden practice house in Dakar where newcomers get a first room during the quest. |
 | **Quest** | "Your first home": the eight-chapter first visit that ends with your own page online. |
 | **Bell** | The icon in the top bar that holds your invitations and news about your knocks. |
 | **Passer-by** | A made-up person walking the streets so the city feels alive; you can't invite them. |

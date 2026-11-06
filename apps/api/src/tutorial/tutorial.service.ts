@@ -302,7 +302,7 @@ export class TutorialService {
     return chapter && (CHAPTERS as readonly string[]).includes(chapter) ? (chapter as Chapter) : null;
   }
 
-  // The workshop: the first house flagged `tutorial` (the seed makes one, L'Atelier).
+  // The workshop: the first house flagged `tutorial` (the seed makes one, La Coloc).
   private async workshop() {
     const [house] = await this.db.select().from(houses).where(eq(houses.tutorial, true)).orderBy(asc(houses.createdAt)).limit(1);
     if (!house) throw new NotFoundException({ message: "There's no workshop on this server.", code: "noWorkshop" });

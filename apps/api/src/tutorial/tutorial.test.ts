@@ -74,7 +74,7 @@ const status = (e: unknown) => (e as HttpException).getStatus();
 describe("the tutorial's state", () => {
   it("starts with no room and not done, in the workshop", async () => {
     expect(await tutorial.state(req)).toEqual({
-      house: { id: "atelier", name: "L'Atelier", city: "Dakar", agentOnline: true },
+      house: { id: "atelier", name: "La Coloc", city: "Dakar", agentOnline: true },
       room: null,
       sample,
       github: { installUrl: "https://github.com/apps/la-coloc-dev/installations/new", linked: false, repo: null },
@@ -372,8 +372,8 @@ describe("the workshop, as each newcomer sees it", () => {
     expect(v.channel).toHaveLength(1);
     expect(v.channel![0]).toMatchObject({
       author: null,
-      said: { kind: "welcome", params: { name: "Fatou", house: "L'Atelier" } },
-      body: "Hello Fatou, welcome to L'Atelier! This is the house's channel: say hi anytime.",
+      said: { kind: "welcome", params: { name: "Fatou", house: "La Coloc" } },
+      body: "Hello Fatou, welcome to La Coloc! This is the house's channel: say hi anytime.",
     });
   });
 });
@@ -404,7 +404,7 @@ describe("the city", () => {
     const city = await new CityController(houses, auth).city();
     expect(city.houses.map((h) => h.id)).not.toContain("atelier");
     expect(city.houses.map((h) => h.id)).toContain("sacre-coeur");
-    expect((await houses.view("atelier"))!).toMatchObject({ name: "L'Atelier", city: "Dakar", status: "live", demo: false, tutorial: true });
+    expect((await houses.view("atelier"))!).toMatchObject({ name: "La Coloc", city: "Dakar", status: "live", demo: false, tutorial: true });
   });
 });
 
