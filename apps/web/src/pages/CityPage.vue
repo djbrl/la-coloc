@@ -1,14 +1,13 @@
 <script setup lang="ts">
-// The city: a full-screen place to walk around, or (in settings) a plain list of the same houses. The list is the
-// lobby's no-3D twin: one floating card, like the lobby's panels, with the city's name and numbers, a search and a
-// filter, and the houses as rows (components/list/CityRow.vue), each one way into its house's page.
+// The city: a full-screen place to walk around, or (in settings) its Dashboard, the lobby's no-3D twin: a welcome,
+// your friends, the cities and your conversations beside the city's rooms, each with its main action
+// (components/list/Dashboard.vue). The setting's value is still called "list", as browsers saved it before.
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
 import { useRoute } from "vue-router";
 import LoadingScreen from "../components/LoadingScreen.vue";
 import Waiting from "../components/Waiting.vue";
-import Choice, { type Option } from "../components/list/Choice.vue";
-import { cityTotals, keeps, mergeCity, type Show, yoursFirst } from "../components/list/city";
-import CityRow from "../components/list/CityRow.vue";
+import { mergeCity } from "../components/list/city";
+import Dashboard from "../components/list/Dashboard.vue";
 import ListCard from "../components/list/ListCard.vue";
 import { listWords as w } from "../components/list/words";
 import { core, useWhenBack, wentDown } from "../core";
@@ -29,8 +28,6 @@ const LobbyView = defineAsyncComponent({ loader: () => import("../components/Lob
 const houses = ref<CityHouse[] | null>(null);
 // Set when the city can't load for a reason that isn't the core being down (the API answered, and said no).
 const error = ref("");
-const show = ref<Show>("all");
-const search = ref("");
 let stream: Stream | null = null;
 
 // The city, as the API last said it. A failed refresh never empties what's already here.
@@ -60,25 +57,6 @@ watchEffect(() => {
   if (!lobbyUp.value && ((houses.value && meLoaded.value) || core.state === "down")) lobbyUp.value = true;
 });
 const lobbyHouses = computed(() => houses.value ?? []);
-
-// A computed, so the words follow a change of language.
-const options = computed<Option[]>(() => [
-  { key: "all", icon: "house", word: w.show.all },
-  { key: "free", icon: "door", word: w.show.free },
-  { key: "making", icon: "server", word: w.show.making },
-]);
-
-const mine = computed(() => me.value?.houses.map((h) => h.id) ?? []);
-const totals = computed(() => cityTotals(houses.value ?? []));
-const shown = computed(() => yoursFirst((houses.value ?? []).filter((h) => keeps(h, show.value, search.value)), mine.value));
-const filtered = computed(() => show.value !== "all" || !!search.value.trim());
-// The line under the controls: what the list holds. It's polite live text, so a search or a filter is heard.
-const listLine = computed(() => {
-  if (!houses.value) return "";
-  if (!shown.value.length) return w.noMatch;
-  if (filtered.value) return w.someOf(shown.value.length, totals.value.houses);
-  return w.everyHouse;
-});
 </script>
 
 <template>
@@ -97,34 +75,16 @@ const listLine = computed(() => {
   <LobbyView v-else-if="settings.view === 'lobby' && lobbyUp" :key="me?.login ?? 'visitor'" :houses="lobbyHouses" />
   <LoadingScreen v-else-if="settings.view === 'lobby'" class="full" />
 
-  <div v-else class="list">
+  <!-- The core is down and the city never came: the same card, waiting for it. -->
+  <div v-else-if="!houses && core.state === 'down'" class="list">
     <ListCard>
       <div class="card">
-        <header class="head">
-          <h1 class="name">{{ w.city }}</h1>
-          <p class="line">
-            <template v-if="houses">
-              {{ w.houses(totals.houses) }} · {{ w.freeRooms(totals.free) }} · {{ w.settingUp(totals.making) }}
-            </template>
-            <template v-else-if="core.state !== 'down'">{{ w.opening }}</template>
-          </p>
-        </header>
-
-        <Waiting v-if="!houses && core.state === 'down'" @retry="loadCity" />
-
-        <div class="controls" role="search" :aria-label="w.findHouse">
-          <input v-model="search" type="search" :placeholder="w.searchPlaceholder" :aria-label="w.searchLabel" />
-          <Choice v-model="show" :options="options" :label="w.whichHouses" />
-        </div>
-
-        <p class="explain" aria-live="polite">{{ listLine }}</p>
-
-        <ul v-if="shown.length" class="plain lines" :aria-label="w.housesLabel">
-          <CityRow v-for="h in shown" :key="h.id" :house="h" :mine="mine.includes(h.id)" />
-        </ul>
+        <h1 class="name">{{ w.city }}</h1>
+        <Waiting @retry="loadCity" />
       </div>
     </ListCard>
   </div>
+  <Dashboard v-else :houses="houses" />
 </template>
 
 <style scoped>
@@ -132,20 +92,9 @@ const listLine = computed(() => {
 /* The top bar floats over this route (it's the lobby's), so the column starts under it. */
 .list { max-width: calc(760px + 2 * var(--gutter)); margin: 0 auto; padding: 72px var(--gutter) 80px; }
 .card { display: grid; gap: 14px; padding: 26px var(--gutter) 22px; }
-.head { display: grid; gap: 6px; }
 .name { font-size: 32px; line-height: 1.1; }
 .line { font-size: 14px; color: var(--muted); }
 .again { justify-self: start; }
-.controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
-.controls input { min-height: 50px; padding: 10px 16px; border: 0; border-radius: var(--r-md); background: var(--fill); font-size: 15px; }
-.controls input:focus { box-shadow: 0 0 0 3px var(--focus); }
-.explain { margin-top: -4px; font-size: 14px; line-height: 1.3; color: var(--muted); }
-.plain { list-style: none; margin: 0; padding: 0; }
-/* The same tight rows as the lobby's panels. */
-.lines { display: grid; gap: 6px; align-content: start; line-height: 1.3; }
-@media (max-width: 640px) {
-  .controls { grid-template-columns: minmax(0, 1fr); }
-}
 @media (max-width: 480px) {
   .list { padding-top: 60px; }
   .name { font-size: 26px; }

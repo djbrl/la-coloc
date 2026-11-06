@@ -1095,6 +1095,15 @@ export class Lobby {
     this.events.onNear(this.highlighted.target);
   }
 
+  /**
+   * Escape: you stop right where you are. The walk to a spot you clicked (or to something you're heading for) ends,
+   * and so does a dash under way. Walk keys still held keep walking.
+   */
+  halt() {
+    this.stop();
+    this.dashUntil = 0;
+  }
+
   /** Drops the highlight (Escape, or a card closing): the prompt goes back to whatever is in reach. */
   clearHighlight() {
     this.highlighted = null;
@@ -2343,7 +2352,10 @@ export class Lobby {
     // [ and ] pick the previous and next target. Tab is never taken: it always moves the focus, in and out of the
     // city, like anywhere else on the page.
     if (k === "]" || k === "[") this.cycle(k === "]" ? 1 : -1);
-    if (k === "escape") this.clearHighlight();
+    if (k === "escape") {
+      this.clearHighlight();
+      this.halt();
+    }
     // A tap of Shift dashes when you let go, unless another key was pressed meanwhile.
     if (k === "shift" && !e.repeat) this.shiftAlone = true;
     else if (e.shiftKey && !e.repeat) this.shiftAlone = false;
