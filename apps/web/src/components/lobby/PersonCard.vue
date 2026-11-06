@@ -3,8 +3,10 @@
 // whether it's online, as a quiet symbol), and what you can do about it. Message is the main button, on everyone but you: a direct conversation in the chat sheet (messageAction in
 // chat/chat.ts). Logged out, it takes you to log in. For a made-up person (a seeded flatmate, or a passer-by the lobby
 // invents) it's there but off, and one plain line says why. Then at most two more keys (streetActions in
-// personActions.ts): see their house beside Message, and invite them to yours or ask them to share one. The friend key
-// and their GitHub profile come last, as quiet words. A real GitHub account's name is a link to their profile.
+// personActions.ts): see their house beside Message, and invite them to yours or ask them to share one. Then "See their
+// GitHub", grey: off for a made-up person or someone without GitHub, saying why. The friend key comes last, as quiet
+// words. A real account goes by its handle, "@login" (a link to their profile on GitHub); a made-up person only by their
+// name, never with an @ (lobby/handle.ts).
 import { computed, ref } from "vue";
 import { openChat } from "../../conversations";
 import { acceptFriend, askFriend, friends, friendsSheet, takeBackFriend } from "../../friends";
@@ -85,6 +87,9 @@ const first = computed(() => props.name.split(" ")[0]);
 
 // The friend key beside Chat (friends/friends.ts): add them, say yes to their request, take yours back, or open the
 // friends list when you're friends already.
+// "See their GitHub" when it can't be: why, said to a screen reader and on hover.
+const githubOff = computed(() => (madeUp.value ? w.githubOffExample : w.githubOffNone));
+
 const friend = computed(() => friendKey({ login: props.login, isMe: props.isMe, example: madeUp.value }, me.value, friends));
 // The friend key's word: what pressing it does, or that you're friends already.
 const friendWord = computed(() => {
@@ -138,12 +143,14 @@ async function send(kind: "invite" | "share" | "withdraw") {
 
 <template>
   <LobbyCard :label="w.personLabel(name)" :title="name" icon="people" :close-name="w.close" @close="emit('close')">
-    <!-- Their name on GitHub (a link for a real account; a made-up person's handle may be a stranger's, so it's plain),
-         then where they live. -->
+    <!-- A real account's handle (a link to their GitHub), then where they live. A made-up person's login may be a
+         stranger's handle, so it isn't shown: their name is already the title. -->
     <template #sub>
-      <a v-if="actions.github" class="handle" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">@{{ login }}</a>
-      <template v-else>@{{ login }}</template>
-      <template v-if="where"> · {{ where }}</template>
+      <template v-if="!madeUp">
+        <a v-if="actions.github" class="handle" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">@{{ login }}</a>
+        <template v-else>@{{ login }}</template>
+      </template>
+      <template v-if="where">{{ madeUp ? "" : " · " }}{{ where }}</template>
       <template v-if="isMe">{{ w.thatsYou }}</template>
     </template>
     <!-- The title they wear, and an example person said once, in plain words, instead of disabled keys whose reason
@@ -206,14 +213,22 @@ async function send(kind: "invite" | "share" | "withdraw") {
         <button class="big quiet" :disabled="busy" :aria-label="bw.withdrawName" @click="send('withdraw')">{{ bw.withdraw }}</button>
       </div>
 
-      <!-- Last, as quiet words: the friend key, and someone else's real GitHub account. -->
-      <div v-if="friend || (actions.github && !isMe)" class="quiet-row">
+      <!-- Their GitHub, grey. Off (still focusable, so its reason is heard) for a made-up person or no GitHub account. -->
+      <template v-if="!isMe">
+        <a v-if="actions.github" class="big gh" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
+          <Icon name="external" :size="18" /> {{ w.github }}
+        </a>
+        <button v-else type="button" class="big gh off" aria-disabled="true" :title="githubOff" aria-describedby="person-github-off">
+          <Icon name="external" :size="18" /> {{ w.github }}
+        </button>
+        <span v-if="!actions.github" id="person-github-off" class="sr-only">{{ githubOff }}</span>
+      </template>
+
+      <!-- Last, as quiet words: the friend key. -->
+      <div v-if="friend" class="quiet-row">
         <button v-if="friend" type="button" class="word-key" :class="friend.kind" :disabled="busy" :aria-label="friendName" :title="friendName" @click="friendAct">
           <Icon :name="friend.kind === 'asked' ? 'tick' : friend.kind === 'friends' ? 'people' : 'addFriend'" :size="18" />{{ friendWord }}
         </button>
-        <a v-if="actions.github && !isMe" class="word-key" :href="actions.github" target="_blank" rel="noopener" :aria-label="w.githubName(login)">
-          <Icon name="external" :size="16" />{{ w.github }}
-        </a>
       </div>
     </div>
   </LobbyCard>
@@ -238,6 +253,10 @@ async function send(kind: "invite" | "share" | "withdraw") {
 .pair > * { flex: 1 1 0; min-width: 0; }
 .pair > .talk { flex-grow: 1.1; }
 .menu .big.move { padding: 0 12px var(--lip); font-size: 15px; text-align: center; }
+/* See their GitHub: grey, a size down from the main keys; off, faded and not pressable. */
+.menu .big.gh { padding: 0 12px var(--lip); font-size: 15px; text-align: center; }
+.menu .big.gh.off { opacity: 0.42; cursor: not-allowed; }
+.menu .big.gh.off:hover, .menu .big.gh.off:active { background: var(--sunken); transform: none; }
 /* Already invited: the tick and the word, then "Take back" in grey. */
 .sent { display: flex; align-items: center; gap: 8px; }
 .done { flex: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; color: var(--live); font-weight: 800; }

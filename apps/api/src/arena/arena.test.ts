@@ -18,13 +18,15 @@ import { HousesService } from "../houses/houses.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { seedCity } from "../seed/city";
 import { ArenaController } from "./arena.controller";
-import { ArenaService, judgedLabel, SUBMISSIONS } from "./arena.service";
+import { ArenaService, arenaNews, judgedLabel, SUBMISSIONS } from "./arena.service";
 import { CATALOGUE } from "./catalogue";
 import { arenaRepo, parsePrUrl, scoreOf } from "./scoring";
 import { cityIndex, entryFor, isoDate, weekStartOf } from "./weeks";
 
 let db: Db;
 let chat: ChatService;
+let houses: HousesService;
+let notices: NotificationsService;
 let arena: ArenaService;
 let controller: ArenaController;
 let me: AuthController;
@@ -82,11 +84,11 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await seedCity(db, { agentSecret: "s", domain: (id) => id });
-  const houses = new HousesService(db);
+  houses = new HousesService(db);
   const doorbell = new DoorbellService(db, houses);
-  const notifications = new NotificationsService(db, houses, doorbell, { devLogin: false });
-  chat = new ChatService(db, houses, notifications);
-  arena = new ArenaService(db, chat, null);
+  notices = new NotificationsService(db, houses, doorbell, { devLogin: false });
+  chat = new ChatService(db, houses, notices);
+  arena = new ArenaService(db, chat, null, houses);
   now = WEDNESDAY;
   arena.clock = () => now;
   githubDown = false;
@@ -619,5 +621,127 @@ describe("a moved arena repo", () => {
     expect((await fresh.view("Dakar", null)).challenge.repo).toBe(REPO);
     const [old] = await db.select().from(arenaChallenges).where(eq(arenaChallenges.id, "Dakar:2026-10-05"));
     expect(old.repo).toBe("https://github.com/Djbrl/la-coloc");
+  });
+});
+
+describe("dropping out", () => {
+  it("leaves the week's challenge with your pull requests, once, and pings the stream", async () => {
+    prs.set(3, pr(3));
+    await arena.submit("Dakar", await user("fatou"), `${REPO}/pull/3`);
+    await arena.join("Dakar", ids.sam);
+    changes = [];
+    const view = await controller.dropOut("Dakar", (as = "fatou", req));
+    expect(view).toMatchObject({ joined: false, entrants: 1, mine: [] });
+    expect(view.leaderboard.map((r) => r.person.login)).toEqual(["sam"]);
+    expect(await db.select().from(arenaSubmissions)).toEqual([]);
+    expect(changes).toContain("Dakar:arena");
+    expect(await refusal(arena.dropOut("Dakar", ids.fatou))).toEqual({ status: 404, code: "arenaNotIn" });
+    // Back in later: from nothing, and the same pull request can be sent again.
+    expect(await refusal(arena.submit("Dakar", await user("fatou"), `${REPO}/pull/3`))).toBe("ok");
+  });
+
+  it("needs a login", async () => {
+    as = null;
+    expect(await refusal(controller.dropOut("Dakar", req))).toEqual({ status: 401, code: "logInFirst" });
+  });
+});
+
+describe("the Arena tag on a player's house", () => {
+  // The city is drawn at the real time: this week is the real one.
+  beforeEach(() => {
+    now = new Date();
+  });
+  const tagged = async () => Object.fromEntries((await houses.city()).houses.filter((h) => h.arena.length).map((h) => [h.name, h.arena]));
+  const homeOf = async (login: string) => (await db.query.rooms.findFirst({ where: (r, { eq }) => eq(r.occupantId, ids[login]) }))!.houseId;
+
+  it("shows while they take part, and goes when they drop out", async () => {
+    expect(await tagged()).toEqual({});
+    const pinged: string[] = [];
+    houses.changes.subscribe((id) => pinged.push(id));
+    await arena.join("Dakar", ids.awa);
+    const home = await homeOf("awa");
+    expect(pinged).toEqual([home]);
+    const city = await houses.city();
+    expect(city.houses.find((h) => h.id === home)!.arena).toEqual(["awa"]);
+    await arena.dropOut("Dakar", ids.awa);
+    expect(pinged).toEqual([home, home]);
+    expect(await tagged()).toEqual({});
+  });
+
+  it("goes when the week is over, won or lost", async () => {
+    await arena.join("Dakar", ids.awa);
+    await arena.join("Dakar", ids.moussa);
+    expect(Object.values(await tagged()).flat().sort()).toEqual(["awa", "moussa"]);
+    const pinged: string[] = [];
+    houses.changes.subscribe((id) => pinged.push(id));
+    now = new Date(Date.now() + 7 * 24 * 3600_000);
+    await arena.view("Dakar", null);
+    expect(pinged).toContain(await homeOf("awa"));
+    expect(await tagged()).toEqual({});
+  });
+});
+
+describe("news of an arena pull request", () => {
+  const event = (action: string, pull: object) => ({ action, repository: { id: 1, full_name: "Djbrl/la-coloc-arena" }, pull_request: pull }) as never;
+  const news = async (login: string) => (await notices.list(ids[login])).items.filter((n) => n.kind.startsWith("arena_"));
+
+  it("are told apart: merged (with points or none), merged again with other points, closed", () => {
+    expect(arenaNews("open", 0, "merged", 25)).toBe("arena_merged");
+    expect(arenaNews("open", 0, "merged", 0)).toBe("arena_merged");
+    expect(arenaNews("merged", 0, "merged", 25)).toBe("arena_merged");
+    expect(arenaNews("merged", 25, "merged", 25)).toBeNull();
+    expect(arenaNews("open", 0, "closed", 0)).toBe("arena_closed");
+    expect(arenaNews("closed", 0, "closed", 0)).toBeNull();
+    expect(arenaNews("open", 0, "open", 0)).toBeNull();
+    expect(arenaNews("closed", 0, "open", 0)).toBeNull();
+  });
+
+  it("rings the bell when it's merged, saying the points its label gave", async () => {
+    prs.set(3, pr(3));
+    const view = await arena.submit("Dakar", await user("fatou"), `${REPO}/pull/3`);
+    expect(await news("fatou")).toEqual([]);
+    await arena.handle("pull_request", event("closed", pr(3, { merged: true, labels: ["arena:entry", "arena:critical"] })));
+    const points = scoreOf(view.challenge.slug, view.challenge.kind, { state: "merged", labels: ["arena:entry", "arena:critical"] });
+    expect(await news("fatou")).toEqual([
+      expect.objectContaining({ kind: "arena_merged", read: false, from: null, arena: { city: "Dakar", url: `${REPO}/pull/3`, number: 3, title: "Fix number 3", points: points.points, label: points.label } }),
+    ]);
+    // Told once: the same news again says nothing new.
+    await arena.handle("pull_request", event("edited", pr(3, { merged: true, labels: ["arena:entry", "arena:critical"] })));
+    expect(await news("fatou")).toHaveLength(1);
+    expect(await news("sam")).toEqual([]);
+  });
+
+  it("says no points when merged unlabelled, and updates that line when a label comes after", async () => {
+    prs.set(3, pr(3));
+    const view = await arena.submit("Dakar", await user("fatou"), `${REPO}/pull/3`);
+    await arena.handle("pull_request", event("closed", pr(3, { merged: true, labels: [] })));
+    expect((await news("fatou"))[0]).toMatchObject({ kind: "arena_merged", arena: { points: 0, label: null } });
+    await notices.markRead(ids.fatou);
+    // A label this week's challenge pays for.
+    const { label, points } = view.challenge.points[0];
+    await arena.handle("pull_request", event("labeled", pr(3, { merged: true, labels: [label] })));
+    const after = await news("fatou");
+    expect(after).toHaveLength(1);
+    expect(points).toBeGreaterThan(0);
+    expect(after[0]).toMatchObject({ kind: "arena_merged", read: false, arena: { points, label } });
+  });
+
+  it("rings the bell when it's closed without a merge", async () => {
+    prs.set(4, pr(4));
+    await arena.submit("Dakar", await user("fatou"), `${REPO}/pull/4`);
+    await arena.handle("pull_request", event("closed", pr(4, { closed: true })));
+    expect(await news("fatou")).toEqual([expect.objectContaining({ kind: "arena_closed", arena: expect.objectContaining({ number: 4, points: 0 }) })]);
+  });
+
+  it("is told however the merge was learned: a look at the arena, or a pull request merged before we heard of it", async () => {
+    prs.set(3, pr(3));
+    await arena.submit("Dakar", await user("fatou"), `${REPO}/pull/3`);
+    prs.set(3, pr(3, { merged: true }));
+    now = new Date(WEDNESDAY.getTime() + 6 * 60_000);
+    await arena.view("Dakar", ids.fatou);
+    expect((await news("fatou")).map((n) => n.arena?.number)).toEqual([3]);
+    await arena.join("Dakar", ids.sam);
+    await arena.handle("pull_request", event("closed", pr(12, { by: "sam", id: 102, merged: true })));
+    expect((await news("sam")).map((n) => [n.kind, n.arena?.number])).toEqual([["arena_merged", 12]]);
   });
 });

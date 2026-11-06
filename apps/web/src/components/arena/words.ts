@@ -87,6 +87,14 @@ export const arenaWords = defineWords(
     takeBack: "Take back",
     takeBackName: (n: number) => `Take back pull request #${n}`,
     openPrName: (n: number) => `Open pull request #${n} on GitHub`,
+    // Dropping out: the key, the light "are you sure", and the word after.
+    dropOut: "Drop out",
+    dropOutName: "Drop out of this week's challenge",
+    dropOutAsk: "Drop out?",
+    dropOutLine: "You leave this week's challenge.",
+    dropOutMine: "Your pull requests leave the leaderboard with you.",
+    stay: "Stay in",
+    droppedOut: "You dropped out.",
 
     // The leaderboard.
     boardName: "This week's top ten",
@@ -190,6 +198,14 @@ export const arenaWords = defineWords(
     takeBack: "Retirer",
     takeBackName: (n) => `Retirer la pull request n° ${n}`,
     openPrName: (n) => `Ouvrir la pull request n° ${n} sur GitHub`,
+
+    dropOut: "Abandonner",
+    dropOutName: "Abandonner le défi de la semaine",
+    dropOutAsk: "Abandonner ?",
+    dropOutLine: "Vous quittez le défi de la semaine.",
+    dropOutMine: "Vos pull requests quittent le classement avec vous.",
+    stay: "Rester",
+    droppedOut: "Vous avez abandonné.",
 
     boardName: "Le top 10 de la semaine",
     championName: (name) => `Vainqueur de la semaine dernière : ${name}`,

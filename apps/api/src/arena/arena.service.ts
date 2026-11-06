@@ -10,15 +10,22 @@
 // open ones), and told by GitHub's webhooks for the arena repo (`handle`, called by the GitHub controller).
 //
 // Live updates: anything that changes what an arena shows pings the city's stream with what: "arena" (the same
-// Subject as the city chat, chat.service.ts); the page then fetches the arena again.
-import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
-import { arenaAwards, arenaChallenges, arenaEntries, arenaSubmissions, type Badge, type Db, users } from "@coloc/db";
-import { and, asc, count, eq, isNotNull, isNull, lt, lte, ne, sql } from "drizzle-orm";
+// Subject as the city chat, chat.service.ts); the page then fetches the arena again. Joining, dropping out and the
+// week's close also ping the houses of the people concerned: the city draws an Arena tag on the house of anyone taking
+// part this week (houses.service.ts `city`).
+//
+// News under the bell: when GitHub says one of your pull requests was merged (with its points, maybe none) or closed
+// without a merge, you hear it (NotificationsService.aboutArena), however we learned it (a webhook, a look, the week's
+// last look).
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
+import { arenaAwards, arenaChallenges, arenaEntries, type ArenaPrState, arenaSubmissions, type Badge, type Db, rooms, users } from "@coloc/db";
+import { and, asc, count, eq, inArray, isNotNull, isNull, lt, lte, ne, sql } from "drizzle-orm";
 import { DB } from "../db/db.module";
 import { channelMessages, person } from "../doorbell/queries";
 import { GITHUB_CLIENT, type GhEvent } from "../github/chores.service";
 import type { GithubAppClient } from "../github/github.client";
 import type { MessageView, PersonView } from "../houses/house.types";
+import { HousesService } from "../houses/houses.service";
 import { arenaChannel, CITY_HISTORY } from "../chat/channels";
 import { ChatService } from "../chat/chat.service";
 import { Limiter } from "../chat/limiter";
@@ -114,6 +121,8 @@ export class ArenaService {
     private readonly chat: ChatService,
     // Null when the GitHub App isn't configured: GitHub's public API is asked instead.
     @Inject(GITHUB_CLIENT) private readonly github: GithubAppClient | null,
+    // For the Arena tag on the houses of those taking part: their houses are told to redraw. Tests may leave it out.
+    @Optional() private readonly houses?: HousesService,
   ) {
     this.credit = new CreditService(db);
   }
@@ -185,6 +194,9 @@ export class ArenaService {
     });
     if (!result) return [];
     this.changed(result.city);
+    // Their week is over, won or lost: the Arena tags come off their houses.
+    const entrants = await this.db.select({ userId: arenaEntries.userId }).from(arenaEntries).where(eq(arenaEntries.challengeId, id));
+    await this.housesOf(entrants.map((e) => e.userId));
     if (result.awards.length) this.log.log(`${id}: awarded ${result.awards.length} title${result.awards.length === 1 ? "" : "s"}`);
     return result.awards;
   }
@@ -303,6 +315,23 @@ export class ArenaService {
     return this.view(city, user.id);
   }
 
+  /**
+   * Leaves this week's challenge: you're no longer an entrant, your pull requests leave the leaderboard with you, and the
+   * Arena tag comes off your house. Joining again later starts from nothing (pull requests can be sent again).
+   */
+  async dropOut(city: string, userId: string): Promise<ArenaView> {
+    const c = await this.current(city);
+    const gone = await this.db.transaction(async (tx) => {
+      const left = await tx.delete(arenaEntries).where(and(eq(arenaEntries.challengeId, c.id), eq(arenaEntries.userId, userId))).returning();
+      if (left.length) await tx.delete(arenaSubmissions).where(and(eq(arenaSubmissions.challengeId, c.id), eq(arenaSubmissions.userId, userId)));
+      return left.length > 0;
+    });
+    if (!gone) throw new NotFoundException({ message: "You aren't in this week's challenge.", code: "arenaNotIn" });
+    this.changed(city);
+    await this.housesOf([userId]);
+    return this.view(city, userId);
+  }
+
   /** Takes back one of your pull requests from this week's challenge. */
   async withdraw(city: string, userId: string, submissionId: string): Promise<ArenaView> {
     const c = await this.current(city);
@@ -403,6 +432,8 @@ export class ArenaService {
         if (made) {
           added++;
           cities.add(c.city);
+          // Merged before we ever heard of it: still news for its author.
+          await this.tell(made, c, "open", 0, made.state, made.points, made.label);
         }
       }
     }
@@ -447,7 +478,10 @@ export class ArenaService {
       throw new ConflictException({ message: `You're in ${elsewhere.city}'s arena this week: one arena a week.`, code: "arenaOtherCity", city: elsewhere.city });
     }
     const [made] = await this.db.insert(arenaEntries).values({ challengeId: c.id, userId }).onConflictDoNothing().returning();
-    if (made) this.changed(c.city);
+    if (made) {
+      this.changed(c.city);
+      await this.housesOf([userId]);
+    }
   }
 
   private async submitted(id: string, repo: string, number: number): Promise<boolean> {
@@ -513,6 +547,8 @@ export class ArenaService {
     // A merge after the week's end scores nothing, even if we only hear of it while closing the week.
     const late = !!facts.mergedAt && facts.mergedAt.getTime() > c.endsAt.getTime();
     const score = late ? { points: 0, label: null } : scoreOf(c.slug, c.kind, facts);
+    const points = open ? score.points : s.points;
+    const label = open ? score.label : s.label;
     await this.db
       .update(arenaSubmissions)
       .set({
@@ -523,6 +559,37 @@ export class ArenaService {
         ...(open ? { points: score.points, label: score.label, scoredAt: score.points > 0 ? (facts.mergedAt ?? s.scoredAt ?? this.clock()) : null } : {}),
       })
       .where(eq(arenaSubmissions.id, s.id));
+    await this.tell({ ...s, title: facts.title ?? s.title }, c, s.state, s.points, facts.state, points, label);
+  }
+
+  /**
+   * Tells a pull request's author under the bell when it was merged (with the points it got, maybe none) or closed
+   * without a merge, and again when a merged one's points change (a judge labelled it after the merge: that line is
+   * updated). Nothing for anything else. Quietly: news that couldn't be written isn't worth failing GitHub's call.
+   */
+  private async tell(
+    s: Pick<SubmissionRow, "userId" | "url" | "number" | "title">,
+    c: Pick<ChallengeRow, "city">,
+    was: ArenaPrState,
+    hadPoints: number,
+    now: ArenaPrState,
+    points: number,
+    label: string | null,
+  ) {
+    const kind = arenaNews(was, hadPoints, now, points);
+    if (!kind) return;
+    try {
+      await this.chat.notifications.aboutArena(s.userId, kind, { city: c.city, url: s.url, number: s.number, title: s.title, points, label });
+    } catch (e) {
+      this.log.warn(`couldn't tell about ${s.url}: ${(e as Error).message}`);
+    }
+  }
+
+  /** The houses these people live in redraw: their Arena tag came or went. */
+  private async housesOf(userIds: string[]) {
+    if (!this.houses || !userIds.length) return;
+    const homes = await this.db.selectDistinct({ houseId: rooms.houseId }).from(rooms).where(inArray(rooms.occupantId, userIds));
+    for (const h of homes) this.houses.changes.next(h.houseId);
   }
 
   /**
@@ -577,6 +644,16 @@ export class ArenaService {
   private changed(city: string) {
     this.chat.changes.next({ city, what: "arena" });
   }
+}
+
+/**
+ * What a pull request's author hears when GitHub's word on it changes: merged (its points, maybe none), closed without
+ * a merge, or merged again with other points (a label added or changed after the merge). Null: nothing new for them.
+ */
+export function arenaNews(was: ArenaPrState, hadPoints: number, now: ArenaPrState, points: number): "arena_merged" | "arena_closed" | null {
+  if (now === "merged") return was !== "merged" || points !== hadPoints ? "arena_merged" : null;
+  if (now === "closed") return was === "open" ? "arena_closed" : null;
+  return null;
 }
 
 function submissionView(s: SubmissionRow): ArenaSubmissionView {

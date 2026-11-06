@@ -1,5 +1,5 @@
-// The Arena's routes (docs/arena.md): a city's arena and its chat room, joining, sending and taking back pull
-// requests, and wearing a title. Thin, like the other controllers: who's asking, a zod check of the body, then
+// The Arena's routes (docs/arena.md): a city's arena and its chat room, joining and dropping out, sending and taking
+// back pull requests, and wearing a title. Thin, like the other controllers: who's asking, a zod check of the body, then
 // ArenaService, which holds every rule. Looking needs no login; doing anything does.
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Req, UnauthorizedException } from "@nestjs/common";
 import { z } from "zod";
@@ -39,6 +39,11 @@ export class ArenaController {
   @HttpCode(200)
   async join(@Param("city") city: string, @Req() req: HttpRequest) {
     return this.arena.join(city, (await this.user(req)).id);
+  }
+
+  @Delete("cities/:city/arena/join")
+  async dropOut(@Param("city") city: string, @Req() req: HttpRequest) {
+    return this.arena.dropOut(city, (await this.user(req)).id);
   }
 
   @Post("cities/:city/arena/submissions")

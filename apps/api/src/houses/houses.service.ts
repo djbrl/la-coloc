@@ -3,6 +3,7 @@ import {
   applications,
   arenaAwards,
   arenaChallenges,
+  arenaEntries,
   billPayments,
   chores,
   type Db,
@@ -21,7 +22,7 @@ import {
 } from "@coloc/db";
 import { BUILD_CANCELLED, type DeployKind, type DeployStatus, type RoomEvent, RoomName, type RoomsSnapshot, type Usage } from "@coloc/protocol";
 import { creditReviews, splitBill, tontineTurn } from "@coloc/domain";
-import { and, asc, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { auditTime, concatMap, filter, Subject, tap } from "rxjs";
 import { isCoreDown } from "../core/core";
@@ -658,6 +659,17 @@ export class HousesService {
     const knocksOf = byHouse(knocks);
     // What just happened in each house (a review, a crash, a deploy).
     const recent = await happenings(this.db, all.map((h) => h.id), now);
+    // Who's taking part in a challenge running now: their houses wear an Arena tag. A week over (won or lost) or a
+    // player who dropped out has none (arena.service.ts pings the houses when that changes).
+    const inArena = new Set(
+      (
+        await this.db
+          .select({ userId: arenaEntries.userId })
+          .from(arenaEntries)
+          .innerJoin(arenaChallenges, eq(arenaChallenges.id, arenaEntries.challengeId))
+          .where(and(isNull(arenaChallenges.closedAt), lte(arenaChallenges.startsAt, now), gt(arenaChallenges.endsAt, now)))
+      ).map((e) => e.userId),
+    );
 
     return {
       houses: all.map((h) => ({
@@ -689,6 +701,7 @@ export class HousesService {
         tontine: cityTontine(h.memberships, h.rooms, now),
         cpu: this.cpuOf(h.id, h.rooms),
         recent: recent.get(h.id) ?? [],
+        arena: [...new Set(h.rooms.flatMap((r) => (r.occupant && inArena.has(r.occupant.id) ? [r.occupant.login] : [])))],
       })),
     };
   }

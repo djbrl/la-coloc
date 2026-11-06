@@ -18,6 +18,8 @@ export interface TagWords {
   won?: { text: string; tone: Tone } | null;
   // They're visiting from another city: the word for it, after their house.
   tourist?: string | null;
+  // On a house's flag: someone living there takes part in this week's Arena challenge. A red chip, a trophy and the word.
+  arena?: string | null;
 }
 
 /** One tag: what it says, and the thing it floats over (it follows it, `y` metres up). */
@@ -120,9 +122,15 @@ export function tagLayout(words: TagWords, crowded: boolean, measure: (text: str
     tourist.w = tourist.pad * 2 + measure(words.tourist!, tourist.textSize);
     x = tourist.at + tourist.w;
   }
+  // The Arena tag on a house's flag: a trophy, then the word, on the sign's red.
+  const arena = words.arena ? { at: x + look.chipGap, textSize: 11, height: 16, pad: 5, w: 0 } : null;
+  if (arena) {
+    arena.w = arena.pad + TROPHY_SIZE + 3 + measure(words.arena!, arena.textSize) + arena.pad + 1;
+    x = arena.at + arena.w;
+  }
   const width = Math.ceil(x + look.padX);
   const height = Math.ceil(look.size * 1.2 + look.padY * 2);
-  return { look, width, height, swatchAt, cupAt, textAt, won, home, tourist };
+  return { look, width, height, swatchAt, cupAt, textAt, won, home, tourist, arena };
 }
 
 export class TagLayer {
@@ -191,7 +199,7 @@ export class TagLayer {
   sayNames(flags: Tag[], spots: TagSpot[], count: number) {
     const names: string[] = [];
     for (let i = 0; i < count; i++) if (spots[i].shown && spots[i].tag) names.push(spots[i].tag!.words.text);
-    for (const flag of flags) if (flag.owner.visible) names.push(flag.words.text);
+    for (const flag of flags) if (flag.owner.visible) names.push(flag.words.arena ? `${flag.words.text}, ${flag.words.arena}` : flag.words.text);
     const said = names.join("\n");
     if (said === this.said) return;
     this.said = said;
@@ -234,8 +242,8 @@ export class TagLayer {
 
   private pictureFor(tag: Tag): Picture | null {
     if (tag.pictureOf === this.generation && tag.picture) return tag.picture;
-    const { kind, text, swatch, home, won, tourist } = tag.words;
-    const key = `${kind}|${text}|${swatch ?? ""}|${home?.text ?? ""}|${home?.background ?? ""}|${won?.text ?? ""}|${won?.tone ?? ""}|${tourist ?? ""}|${tag.crowded}`;
+    const { kind, text, swatch, home, won, tourist, arena } = tag.words;
+    const key = `${kind}|${text}|${swatch ?? ""}|${home?.text ?? ""}|${home?.background ?? ""}|${won?.text ?? ""}|${won?.tone ?? ""}|${tourist ?? ""}|${arena ?? ""}|${tag.crowded}`;
     let picture = this.pictures.get(key);
     if (!picture) {
       if (this.pictures.size >= MOST_PICTURES) this.forget();
@@ -320,6 +328,20 @@ export class TagLayer {
       ctx.fillStyle = TOURIST.color;
       ctx.font = font(t.textSize);
       ctx.fillText(words.tourist, t.at + t.pad, mid);
+    }
+    if (layout.arena && words.arena) {
+      const a = layout.arena;
+      chip(ctx, a.at, mid, a.w, a.height, c.red);
+      ctx.fillStyle = c.onRed;
+      if (this.trophy) {
+        ctx.save();
+        ctx.translate(a.at + a.pad, mid - TROPHY_SIZE / 2);
+        ctx.scale(TROPHY_SIZE / 16, TROPHY_SIZE / 16);
+        ctx.fill(this.trophy);
+        ctx.restore();
+      }
+      ctx.font = font(a.textSize);
+      ctx.fillText(words.arena, a.at + a.pad + TROPHY_SIZE + 3, mid);
     }
     return { image, w: width, h: height + below, cy: height / 2, width };
   }

@@ -110,3 +110,34 @@ describe("words meant for you under the bell", () => {
     expect(mark({ ...base, kind: "knock_answer", state: null, verdict: "declined" })).toBe("fail");
   });
 });
+
+describe("news of an Arena pull request", () => {
+  const pr = { city: "Dakar", url: "https://github.com/Djbrl/la-coloc-arena/pull/12", number: 12, title: "Fix the login check", points: 25, label: "arena:medium" };
+  const merged: Notice = { ...base, kind: "arena_merged", state: null, from: null, house: null, room: null, arena: pr };
+  const mark = (n: Notice) => noticeMark(n, noticeRow(n));
+
+  it("says the points a merge got, from its label, and opens the Arena", () => {
+    expect(noticeRow(merged)).toMatchObject({ title: "Arena PR #12 merged: 25 pts", sub: "“Fix the login check” · arena:medium", actions: ["arena"] });
+    expect(mark(merged)).toBe("ok");
+  });
+
+  it("says when a merge got no points", () => {
+    const none = { ...merged, arena: { ...pr, points: 0, label: null } };
+    expect(noticeRow(none)).toMatchObject({ title: "Arena PR #12 merged, no points", sub: "No arena label on it yet.", actions: ["arena"] });
+    expect(mark(none)).toBe("fail");
+  });
+
+  it("says when it was closed without a merge", () => {
+    const closed = { ...merged, kind: "arena_closed" as const, arena: { ...pr, points: 0, label: null } };
+    expect(noticeRow(closed)).toMatchObject({ title: "Arena PR #12 closed", sub: "Closed without a merge. No points.", actions: ["arena"] });
+    expect(mark(closed)).toBe("fail");
+  });
+
+  it("speaks French", () => {
+    language.lang = "fr";
+    // French spacing (a narrow space before ":") aside.
+    const plain = (s: string | null) => s?.replace(/[  ]/g, " ");
+    expect(plain(noticeRow(merged).title)).toBe("PR de l'Arène n° 12 mergée : 25 pts");
+    expect(plain(noticeRow({ ...merged, kind: "arena_closed" }).sub)).toBe("Fermée sans merge. Pas de points.");
+  });
+});

@@ -3,7 +3,8 @@
 // white card under it with the latest ones in two groups, what waits for you, then the rest. Each line is a quiet
 // symbol (done, went wrong, waiting for you), what happened (one line, bell.ts), its time, and what you can do
 // (move in or say no to an invitation, open a knock or a house, find a plot to rent together, open the post or the
-// chat where someone replied to you or mentioned you, top up for rent you were short of). Opening it marks
+// chat where someone replied to you or mentioned you, top up for rent you were short of, open the Arena where your
+// pull request was merged or closed). Opening it marks
 // them read; the ones that were new stay with what waits for you while it's open. Esc or a click outside closes it.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -90,6 +91,10 @@ async function act(n: Notice, action: NoticeAction) {
   if (action === "house" && n.house) return go(houseLink(n.house.id));
   if (action === "knock" && n.applicationId) return go(knockLink(n.applicationId));
   if (action === "chat" && n.chat) return openWhere(n.chat);
+  if (action === "arena") {
+    arenaWanted.value++;
+    return go(route.path === "/" ? null : "/");
+  }
   if (action === "plot") {
     plotWanted.value++;
     return go(route.path === "/" ? null : "/");
@@ -188,7 +193,7 @@ function go(to: Parameters<typeof router.push>[0] | null) {
                           class="act"
                           :class="{ primary: a === 'accept' }"
                           :disabled="busy === row.n.id"
-                          :aria-label="a === 'house' || a === 'knock' || a === 'chat' ? w.openName(row.title) : undefined"
+                          :aria-label="a === 'house' || a === 'knock' || a === 'chat' || a === 'arena' ? w.openName(row.title) : undefined"
                           @click="act(row.n, a)"
                         >
                           {{ a === "accept" ? row.acceptWord : a === "decline" ? w.noThanks : a === "credit" ? w.topUp : a === "plot" ? w.findPlot : w.open }}

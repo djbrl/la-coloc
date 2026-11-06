@@ -250,6 +250,9 @@ export interface CityHouse {
   // What happened in this house in the last 10 minutes, newest first, at most 10. The page plays the ones it
   // hasn't seen yet (by id), never the ones already there when it loaded.
   recent?: CityHappening[];
+  // Its people taking part in this week's Arena challenge (logins): an Arena tag on its flag while there's anyone. An
+  // older API leaves it out: none.
+  arena?: string[];
 }
 
 // One moment in a house, as the city plays it. `id` is stable (the row it comes from), so a page polling the city
@@ -426,7 +429,10 @@ export type NotificationKind =
   | "friend_accepted"
   // Rent, taken from your credit when you move in and every month after (`amount`, `month`), or due for want of it.
   | "rent_paid"
-  | "rent_due";
+  | "rent_due"
+  // Your Arena pull request was merged (with the points its label gave, maybe none) or closed without a merge (`arena`).
+  | "arena_merged"
+  | "arena_closed";
 export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
 
 export interface Notice {
@@ -445,6 +451,9 @@ export interface Notice {
   // Rent: how much, in FCFA, and for which month ("2026-11").
   amount?: number | null;
   month?: string | null;
+  // The Arena (arena_merged, arena_closed): the pull request, the city's challenge, and the points it got (label: the
+  // arena:* label that gave them, or null).
+  arena?: { city: string; url: string; number: number; title: string | null; points: number; label: string | null };
   createdAt: string;
   read: boolean;
 }

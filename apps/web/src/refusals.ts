@@ -49,6 +49,7 @@ const fr: Record<string, (r: Refusal) => string> = {
   arenaJudge: () => "Vous êtes juge de l'arène (vous mergez et étiquetez ses pull requests) : vous ne pouvez pas y participer.",
   arenaGithubNeeded: () => "Connectez-vous avec GitHub pour envoyer des pull requests : c'est ainsi qu'on sait qu'elles sont à vous.",
   arenaNoSubmission: () => "Vous n'avez pas cette pull request dans le défi de la semaine.",
+  arenaNotIn: () => "Vous ne participez pas au défi de la semaine.",
   arenaNoAward: () => "Ce titre n'est pas à vous.",
   slowDownArena: () => "Ça fait beaucoup de pull requests pour une heure. Réessayez plus tard.",
 
