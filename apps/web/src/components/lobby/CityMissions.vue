@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The city's four missions, a small white card under the search once you've arrived (LobbyView.vue decides when,
-// and notices them happen; missions.ts has the rules). It folds to one key showing "1/4" and remembers that. When the
+// The city's five missions, a small white card under the search once you've arrived (LobbyView.vue decides when,
+// and notices them happen; missions.ts has the rules). It folds to one key showing "1/5" and remembers that. When the
 // last one is ticked it says well done for a moment, then it's gone for good. A row you can act on says where to go.
 // Each row starts with a quiet symbol (a small grey dot to do, a tick done), and a thin bar under the title fills up.
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";

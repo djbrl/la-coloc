@@ -1,12 +1,14 @@
 <script setup lang="ts">
-// One card of the walkthrough, in carte blanche, at the bottom of the screen: an icon, a title, one line, and for a
-// key, "Try it" with its caps, which light up as you press them. The card never takes the keyboard (Jib, 6 11: "the
+// One of the city's cards, in carte blanche, at the bottom of the screen: an icon, a title, one line, and for a
+// key, "Try it" with its caps, which light up as you press them (the arrows as they sit on the keyboard). The card never takes the keyboard (Jib, 6 11: "the
 // dialogue shouldn't prevent you from touching your keys"): the city keeps the keys, so you walk, dash and press ? while
 // it shows, and nothing is dimmed or blocked around it except the ring on what a card talks about. Enter (or Next)
 // moves on. There's no Skip on it any more: the whole quest's way out is the corner button (SkipTutorial.vue).
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { ARROWS, pressedCap } from "../../../lobby/keys";
 import Icon from "../house/Icon.vue";
 import type { IconName } from "../house/icons";
+import ArrowKeys from "./ArrowKeys.vue";
 import { ringAround } from "./spot";
 import { keyParts, TOUR_TARGET, TOUR_TEXT } from "./tour";
 import type { TourCardName } from "./tutorial";
@@ -20,24 +22,19 @@ const parts = computed(() => keyParts((props.touch && text.value.touch) || text.
 // The line under the title says the keys as plain letters; the caps to try are on the strip under it.
 const line = computed(() => parts.value.map((p) => p.text).join(""));
 const caps = computed(() => (props.touch ? [] : parts.value.filter((p) => p.key).map((p) => p.text)));
+// Walking's caps are the four arrows: drawn as they sit on the keyboard rather than in a row.
+const arrows = computed(() => caps.value.length > 0 && caps.value.every((c) => (Object.values(ARROWS) as string[]).includes(c)));
 const last = computed(() => props.n === props.total);
 
 // The card's icon: the icon set's where it has one, a few drawn here in the same stroke where it doesn't.
-const ICON: Partial<Record<TourCardName, IconName>> = { help: "keyboard", dash: "bolt", use: "door", map: "map", pick: "pin", chat: "chat" };
+const ICON: Partial<Record<TourCardName, IconName>> = { help: "keyboard", map: "map" };
 const DRAWN: Partial<Record<TourCardName, string>> = {
   walk: "M13 4.5a2 2 0 1 0 0 .01M10 21l2-6 3 3v4M8 12l3-4 3 2 3 1M12 8l-1 6",
-  search: "M11 4.5a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13M16 16l4.5 4.5",
-  bell: "M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0",
-  settings: "M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4",
 };
 
 // The caps you've pressed light up, one by one: proof the keys are yours while the card is there.
 const lit = reactive(new Set<string>());
 watch(() => props.card, () => lit.clear());
-function matches(cap: string, e: KeyboardEvent) {
-  if (/^(shift|maj)$/i.test(cap)) return e.key === "Shift";
-  return e.key.toLowerCase() === cap.toLowerCase();
-}
 
 // Where the ring goes: the thing's place on screen, a little bigger than it (spot.ts, like the spotlight's hole).
 const ring = ref<{ left: string; top: string; width: string; height: string } | null>(null);
@@ -63,7 +60,7 @@ watch(() => props.card, settle);
 // unless the focus is on some other button, which Enter presses as usual.
 function onKey(e: KeyboardEvent) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  for (const cap of caps.value) if (matches(cap, e)) lit.add(cap);
+  for (const cap of caps.value) if (pressedCap(cap, e)) lit.add(cap);
   if (e.key !== "Enter" || e.repeat) return;
   const el = e.target as HTMLElement | null;
   if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
@@ -102,10 +99,11 @@ onUnmounted(() => {
             <!-- "Try it": the caps light up as you press them; the city has the keys, so it really works. -->
             <p v-if="caps.length" class="try" aria-hidden="true">
               <span class="label">{{ w.tryIt }}</span>
-              <span class="caps"><kbd v-for="c in caps" :key="c" :class="{ on: lit.has(c) }">{{ c }}</kbd></span>
+              <ArrowKeys v-if="arrows" :lit="[...lit]" />
+              <span v-else class="caps"><kbd v-for="c in caps" :key="c" :class="{ on: lit.has(c) }">{{ c }}</kbd></span>
             </p>
             <div class="nav">
-              <span class="dots" role="img" :aria-label="w.stepOf(n, total)"><i v-for="i in total" :key="i" :class="{ on: i === n }" /></span>
+              <span v-if="total > 1" class="dots" role="img" :aria-label="w.stepOf(n, total)"><i v-for="i in total" :key="i" :class="{ on: i === n }" /></span>
               <button type="button" class="primary go" @click="emit('next')">{{ last ? w.gotIt : w.next }}<kbd v-if="!touch" aria-hidden="true">↵</kbd></button>
             </div>
           </div>
@@ -135,7 +133,8 @@ onUnmounted(() => {
 .dots { display: flex; gap: 6px; }
 .dots i { width: 8px; height: 8px; border-radius: 4px; background: var(--line); }
 .dots i.on { width: 18px; background: var(--text); }
-.go { min-width: 160px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+/* A lone card has no dots: its button keeps to the right all the same. */
+.go { margin-left: auto; min-width: 160px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 @media (prefers-reduced-motion: reduce) {
   .spot { transition: none; }
   .card { animation: none; }

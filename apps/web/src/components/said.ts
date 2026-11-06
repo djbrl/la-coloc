@@ -38,7 +38,7 @@ const knockEn = {
   knocked: (p: P) => `${p.name} knocked on a free room.`,
   yes: (p: P) => `The house said yes. Welcome home, ${p.name}!`,
   no: (_p: P) => "The house said no this time. Thanks for knocking.",
-  taken: (_p: P) => "Someone else moved into this room first. Knock on another one?",
+  taken: (_p: P) => "Someone else moved into this room first. Apply for another one?",
   withdrawn: (_p: P) => "They withdrew their knock.",
   invited: (_p: P) => "They moved in at a flatmate's invitation.",
   // The workshop's own lines, in a newcomer's channel there: its hello, and its answer to their first word.
@@ -101,7 +101,7 @@ const knockWords = defineWords("said.knock", knockEn, {
   knocked: (p) => `${p.name} a frappé à une chambre libre.`,
   yes: (p) => `La maison a dit oui. Bienvenue, ${p.name} !`,
   no: () => "La maison a dit non cette fois. Merci d'avoir frappé.",
-  taken: () => "Quelqu'un d'autre a emménagé dans cette chambre avant. Frapper à une autre ?",
+  taken: () => "Quelqu'un d'autre a emménagé dans cette chambre avant. Postuler pour une autre ?",
   withdrawn: () => "La personne a retiré sa demande.",
   invited: () => "La personne a emménagé sur l'invitation d'un coloc.",
   welcome: (p) => `Bonjour ${p.name}, bienvenue à ${p.house} ! C'est le salon de la maison : dites bonjour quand vous voulez.`,

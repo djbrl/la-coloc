@@ -127,14 +127,15 @@ async function act(n: Notice, action: NoticeAction) {
   }
 }
 
-// Where a reply or a mention was said: the post, or the city's room, in the chat sheet (over whatever page you're on);
-// the Arena's room is in the lobby's Arena.
+// Where a reply or a mention was said: the post, or the city's room, in the city board's window; the Arena's room is in
+// the lobby's Arena.
 function openWhere(c: NonNullable<Notice["chat"]>) {
   if (c.place === "arena") {
     arenaWanted.value++;
     return go(route.path === "/" ? null : "/");
   }
-  close(false);
+  // The city's room and its posts live in the board's window, which only the city shows: go there first.
+  go(route.path === "/" ? null : "/");
   chatSheet.city = c.city;
   if (c.place === "post" && c.post) openChat("board", { post: c.post.id });
   else openChat("city");

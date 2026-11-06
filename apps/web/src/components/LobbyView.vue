@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // The full-screen lobby, one neighbourhood (city) at a time, and everything that sits on top of it: loading, the
-// welcome, the prompt for whatever is in reach, the city's live activity, a card for the house, person,
-// empty plot or chores board you picked, the inside of a house (its page, an application, a room) opened over the
-// city so you never leave it, a minimap (and a big map, from which you can travel to a house's door), the keys in the corner, short news at the
+// welcome, the prompt for whatever is in reach, the city's live activity, a card for the house, person or
+// empty plot you picked, the city board's window (the city's room and its posts), the inside of a house (its page,
+// an application, a room) opened over the city so you never leave it, a minimap (and a big map, from which you can travel to a house's door), the keys in the corner, short news at the
 // top, and sheets to find a house or travel to another city on a map of Africa. The first time someone logged in
 // arrives, the quest "Your first home" takes the city's place: one street with a house at the end, a beacon at its
 // door, a tracker of eight chapters at the top, a coach at the bottom, and the screen empty but for what the step
@@ -19,9 +19,9 @@ import { type LobbyCount, LobbyLink } from "../lobby/link";
 import { generateNeighbourhood, type Neighbourhood } from "../lobby/neighbourhood";
 import { play, unlock } from "../lobby/sound";
 import { tutorialNeighbourhood } from "../lobby/tutorialMap";
-import { chatPinged, chatSheet, lastSent, openChat } from "../conversations";
+import { boardSheet, chatPinged, chatSheet, lastSent, openBoard } from "../conversations";
 import { watchPresence } from "../activity";
-import { loadFriends } from "../friends";
+import { friends, loadFriends } from "../friends";
 import { arenaWanted, creditWanted, loadNotices, movedIn, plotWanted } from "../notices";
 import { loadMe, me, meLoaded } from "../session";
 import { lobbyUi, settings, settingsPane, slowDevice } from "../settings";
@@ -37,7 +37,7 @@ import { chatter, cityHappenings, onceEach } from "./lobby/cityLife";
 import { cityAlert, cityStats } from "./lobby/cityStats";
 import Icon from "./lobby/house/Icon.vue";
 import AfricaMap from "./lobby/AfricaMap.vue";
-import BoardCard from "./lobby/BoardCard.vue";
+import CityBoardWindow from "./lobby/CityBoardWindow.vue";
 import CityMissions from "./lobby/CityMissions.vue";
 import { type CityRoom, freeRooms, type Home, type MapState, nearestEmptyPlot, parsePlace, placeParam } from "./lobby/cards";
 import EmptyCard from "./lobby/EmptyCard.vue";
@@ -47,7 +47,7 @@ import Inside from "./lobby/Inside.vue";
 import KeysSheet from "./lobby/KeysSheet.vue";
 import { houseStatsWords } from "./lobby/houseStats";
 import Minimap from "./lobby/Minimap.vue";
-import { type MissionId, missionOfMessage, tick } from "./lobby/missions";
+import { type MissionId, missionOfMessage, tick, upgrade } from "./lobby/missions";
 import TouchDash from "./lobby/TouchDash.vue";
 import PersonCard from "./lobby/PersonCard.vue";
 import { type Place, placeKey } from "./lobby/place";
@@ -71,7 +71,7 @@ import CharacterCreation from "./CharacterCreation.vue";
 import { digits, needsCharacter } from "./credit";
 import CreditCard from "./CreditCard.vue";
 import Onboarding from "./Onboarding.vue";
-import { missionWords } from "./lobby/words";
+import { boardWords as bw, missionWords } from "./lobby/words";
 import { creditWords as cw, lobbyWords as w } from "./words";
 
 const props = defineProps<{ houses: CityHouse[] }>();
@@ -81,7 +81,7 @@ const props = defineProps<{ houses: CityHouse[] }>();
 // page also runs on an engine that has no stadium yet: the calls are skipped and the count never comes.
 type AnyTarget = Target | { kind: "arena"; city: string };
 type ArenaEngine = { setArena?: (display: ArenaDisplay | null) => void; goToArena?: () => void };
-type ArenaEvents = { onArenaCrowd(n: number): void };
+type ArenaEvents = { onArenaCrowd(n: number, you: boolean): void };
 const route = useRoute();
 const router = useRouter();
 const host = ref<HTMLElement | null>(null);
@@ -166,7 +166,7 @@ const myCity = computed(() => {
 });
 // The city in the address bar, else your house's city, else the city you belong to, else the busiest one.
 const city = ref<string>(String(route.query.city ?? "") || myCity.value || me.value?.homeCity || cities.value[0]?.name || "Dakar");
-// The chat's City and Board tabs are about the city you're in.
+// The city board's window is about the city you're in.
 watch(city, (c) => (chatSheet.city = c), { immediate: true });
 const here = computed(() => props.houses.filter((h) => h.city === city.value));
 
@@ -239,7 +239,7 @@ function openSheet(which: "find" | "travel") {
 }
 
 // Puts you at a house's door, facing it (the engine snaps, no walk), travelling to its city first if it's in
-// another one. For a house opened from the address bar, the top bar, Find or the chores board.
+// another one. For a house opened from the address bar, the top bar, Find or the city board's Reviews tab.
 function arriveFor(p: Place | null) {
   const id = p?.kind === "house" ? p.id : p?.kind === "room" ? p.houseId : null;
   if (!id || inWorkshop.value) return;
@@ -271,7 +271,7 @@ const tutorialChip = ref(false);
 // The steps shown as a card in the middle of the screen, which hold the keyboard themselves.
 const centred = computed(() => t.active && ["welcome", "keys", "home", "city"].includes(t.step));
 // The walkthrough's steps: a card at the bottom, and the keys stay the city's (TourCard.vue). No coach, no spotlight.
-const walkthrough = computed(() => t.active && (t.step === "intro" || t.step === "tour"));
+const walkthrough = computed(() => t.active && t.step === "tour");
 
 // The visitors' welcome (Onboarding.vue), for visitors and anyone the quest isn't for (an API without it leaves
 // `tutorialDone` out). Someone logged in who hasn't done the quest gets the quest instead. A place opened
@@ -336,6 +336,7 @@ function enterTutorial() {
   if (!lobby || !me.value || inWorkshop.value) return;
   tutorialChip.value = false;
   chatSheet.open = false;
+  boardSheet.open = false;
   card.value = null;
   knock.value = null;
   rent.value = null;
@@ -356,6 +357,7 @@ function leaveWorkshop() {
   if (place.value) closeInside();
   // A chat left open in the workshop doesn't greet you in the city (Jib, 6 11: "the chat opens by itself").
   chatSheet.open = false;
+  boardSheet.open = false;
   card.value = null;
   bigMap.value = false;
   keysOpen.value = false;
@@ -387,7 +389,7 @@ async function skipTutorial() {
   focusStage();
 }
 // Escape is the corner button's only while nothing else on screen would close with it.
-const escFree = computed(() => !place.value && !sheet.value && !card.value && !bigMap.value && !keysOpen.value && !knock.value && !rent.value && !creditOpen.value && !keysFor.value && !chatSheet.open);
+const escFree = computed(() => !place.value && !sheet.value && !card.value && !bigMap.value && !keysOpen.value && !knock.value && !rent.value && !creditOpen.value && !keysFor.value && !chatSheet.open && !boardSheet.open);
 
 // "Start" on the first card: the keyboard goes to the city, where the walking happens. "Continue" jumps to the
 // chapter you'd reached; from the keys on, you're put back at the workshop's door.
@@ -614,7 +616,11 @@ onMounted(() => {
         // Each control you use (a walk direction, a dash, a turn): the tutorial's steps listen.
         onAction: (name) => t.send({ type: "action", name }),
         onMap: (s) => (mapState.value = s),
-        onArenaCrowd: (n) => (crowd.value = n),
+        onArenaCrowd: (n, you) => {
+          crowd.value = n;
+          // Walking onto the pitch is checking out the Arena, as much as opening its panel.
+          if (you) missionDone("arena");
+        },
     };
     lobby = new Lobby(
       host.value!,
@@ -821,9 +827,11 @@ watch(arenaOpen, (open) => {
 // The title someone wears, as the live line says it (its `join` carries it for someone logged in).
 const badgeOf = (p: object): Badge | null => (p as { badge?: Badge | null }).badge ?? null;
 
-// ---- The city's missions: four things to try once you've arrived (lobby/missions.ts, CityMissions.vue) ----
+// ---- The city's missions: five things to try once you've arrived (lobby/missions.ts, CityMissions.vue) ----
 
-// They begin when the welcomes are over, for someone logged in, and stay until all four are done.
+// Saved before the city board was a mission: brought up to the five, so the board's row shows up too.
+settings.missions = upgrade(settings.missions);
+// They begin when the welcomes are over, for someone logged in, and stay until all five are done.
 const missionsOn = computed(() => !!me.value && settings.welcomed && !settings.missions.finished && !t.active && !creating.value);
 // Like the other corner pieces, they step aside for whatever's open over the city.
 const missionsShown = computed(() => missionsOn.value && !blocking.value && !place.value && !sheet.value && !bigMap.value && !keysOpen.value && !arenaOpen.value);
@@ -834,25 +842,32 @@ function missionDone(id: MissionId) {
   settings.missions = next;
   play("stamp");
 }
-// Each is noticed from what already happens: a message gone (conversations.ts), the arena's panel open; travel() ticks
-// the last one.
+// Each is noticed from what already happens: the board's window open; a message gone (conversations.ts), to someone
+// who isn't your friend or in a house that isn't yours; the Arena's panel open, or you on its pitch (the engine's
+// head count); travel() ticks the last one.
+watch(
+  () => boardSheet.open,
+  (open) => open && missionDone("board"),
+);
 watch(lastSent, (sent) => {
-  const id = sent && missionOfMessage(sent.url);
+  const id = sent && missionOfMessage(sent.url, { friends: friends.friends.map((f) => f.login), houses: me.value?.houses.map((h) => h.id) ?? [] });
   if (id) missionDone(id);
 });
 watch(arenaOpen, (open) => {
   if (open) missionDone("arena");
 });
-// A row pressed: where that mission happens.
+// A row pressed: where that mission happens. The board: you're put in front of it, its window open. A stranger: Find,
+// which lists who's walking here. A house: what you can do there, said.
 function missionGo(id: MissionId) {
-  if (id === "talk") openChat("city");
+  if (id === "board") {
+    if (lobby?.goToBoard()) openBoardHere();
+  } else if (id === "talk") openSheet("find");
   else if (id === "arena") openArena();
   else if (id === "city") openSheet("travel");
-  else if (me.value?.houses.length) openChat("house");
   else say(missionWords.houseHint);
 }
 
-// ---- Cards: a house, a person, an empty plot or the chores board, floating over the city ----
+// ---- Cards: a house, a person or an empty plot, floating over the city; and the city board's window ----
 
 // One line per thing, so we can tell "the card is already about this" from "something new".
 const keyOf = (t: AnyTarget | null) =>
@@ -872,6 +887,10 @@ const nearKey = computed(() => keyOf(near.value));
 // first. Early in the tutorial nothing opens: those steps are about walking.
 function open(target: AnyTarget, how: "use" | "click" = "click") {
   if (!picking.value) return;
+  if (target.kind === "board") {
+    openBoardHere();
+    return;
+  }
   if (target.kind === "house" && nearKey.value === keyOf(target)) {
     goInside({ kind: "house", id: target.house.id });
     return;
@@ -879,11 +898,26 @@ function open(target: AnyTarget, how: "use" | "click" = "click") {
   card.value = target;
 }
 
-// "City board" on the market's chores board: the chat sheet opens on this city's board.
-function cityBoard() {
+// The city board, used: its window opens on this city, on the tab it was last on. The only way to the city's room
+// and its posts (Jib, 6 11), besides the bell's link to a reply.
+function openBoardHere() {
   closeCard();
-  openChat("board", {});
+  chatSheet.city = city.value;
+  openBoard(boardSheet.tab, boardSheet.post);
 }
+// It docks on the right like a house's window: the camera puts you (and the board) on the left half meanwhile. Closed,
+// the keys go back to the city.
+watch(
+  () => boardSheet.open,
+  (open, before) => {
+    if (!place.value) lobby?.frame(open ? "left" : "follow");
+    if (open) play("open");
+    else if (before) {
+      play("close");
+      if (!chatSheet.open) focusStage();
+    }
+  },
+);
 
 function closeCard() {
   card.value = null;
@@ -1005,9 +1039,10 @@ watch(cardKey, (now, before) => {
   }
 });
 
-// A house picked on the chores board: you're at its door, and inside.
+// A house picked on the board's Reviews tab or a person's card: you're at its door, and inside.
 function boardHouse(id: string) {
   card.value = null;
+  boardSheet.open = false;
   arriveFor({ kind: "house", id });
   goInside({ kind: "house", id });
 }
@@ -1091,6 +1126,7 @@ function goInside(p: Place) {
 function openInside(p: Place) {
   if (!picking.value) return;
   chatSheet.open = false;
+  boardSheet.open = false;
   card.value = null;
   knock.value = null;
   sheet.value = "";
@@ -1200,6 +1236,7 @@ function onKey(e: KeyboardEvent) {
     else if (keysOpen.value) keysOpen.value = false;
     else if (sheet.value) sheet.value = "";
     else if (card.value) closeCard();
+    else if (boardSheet.open) boardSheet.open = false;
     return;
   }
   // The big map and the key list hold the focus while they're open, so their own key closes them from there.
@@ -1409,7 +1446,6 @@ function statsOf(name: string) {
             @close="closeCard"
           />
           <EmptyCard v-else-if="card?.kind === 'empty'" :key="cardKey" :plot="card.plot" @rent="rentHere" @close="closeCard" />
-          <BoardCard v-else-if="card?.kind === 'board'" :key="cardKey" :city="city" :houses="here" @open="boardHouse" @city-board="cityBoard" @close="closeCard" />
         </Transition>
       </div>
 
@@ -1443,7 +1479,7 @@ function statsOf(name: string) {
           @stop="tutorial.finish"
         />
         <Transition name="rise">
-          <div v-if="near && shows('prompt') && !card && !place" class="prompt" role="status">
+          <div v-if="near && shows('prompt') && !card && !place && !boardSheet.open" class="prompt" role="status">
             <template v-if="near.kind === 'house'">
               <span>
                 <strong>{{ near.house.name }}</strong>
@@ -1470,7 +1506,7 @@ function statsOf(name: string) {
               <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>{{ caps.e }}</kbd></button>
             </template>
             <template v-else>
-              <span>{{ w.board }}<span class="soft">{{ w.boardWhere(city) }}</span></span>
+              <span><strong>{{ bw.title }}</strong><span class="soft">{{ bw.near }}</span></span>
               <button class="pill" @click="lobby?.interact()">{{ w.haveALook }} <kbd>{{ caps.e }}</kbd></button>
             </template>
           </div>
@@ -1497,10 +1533,10 @@ function statsOf(name: string) {
         @resume="startTutorial(true)"
         @end="endTutorial"
       />
-      <!-- The walkthrough, one card at a time while nothing moves: the controls before the first steps, what's new
-           on the city's screen after its welcome. -->
+      <!-- The walkthrough, one card at a time while nothing moves: what's new on the city's screen after its
+           welcome. -->
       <TourCard
-        v-if="!creating && t.active && (t.step === 'intro' || t.step === 'tour') && t.tourCards[t.card]"
+        v-if="!creating && walkthrough && t.tourCards[t.card]"
         :card="t.tourCards[t.card]"
         :n="t.card + 1"
         :total="t.tourCards.length"
@@ -1589,6 +1625,8 @@ function statsOf(name: string) {
       </div>
     </Spotlight>
 
+    <!-- The city board's window, opened at the board on the market square: the city's room and its posts. -->
+    <CityBoardWindow v-if="boardSheet.open && !place" :houses="houses" @open="boardHouse" />
     <!-- The arena, opened at the stadium's entrance: a floating card on the right, like a house's window. -->
     <ArenaPanel v-if="card?.kind === 'arena' && !place" :key="cardKey" :city="card.city" :crowd="crowd" @close="closeCard" />
 

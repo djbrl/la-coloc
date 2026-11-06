@@ -49,9 +49,9 @@ export const listWords = defineWords(
     atTheDoor: "At the door",
     door: "Read their note, then vote.",
     knockTitle: (name: string, room: string) => `${name} · room ${room}`,
-    knockedAt: (when: string) => `Knocked ${when}`,
+    knockedAt: (when: string) => `Applied ${when}`,
     votesSoFar: (tally: string) => `${tally} votes so far`,
-    answerName: (name: string) => `Answer ${name}'s knock`,
+    answerName: (name: string) => `Answer ${name}'s application`,
     answer: "Answer",
     atWork: "At work",
     work: "Live usage per room.",
@@ -77,7 +77,7 @@ export const listWords = defineWords(
     roomName: (name: string) => `Room ${name}`,
 
     // main.ts: the tab's title.
-    titles: { login: "Log in", knock: "A knock", house: "A house" },
+    titles: { login: "Log in", knock: "An application", house: "A house" },
   },
   {
     city: "La ville",
@@ -116,9 +116,9 @@ export const listWords = defineWords(
     atTheDoor: "À la porte",
     door: "Lisez son mot, puis votez.",
     knockTitle: (name, room) => `${name} · chambre ${room}`,
-    knockedAt: (when) => `A frappé le ${when}`,
+    knockedAt: (when) => `A postulé le ${when}`,
     votesSoFar: (tally) => `${tally} pour l'instant`,
-    answerName: (name) => `Répondre à la demande de ${name}`,
+    answerName: (name) => `Répondre à la candidature de ${name}`,
     answer: "Répondre",
     atWork: "Au travail",
     work: "Usage en direct par chambre.",
@@ -142,7 +142,7 @@ export const listWords = defineWords(
     tally: (yes, needed) => `${yes} oui sur ${needed}`,
     roomName: (name) => `Chambre ${name}`,
 
-    titles: { login: "Connexion", knock: "Une demande", house: "Une maison" },
+    titles: { login: "Connexion", knock: "Une candidature", house: "Une maison" },
   },
 );
 

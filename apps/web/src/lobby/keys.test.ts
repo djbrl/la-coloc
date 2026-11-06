@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caps, cityKey, cityOwnsKeys, focusOnPage, readLayout } from "./keys";
+import { ARROWS, caps, cityKey, cityOwnsKeys, focusOnPage, pressedCap, readLayout } from "./keys";
 
 describe("the city's keys", () => {
   it("walk and turn by place, so AZERTY's Z Q S D walk like QWERTY's W A S D", () => {
@@ -28,6 +28,26 @@ describe("the city's keys", () => {
     await readLayout({});
     await readLayout({ keyboard: { getLayoutMap: () => Promise.reject(new Error("no")) } });
     expect(caps.w).toBe("Z");
+  });
+});
+
+describe("the caps you try", () => {
+  it("show the arrows for walking, lit by the arrow or by its place in W A S D", () => {
+    expect(Object.values(ARROWS)).toEqual(["↑", "←", "↓", "→"]);
+    expect(pressedCap(ARROWS.up, { code: "ArrowUp", key: "ArrowUp" })).toBe(true);
+    // AZERTY's Z is where QWERTY has W: it walks up, so it lights the up arrow.
+    expect(pressedCap(ARROWS.up, { code: "KeyW", key: "z" })).toBe(true);
+    expect(pressedCap(ARROWS.left, { code: "KeyA", key: "q" })).toBe(true);
+    expect(pressedCap(ARROWS.left, { code: "ArrowRight", key: "ArrowRight" })).toBe(false);
+    expect(pressedCap(ARROWS.right, { code: "KeyF", key: "f" })).toBe(false);
+  });
+
+  it("light Shift (Maj in French) and letters by what they print", () => {
+    expect(pressedCap("Shift", { code: "ShiftLeft", key: "Shift" })).toBe(true);
+    expect(pressedCap("Maj", { code: "ShiftRight", key: "Shift" })).toBe(true);
+    expect(pressedCap("M", { code: "Semicolon", key: "m" })).toBe(true);
+    expect(pressedCap("?", { code: "Slash", key: "?" })).toBe(true);
+    expect(pressedCap("M", { code: "KeyN", key: "n" })).toBe(false);
   });
 });
 

@@ -88,7 +88,7 @@ const px = (b: Box) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `${b.wi
 </template>
 
 <style scoped>
-/* Over the house's window and the HUD, under the walkthrough (900). It takes no click itself. */
+/* Over the house's window and the HUD, under the city's cards (900). It takes no click itself. */
 .spotlight { position: fixed; inset: 0; z-index: 800; pointer-events: none; }
 /* The hole in the dark: its huge shadow is the dim, and the sticker's yellow marks the edge. */
 .hole {

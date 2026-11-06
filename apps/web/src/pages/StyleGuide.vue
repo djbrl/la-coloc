@@ -74,9 +74,9 @@ const house: CityHouse = {
   tontine: null,
 };
 
-// The quest's coach at a few of its steps: walking (its keys as caps), choosing a project (two tiles), the launch
+// The quest's coach at a few of its steps: walking to the house (the arrows as caps), choosing a project (two tiles), the launch
 // (its track, mid-build), opening it (the address in the monospace) and sharing it (the postcard and its QR).
-function coachAt(step: "walk" | "project" | "launch" | "open" | "share", status = "live"): TutorialMachine {
+function coachAt(step: "go" | "project" | "launch" | "open" | "share", status = "live"): TutorialMachine {
   const m = new TutorialMachine();
   m.active = true;
   m.step = step;
@@ -90,7 +90,7 @@ function coachAt(step: "walk" | "project" | "launch" | "open" | "share", status 
   };
   return m;
 }
-const coaches = { walk: coachAt("walk"), project: coachAt("project", "empty"), launch: coachAt("launch", "building"), open: coachAt("open"), share: coachAt("share") };
+const coaches = { walk: coachAt("go"), project: coachAt("project", "empty"), launch: coachAt("launch", "building"), open: coachAt("open"), share: coachAt("share") };
 const noop = () => {};
 const iconNames = Object.keys(icons) as IconName[];
 const pressed = ref("");

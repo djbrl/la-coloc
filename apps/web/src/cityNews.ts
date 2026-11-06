@@ -1,12 +1,12 @@
-// What's new in your city's room and on its board since you last looked: a count on the City tab, a dot on the Board
-// tab, and a dot on the chat button when no direct message is waiting. Nobody's bell rings for the city's room (that
-// would be every hello); this is how you see it's moving. The API keeps how far you've read (chat_reads), so it's the
+// What's new in your city's room and on its board since you last looked: a dot on the City and Board tabs of the city
+// board's window (lobby/CityBoardWindow.vue). Nobody's bell rings for the city's room (that would be every hello);
+// this is how you see it's moving. The API keeps how far you've read (chat_reads), so it's the
 // same on your phone and your laptop.
 //
 // Fresh when you log in, when you change city, when the city's stream says its room or board changed, and when the
-// chat sheet closes or changes tab. Logged out, there's nothing to count. Outages are quiet: it keeps what it had.
+// board's window closes or changes tab. Logged out, there's nothing to count. Outages are quiet: it keeps what it had.
 import { reactive, watch } from "vue";
-import { chatSheet } from "./conversations";
+import { boardSheet, chatSheet } from "./conversations";
 import { me, postJSON } from "./session";
 import { openStream, type Stream } from "./stream";
 
@@ -47,7 +47,7 @@ export async function markCitySeen(city: string, what: "chat" | "board") {
   loadCityNews();
 }
 
-/** Keeps the counts fresh for as long as the page lives (ChatSheet.vue starts it, once). */
+/** Keeps the counts fresh until the returned stop is called (the board's window, while it's open). */
 export function followCityNews(): () => void {
   let stream: Stream | null = null;
   const stopCity = watch(
@@ -60,7 +60,7 @@ export function followCityNews(): () => void {
     },
     { immediate: true },
   );
-  const stopSheet = watch(() => [chatSheet.open, chatSheet.tab], loadCityNews);
+  const stopSheet = watch(() => [boardSheet.open, boardSheet.tab], loadCityNews);
   return () => {
     stopCity();
     stopSheet();

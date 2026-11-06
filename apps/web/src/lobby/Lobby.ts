@@ -1,7 +1,7 @@
 // The city as a walkable lobby: one neighbourhood at a time, generated from its city's name (see neighbourhood.ts),
 // always in full daylight (daylight.ts; the UI's day/night theme doesn't touch it) and dressed in its own style (cityStyle.ts). Your character, the
 // flatmates hanging around their houses, and everyone else who's online in this neighbourhood, live. Each house's
-// front shows its rooms as windows (windows.ts). Every house, empty plot, person and the market's chores board is a
+// front shows its rooms as windows (windows.ts). Every house, empty plot, person and the market's city board is a
 // target: walk up to one and press E, click it, or press [ and ] to pick one from afar; whatever the mouse is over
 // gets an outline. Using one is reported to Vue, which draws the card and does the navigating. Anything far away is walked to along a route
 // found on a grid (path.ts), so you can get to a building from whichever side you're on. Shift dashes, and
@@ -32,7 +32,7 @@ import { hills } from "./hills";
 import { CityLife, roofOf } from "./life";
 import { liveKey, liveState } from "./live";
 import { colorFor, disposeTree, HIGHLIGHT, makeAvatar, makeHighlight, makeHouse, makePuff, RING, ringPaint } from "./models";
-import { CityProps, makeBoard, makePins, waxParasols } from "./props";
+import { BOARD, CityProps, makeBoard, makePins, waxParasols } from "./props";
 import { type Facing, FACING_DIR, facingFront, frontOf, type Neighbourhood, PLOT, ROAD, seeded } from "./neighbourhood";
 import { keepApart, laneFor, MOST, passerbyCount, passersBy, type SidewalkPoint, sidewalks, standAt, type Stroll, VISITORS, visitorsIn, walkAhead } from "./passersby";
 import { type Box, buildGrid, distanceToBox, findPath, type Grid, grow, nearestOnBox, type Point, RADIUS, smooth } from "./path";
@@ -112,7 +112,7 @@ export type Target =
   | { kind: "empty"; plot: { key: string; lot: "shop" | "tower" | "trees"; x: number; z: number } }
   // `example`: a passer-by the lobby made up (passersby.ts), with no house and no GitHub account.
   | { kind: "person"; login: string; name: string; example?: boolean }
-  // The chores board on the market square: Vue lists the houses with reviews waiting.
+  // The city board on the market square: Vue opens its window (the city's room, its posts, the reviews waiting).
   | { kind: "board"; city: string }
   // The Arena's entrance: Vue opens the week's challenge.
   | { kind: "arena"; city: string };
@@ -145,9 +145,9 @@ export interface LobbyEvents {
   // You used a control that's switched on: a walk key went down (not a key held down repeating), a dash happened
   // (Shift, or `dash()`), or the camera turned (Q, R, or `rotate()`). The tutorial ticks its steps off with this.
   onAction(name: Action): void;
-  // How many people are inside the Arena (you, others online, passers-by), when that changes. Checked a few times a
-  // second; 0 in a city without one.
-  onArenaCrowd?(n: number): void;
+  // How many people are inside the Arena (you, others online, passers-by), and whether you're one of them, when either
+  // changes. Checked a few times a second; 0 in a city without one.
+  onArenaCrowd?(n: number, you: boolean): void;
 }
 
 export interface LobbyOptions {
@@ -235,9 +235,11 @@ interface Remote extends Thing {
   hidden?: boolean;
 }
 
-// The chores board on the market square (R19): a target, with a pin per house that has reviews waiting.
+// The city board on the market square (R19): a target, with a pin per house that has reviews waiting.
 interface Board extends Thing {
   group: THREE.Group;
+  // Where it stands and which way its face looks (Neighbourhood.board).
+  site: { x: number; z: number; facing: Facing };
   box: Box;
   door: THREE.Vector3;
   pins: THREE.Group;
@@ -311,7 +313,7 @@ export class Lobby {
   // The Arena, in a city that has one; what its big screen shows (kept across cities), and the last head count told to Vue.
   private arena: Arena | null = null;
   private arenaDisplay: ArenaDisplay | null = null;
-  private crowd = { n: 0, at: 0 };
+  private crowd = { n: 0, at: 0, you: false };
   // The titles worn on name tags (yours and others online), by tag.
   private tagBadges = new WeakMap<Tag, Badge | null>();
   private props: CityProps | null = null;
@@ -612,11 +614,12 @@ export class Lobby {
       }
     }
     this.streetMarkings(n, style.zebra);
-    // Dakar's baobab: in the park if there is one, else on a corner of the market square.
+    // Dakar's baobab: in the park if there is one, else on a south corner of the market square (the north edge is
+    // the city board's).
     if (style.props.includes("baobab")) {
       const park = n.blocks.find((b) => b.kind === "park");
       const market = n.blocks.find((b) => b.kind === "market")!;
-      const at = park ? { x: park.x, z: park.z } : { x: market.x - market.width / 2 + 2.2, z: market.z - market.depth / 2 + 2.2 };
+      const at = park ? { x: park.x, z: park.z } : { x: market.x - market.width / 2 + 2.2, z: market.z + market.depth / 2 - 2.2 };
       props.baobab(at.x, at.z);
       this.solid(at.x, at.z, 0, 2.2, 2.2);
     }
@@ -697,7 +700,7 @@ export class Lobby {
     if (opts.passersBy !== false) this.addPassersBy(n);
 
     if (arriving) {
-      // In front of the nearest real house, facing it, the camera turned to show its front (R3).
+      // In the market square, facing the city board, the camera turned to show its face (R3).
       this.player.position.set(n.spawn.x, 0, n.spawn.z);
       this.player.rotation.y = n.spawn.ry;
       this.turn = n.spawn.turn;
@@ -1035,6 +1038,29 @@ export class Lobby {
     this.clearHighlight();
     this.snap = true;
     play("arrive");
+  }
+
+  /**
+   * Puts you in front of the city board, facing it, the camera turned to show its face (a city mission's row). No
+   * walk: Vue opens the board's window right after. Nothing in a neighbourhood without a board (the tutorial).
+   */
+  goToBoard(): boolean {
+    const b = this.board;
+    if (!b) return false;
+    // Two steps back from its middle: in reach, with the panel in view behind you.
+    const at = facingFront(b.site, 2, this.turn);
+    this.player.position.set(at.x, 0, at.z);
+    this.player.rotation.y = at.ry;
+    this.turn = at.turn;
+    this.angle = (at.turn * Math.PI) / 2;
+    this.stop();
+    this.dashUntil = 0;
+    this.arrival = null;
+    this.setHover(null);
+    this.clearHighlight();
+    this.snap = true;
+    play("arrive");
+    return true;
   }
 
   /** Someone's title, worn on their name tag (yours too), when it changed after they arrived. Null takes it off. */
@@ -1386,13 +1412,17 @@ export class Lobby {
 
   /**
    * The market square: parasols over stalls, everyone's meeting point. In a city with wax-print cloth, the stalls
-   * are drawn here with wax-print canopies; elsewhere they're Kenney's parasols. The south edge stays clear for the
-   * chores board.
+   * are drawn here with wax-print canopies; elsewhere they're Kenney's parasols. The city board stands on its north
+   * edge and everybody arrives in its middle (neighbourhood.ts), so the stalls keep to the two sides, out of the
+   * lane between the two. Three dice per stall, as before, so the trees after them stay where they were.
    */
   private market(b: { x: number; z: number; width: number; depth: number }, rand: () => number, gen: number) {
-    const spots = Array.from({ length: 8 }, () => ({
-      x: b.x + (rand() - 0.5) * (b.width - 4),
-      z: b.z - (b.depth - 4) / 2 + rand() * (b.depth - 7),
+    // From the board's edge (and a little) to the square's side.
+    const lane = BOARD.width / 2 + 0.6;
+    const side = Math.max(0.5, b.width / 2 - 2 - lane);
+    const spots = Array.from({ length: 8 }, (_, i) => ({
+      x: b.x + (i % 2 ? 1 : -1) * (lane + rand() * side),
+      z: b.z - 3.5 + rand() * 6,
       turn: rand() * Math.PI * 2,
     }));
     if (this.style.props.includes("wax-parasols")) {
@@ -1926,19 +1956,27 @@ export class Lobby {
     this.town.add(post, bulb);
   }
 
-  /** The chores board on the market square (R19): a cork board on two legs, facing the street. */
+  /**
+   * The city board on the market square (R19): a big panel on two posts, the square's landmark (props.ts), facing
+   * across the square. Using it opens the city's room and posts. It fades like a building when it stands between the
+   * camera and you, and its pins (houses with reviews waiting) sit on its right half, over the notes.
+   */
   private addBoard(at: { x: number; z: number; facing: Facing }, city: string) {
-    const group = makeBoard();
+    const group = makeBoard(this.opts.quality === "high");
     group.position.set(at.x, 0.15, at.z);
     group.rotation.y = yaw(at.facing);
     group.userData.board = true;
-    const pins = new THREE.Group();
-    group.add(pins);
     this.town.add(group);
-    const front = frontOf(at, 1.2);
+    this.occluder(group);
+    // Added after the occluder took the panel's materials: pins come and go, and are too small to hide anyone.
+    const pins = new THREE.Group();
+    pins.position.set(1.95, 3.2, 0.06);
+    pins.scale.setScalar(1.6);
+    group.add(pins);
+    const front = frontOf(at, 1.4);
     const door = new THREE.Vector3(front.x, 0, front.z);
-    const box = this.solid(at.x, at.z, at.facing, 2.2, 0.4);
-    this.board = { group, pins, box, door, spot: door.clone(), target: { kind: "board", city } };
+    const box = this.solid(at.x, at.z, at.facing, BOARD.width, 1.2);
+    this.board = { group, site: at, pins, box, door, spot: door.clone(), target: { kind: "board", city } };
   }
 
   /**
@@ -1967,15 +2005,18 @@ export class Lobby {
   private countCrowd() {
     const a = this.arena;
     let n = 0;
+    let you = false;
     if (a) {
       const plan = a.plan;
-      if (insideBowl(plan, this.player.position.x, this.player.position.z)) n++;
+      you = insideBowl(plan, this.player.position.x, this.player.position.z);
+      if (you) n++;
       for (const r of this.remotes.values()) if (insideBowl(plan, r.avatar.position.x, r.avatar.position.z)) n++;
       for (const w of this.walkers) if (w.avatar.visible && insideBowl(plan, w.avatar.position.x, w.avatar.position.z)) n++;
     }
-    if (n === this.crowd.n) return;
+    if (n === this.crowd.n && you === this.crowd.you) return;
     this.crowd.n = n;
-    this.events.onArenaCrowd?.(n);
+    this.crowd.you = you;
+    this.events.onArenaCrowd?.(n, you);
   }
 
   /** A pin on the board for each house with reviews waiting; red when one is late. */

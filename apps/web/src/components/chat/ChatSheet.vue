@@ -1,17 +1,14 @@
 <script setup lang="ts">
 // The chat sheet: one flat floating card over the city (docked on the right on a wide screen, a sheet along the
-// bottom on a phone), so talking never leaves the game. Four tabs on one grey rail: your direct messages, the city's
-// room, the city's board, and your house's living room. Visitors get the city's room and board, to read. A tab with
-// something unread or new since you looked (cityNews.ts) has a small red dot after its word, never a count on a chip.
-// Esc (or the close key) closes it; the city keeps going behind it.
+// bottom on a phone), so talking never leaves the game. Your own conversations only: direct messages, and your
+// house's living room once you have a house (two tabs on one grey rail, a small red dot after a tab's word when
+// something is unread). The city's room and its posts are on the city board, in the market square (Jib, 6 11). A
+// visitor is asked to log in. Esc (or the close key) closes it; the city keeps going behind it.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { cityNews, followCityNews } from "../../cityNews";
-import { chatSheet, conversations, loadBlocks, loadConversations } from "../../conversations";
+import { boardSheet, chatSheet, conversations, loadBlocks, loadConversations } from "../../conversations";
 import { me } from "../../session";
-import CityBoard from "./CityBoard.vue";
-import CityRoom from "./CityRoom.vue";
 import Icon from "../lobby/house/Icon.vue";
-import { type ChatTab, chatTabs, pickTab, shownNews } from "./chat";
+import { type ChatTab, chatTabs, pickTab } from "./chat";
 import DirectMessages from "./DirectMessages.vue";
 import HouseRoom from "./HouseRoom.vue";
 import { chatWords as w } from "./words";
@@ -19,24 +16,22 @@ import { chatWords as w } from "./words";
 const tabs = computed(() => chatTabs(me.value));
 const tab = computed(() => pickTab(chatSheet.tab, tabs.value));
 const sheet = ref<HTMLElement | null>(null);
-const news = computed(() => shownNews(cityNews, chatSheet));
-const stopNews = followCityNews();
-// The line under the title says what the chosen tab holds: yours, the city's room or board, or the house's.
-const sub = computed(() =>
-  tab.value === "dm" ? w.subDm : tab.value === "city" ? `${w.cityTitle(chatSheet.city)}.` : tab.value === "board" ? `${w.boardTitle(chatSheet.city)}.` : w.subHouse,
-);
-// Something waits behind a tab: what you haven't read, or what's new in the city.
-const waits = (t: ChatTab) => (t === "dm" ? conversations.unread > 0 : t === "city" ? news.value.chat > 0 : t === "board" ? news.value.board > 0 : false);
+// The line under the title says what the chosen tab holds.
+const sub = computed(() => (tab.value === "dm" ? w.subDm : w.subHouse));
+// Something waits behind a tab: what you haven't read.
+const waits = (t: ChatTab) => t === "dm" && conversations.unread > 0;
 
-// Opened: the tab holding the keyboard, so Esc and the arrows work at once (a conversation focuses its own box).
+// Opened: the tab holding the keyboard, so Esc and the arrows work at once (a conversation focuses its own box). The
+// city board's window closes: both dock in the same place.
 watch(
   () => chatSheet.open,
   async (open) => {
     if (!open) return;
+    boardSheet.open = false;
     void loadConversations();
     void loadBlocks();
     await nextTick();
-    if (!sheet.value?.contains(document.activeElement)) sheet.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+    if (!sheet.value?.contains(document.activeElement)) sheet.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"], a, button:not(.sign-x)')?.focus();
   },
 );
 
@@ -53,7 +48,7 @@ function tabKey(e: KeyboardEvent) {
   void nextTick(() => sheet.value?.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus());
 }
 
-// Logged in or out: the conversations follow, and a visitor's sheet falls back to the city.
+// Logged in or out: the conversations follow.
 watch(
   () => me.value?.login,
   () => void loadConversations(),
@@ -61,10 +56,7 @@ watch(
 );
 const onVisible = () => document.visibilityState === "visible" && void loadConversations();
 onMounted(() => document.addEventListener("visibilitychange", onVisible));
-onBeforeUnmount(() => {
-  document.removeEventListener("visibilitychange", onVisible);
-  stopNews();
-});
+onBeforeUnmount(() => document.removeEventListener("visibilitychange", onVisible));
 </script>
 
 <template>
@@ -74,12 +66,12 @@ onBeforeUnmount(() => {
         <header class="sign-band">
           <span class="chip"><Icon name="chat" :size="22" /></span>
           <h2>{{ w.label }}</h2>
-          <!-- What the chosen tab holds, and the city the City and Board tabs are about. -->
           <p class="sign-sub">{{ sub }}</p>
           <button type="button" class="sign-x" :aria-label="w.close" @click="close"><span aria-hidden="true">X</span></button>
         </header>
         <div class="sign-body inner">
-          <div class="tabs" role="tablist" :aria-label="w.label" @keydown="tabKey">
+          <!-- One tab is no choice: the rail shows only with your house's tab beside your messages. -->
+          <div v-if="tabs.length > 1" class="tabs" role="tablist" :aria-label="w.label" @keydown="tabKey">
             <button
               v-for="t in tabs"
               :key="t"
@@ -96,10 +88,12 @@ onBeforeUnmount(() => {
               <span v-if="waits(t)" class="tab-dot" aria-hidden="true" />
             </button>
           </div>
-          <div class="body" role="tabpanel" :aria-label="w.tabs[tab]">
-            <DirectMessages v-if="tab === 'dm'" />
-            <CityRoom v-else-if="tab === 'city'" />
-            <CityBoard v-else-if="tab === 'board'" />
+          <div class="body" :role="tabs.length > 1 ? 'tabpanel' : undefined" :aria-label="tabs.length > 1 ? w.tabs[tab] : undefined">
+            <p v-if="!me" class="visitor">
+              <span class="soft">{{ w.logInToChat }}</span>
+              <RouterLink class="button primary" to="/login" @click="close">{{ w.logIn }}</RouterLink>
+            </p>
+            <DirectMessages v-else-if="tab === 'dm'" />
             <HouseRoom v-else />
           </div>
         </div>
@@ -135,6 +129,8 @@ onBeforeUnmount(() => {
 /* Something waits there: a small red dot after the word. */
 .tab-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 .body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+/* Logged out: one plain line, and the way to log in. */
+.visitor { display: grid; gap: 12px; margin: 0; font-weight: 600; }
 .pop-enter-active { transition: opacity var(--dur) var(--ease), transform var(--dur-slow) var(--ease-pop); }
 .pop-leave-active { transition: opacity var(--dur-fast) var(--ease); }
 .pop-enter-from { opacity: 0; transform: translateY(-6px); }

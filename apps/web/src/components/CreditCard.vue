@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Your credit, from the coin on the city's screen: what you have, what earns more, and (folded) where it went lately.
-// Its head says plainly that it's the city's fake money. A native <dialog>, like the other steps: it traps focus and
-// closes on Escape. When PayDunya is set up on the server, "Top up" unfolds a row of amounts: PayDunya's page takes the
-// payment, and you come back here with the credit added (`added`).
+// Its head says plainly that this is a demo and the money isn't real. A native <dialog>, like the other steps: it traps
+// focus and closes on Escape. When PayDunya is set up on the server, "Add credit" (right under the ways to earn) unfolds
+// a row of amounts: PayDunya's page takes the payment, and you come back here with the credit added (`added`).
 import { computed, onMounted, ref } from "vue";
 import { type Refusal, refusalText } from "../refusals";
 import { me } from "../session";
@@ -98,6 +98,18 @@ onMounted(async () => {
               <li><Icon name="trophy" :size="20" /><span>{{ w.arena }}</span><b>{{ w.upTo(fcfa(details.arena)) }}</b></li>
             </ul>
           </section>
+          <!-- Adding credit: one grey key, which opens the amounts; an amount goes to PayDunya to pay. -->
+          <div v-if="details.topUp" class="top-up">
+            <button v-if="!buyOpen" type="button" class="second wide add" :aria-expanded="false" @click="buyOpen = true"><Icon name="plus" :size="18" />{{ w.topUp }}</button>
+            <template v-else>
+              <h3 class="label">{{ w.pickAmount }}</h3>
+              <div class="amounts">
+                <button v-for="a in details.topUp.amounts" :key="a" type="button" class="second" :disabled="buying" :aria-label="w.topUpName(fcfa(a))" @click="topUp(a)">+{{ fcfa(a) }}</button>
+              </div>
+              <p v-if="error" class="error" role="alert">{{ error }}</p>
+              <p v-else-if="details.topUp.test" class="tiny">{{ w.topUpTest }}</p>
+            </template>
+          </div>
           <!-- Where it went: folded, its count beside its name. -->
           <div class="fold">
             <button type="button" class="fold-head" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">
@@ -111,16 +123,6 @@ onMounted(async () => {
                 <span>{{ w.reasons[r.reason] }}</span><b>{{ signed(r.amount) }}</b>
               </li>
             </ul>
-          </div>
-          <div v-if="details.topUp" class="top-up">
-            <button v-if="!buyOpen" type="button" class="second wide" :aria-expanded="false" @click="buyOpen = true">{{ w.topUp }}</button>
-            <template v-else>
-              <div class="amounts">
-                <button v-for="a in details.topUp.amounts" :key="a" type="button" class="second" :disabled="buying" :aria-label="w.topUpName(fcfa(a))" @click="topUp(a)">+{{ fcfa(a) }}</button>
-              </div>
-              <p v-if="error" class="error" role="alert">{{ error }}</p>
-              <p v-else-if="details.topUp.test" class="tiny">{{ w.topUpTest }}</p>
-            </template>
           </div>
         </template>
       </div>
@@ -161,6 +163,7 @@ li b { font: 800 14px/1 var(--num); font-variant-numeric: tabular-nums; white-sp
 .moved li { min-height: 34px; gap: 10px; font-size: 14px; font-weight: 600; }
 .top-up { display: grid; gap: 8px; }
 .wide { width: 100%; }
+.add { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .amounts { display: flex; gap: 8px; }
 .amounts button { flex: 1 1 0; min-width: 0; padding: 0 8px var(--lip); font: 800 15px/1 var(--num); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .error { margin: 0; font-size: 14px; color: var(--danger); }

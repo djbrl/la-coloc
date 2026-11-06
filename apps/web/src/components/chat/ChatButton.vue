@@ -1,15 +1,10 @@
 <script setup lang="ts">
-// The chat's key in the top bar, beside the bell: a speech bubble, with a small dot when a direct message is unread
-// or something is new in the city's room or board (cityNews.ts). How many is in the key's hidden name, never on a
-// chip (carte blanche). Pressed, it opens (or closes) the chat sheet.
-import { computed } from "vue";
-import { cityNews } from "../../cityNews";
+// The chat's key in the top bar, beside the bell: a speech bubble, with a small dot when a direct message is unread.
+// How many is in the key's hidden name, never on a chip (carte blanche). Pressed, it opens (or closes) the chat sheet:
+// your own conversations. The city's room and its posts are on the city board, in the market square.
 import { chatSheet, conversations } from "../../conversations";
 import Icon from "../lobby/house/Icon.vue";
-import { buttonDot, shownNews } from "./chat";
 import { chatWords as w } from "./words";
-
-const dot = computed(() => buttonDot(conversations.unread, shownNews(cityNews, chatSheet)));
 </script>
 
 <template>
@@ -17,13 +12,13 @@ const dot = computed(() => buttonDot(conversations.unread, shownNews(cityNews, c
     type="button"
     class="ring"
     data-tour="chat"
-    :aria-label="dot ? w.buttonNews : w.buttonName(conversations.unread)"
+    :aria-label="w.buttonName(conversations.unread)"
     :aria-expanded="chatSheet.open"
     aria-haspopup="dialog"
     @click="chatSheet.open = !chatSheet.open"
   >
     <Icon name="chat" />
-    <span v-if="conversations.unread > 0 || dot" class="dot" aria-hidden="true" />
+    <span v-if="conversations.unread > 0" class="dot" aria-hidden="true" />
   </button>
 </template>
 

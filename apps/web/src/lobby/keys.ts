@@ -3,7 +3,14 @@
 // physical key: "KeyW" is the one above S, whatever it prints), and shows the letter this keyboard
 // prints there (`navigator.keyboard.getLayoutMap`, in Chrome and Edge; elsewhere the QWERTY letters). Every other
 // shortcut (M, F, T, ?, [ and ]) stays a letter, which is easier to remember.
+// The screen shows the arrows for walking, never W A S D (Jib, 6 11): every keyboard has them in the same place, with
+// nothing printed on them to translate. W A S D still walk, unshown, for players whose hand goes there anyway.
 import { reactive } from "vue";
+
+/** The walking keys as the screen shows them, in the order up, left, down, right. */
+export const ARROWS = { up: "↑", left: "←", down: "↓", right: "→" } as const;
+// What each arrow's cap answers to: its arrow key, and the letter key in the same place in W A S D.
+const ARROW_KEYS: Record<string, [string, string]> = { "↑": ["arrowup", "w"], "←": ["arrowleft", "a"], "↓": ["arrowdown", "s"], "→": ["arrowright", "d"] };
 
 // The physical keys the lobby reads by place, and the name it gives each (its QWERTY letter).
 const PLACES: Record<string, string> = { KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d", KeyQ: "q", KeyE: "e", KeyR: "r" };
@@ -68,4 +75,16 @@ export function focusOnPage(focused: Focused | null, body: unknown): boolean {
 export function cityOwnsKeys(focused: (Focused & Node) | null, body: unknown, stage: Pick<Node, "contains">, touched: boolean): boolean {
   if (focusOnPage(focused, body)) return touched;
   return stage.contains(focused);
+}
+
+/**
+ * Whether a press is the key a cap shows, for the caps that light up when you try them: an arrow by its arrow key or
+ * its place in W A S D, Shift (French "Maj") by Shift, any other cap by what the key prints or the place it stands for.
+ */
+export function pressedCap(cap: string, e: Pick<KeyboardEvent, "code" | "key">): boolean {
+  const k = cityKey(e);
+  const arrow = ARROW_KEYS[cap];
+  if (arrow) return arrow.includes(k);
+  if (/^(shift|maj)$/i.test(cap)) return k === "shift";
+  return e.key.toLowerCase() === cap.toLowerCase();
 }

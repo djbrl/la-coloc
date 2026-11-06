@@ -47,7 +47,7 @@ describe("a notification under the bell", () => {
 
   it("opens the knock or the house for the doorbell's news", () => {
     const knock = { ...base, kind: "knock" as const, state: null, from: { login: "fatou", name: null, avatarUrl: null }, applicationId: "a1" };
-    expect(noticeRow(knock)).toMatchObject({ title: "fatou knocked on Sacré-Cœur", actions: ["knock"] });
+    expect(noticeRow(knock)).toMatchObject({ title: "fatou applied to Sacré-Cœur", actions: ["knock"] });
     const yes = { ...base, kind: "knock_answer" as const, state: null, from: null, verdict: "admitted" as const, applicationId: "a1" };
     expect(noticeRow(yes)).toMatchObject({ title: "Sacré-Cœur said yes. Welcome home!", actions: ["house"] });
     expect(noticeRow({ ...yes, verdict: "declined" })).toMatchObject({ title: "Sacré-Cœur said no this time.", actions: ["knock"] });
@@ -72,10 +72,10 @@ describe("a house chat under the bell", () => {
   it("says the rent taken in one line, the amount and the house, and offers a top-up when it couldn't be", () => {
     const rent = { ...base, kind: "rent_paid" as const, state: null, from: null, room: null, amount: 3_000, month: "2026-11" };
     expect(noticeRow(rent)).toEqual({ title: `Rent: ${fcfa(3_000)} for Sacré-Cœur, November`, sub: null, actions: [], acceptWord: "Move in" });
-    expect(noticeRow({ ...rent, kind: "rent_due" })).toMatchObject({ title: `Rent due: ${fcfa(3_000)} for Sacré-Cœur, November`, sub: "Not enough credit. Top up and it's paid.", actions: ["credit"] });
+    expect(noticeRow({ ...rent, kind: "rent_due" })).toMatchObject({ title: `Rent due: ${fcfa(3_000)} for Sacré-Cœur, November`, sub: "Not enough credit. Add some and it's paid.", actions: ["credit"] });
     language.lang = "fr";
     expect(noticeRow(rent).title).toBe(`Loyer\u00a0: ${fcfa(3_000)} pour Sacré-Cœur, novembre`);
-    expect(noticeRow({ ...rent, kind: "rent_due" }).sub).toBe("Crédit insuffisant. Rechargez, et il sera payé.");
+    expect(noticeRow({ ...rent, kind: "rent_due" }).sub).toBe("Crédit insuffisant. Ajoutez-en, et il sera payé.");
   });
 });
 

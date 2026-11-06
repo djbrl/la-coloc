@@ -1,8 +1,9 @@
-// The chat, shared by every page: whether the chat sheet is open and on which tab, your conversations (the count on
-// the chat button), and the people you blocked. Like the bell (notices.ts): loaded when you log in, when the tab
-// comes back into view, and on the lobby's "chat" nudge; never polled. Outages are quiet: it keeps what it had.
+// The chat, shared by every page: whether the chat sheet is open and on which tab, the city board's window (the city's
+// room and its posts, opened at the board on the market square), your conversations (the count on the chat button),
+// and the people you blocked. Like the bell (notices.ts): loaded when you log in, when the tab comes back into view,
+// and on the lobby's "chat" nudge; never polled. Outages are quiet: it keeps what it had.
 import { reactive, ref } from "vue";
-import type { ChatTab } from "./components/chat/chat";
+import type { BoardTab, ChatTab } from "./components/chat/chat";
 import { me, postJSON, type Sent, sendJSON } from "./session";
 import type { Conversations } from "./types";
 
@@ -11,11 +12,13 @@ export const chatSheet = reactive<{
   tab: ChatTab;
   // The person whose conversation is open, on the Messages tab (null: the list).
   with: string | null;
-  // The post open on the Board tab (null: the list).
-  post: string | null;
-  // The city the City and Board tabs are about: where you are in the lobby (LobbyView sets it).
+  // The city the board's window is about: where you are in the lobby (LobbyView sets it), or where a reply was said.
   city: string;
-}>({ open: false, tab: "dm", with: null, post: null, city: "Dakar" });
+}>({ open: false, tab: "dm", with: null, city: "Dakar" });
+
+// The city board's window (lobby/CityBoardWindow.vue, drawn by the lobby): open or not, its tab, and the post open on
+// its Board tab (null: the list).
+export const boardSheet = reactive<{ open: boolean; tab: BoardTab; post: string | null }>({ open: false, tab: "city", post: null });
 
 export const conversations = reactive<Conversations & { loaded: boolean }>({ unread: 0, items: [], loaded: false });
 
@@ -30,12 +33,27 @@ export const blockedLogins = ref<string[]>([]);
 export const lastSent = ref<{ url: string } | null>(null);
 export const messageSent = (url: string) => (lastSent.value = { url });
 
-/** Opens the chat sheet on a tab: a conversation with someone, a post, or the tab's list. */
-export function openChat(tab: ChatTab, opts: { with?: string; post?: string } = {}) {
+/**
+ * Opens the chat sheet on a tab: a conversation with someone, or the tab's list. The city's room and a post ("city",
+ * "board") live on the city board now: those open its window instead (the bell does, on a reply or a mention).
+ */
+export function openChat(tab: ChatTab | "city" | "board", opts: { with?: string; post?: string } = {}) {
+  if (tab === "city" || tab === "board") {
+    openBoard(tab, opts.post ?? null);
+    return;
+  }
+  boardSheet.open = false;
   chatSheet.tab = tab;
   if (tab === "dm") chatSheet.with = opts.with ?? null;
-  if (tab === "board") chatSheet.post = opts.post ?? null;
   chatSheet.open = true;
+}
+
+/** Opens the city board's window on a tab (and a post, on the Board tab). The chat sheet closes: both dock on the right. */
+export function openBoard(tab: BoardTab = "city", post: string | null = null) {
+  chatSheet.open = false;
+  boardSheet.tab = tab;
+  if (tab === "board") boardSheet.post = post;
+  boardSheet.open = true;
 }
 
 let asking: Promise<void> | null = null;

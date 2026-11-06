@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// Chapter 7: show it off, in carte blanche: no drawing, the address itself is the thing (in the monospace, with its copy
-// key), a small QR code to open it on your phone, and the ways to send it: first your own house's chat ("Tell the house": one
-// message, by the same address the house's chat posts to), then copy the link, WhatsApp (a wa.me link with the
-// message ready), or the phone's own share sheet where there is one. Any of them counts as shared, and the quest
-// moves on; "Later" moves on too, without guilt. On a phone the QR is left out: you're already holding the phone.
+// Chapter 7: show it off, in carte blanche, on a narrow card as wide as the address (Jib, 6 11: "it should just be as
+// wide as the link"; the coach sets that width). The address itself is the thing, whole, in the monospace, with the QR
+// code beside it rather than on a row of its own, and a key to copy it. Then the ways to send it: first your own
+// house's chat ("Tell the house": one message, by the same address the house's chat posts to), then WhatsApp (a wa.me
+// link with the message ready), or the phone's own share sheet where there is one. Any of them counts as shared, and
+// the quest moves on; "Later" moves on too, without guilt. On a phone the QR is left out: you're already holding it.
 import { computed, onMounted, ref } from "vue";
 import { postJSON } from "../../../session";
 import { bare } from "../panel/words";
@@ -20,6 +21,8 @@ const qr = computed(() => qrPath(props.url));
 // A laptop's demo address opens nowhere else: no QR, no WhatsApp, no share sheet for it, only the copy.
 const anywhere = computed(() => opensAnywhere(props.url));
 const native = canShareNatively();
+// The QR, only where a phone could open the address and you're not already on one.
+const showQr = computed(() => !props.touch && anywhere.value);
 
 const copied = ref(false);
 // The house's chat: the workshop's, in the quest, whose host answers a first message. A failure says so and leaves
@@ -74,17 +77,18 @@ async function shareNatively() {
         <p class="from">{{ w.postcardFrom(house, city) }}</p>
       </div>
     </div>
-    <div class="addr">
-      <p class="address" :title="address">{{ address }}</p>
-      <button type="button" class="copy" :class="{ done: copied }" :aria-label="copied ? w.copied : w.copy" @click="copy"><QuestIcon :name="copied ? 'tick' : 'copy'" :size="18" /></button>
-    </div>
-    <figure v-if="!touch && anywhere" class="qr">
-      <svg :viewBox="`0 0 ${qr.size} ${qr.size}`" role="img" :aria-label="w.qrName(address)" shape-rendering="crispEdges">
+    <!-- The link: the QR beside the whole address, and the key that copies it. -->
+    <div class="link" :class="{ 'with-qr': showQr }">
+      <svg v-if="showQr" class="qr" :viewBox="`0 0 ${qr.size} ${qr.size}`" role="img" :aria-label="w.qrName(address)" shape-rendering="crispEdges">
         <rect :width="qr.size" :height="qr.size" class="qr-paper" />
         <path :d="qr.d" class="qr-ink" />
       </svg>
-      <figcaption><QuestIcon name="phone" :size="16" />{{ w.scan }}</figcaption>
-    </figure>
+      <div class="link-side">
+        <p class="address">{{ address }}</p>
+        <p v-if="showQr" class="scan"><QuestIcon name="phone" :size="14" />{{ w.scan }}</p>
+        <button type="button" class="copy" :class="{ done: copied }" @click="copy"><QuestIcon :name="copied ? 'tick' : 'copy'" :size="16" /><span>{{ copied ? w.copied : w.copy }}</span></button>
+      </div>
+    </div>
     <p v-if="!anywhere" class="here"><QuestIcon name="phone" :size="16" />{{ w.onlyHere }}</p>
     <button ref="tellKey" type="button" class="primary tell" :class="{ told }" :disabled="telling || told" @click="tell">
       <QuestIcon :name="told ? 'tick' : 'people'" :size="20" /><span>{{ told ? w.told : w.tellHouse }}</span>
@@ -101,15 +105,25 @@ async function shareNatively() {
 </template>
 
 <style scoped>
-.share { display: grid; gap: 14px; }
+.share { display: grid; gap: 12px; }
 .top { display: flex; align-items: flex-start; gap: 14px; }
 .words { min-width: 0; display: grid; gap: 4px; }
 .heading { margin: 0; padding-top: 1px; font: 800 22px/28px var(--display); }
 .from { margin: 0; font-size: 15px; line-height: 21px; color: var(--muted); }
-/* The address: the thing being shared, on a soft tile in the monospace, one line, with its copy key. */
-.addr { display: flex; align-items: center; gap: 8px; }
-.address { flex: 1 1 auto; min-width: 0; margin: 0; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--tile); font: 500 14px/44px var(--code); color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.copy { flex: none; width: 44px; min-height: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 12px; background: var(--sunken); color: var(--text); box-shadow: none; }
+/* The link, on one soft tile: the QR on the left at the tile's height, the address (whole, wrapping) and its copy key
+   on the right. Without a QR, the address takes the tile. */
+.link { display: grid; gap: 12px; padding: 12px; border-radius: var(--tile-r); background: var(--tile); }
+.link.with-qr { grid-template-columns: 104px minmax(0, 1fr); align-items: center; }
+.qr { width: 104px; height: 104px; border-radius: 8px; }
+/* A QR code reads best dark on light: the logs' two colours are that. */
+.qr-paper { fill: var(--code-text); }
+.qr-ink { fill: var(--code-bg); }
+.link-side { min-width: 0; display: grid; gap: 8px; justify-items: start; }
+.address { margin: 0; font: 600 14px/20px var(--code); color: var(--text); overflow-wrap: anywhere; }
+.scan { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+/* Copying is a small white key on the tile: the red one is telling the house. */
+.copy { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px 3px; border-radius: 10px; background: var(--surface); color: var(--text); box-shadow: inset 0 -3px 0 var(--quiet-lip); font-size: 14px; }
+.copy:hover:not(:disabled) { background: var(--surface); }
 .copy.done { color: var(--live); }
 .tell { display: flex; align-items: center; justify-content: center; gap: 10px; }
 /* A tick, in the live green, for the moment before the quest moves on. */
@@ -121,16 +135,11 @@ async function shareNatively() {
 .way:active { transform: translateY(2px); }
 .here { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; line-height: 18px; color: var(--muted); }
 .here.error { color: var(--danger); }
-/* The QR, small, beside how to use it: a way to open it on a phone, not a picture. */
-.qr { display: flex; align-items: center; gap: 14px; margin: 0; padding: 10px; border-radius: var(--tile-r); background: var(--tile); }
-.qr > svg { flex: none; width: 84px; height: 84px; border-radius: 8px; }
-/* A QR code reads best dark on light: the logs' two colours are that. */
-.qr-paper { fill: var(--code-text); }
-.qr-ink { fill: var(--code-bg); }
-.qr figcaption { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
 a:focus-visible, button:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+/* A short screen: no QR, the address takes the tile. */
 @media (max-height: 640px) {
-  .qr { display: none; }
+  .qr, .scan { display: none; }
+  .link.with-qr { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .way:active { transform: none; }

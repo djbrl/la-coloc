@@ -47,7 +47,7 @@ export interface Neighbourhood {
   // Where you arrive: a point on the ground, which way you face (`ry`, an avatar's rotation.y) and the camera's
   // quarter turn (0–3) that shows the front of what you face.
   spawn: { x: number; z: number; ry: number; turn: number };
-  // The chores board on the market square (R19): where it stands and which way its face looks. None in the tutorial.
+  // The city board on the market square (R19): where it stands and which way its face looks. None in the tutorial.
   board?: { x: number; z: number; facing: Facing };
   // The Arena: its block (centre and size), and which way its entrance faces, towards the market. None in the tutorial.
   arena?: { x: number; z: number; width: number; depth: number; facing: Facing };
@@ -201,9 +201,8 @@ export function generateNeighbourhood(city: string, houses: HouseOnMap[], opts: 
     lamps,
     trafficLights,
     skyline,
-    spawn: spawnFor(plots, houses, market),
-    // The board stands on the market's south edge, facing the street, where you see it on the way in.
-    board: { x: market.x, z: market.z + market.depth / 2 - 2.2, facing: 0 },
+    spawn: spawnFor(market),
+    board: boardOn(market),
     ...(arenaBlock ? { arena: { x: arenaBlock.x, z: arenaBlock.z, width: arenaBlock.width, depth: arenaBlock.depth, facing: facingTowards(arenaBlock, market) } } : {}),
     bounds: { minX: -width / 2, maxX: width / 2, minZ: -depth / 2, maxZ: depth / 2 },
   };
@@ -220,23 +219,27 @@ export function facingTowards(from: { x: number; z: number }, to: { x: number; z
   return dz >= 0 ? 0 : 2;
 }
 
+// How far back from the market's north edge the city board stands, and how far in front of it you arrive.
+const BOARD_IN = 2.2;
+const SPAWN_BACK = 8.3;
+
 /**
- * Where you arrive (R3): in the street in front of the nearest real house to the market (a demo house when there is
- * no real one), facing its door, with the camera turned so its front is in frame. With no house at all, on the
- * street south of the market, facing into the neighbourhood.
+ * The city board: a landmark on the market's north edge, its face to the south, so the whole square lies in front of
+ * it and the camera (on the +x +z diagonal at turn 0) sees its face without turning.
  */
-function spawnFor(plots: Plot[], houses: HouseOnMap[], market: Block): Neighbourhood["spawn"] {
-  const demo = new Map(houses.map((h) => [h.id, h.demo]));
-  const homes = plots
-    .filter((p) => p.lot.kind === "house")
-    .sort((a, b) => {
-      const da = demo.get((a.lot as { houseId: string }).houseId) ? 1 : 0;
-      const db = demo.get((b.lot as { houseId: string }).houseId) ? 1 : 0;
-      return da - db || Math.hypot(a.x - market.x, a.z - market.z) - Math.hypot(b.x - market.x, b.z - market.z);
-    });
-  const home = homes[0];
-  if (!home) return { x: market.x, z: market.z + market.depth / 2 + ROAD / 2, ry: Math.PI, turn: 0 };
-  return facingFront(home, PLOT / 2 + 1.4, 0);
+function boardOn(market: Block): NonNullable<Neighbourhood["board"]> {
+  return { x: market.x, z: market.z - market.depth / 2 + BOARD_IN, facing: 0 };
+}
+
+/**
+ * Where you arrive: in the middle of the market square, facing the city board across it, the camera at its first
+ * quarter turn so the board's face is in frame. Everybody arrives in the same place, whatever houses the city has:
+ * the square is the city's meeting point (Jib, 6 11).
+ */
+function spawnFor(market: Block): Neighbourhood["spawn"] {
+  const board = boardOn(market);
+  // Facing -z, towards the board: an avatar faces +z turned by ry.
+  return { x: board.x, z: board.z + SPAWN_BACK, ry: Math.PI, turn: turnFacing(board.facing, 0) };
 }
 
 /**

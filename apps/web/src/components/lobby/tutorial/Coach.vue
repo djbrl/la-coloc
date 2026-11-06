@@ -4,16 +4,19 @@
 // own piece (the two ways to bring a project, the launch's track, your address, the postcard to share, a card about the house), and at most one main action.
 // No ×: closing a message must never end the quest (Jib, 6 11). Leaving it is said in words, on the first card ("Not
 // now") or in the settings. A step that points at a control in the house's window has a spotlight on it instead
-// (Spotlight.vue). The steps themselves live in tutorial.ts; this only shows them. The big moments in the middle of the screen (the keys, "Well done") are KeysCard.vue and HomeCard.vue.
+// (Spotlight.vue). While the camera shows you the house ("look") there's no card at all: the city is the message. The
+// walk there teaches walking on the way: the arrows to try, lit as you use them. The door's own prompt says how to go
+// in, so the coach never mentions it. The steps themselves live in tutorial.ts; this only shows them. The big moments in the middle of the screen (the keys, "Well done") are KeysCard.vue and HomeCard.vue.
 import { computed, onBeforeUnmount, ref, watch } from "vue";
-import { caps } from "../../../lobby/keys";
+import { ARROWS } from "../../../lobby/keys";
 import { bare, explain } from "../panel/words";
+import ArrowKeys from "./ArrowKeys.vue";
 import LaunchCard from "./LaunchCard.vue";
 import QuestIcon, { type QuestIconName } from "./QuestIcon.vue";
 import RepoPicker from "../../RepoPicker.vue";
 import ShareCard from "./ShareCard.vue";
 import { opensAnywhere } from "./share";
-import { CHAPTERS, HOUSE_CARDS, isLive, type TutorialMachine } from "./tutorial";
+import { type Action, CHAPTERS, HOUSE_CARDS, isLive, type TutorialMachine } from "./tutorial";
 import { houseLineOf, tutorialWords as w } from "./words";
 import type { RepoChoices } from "../../../types";
 
@@ -58,11 +61,12 @@ const chipIcon = computed<QuestIconName | null>(() => {
   if (props.waiting && needsApi.value && !live.value) return "launch";
   if (step.value === "launch" || step.value === "share") return null;
   if (step.value === "house") return houseIcon[houseCard.value];
-  return ({ walk: "arrive", look: "find", go: "find", room: "keys", project: picking.value ? "repo" : "project", open: "open" } as Partial<Record<string, QuestIconName>>)[step.value] ?? null;
+  return ({ go: "arrive", room: "keys", project: picking.value ? "repo" : "project", open: "open" } as Partial<Record<string, QuestIconName>>)[step.value] ?? null;
 });
 
-// The key caps of the walk step, as this keyboard prints them (Z Q S D on AZERTY: lobby/keys.ts).
-const walkCaps = computed(() => [caps.w, caps.a, caps.s, caps.d]);
+// The walk to the house: the arrows you've walked with so far (W A S D count too, unshown).
+const ARROW_OF: Partial<Record<Action, string>> = { "walk-up": ARROWS.up, "walk-left": ARROWS.left, "walk-down": ARROWS.down, "walk-right": ARROWS.right };
+const walked = computed(() => props.machine.walked.map((a) => ARROW_OF[a] ?? ""));
 
 const state = computed(() => props.machine.state);
 const room = computed(() => state.value?.room ?? null);
@@ -93,7 +97,7 @@ const houseLine = computed(() => houseLineOf(houseCard.value, props.credit));
 const lastCard = computed(() => props.machine.card === HOUSE_CARDS.length - 1);
 
 // Enter and Space press the focused button; they must not reach the engine, where Enter means "use what's in
-// reach". Every other key (W A S D, E, Escape) passes, so you can still walk with the coach in focus.
+// reach". Every other key (the arrows, Escape) passes, so you can still walk with the coach in focus.
 function onKey(e: KeyboardEvent) {
   if (e.key === "Enter" || e.key === " ") e.stopPropagation();
 }
@@ -115,7 +119,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 
 <template>
   <!-- No eyebrow over the step (the tracker at the top already shows the chapter): it's in the box's hidden name. -->
-  <div class="coach" :class="[`at-${step}`]" role="dialog" :aria-label="label" @keydown="onKey">
+  <div v-if="step !== 'look'" class="coach" :class="[`at-${step}`]" role="dialog" :aria-label="label" @keydown="onKey">
     <div class="row">
     <span v-if="chipIcon" class="icon-tile"><QuestIcon :name="chipIcon" :size="22" /></span>
     <div class="body" aria-live="polite">
@@ -126,21 +130,14 @@ onBeforeUnmount(() => clearTimeout(timer));
 
       <p v-else-if="missing && needsApi" class="text">{{ w.missing }}</p>
 
-      <!-- 1 · Arrive: walk. -->
-      <template v-else-if="step === 'walk'">
-        <p v-if="touch" class="text">{{ w.walkTouch }}</p>
-        <template v-else>
-          <p class="text">{{ w.walkKeys(walkCaps.join(" ")) }}</p>
-          <p class="caps" aria-hidden="true"><span class="label">{{ w.tryIt }}</span><kbd v-for="c in walkCaps" :key="c">{{ c }}</kbd><kbd class="help">?</kbd></p>
-        </template>
+      <!-- 1 · Arrive: the camera has shown the light at the door; walk there. The arrows light as you use them. -->
+      <template v-else-if="step === 'go'">
+        <p class="text">{{ w.goTitle }}</p>
+        <p class="sub">{{ touch ? w.goTouch : w.goWhy }}</p>
+        <p v-if="!touch" class="caps" aria-hidden="true"><span class="label">{{ w.tryIt }}</span><ArrowKeys :lit="walked" /></p>
       </template>
 
-      <!-- 2 · Find a home: the camera shows the light at the door, then you walk there and go in, then take the room. -->
-      <p v-else-if="step === 'look'" class="text">{{ w.look }}</p>
-      <template v-else-if="step === 'go'">
-        <p class="text">{{ touch ? w.goTouch : w.goKeys }}</p>
-        <p v-if="!touch" class="caps" aria-hidden="true"><span class="label">{{ w.tryIt }}</span><kbd>{{ caps.e }}</kbd></p>
-      </template>
+      <!-- 2 · Find a home: inside, take the room. -->
       <template v-else-if="step === 'room'">
         <p class="text">{{ w.room }}</p>
         <p class="sub">{{ w.roomWhy }}</p>
@@ -281,8 +278,9 @@ onBeforeUnmount(() => clearTimeout(timer));
   box-shadow: var(--shadow);
   animation: coach-pop var(--dur-slow) var(--ease-pop);
 }
-.coach.at-share, .coach.at-launch { width: min(540px, calc(100vw - 32px)); }
-.coach.at-share { width: min(640px, calc(100vw - 32px)); }
+.coach.at-launch { width: min(540px, calc(100vw - 32px)); }
+/* The postcard is a narrow, upright card (ShareCard.vue): the coach is no wider than it. */
+.coach.at-share { width: min(420px, calc(100vw - 32px)); }
 @keyframes coach-pop {
   from { opacity: 0; transform: translateY(10px) scale(0.95); }
 }
@@ -296,11 +294,9 @@ onBeforeUnmount(() => clearTimeout(timer));
 .error { color: var(--danger); }
 /* Your address, big, in the monospace: the thing to remember. A long one wraps rather than push the card wider. */
 .url { margin: 8px 0 4px; padding: 10px 14px; border-radius: 12px; background: var(--tile); font: 500 15px/1.4 var(--code); color: var(--accent); overflow-wrap: anywhere; }
-/* "Try it": the step's keys as raised caps on a soft strip. They're a hint: the city has the keys. */
+/* "Try it": the arrows as raised caps on a soft strip (ArrowKeys.vue). They're a hint: the city has the keys. */
 .caps { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
 .caps .label { margin-right: 6px; }
-.caps .help { margin-left: 10px; }
-.caps kbd { min-width: 32px; height: 32px; padding: 0 8px 3px; border-radius: 8px; background: var(--surface); color: var(--text); box-shadow: inset 0 -3px 0 var(--quiet-lip); font-size: 14px; }
 /* Chapter 4's two ways in: big tiles, the ready-made page first and in the red. */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
 /* A choice is a row with a chevron's worth of room, never a picture: a soft tile, its icon on white. */

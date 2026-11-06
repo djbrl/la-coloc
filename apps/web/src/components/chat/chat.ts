@@ -1,19 +1,30 @@
-// The chat's small rules, pure so they are tested (chat.test.ts): which tabs the chat sheet has for you, what a
-// person card's "Message" does, the count on the chat button, and how a message's text is cut into plain text and
-// links. Nothing here is ever HTML: a link is a part with an address, drawn by Vue as an <a>, the rest as text.
+// The chat's small rules, pure so they are tested (chat.test.ts): which tabs the chat sheet and the city board's window
+// have for you, what a person card's "Message" does, the count on the chat button, and how a message's text is cut
+// into plain text and links. Nothing here is ever HTML: a link is a part with an address, drawn by Vue as an <a>, the
+// rest as text.
 
-export type ChatTab = "dm" | "city" | "board" | "house";
+// The chat key holds your own conversations only: direct messages, and your house's living room. The city's room and
+// its posts are on the city board, in the market square (Jib, 6 11).
+export type ChatTab = "dm" | "house";
 
-/** Your tabs: direct messages and your house's living room need a login (and a house); the city's room and board
- *  are for everyone, visitors included, who read them. */
+/** Your tabs: direct messages, and your house's living room once you have a house. A visitor gets the Messages tab,
+ *  which asks them to log in. */
 export function chatTabs(viewer: { houses: { id: string }[] } | null): ChatTab[] {
-  if (!viewer) return ["city", "board"];
-  return viewer.houses.length ? ["dm", "city", "board", "house"] : ["dm", "city", "board"];
+  return viewer?.houses.length ? ["dm", "house"] : ["dm"];
 }
 
 /** The tab to show: the one asked for if you have it, else the first you have. */
-export function pickTab(asked: ChatTab, tabs: ChatTab[]): ChatTab {
+export function pickTab<T extends string>(asked: T, tabs: T[]): T {
   return tabs.includes(asked) ? asked : tabs[0];
+}
+
+// The city board's window (lobby/CityBoardWindow.vue): the city's room, its posts, and the houses with reviews waiting
+// when there are any.
+export type BoardTab = "city" | "board" | "reviews";
+
+/** The board window's tabs: the city's room and its posts, and a third for reviews only while some are waiting. */
+export function boardTabs(reviewsWaiting: number): BoardTab[] {
+  return reviewsWaiting > 0 ? ["city", "board", "reviews"] : ["city", "board"];
 }
 
 /** Chat, on anyone you see, example people too (they answer once, saying what they are): open the conversation, or go
@@ -36,14 +47,9 @@ export interface CityNews {
   board: number;
 }
 
-/** The city's news as the chat shows it (cityNews.ts): the tab you're looking at has nothing new, by definition. */
-export function shownNews(news: CityNews, sheet: { open: boolean; tab: ChatTab }): CityNews {
+/** The city's news as the board's window shows it (cityNews.ts): the tab you're looking at has nothing new, by definition. */
+export function shownNews(news: CityNews, sheet: { open: boolean; tab: BoardTab }): CityNews {
   return { chat: sheet.open && sheet.tab === "city" ? 0 : news.chat, board: sheet.open && sheet.tab === "board" ? 0 : news.board };
-}
-
-/** The chat button's dot: something new in the city, and no direct message waiting (those have their count). */
-export function buttonDot(dms: number, news: CityNews): boolean {
-  return dms <= 0 && (news.chat > 0 || news.board > 0);
 }
 
 export interface TextPart {

@@ -1,9 +1,10 @@
 // The quest's step machine, driven with plain events: the order of the steps and chapters, what each one waits for,
-// the stamps, picking up where you left it, and the launch's stages. Then the walkthrough and the share helpers.
+// the stamps, picking up where you left it, and the launch's stages. Then the city's cards and the share helpers.
 import { describe, expect, it } from "vitest";
 import type { TutorialState } from "../../../types";
 import { opensAnywhere, qrPath, whatsappLink } from "./share";
 import { keyParts, TOUR_TEXT } from "./tour";
+import { tutorialWords } from "./words";
 import { type Action, CHAPTER_OF, CHAPTERS, HOUSE_CARDS, resumeStep, SETUP, stageOf, STEPS, TUTORIAL_HOUSE, TutorialMachine } from "./tutorial";
 
 // What GET /api/tutorial says: a room (or not), GitHub linked (or not), the furthest chapter reached.
@@ -26,8 +27,6 @@ const said = (m: TutorialMachine, status: string | null, opts: { linked?: boolea
 function playTo(m: TutorialMachine, until: string) {
   const moves: Record<string, () => void> = {
     welcome: () => m.send({ type: "start" }),
-    intro: () => m.tourCards.forEach(() => m.send({ type: "next" })),
-    walk: () => act(m, "walk-up"),
     look: () => m.send({ type: "shown" }),
     go: () => m.send({ type: "inside", houseId: TUTORIAL_HOUSE }),
     room: () => said(m, "empty"),
@@ -71,7 +70,10 @@ describe("the quest", () => {
   it("stamps each chapter as you leave it, and all eight on Well done", () => {
     const m = new TutorialMachine();
     m.start();
-    playTo(m, "look");
+    playTo(m, "go");
+    expect(m.stamps).toEqual([]);
+    // Arriving ends at the door: going in stamps it.
+    playTo(m, "room");
     expect(m.stamps).toEqual(["arrive"]);
     playTo(m, "keys");
     expect(m.stamps).toEqual(["arrive", "find"]);
@@ -81,24 +83,38 @@ describe("the quest", () => {
     expect(m.stamps).toEqual(CHAPTERS);
   });
 
-  it("teaches walking: any walk moves on, a dash or a turn doesn't", () => {
+  it("shows the house first, with everything still, then lets you walk there", () => {
     const m = new TutorialMachine();
     m.start();
-    playTo(m, "walk");
-    act(m, "dash", "turn-left");
-    expect(m.step).toBe("walk");
-    act(m, "walk-left");
+    m.send({ type: "start" });
     expect(m.step).toBe("look");
-  });
-
-  it("counts a click or a tap on the ground as walking", () => {
-    const m = new TutorialMachine({ touch: true });
-    m.start();
-    playTo(m, "walk");
+    expect(SETUP.look.controls.walk).toBe(false);
+    act(m, "walk-up");
     m.send({ type: "moved" });
     expect(m.step).toBe("look");
     m.send({ type: "shown" });
     expect(m.step).toBe("go");
+    expect(SETUP.go.controls).toMatchObject({ walk: true, dash: true, turn: true });
+  });
+
+  it("teaches walking on the way: each way walked is kept once, and only the door moves on", () => {
+    const m = new TutorialMachine();
+    m.start();
+    playTo(m, "go");
+    expect(m.walked).toEqual([]);
+    act(m, "walk-up", "walk-up", "dash", "turn-left", "walk-left");
+    expect(m.walked).toEqual(["walk-up", "walk-left"]);
+    expect(m.step).toBe("go");
+    m.send({ type: "inside", houseId: "sacre-coeur" });
+    expect(m.step).toBe("go");
+    m.send({ type: "inside", houseId: TUTORIAL_HOUSE });
+    expect(m.step).toBe("room");
+    expect(m.walked).toEqual([]);
+  });
+
+  it("never says E before the door: the door's own prompt does", () => {
+    for (const line of [tutorialWords.goTitle, tutorialWords.goWhy, tutorialWords.goTouch]) expect(line).not.toMatch(/\bE\b/);
+    for (const card of Object.values(TOUR_TEXT)) expect(`${card.keys} ${card.touch}`).not.toMatch(/\{E\}|\bE\b/);
   });
 
   it("ignores events meant for other steps", () => {
@@ -281,7 +297,6 @@ describe("the quest", () => {
   it("starts with nothing on screen and ends with everything", () => {
     expect(SETUP.welcome.reveal).toEqual([]);
     expect(SETUP.welcome.controls.walk).toBe(false);
-    expect(SETUP.walk.reveal).toEqual(["keys"]);
     expect(SETUP.look.reveal).toEqual(["quest", "keys"]);
     expect(SETUP.go.reveal).toContain("map");
     expect(SETUP.go.reveal).not.toContain("chrome");
@@ -322,7 +337,8 @@ describe("the quest", () => {
       expect(resumeStep("launch", state({ status: "live" }))).toBe("open");
       expect(resumeStep("keys", state({ status: "empty" }))).toBe("keys");
       expect(resumeStep("find", state(null))).toBe("go");
-      expect(resumeStep(null, null)).toBe("walk");
+      expect(resumeStep(null, null)).toBe("look");
+      expect(resumeStep("arrive", null)).toBe("look");
     });
 
     it("starts from the street when asked, whatever was reached", () => {
@@ -330,7 +346,7 @@ describe("the quest", () => {
       m.start();
       said(m, "live", { chapter: "share" });
       m.send({ type: "start" });
-      expect(m.step).toBe("intro");
+      expect(m.step).toBe("look");
     });
   });
 });
@@ -364,35 +380,19 @@ describe("showing it off", () => {
   });
 });
 
-describe("the walkthrough", () => {
+describe("the city's cards", () => {
   const through = (m: TutorialMachine) => m.tourCards.forEach(() => m.send({ type: "next" }));
 
-  it("shows the controls one card at a time at the start of the quest, with the keys still yours", () => {
+  it("never come before the walk: the welcome leads straight to the house", () => {
     const m = new TutorialMachine();
     m.start();
     m.send({ type: "start" });
-    expect(m.step).toBe("intro");
-    expect(SETUP.intro.controls).toMatchObject({ walk: true, dash: true, turn: true, targets: "houses" });
-    expect(SETUP.intro.reveal).toEqual(["keys"]);
-    expect(m.tourCards).toEqual(["help", "walk", "dash", "use"]);
-    m.send({ type: "next" });
-    expect(m.card).toBe(1);
-    act(m, "walk-left");
-    expect(m.step).toBe("intro");
-    through(m);
-    expect(m.step).toBe("walk");
+    expect(m.step).toBe("look");
+    expect(m.tourCards).toEqual([]);
+    expect(STEPS).not.toContain("intro");
   });
 
-  it("leaves with Escape, from any card", () => {
-    const m = new TutorialMachine();
-    m.start();
-    m.send({ type: "start" });
-    m.send({ type: "next" });
-    m.send({ type: "skip" });
-    expect(m.step).toBe("walk");
-  });
-
-  it("shows what's new in the city after its welcome, then lets you go", () => {
+  it("point at the map and the key list after the city's welcome, then let you go", () => {
     const m = new TutorialMachine();
     m.start();
     playTo(m, "city");
@@ -400,22 +400,24 @@ describe("the walkthrough", () => {
     expect(m.step).toBe("tour");
     expect(m.chapter).toBeNull();
     expect(SETUP.tour.controls).toMatchObject({ walk: true, dash: true, turn: true });
-    expect(m.tourCards).toEqual(["search", "map", "pick", "chat", "bell", "settings"]);
+    expect(m.tourCards).toEqual(["map", "help"]);
+    m.send({ type: "next" });
+    expect(m.card).toBe(1);
     through(m);
     expect(m.active).toBe(false);
   });
 
-  it("gives someone who skipped the quest the controls too, in the city", () => {
+  it("give someone who skipped the quest walking first", () => {
     const m = new TutorialMachine();
     m.start();
     m.send({ type: "city" });
     m.send({ type: "end" });
-    expect(m.tourCards).toEqual(["help", "walk", "dash", "use", "search", "map", "pick", "chat", "bell", "settings"]);
+    expect(m.tourCards).toEqual(["walk", "map", "help"]);
     m.send({ type: "skip" });
     expect(m.active).toBe(false);
   });
 
-  it("never shows one twice", () => {
+  it("never show twice", () => {
     const seen = new Set<string>();
     const tours = { seen: (name: string) => seen.has(name), see: (name: string) => void seen.add(name) };
     const first = new TutorialMachine({ tours });
@@ -426,37 +428,41 @@ describe("the walkthrough", () => {
     const again = new TutorialMachine({ tours });
     again.start();
     again.send({ type: "start" });
-    expect(again.step).toBe("walk");
+    expect(again.step).toBe("look");
     again.send({ type: "city" });
     again.send({ type: "end" });
     expect(again.active).toBe(false);
   });
 
-  it("skips what a touch screen has no keys for", () => {
-    const m = new TutorialMachine({ touch: true });
-    m.start();
-    m.send({ type: "start" });
-    expect(m.tourCards).toEqual(["walk", "dash", "use"]);
-    m.send({ type: "skip" });
-    m.send({ type: "city" });
-    m.send({ type: "end" });
-    expect(m.tourCards).toEqual(["search", "map", "chat", "bell", "settings"]);
+  it("skip the key list on a touch screen", () => {
+    const skipped = new TutorialMachine({ touch: true });
+    skipped.start();
+    skipped.send({ type: "city" });
+    skipped.send({ type: "end" });
+    expect(skipped.tourCards).toEqual(["walk", "map"]);
+
+    const walked = new TutorialMachine({ touch: true });
+    walked.start();
+    playTo(walked, "city");
+    walked.send({ type: "end" });
+    expect(walked.tourCards).toEqual(["map"]);
   });
 
-  it("has words for every card, on both kinds of screen", () => {
+  it("have words for every card, on both kinds of screen", () => {
     for (const [name, card] of Object.entries(TOUR_TEXT)) {
       expect(card.title, name).toBeTruthy();
       expect(card.keys, name).toBeTruthy();
-      if (name !== "help" && name !== "pick") expect(card.touch, name).toBeTruthy();
+      if (name !== "help") expect(card.touch, name).toBeTruthy();
     }
   });
 
-  it("cuts its words into plain text and key caps", () => {
+  it("cut their words into plain text and key caps, walking as the arrows", () => {
     expect(keyParts("Tap {Shift} to dash.")).toEqual([
       { key: false, text: "Tap " },
       { key: true, text: "Shift" },
       { key: false, text: " to dash." },
     ]);
+    expect(keyParts(TOUR_TEXT.walk.keys).filter((p) => p.key).map((p) => p.text)).toEqual(["↑", "←", "↓", "→"]);
   });
 });
 

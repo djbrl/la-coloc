@@ -1,12 +1,12 @@
 <script setup lang="ts">
-// The Board tab: the city's small forum. The list shows each post as a dense row (its tag, its title, who and when,
+// The Board tab of the city board's window: the city's small forum. The list shows each post as a dense row (its tag, its title, who and when,
 // how many replies), the most recently active first; a post opens with its body and its replies under it. Logged-in
 // people post (a tag, a title, a few lines) and reply; the author deletes their own. "Message" writes to the author.
 // Live through the city's stream (a "board" ping, then a fetch).
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useWhenBack } from "../../core";
 import { markCitySeen } from "../../cityNews";
-import { chatSheet, openChat, report } from "../../conversations";
+import { boardSheet, chatSheet, openChat, report } from "../../conversations";
 import { me, postJSON, sendJSON } from "../../session";
 import { openStream, type Stream } from "../../stream";
 import type { BoardPost, Message } from "../../types";
@@ -51,17 +51,17 @@ async function fetchBoard() {
 }
 
 async function fetchPost() {
-  const id = chatSheet.post;
+  const id = boardSheet.post;
   if (!id) {
     open.value = null;
     return;
   }
   try {
     const res = await fetch(`/api/board/${encodeURIComponent(id)}`);
-    if (id !== chatSheet.post) return;
+    if (id !== boardSheet.post) return;
     // Gone (deleted, or its author blocked): back to the list.
     if (res.status === 404) {
-      chatSheet.post = null;
+      boardSheet.post = null;
       return;
     }
     if (res.ok) open.value = await res.json();
@@ -72,7 +72,7 @@ async function fetchPost() {
 
 function refresh() {
   void fetchBoard();
-  if (chatSheet.post) void fetchPost();
+  if (boardSheet.post) void fetchPost();
 }
 
 watch(
@@ -87,7 +87,7 @@ watch(
   { immediate: true },
 );
 watch(
-  () => chatSheet.post,
+  () => boardSheet.post,
   () => {
     sure.value = false;
     reported.value = false;
@@ -100,7 +100,7 @@ useWhenBack(refresh);
 onBeforeUnmount(() => stream?.close());
 
 async function back() {
-  chatSheet.post = null;
+  boardSheet.post = null;
   composing.value = false;
   await nextTick();
   listEl.value?.querySelector<HTMLElement>("button")?.focus();
@@ -134,7 +134,7 @@ async function submit() {
   body.value = "";
   composing.value = false;
   await fetchBoard();
-  chatSheet.post = sent.data.id;
+  boardSheet.post = sent.data.id;
 }
 
 // Ctrl or Cmd + Enter posts from the body; Enter alone is a new line there.
@@ -154,7 +154,7 @@ async function removePost() {
   const sent = await sendJSON("DELETE", `/api/board/${encodeURIComponent(open.value.post.id)}`);
   if (!sent.ok) error.value = sent.message;
   else {
-    chatSheet.post = null;
+    boardSheet.post = null;
     await fetchBoard();
   }
 }
@@ -197,7 +197,7 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
     </form>
 
     <!-- One post and its replies. -->
-    <template v-else-if="chatSheet.post && open">
+    <template v-else-if="boardSheet.post && open">
       <div class="head">
         <button type="button" class="icon-key" :aria-label="w.back" @click="back"><Icon name="back" :size="18" /></button>
         <span class="tag"><Icon :name="tagIcon[open.post.tag]" :size="14" />{{ w.tags[open.post.tag] }}</span>
@@ -252,11 +252,11 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
           <span class="sub"><span class="sr-only">{{ w.tags[p.tag] }}. </span>{{ w.by(nameOf(p), noteWhen(p.activeAt)) }}</span>
           <template #end>
             <span class="replies-count" role="img" :aria-label="w.replies(p.replies)"><Icon name="chat" :size="14" />{{ p.replies }}</span>
-            <button type="button" class="open" :aria-label="stripBidi(p.title)" @click="chatSheet.post = p.id"><Icon name="next" :size="16" /></button>
+            <button type="button" class="open" :aria-label="stripBidi(p.title)" @click="boardSheet.post = p.id"><Icon name="next" :size="16" /></button>
           </template>
         </ListRow>
       </ul>
-      <p v-if="!me" class="soft small visitor">{{ w.logInToPost }} <RouterLink to="/login" @click="chatSheet.open = false">{{ w.logIn }}</RouterLink></p>
+      <p v-if="!me" class="soft small visitor">{{ w.logInToPost }} <RouterLink to="/login" @click="boardSheet.open = false">{{ w.logIn }}</RouterLink></p>
     </template>
   </div>
 </template>

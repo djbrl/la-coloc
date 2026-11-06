@@ -4,7 +4,7 @@
 // It floats at the bottom like the tutorial's cards, in carte blanche: an icon on its soft red tile, a title, one line,
 // and at the foot the dots, Back (or Skip on the first step) and the one red Next, which Enter presses.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { caps } from "../lobby/keys";
+import { ARROWS, caps } from "../lobby/keys";
 import { me } from "../session";
 import Icon from "./lobby/house/Icon.vue";
 import type { IconName } from "./lobby/house/icons";
@@ -90,7 +90,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
       <div class="sign-body body">
         <RouterLink v-if="current === 'knock' && !loggedIn" class="button login" to="/login"><Icon name="login" :size="20" />{{ w.logIn }}</RouterLink>
         <ul v-if="current === 'keys'" class="keys">
-          <li><span class="caps"><kbd v-for="k in [caps.w, caps.a, caps.s, caps.d]" :key="k">{{ k }}</kbd></span>{{ w.keysWalk }}</li>
+          <li><span class="caps"><kbd v-for="k in ARROWS" :key="k">{{ k }}</kbd></span>{{ w.keysWalk }}</li>
           <li><span class="caps"><kbd>{{ caps.e }}</kbd></span>{{ w.keysUse }}</li>
           <li><span class="caps"><kbd>?</kbd></span>{{ w.keysAll }}</li>
         </ul>

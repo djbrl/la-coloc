@@ -1,4 +1,4 @@
-// Where a spotlight's hole and its line go (Spotlight.vue, and the walkthrough's ring in TourCard.vue). Plain boxes in
+// Where a spotlight's hole and its line go (Spotlight.vue, and the ring of the city's cards in TourCard.vue). Plain boxes in
 // the viewport's pixels, so the tests can check the placing without a page.
 
 export interface Box {

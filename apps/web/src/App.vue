@@ -53,7 +53,7 @@ const gear = (() => {
       <RouterLink to="/" class="logo">La Coloc</RouterLink>
       <div ref="keysEl" class="side">
         <template v-if="meLoaded">
-          <!-- The chat: for everyone (visitors read the city's room and board). -->
+          <!-- The chat: your own conversations. The city's chat and its board are on the board in the square. -->
           <ChatButton />
           <template v-if="me">
             <!-- Your friends, who's around, and a message away (components/friends). -->

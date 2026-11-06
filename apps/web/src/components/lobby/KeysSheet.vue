@@ -4,7 +4,7 @@
 // the card's X shuts it; the lobby puts focus back on the stage afterwards. Nothing shows on a touch screen, where there
 // are no keys.
 import { computed, onMounted, ref } from "vue";
-import { caps } from "../../lobby/keys";
+import { ARROWS, caps } from "../../lobby/keys";
 import Icon from "./house/Icon.vue";
 import { hudWords as w } from "./words";
 
@@ -23,7 +23,8 @@ const groups = computed((): { name: string; rows: Control[] }[] => [
   {
     name: w.move,
     rows: [
-      { keys: [caps.w, caps.a, caps.s, caps.d], does: w.walk },
+      // The arrows, never W A S D, though those walk too (keys.ts).
+      { keys: Object.values(ARROWS), does: w.walk },
       { keys: [w.shiftKey], does: w.dash },
       { keys: [caps.q, caps.r], does: w.turn, or: true },
     ],

@@ -1,5 +1,5 @@
-// The chat's words (the chat button, the chat sheet: messages, the city's room, its board, the house), in English
-// and French. The French says "vous".
+// The chat's words (the chat button, the chat sheet: messages and the house; and the city's room and its posts, shown
+// in the city board's window), in English and French. The French says "vous".
 import { defineWords, plural, pluriel } from "../../i18n";
 import type { BoardTag } from "./chat";
 
@@ -23,15 +23,15 @@ export const chatWords = defineWords(
   {
     // The button in the top bar, and the sheet.
     buttonName: (unread: number) => (unread ? `Chat, ${unread} unread` : "Chat"),
-    // Nothing for you directly, but the city's room or board moved since you looked.
-    buttonNews: "Chat, new in the city",
     label: "Chat",
-    // The line under the title, by tab (the City and Board tabs say their city: cityTitle, boardTitle).
+    // The line under the title, by tab.
     subDm: "Your conversations.",
     subHouse: "Flatmates only.",
     close: "Close",
     back: "Back",
-    tabs: { dm: "Messages", city: "City", board: "Board", house: "House" } as Record<"dm" | "city" | "board" | "house", string>,
+    tabs: { dm: "Messages", house: "House" } as Record<"dm" | "house", string>,
+    // The sheet, logged out.
+    logInToChat: "Log in to write to people.",
     // Direct messages.
     noConversations: "No messages yet.",
     // Under it: where a conversation starts.
@@ -82,13 +82,13 @@ export const chatWords = defineWords(
   },
   {
     buttonName: (unread: number) => (unread ? `Discussions, ${unread} non lus` : "Discussions"),
-    buttonNews: "Discussions, du nouveau en ville",
     label: "Discussions",
     subDm: "Vos conversations.",
     subHouse: "Entre colocs.",
     close: "Fermer",
     back: "Retour",
-    tabs: { dm: "Messages", city: "Ville", board: "Annonces", house: "Maison" },
+    tabs: { dm: "Messages", house: "Maison" },
+    logInToChat: "Connectez-vous pour écrire aux gens.",
     noConversations: "Pas encore de message.",
     noConversationsHint: "Écrivez à quelqu'un depuis sa fiche, en ville.",
     you: "Vous : ",

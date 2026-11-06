@@ -1,11 +1,11 @@
 <script setup lang="ts">
-// The City tab: the city's public room. Everyone reads its last hundred messages, visitors included; logged-in
+// The City tab of the city board's window: the city's public room. Everyone reads its last hundred messages, visitors included; logged-in
 // people write. It stays live through the city's stream (a "chat" ping, then a fetch with your own login, so the
 // people you blocked stay hidden).
 import { onBeforeUnmount, ref, watch } from "vue";
 import { useWhenBack } from "../../core";
 import { markCitySeen } from "../../cityNews";
-import { chatSheet, openChat } from "../../conversations";
+import { boardSheet, chatSheet, openChat } from "../../conversations";
 import { me } from "../../session";
 import { openStream, type Stream } from "../../stream";
 import type { Message } from "../../types";
@@ -67,7 +67,7 @@ onBeforeUnmount(() => stream?.close());
       @message="(login) => openChat('dm', { with: login })"
     />
     <p v-if="!me" class="visitor soft small">
-      <RouterLink to="/login" @click="chatSheet.open = false">{{ w.logIn }}</RouterLink>
+      <RouterLink to="/login" @click="boardSheet.open = false">{{ w.logIn }}</RouterLink>
     </p>
   </div>
 </template>

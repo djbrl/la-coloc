@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { badge, buttonDot, chatTabs, linkParts, messageAction, pickTab, shownNews, stripBidi } from "./chat";
+import { badge, boardTabs, chatTabs, linkParts, messageAction, pickTab, shownNews, stripBidi } from "./chat";
 
 describe("the chat sheet's tabs", () => {
-  it("are the city's room and board for a visitor, plus messages once logged in, plus the house when you have one", () => {
-    expect(chatTabs(null)).toEqual(["city", "board"]);
-    expect(chatTabs({ houses: [] })).toEqual(["dm", "city", "board"]);
-    expect(chatTabs({ houses: [{ id: "sacre-coeur" }] })).toEqual(["dm", "city", "board", "house"]);
+  it("are your messages, plus the house when you have one; a visitor gets messages, to be asked to log in", () => {
+    expect(chatTabs(null)).toEqual(["dm"]);
+    expect(chatTabs({ houses: [] })).toEqual(["dm"]);
+    expect(chatTabs({ houses: [{ id: "sacre-coeur" }] })).toEqual(["dm", "house"]);
   });
 
   it("falls back to the first tab you have", () => {
-    expect(pickTab("dm", ["city", "board"])).toBe("city");
-    expect(pickTab("board", ["dm", "city", "board"])).toBe("board");
+    expect(pickTab("house", ["dm"])).toBe("dm");
+    expect(pickTab("house", ["dm", "house"])).toBe("house");
+  });
+});
+
+describe("the city board's tabs", () => {
+  it("are the city's room and its posts, and reviews only while some are waiting", () => {
+    expect(boardTabs(0)).toEqual(["city", "board"]);
+    expect(boardTabs(3)).toEqual(["city", "board", "reviews"]);
+    expect(pickTab("reviews", boardTabs(0))).toBe("city");
   });
 });
 
@@ -35,18 +43,11 @@ describe("the chat button's count", () => {
 
 describe("what's new in the city", () => {
   const news = { chat: 3, board: 1 };
-  it("shows on the City and Board tabs, except the one you're looking at", () => {
+  it("shows on the board window's City and Board tabs, except the one you're looking at", () => {
     expect(shownNews(news, { open: false, tab: "city" })).toEqual({ chat: 3, board: 1 });
     expect(shownNews(news, { open: true, tab: "city" })).toEqual({ chat: 0, board: 1 });
     expect(shownNews(news, { open: true, tab: "board" })).toEqual({ chat: 3, board: 0 });
-    expect(shownNews(news, { open: true, tab: "dm" })).toEqual({ chat: 3, board: 1 });
-  });
-
-  it("puts a dot on the chat button only when no direct message is waiting (those have their count)", () => {
-    expect(buttonDot(0, news)).toBe(true);
-    expect(buttonDot(0, { chat: 0, board: 1 })).toBe(true);
-    expect(buttonDot(2, news)).toBe(false);
-    expect(buttonDot(0, { chat: 0, board: 0 })).toBe(false);
+    expect(shownNews(news, { open: true, tab: "reviews" })).toEqual({ chat: 3, board: 1 });
   });
 });
 

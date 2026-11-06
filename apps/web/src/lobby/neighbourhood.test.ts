@@ -109,21 +109,33 @@ describe("neighbourhoods", () => {
     expect(spawn.z).toBeLessThan(bounds.maxZ);
   });
 
-  it("spawn you in front of the nearest real house, facing its door, with its front in the camera's view", () => {
-    const n = generateNeighbourhood("Dakar", [...dakar].reverse());
-    const home = n.plots.find((p) => p.lot.kind === "house" && p.lot.houseId === "sacre-coeur")!;
-    const at = frontOf(home, PLOT / 2 + 1.4);
-    expect(n.spawn.x).toBeCloseTo(at.x);
-    expect(n.spawn.z).toBeCloseTo(at.z);
-    // An avatar faces +z turned by ry: that way is the house.
-    const look = { x: Math.sin(n.spawn.ry), z: Math.cos(n.spawn.ry) };
-    const toHouse = { x: home.x - n.spawn.x, z: home.z - n.spawn.z };
-    expect(look.x * toHouse.x + look.z * toHouse.z).toBeGreaterThan(0);
-    // The camera sits on the +x +z diagonal turned by turn × 90°: it must be on the house's front side.
-    const a = (n.spawn.turn * Math.PI) / 2;
-    const camera = { x: Math.cos(a) + Math.sin(a), z: -Math.sin(a) + Math.cos(a) };
-    const front = FACING_DIR[home.facing];
-    expect(camera.x * front.x + camera.z * front.z).toBeGreaterThan(0);
+  it("spawn everybody in the market square, facing the city board, with its face in the camera's view", () => {
+    for (const [city, houses] of [
+      ["Dakar", [...dakar].reverse()],
+      ["Lomé", []],
+      ["Abidjan", Array.from({ length: 30 }, (_, i) => ({ id: `h${i}`, demo: i % 2 === 0 }))],
+    ] as const) {
+      const n = generateNeighbourhood(city, [...houses]);
+      const market = n.blocks.find((b) => b.kind === "market")!;
+      const board = n.board!;
+      // On the square, in front of the board, with room between the two.
+      expect(Math.abs(n.spawn.x - market.x)).toBeLessThan(market.width / 2);
+      expect(Math.abs(n.spawn.z - market.z)).toBeLessThan(market.depth / 2);
+      const front = FACING_DIR[board.facing];
+      expect(front.x * (n.spawn.x - board.x) + front.z * (n.spawn.z - board.z)).toBeGreaterThan(5);
+      // An avatar faces +z turned by ry: that way is the board.
+      const look = { x: Math.sin(n.spawn.ry), z: Math.cos(n.spawn.ry) };
+      const toBoard = { x: board.x - n.spawn.x, z: board.z - n.spawn.z };
+      expect(look.x * toBoard.x + look.z * toBoard.z).toBeGreaterThan(0);
+      // The camera sits on the +x +z diagonal turned by turn × 90°: it must be on the board's face side.
+      const a = (n.spawn.turn * Math.PI) / 2;
+      const camera = { x: Math.cos(a) + Math.sin(a), z: -Math.sin(a) + Math.cos(a) };
+      expect(camera.x * front.x + camera.z * front.z).toBeGreaterThan(0);
+    }
+  });
+
+  it("spawn you in the same place whoever lives in the city", () => {
+    expect(generateNeighbourhood("Dakar", dakar).spawn).toEqual(generateNeighbourhood("Dakar", [{ id: "x", demo: false, plot: "0.0.0.0" }]).spawn);
   });
 
   it("turn the camera the least to see a front", () => {
@@ -137,33 +149,37 @@ describe("neighbourhoods", () => {
     expect(turnFacing(0, 5)).toBe(4);
   });
 
-  it("put the chores board on the market square", () => {
+  it("put the city board on the market square, its face towards the square", () => {
     const n = generateNeighbourhood("Dakar", dakar);
     const market = n.blocks.find((b) => b.kind === "market")!;
     expect(Math.abs(n.board!.x - market.x)).toBeLessThan(market.width / 2);
     expect(Math.abs(n.board!.z - market.z)).toBeLessThan(market.depth / 2);
+    // On the north side, facing south: the square lies in front of it.
+    expect(n.board!.z).toBeLessThan(market.z);
+    expect(n.board!.facing).toBe(0);
   });
 
   it("put the Arena on the block the park had, its entrance towards the market, and move nothing else", () => {
-    // Digests of each map taken before the Arena (17 Oct 2026), with the Arena's block read back as the park: every
-    // block, plot key, house, street, lamp and the spawn are where they were.
+    // Digests of each map, with the Arena's block read back as the park: every block, plot key, house, street and
+    // lamp is where it was before the Arena (17 Oct 2026). Taken again on 6 Nov 2026 without the spawn and the board,
+    // which moved to the market square's middle and north edge; everything else hasn't moved since.
     const before: Record<string, string> = {
-      "Dakar:few": "ba6d1a41",
-      "Dakar:many": "6cf70421",
-      "Lomé:few": "5dfb4016",
-      "Lomé:many": "f01059ac",
-      "Cotonou:few": "d5c7116c",
-      "Cotonou:many": "961b7337",
-      "Abidjan:few": "a47aaa41",
-      "Abidjan:many": "3f353563",
-      "Douala:few": "ee373fc0",
-      "Douala:many": "83d11d02",
-      "Kigali:few": "7ceed871",
-      "Kigali:many": "7a987806",
-      "Tunis:few": "1eebdcfd",
-      "Tunis:many": "135cf5f9",
-      "Marrakech:few": "b1f36930",
-      "Marrakech:many": "9eaa41a5",
+      "Dakar:few": "8bc8ac39",
+      "Dakar:many": "bcecea9e",
+      "Lomé:few": "b4d497b2",
+      "Lomé:many": "bfe7916d",
+      "Cotonou:few": "4f96c736",
+      "Cotonou:many": "61f83866",
+      "Abidjan:few": "3e7ee55e",
+      "Abidjan:many": "d4bea2c4",
+      "Douala:few": "397b9c76",
+      "Douala:many": "9748b7ab",
+      "Kigali:few": "72591447",
+      "Kigali:many": "a93ae04b",
+      "Tunis:few": "a8a26247",
+      "Tunis:many": "e945ad47",
+      "Marrakech:few": "268e9586",
+      "Marrakech:many": "e83ba6c7",
     };
     const digest = (s: string) => {
       let h = 0x811c9dc5;
@@ -193,7 +209,7 @@ describe("neighbourhoods", () => {
       const out = FACING_DIR[a.facing];
       expect(out.x * (market.x - a.x) + out.z * (market.z - a.z)).toBeGreaterThan(0);
       const blocks = n.blocks.map((b) => ({ ...b, kind: b.kind === "arena" ? "park" : b.kind }));
-      expect(digest(JSON.stringify([blocks, n.plots, n.spawn, n.streets, n.board, n.skyline, n.lamps, n.trafficLights, n.bounds]))).toBe(want);
+      expect(digest(JSON.stringify([blocks, n.plots, n.streets, n.skyline, n.lamps, n.trafficLights, n.bounds]))).toBe(want);
     }
   });
 

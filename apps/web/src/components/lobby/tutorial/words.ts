@@ -1,7 +1,7 @@
 // The quest's words, "Your first home", in English and French (see i18n.ts): the welcome card and the city's card
 // (Welcome.vue), the chapters' names (QuestTracker.vue), the coach at the bottom of the screen (Coach.vue), and the
 // big moments: the keys (KeysCard.vue), the launch (LaunchCard.vue), sharing (ShareCard.vue) and "Well done"
-// (HomeCard.vue). The walkthrough's cards are in tour.ts. The French says "vous", like the rest of the site.
+// (HomeCard.vue). The city's cards are in tour.ts. The French says "vous", like the rest of the site.
 import { defineWords } from "../../../i18n";
 import type { Chapter, HouseCard, Stage } from "./tutorial";
 
@@ -45,7 +45,7 @@ export const tutorialWords = defineWords(
     fromStart: "From the start",
     // The last card, in the real city: the only one that says welcome to it.
     city: "Welcome to the city",
-    cityPitch: "Every lit window is someone's project. Knock on a free room, and the house votes.",
+    cityPitch: "Every lit window is someone's project. Apply for a free room, and the house votes.",
     letsGo: "Let's go",
 
     // The coach.
@@ -53,11 +53,10 @@ export const tutorialWords = defineWords(
     waitingWhy: "Your place is kept.",
     missing: "The quest isn't on this server yet.",
     leave: "Leave",
-    walkTouch: "Tap the ground to walk there.",
-    walkKeys: (keys: string) => `${keys} to walk. ? shows every key.`,
-    look: "A free room, down the street. Follow the light.",
-    goTouch: "Go to the light, tap Go in.",
-    goKeys: "Go to the light, press E at the door.",
+    // The walk to the house, after the camera has shown it. Nothing about going in: the door's prompt says it.
+    goTitle: "Walk to the light",
+    goWhy: "A free room is waiting there.",
+    goTouch: "Tap the ground to walk there.",
     room: "A room is free. Take it.",
     roomWhy: "Your share of the house's server.",
     takeRoom: "Take the room",
@@ -194,18 +193,16 @@ export const tutorialWords = defineWords(
     continue: "Continuer",
     fromStart: "Depuis le début",
     city: "Bienvenue en ville",
-    cityPitch: "Chaque fenêtre allumée est un projet. Frappez à une chambre libre, et la maison vote.",
+    cityPitch: "Chaque fenêtre allumée est un projet. Postulez pour une chambre libre, et la maison vote.",
     letsGo: "C'est parti",
 
     waiting: "En attente de la ville…",
     waitingWhy: "Votre place est gardée.",
     missing: "La quête n'est pas encore sur ce serveur.",
     leave: "Quitter",
-    walkTouch: "Touchez le sol pour y aller.",
-    walkKeys: (keys: string) => `${keys} pour marcher. ? montre toutes les touches.`,
-    look: "Une chambre libre, au bout de la rue. Suivez la lumière.",
-    goTouch: "Allez à la lumière, touchez Entrer.",
-    goKeys: "Allez à la lumière, appuyez sur E à la porte.",
+    goTitle: "Marchez jusqu'à la lumière",
+    goWhy: "Une chambre libre vous y attend.",
+    goTouch: "Touchez le sol pour y aller.",
     room: "Une chambre est libre. Prenez-la.",
     roomWhy: "Votre part du serveur de la maison.",
     takeRoom: "Prendre la chambre",

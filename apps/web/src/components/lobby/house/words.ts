@@ -90,7 +90,7 @@ export const houseWords = defineWords(
     freeRow: (memoryMb: number) => `${memoryMb} MB of memory`,
     noDescription: "No description yet.",
     noProject: "No project yet.",
-    knock: "Knock",
+    knock: "Apply",
 
     // The Reviews tab (chores.ts): the pull requests the house gave someone to review.
     reviews: {
@@ -126,11 +126,11 @@ export const houseWords = defineWords(
     pay: (amount: string) => `Pay ${amount} from my credit`,
 
     // The foot: the one next step.
-    logInToKnock: "Log in to knock",
+    logInToKnock: "Log in to apply",
     waitingForServer: "Your server is coming",
     rentServer: "Rent the server",
-    knockFree: "Knock on a free room",
-    seeKnock: "See your knock",
+    knockFree: "Apply to join this colocation",
+    seeKnock: "See your application",
     // The sentences the foot says when there's no button to press (crew.ts).
     foot: {
       waitChef: "The chef is renting the server.",
@@ -273,7 +273,7 @@ export const houseWords = defineWords(
     freeRow: (memoryMb) => `${memoryMb} Mo de mémoire`,
     noDescription: "Pas encore de description.",
     noProject: "Pas encore de projet.",
-    knock: "Frapper",
+    knock: "Postuler",
 
     reviews: {
       late: (late) => (late === 1 ? "1 revue en retard. Elle alourdit votre loyer." : `${late} revues en retard. Elles alourdissent votre loyer.`),
@@ -306,11 +306,11 @@ export const houseWords = defineWords(
     markedPaid: "Marqué comme payé.",
     pay: (amount) => `Payer ${amount} avec mon crédit`,
 
-    logInToKnock: "Se connecter pour frapper",
+    logInToKnock: "Se connecter pour postuler",
     waitingForServer: "Votre serveur arrive",
     rentServer: "Louer le serveur",
-    knockFree: "Frapper à une chambre libre",
-    seeKnock: "Voir ma demande",
+    knockFree: "Postuler à cette colocation",
+    seeKnock: "Voir ma candidature",
     foot: {
       waitChef: "Le chef loue le serveur.",
       example: "Maison d'exemple. Chambres indisponibles.",
