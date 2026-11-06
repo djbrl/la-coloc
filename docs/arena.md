@@ -66,7 +66,11 @@ type ArenaView = {
     repo: string; path: string; startsAt: string; endsAt: string; prizeFcfa: number;
     award: { key: string; title: Text };
     points: { label: string; points: number }[];
+    // What each podium place wins (podium.ts prizesOf, the same rows closeWeek awards): 1st prizeFcfa and `award`,
+    // 2nd and 3rd 0 FCFA and the podium badge.
+    prizes: { place: 1 | 2 | 3; fcfa: number; badge: { key: string; title: Text } }[];
   };
+  autoSubmit: boolean;                     // the GitHub App is configured: a joined player's PRs are added by webhook
   entrants: number;
   joined: boolean;                         // the viewer joined this week
   mine: { id: string; url: string; number: number; title: string | null; state: "open" | "merged" | "closed"; points: number }[];

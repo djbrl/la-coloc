@@ -1,7 +1,8 @@
 // The Arena's challenges: each city gets one of these a week (weeks.ts says which). Each is a folder of the arena
 // repo (COLOC_ARENA_REPO) with a README saying what to do (challenges/<slug>/README.md in this repo); people send
-// pull requests there. Every word is in English and French. The winner's title in French is epicene: the same
-// words for anyone, so nobody's title has to guess who they are.
+// pull requests there. The arena's window shows the summary on one line and the rules folded, and draws the points
+// table itself, so neither says how judging works. Every word is in English and French. The winner's title in
+// French is epicene: the same words for anyone, so nobody's title has to guess who they are.
 import type { ArenaKind } from "@coloc/db";
 
 export type Text = { en: string; fr: string };
@@ -43,19 +44,17 @@ export const CATALOGUE: CatalogueEntry[] = [
     kind: "bounty",
     title: { en: "Bug bounty: the example apps", fr: "Chasse aux failles : les apps d'exemple" },
     summary: {
-      en: "Find a security bug in one of the example apps, fix it, and send the fix as a pull request.",
-      fr: "Trouvez une faille de sécurité dans une des apps d'exemple, corrigez-la et envoyez la correction en pull request.",
+      en: "Find a security bug in an example app and fix it.",
+      fr: "Trouvez une faille de sécurité dans une app d'exemple et corrigez-la.",
     },
     rules: {
       en: [
-        "Only the apps in examples/ count. Never test anything on a real house or a real person's room.",
-        "One bug per pull request: say what it was, how to see it, and how your change fixes it.",
-        "The judges label it arena:low, arena:medium, arena:high or arena:critical when they merge it. No label, no points.",
+        "Only examples/ counts. Never test on a real house.",
+        "One bug per pull request: what it was, how to see it, how you fixed it.",
       ],
       fr: [
-        "Seules les apps du dossier examples/ comptent. Ne testez jamais rien sur une vraie maison ni sur la chambre de quelqu'un.",
-        "Une faille par pull request : dites ce qu'elle était, comment la voir et comment votre changement la corrige.",
-        "Les juges ajoutent l'étiquette arena:low, arena:medium, arena:high ou arena:critical en la mergeant. Sans étiquette, pas de points.",
+        "Seul examples/ compte. Ne testez jamais sur une vraie maison.",
+        "Une faille par pull request : laquelle, comment la voir, comment vous l'avez corrigée.",
       ],
     },
     path: "challenges/bug-bounty",
@@ -68,19 +67,17 @@ export const CATALOGUE: CatalogueEntry[] = [
     kind: "bounty",
     title: { en: "Accessibility hunt", fr: "Chasse aux obstacles : l'accessibilité" },
     summary: {
-      en: "Find something in the example apps' pages that shuts people out (keyboard, contrast, screen readers) and fix it.",
-      fr: "Trouvez dans les pages des apps d'exemple ce qui laisse des gens dehors (clavier, contrastes, lecteurs d'écran) et corrigez-le.",
+      en: "Fix what shuts people out of the example apps: keyboard, contrast, screen readers.",
+      fr: "Corrigez ce qui exclut des gens des apps d'exemple : clavier, contrastes, lecteurs d'écran.",
     },
     rules: {
       en: [
-        "Any page the apps in examples/ serve counts. Say who it kept out and how you checked your fix.",
-        "One problem per pull request. Screenshots or a short recording help the review.",
-        "The judges label it by how many people it kept out: arena:low to arena:critical. No label, no points.",
+        "Any page of examples/ counts. Say who it kept out and how you checked.",
+        "One problem per pull request. A screenshot helps.",
       ],
       fr: [
-        "Toute page servie par les apps de examples/ compte. Dites qui en était privé et comment vous avez vérifié votre correction.",
-        "Un problème par pull request. Des captures ou une courte vidéo aident la relecture.",
-        "Les juges ajoutent une étiquette selon le nombre de personnes concernées : de arena:low à arena:critical. Sans étiquette, pas de points.",
+        "Toute page de examples/ compte. Dites qui était exclu et comment vous avez vérifié.",
+        "Un problème par pull request. Une capture aide.",
       ],
     },
     path: "challenges/accessibility-hunt",
@@ -93,19 +90,17 @@ export const CATALOGUE: CatalogueEntry[] = [
     kind: "hackathon",
     title: { en: "Hackathon: works without a connection", fr: "Hackathon : même sans réseau" },
     summary: {
-      en: "In one week, build a small app that keeps working when the connection drops, and put it in its own folder.",
-      fr: "En une semaine, construisez une petite app qui marche encore quand le réseau coupe, dans son propre dossier.",
+      en: "Build a small app that keeps working when the connection drops.",
+      fr: "Construisez une petite app qui marche encore quand le réseau coupe.",
     },
     rules: {
       en: [
-        "Put everything in challenges/offline-hackathon/<your GitHub login>/, with a README saying how to run it.",
-        "Teams are fine: one pull request, and say who did what.",
-        "It must still do its main job with the network off. Entries the judges merge and label arena:entry score.",
+        "Everything in <your GitHub login>/ in the folder, with a README to run it.",
+        "It works with the network off. Teams: one pull request, say who did what.",
       ],
       fr: [
-        "Mettez tout dans challenges/offline-hackathon/<votre identifiant GitHub>/, avec un README qui explique comment le lancer.",
-        "Les équipes sont les bienvenues : une seule pull request, et dites qui a fait quoi.",
-        "Elle doit encore faire l'essentiel réseau coupé. Les participations que les juges mergent avec l'étiquette arena:entry marquent des points.",
+        "Tout dans <votre identifiant GitHub>/ dans le dossier, avec un README pour la lancer.",
+        "Elle marche réseau coupé. En équipe : une pull request, dites qui a fait quoi.",
       ],
     },
     path: "challenges/offline-hackathon",
@@ -118,19 +113,17 @@ export const CATALOGUE: CatalogueEntry[] = [
     kind: "hackathon",
     title: { en: "Hackathon: for the market", fr: "Hackathon : pour le marché" },
     summary: {
-      en: "In one week, build a tool a market trader would use every day: prices, stock, credit, anything that helps.",
-      fr: "En une semaine, construisez un outil qu'une commerçante ou un commerçant utiliserait chaque jour : prix, stock, crédit, tout ce qui aide.",
+      en: "Build an everyday tool for market traders: prices, stock, credit.",
+      fr: "Construisez un outil de tous les jours pour le marché : prix, stock, crédit.",
     },
     rules: {
       en: [
-        "Put everything in challenges/market-hackathon/<your GitHub login>/, with a README and a screenshot.",
-        "Teams are fine: one pull request, and say who did what.",
-        "It must run with one command. Entries the judges merge and label arena:entry score.",
+        "Everything in <your GitHub login>/ in the folder, with a README and a screenshot.",
+        "It runs with one command. Teams: one pull request, say who did what.",
       ],
       fr: [
-        "Mettez tout dans challenges/market-hackathon/<votre identifiant GitHub>/, avec un README et une capture.",
-        "Les équipes sont les bienvenues : une seule pull request, et dites qui a fait quoi.",
-        "Elle doit se lancer en une commande. Les participations que les juges mergent avec l'étiquette arena:entry marquent des points.",
+        "Tout dans <votre identifiant GitHub>/ dans le dossier, avec un README et une capture.",
+        "Il se lance en une commande. En équipe : une pull request, dites qui a fait quoi.",
       ],
     },
     path: "challenges/market-hackathon",
@@ -143,19 +136,17 @@ export const CATALOGUE: CatalogueEntry[] = [
     kind: "challenge",
     title: { en: "Challenge: amounts in words", fr: "Défi : les montants en toutes lettres" },
     summary: {
-      en: "Write a function that writes an amount of FCFA in words, in French, the way it goes on a cheque.",
-      fr: "Écrivez une fonction qui écrit un montant en FCFA en toutes lettres, en français, comme sur un chèque.",
+      en: "Write a function that spells an FCFA amount in French words, as on a cheque.",
+      fr: "Écrivez une fonction qui écrit un montant en FCFA en toutes lettres, comme sur un chèque.",
     },
     rules: {
       en: [
-        "Any language. Put it in challenges/fcfa-in-words/<your GitHub login>/ with its tests.",
-        "It must pass every case in challenges/fcfa-in-words/cases.txt.",
-        "Solutions the judges merge and label arena:entry score. Clear code beats clever code.",
+        "Any language, in <your GitHub login>/ in the folder, with its tests.",
+        "It passes every case in cases.txt. Clear beats clever.",
       ],
       fr: [
-        "N'importe quel langage. Mettez-la dans challenges/fcfa-in-words/<votre identifiant GitHub>/ avec ses tests.",
-        "Elle doit réussir tous les cas de challenges/fcfa-in-words/cases.txt.",
-        "Les solutions que les juges mergent avec l'étiquette arena:entry marquent des points. Un code clair vaut mieux qu'un code astucieux.",
+        "N'importe quel langage, dans <votre identifiant GitHub>/ dans le dossier, avec ses tests.",
+        "Elle réussit tous les cas de cases.txt. Le clair vaut mieux que l'astucieux.",
       ],
     },
     path: "challenges/fcfa-in-words",
@@ -168,19 +159,17 @@ export const CATALOGUE: CatalogueEntry[] = [
     kind: "challenge",
     title: { en: "Challenge: tests for the examples", fr: "Défi : des tests pour les exemples" },
     summary: {
-      en: "Pick an example app with few tests and add the ones that would catch its next bug.",
-      fr: "Choisissez une app d'exemple qui a peu de tests et ajoutez ceux qui attraperaient son prochain bug.",
+      en: "Add the tests that would catch an example app's next bug.",
+      fr: "Ajoutez les tests qui attraperaient le prochain bug d'une app d'exemple.",
     },
     rules: {
       en: [
-        "Only examples/ counts. Tests only: don't change how the app behaves.",
-        "Each test says in its name what it checks, and fails if that breaks.",
-        "Pull requests the judges merge and label arena:entry score.",
+        "Only examples/, and tests only: don't change what the app does.",
+        "Each test's name says what it checks.",
       ],
       fr: [
-        "Seul le dossier examples/ compte. Uniquement des tests : ne changez pas le comportement de l'app.",
-        "Chaque test dit dans son nom ce qu'il vérifie, et échoue si ça casse.",
-        "Les pull requests que les juges mergent avec l'étiquette arena:entry marquent des points.",
+        "Seul examples/ compte, et que des tests : ne changez pas ce que fait l'app.",
+        "Le nom de chaque test dit ce qu'il vérifie.",
       ],
     },
     path: "challenges/test-pilot",

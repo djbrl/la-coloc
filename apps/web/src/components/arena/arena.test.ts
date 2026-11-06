@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { language } from "../../i18n";
 import type { ArenaView, Badge } from "../../types";
-import { arenaStage, badgeWords, checkPrUrl, cloneCommand, countdown, folderUrl, medal, prProblemText, repoName, submissionState, toDisplay } from "./arena";
+import { arenaStage, badgeWords, checkPrUrl, cloneCommand, folderUrl, labelWord, medal, prizesFor, prProblemText, repoName, submissionState, timeLeft, toDisplay } from "./arena";
+import { arenaWords as w } from "./words";
 
 afterEach(() => {
   language.lang = "en";
@@ -40,26 +41,55 @@ function view(over: Partial<ArenaView> = {}): ArenaView {
   };
 }
 
-describe("the countdown", () => {
-  it("says days and hours, then hours and minutes, then minutes and seconds", () => {
-    expect(countdown(at(2 * 86400 + 4 * 3600 + 59), NOW)).toBe("2d 4h");
-    expect(countdown(at(3 * 3600 + 12 * 60 + 30), NOW)).toBe("3h 12m");
-    expect(countdown(at(12 * 60 + 5), NOW)).toBe("12m 05s");
-    expect(countdown(at(45), NOW)).toBe("45s");
+describe("the time left", () => {
+  it("counts days, then hours, then minutes, then seconds", () => {
+    expect(timeLeft(at(4 * 86400 + 6 * 3600), NOW)).toBe("4 days left");
+    expect(timeLeft(at(2 * 86400), NOW)).toBe("2 days left");
+    expect(timeLeft(at(86400 + 6 * 3600 + 59), NOW)).toBe("1d 6h left");
+    expect(timeLeft(at(5 * 3600 + 12 * 60 + 30), NOW)).toBe("5h 12m left");
+    expect(timeLeft(at(12 * 60 + 5), NOW)).toBe("12m left");
+    expect(timeLeft(at(45), NOW)).toBe("45s left");
+    expect(timeLeft(at(0), NOW)).toBe("Ended");
+    expect(timeLeft("not a date", NOW)).toBe("Ended");
   });
 
-  it("says it's over at the end and after", () => {
-    expect(countdown(at(0), NOW)).toBe("Ended");
-    expect(countdown(at(-60), NOW)).toBe("Ended");
-    expect(countdown("not a date", NOW)).toBe("Ended");
-  });
-
-  it("writes French units with no-break spaces", () => {
+  it("speaks French, with no-break spaces in its units", () => {
     language.lang = "fr";
-    expect(countdown(at(2 * 86400 + 4 * 3600), NOW)).toBe("2 j 4 h");
-    expect(countdown(at(3 * 3600 + 12 * 60), NOW)).toBe("3 h 12 min");
-    expect(countdown(at(65), NOW)).toBe("1 min 05 s");
-    expect(countdown(at(-1), NOW)).toBe("Terminé");
+    expect(timeLeft(at(4 * 86400), NOW)).toBe("Encore 4 jours");
+    expect(timeLeft(at(86400 + 2 * 3600), NOW)).toBe("Encore 1 j 2 h");
+    expect(timeLeft(at(3 * 3600 + 5 * 60), NOW)).toBe("Encore 3 h 5 min");
+    expect(timeLeft(at(-1), NOW)).toBe("Terminé");
+  });
+});
+
+describe("how it's graded, and what it pays", () => {
+  it("reads a judges' label without its prefix", () => {
+    expect(labelWord("arena:critical")).toBe("critical");
+    expect(labelWord("arena:entry")).toBe("entry");
+    expect(labelWord("bug")).toBe("bug");
+  });
+
+  it("shows the prizes the API sends", () => {
+    const prizes = [
+      { place: 1 as const, fcfa: 25000, badge: { key: "eagle-eye", title: eagle.title } },
+      { place: 2 as const, fcfa: 0, badge: { key: "podium", title: { en: "Podium · x", fr: "Podium · x" } } },
+    ];
+    expect(prizesFor({ ...view().challenge, prizes })).toBe(prizes);
+  });
+
+  it("works them out from an older API the way the podium awards them", () => {
+    expect(prizesFor(view().challenge)).toEqual([
+      { place: 1, fcfa: 25000, badge: { key: "eagle-eye", title: eagle.title } },
+      { place: 2, fcfa: 0, badge: { key: "podium", title: { en: "Podium · Bug bounty week", fr: "Podium · Semaine de la chasse aux bugs" } } },
+      { place: 3, fcfa: 0, badge: { key: "podium", title: { en: "Podium · Bug bounty week", fr: "Podium · Semaine de la chasse aux bugs" } } },
+    ]);
+  });
+
+  it("names each place to a reader", () => {
+    expect(w.prizeName("1st", "25 000 FCFA", "Eagle eye")).toBe("1st place: 25 000 FCFA and the title Eagle eye");
+    expect(w.prizeName("2nd", null, null)).toBe("2nd place: a podium badge");
+    language.lang = "fr";
+    expect(w.prizeName("1re", "25 000 FCFA", "Œil de lynx")).toBe("1re place : 25 000 FCFA et le titre « Œil de lynx »");
   });
 });
 

@@ -3,13 +3,30 @@
 import { arenaAwards, arenaChallenges, arenaEntries, arenaSubmissions, type Db, users } from "@coloc/db";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { wearNew } from "./badges";
-import { catalogueEntry } from "./catalogue";
+import { type CatalogueEntry, catalogueEntry, type Text } from "./catalogue";
 
 type UserRow = typeof users.$inferSelect;
 type AwardRow = typeof arenaAwards.$inferSelect;
 
 // How many people get a title: 1st the challenge's own, 2nd and 3rd a podium badge.
 export const PODIUM = 3;
+
+/** What one place on the podium wins: credit (1st only) and a badge (the challenge's title, or a podium one). */
+export interface Prize {
+  place: 1 | 2 | 3;
+  fcfa: number;
+  badge: { key: string; title: Text };
+}
+
+/** The podium's prizes for a challenge, the ones the arena shows before the week and awards after it. */
+export function prizesOf(entry: Pick<CatalogueEntry, "award" | "title">, prizeFcfa: number): Prize[] {
+  const podium = { key: "podium", title: { en: `Podium · ${entry.title.en}`, fr: `Podium · ${entry.title.fr}` } };
+  return [
+    { place: 1, fcfa: prizeFcfa, badge: entry.award },
+    { place: 2, fcfa: 0, badge: podium },
+    { place: 3, fcfa: 0, badge: podium },
+  ];
+}
 
 /** A challenge's standings: everyone who joined, most points first; a tie goes to whoever scored last earlier. */
 export async function standings(db: Db, id: string, limit: number): Promise<{ user: UserRow; points: number; prs: number }[]> {
@@ -39,7 +56,7 @@ export async function closeWeek(tx: Db, id: string, at: Date): Promise<{ city: s
     .where(and(eq(arenaChallenges.id, id), isNull(arenaChallenges.closedAt)))
     .returning();
   if (!closed) return null;
-  const entry = catalogueEntry(closed.slug, closed.kind);
+  const prizes = prizesOf(catalogueEntry(closed.slug, closed.kind), closed.prizeFcfa);
   const podium = (await standings(tx, id, PODIUM)).filter((s) => s.points > 0);
   if (!podium.length) return { city: closed.city, prizeFcfa: closed.prizeFcfa, awards: [] };
   const awards = await tx
@@ -49,9 +66,9 @@ export async function closeWeek(tx: Db, id: string, at: Date): Promise<{ city: s
         challengeId: id,
         userId: s.user.id,
         place: i + 1,
-        key: i === 0 ? entry.award.key : "podium",
-        titleEn: i === 0 ? entry.award.title.en : `Podium · ${entry.title.en}`,
-        titleFr: i === 0 ? entry.award.title.fr : `Podium · ${entry.title.fr}`,
+        key: prizes[i].badge.key,
+        titleEn: prizes[i].badge.title.en,
+        titleFr: prizes[i].badge.title.fr,
         city: closed.city,
         week: closed.weekStart,
       })),

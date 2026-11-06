@@ -550,6 +550,15 @@ export interface ArenaChallenge {
   award: { key: string; title: Text };
   // What a merged pull request is worth, by label.
   points: { label: string; points: number }[];
+  // What 1st, 2nd and 3rd place win (left out by an older API: arena.ts's prizesFor works it out).
+  prizes?: ArenaPrize[];
+}
+
+/** One place on the podium: credit (1st only) and a badge, the challenge's title for 1st, a podium one after. */
+export interface ArenaPrize {
+  place: 1 | 2 | 3;
+  fcfa: number;
+  badge: { key: string; title: Text };
 }
 
 /** One of your pull requests sent to this week's challenge. "open": waiting for a merge (0 points so far). */
@@ -566,6 +575,9 @@ export interface ArenaSubmission {
 export interface ArenaView {
   city: string;
   challenge: ArenaChallenge;
+  // Whether a joined player's pull requests on the arena repo are added on their own (GitHub's webhooks reach the
+  // server). False or left out: each one's address is pasted.
+  autoSubmit?: boolean;
   entrants: number;
   joined: boolean;
   mine: ArenaSubmission[];

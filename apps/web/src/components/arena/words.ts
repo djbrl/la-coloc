@@ -1,4 +1,5 @@
-// The arena's words, in English and French (see i18n.ts): its panel (ArenaPanel.vue and its three tabs), the badge
+// The arena's words, in English and French (see i18n.ts): its window (ArenaPanel.vue: the challenge, the three steps
+// to take part and the prizes, then the leaderboard and the room behind tabs), the badge
 // chip next to names (BadgeChip.vue), the HUD's way in, and the settings row that picks the title you wear. What the
 // API writes itself (a challenge's title, summary and rules, a badge's title) comes in both languages from the API.
 // The French says "vous", and keeps a title's own words as they are.
@@ -17,23 +18,22 @@ export const arenaWords = defineWords(
     tabs: { challenge: "Challenge", board: "Leaderboard", room: "Room" },
     kinds: { bounty: "Bug bounty", hackathon: "Hackathon", challenge: "Coding challenge" },
 
-    // The countdown, compact: "2d 4h", "3h 12m", "12m 05s", "45s".
-    days: (d: number, h: number) => `${d}d ${h}h`,
-    hours: (h: number, m: number) => `${h}h ${m}m`,
-    minutes: (m: number, s: string) => `${m}m ${s}s`,
-    seconds: (s: number) => `${s}s`,
     ended: "Ended",
     timeLeftName: (left: string) => `Time left: ${left}`,
     endedName: "This week's challenge has ended",
+    // The challenge's time left, as the window says it: "4 days left", "1d 6h left", "5h 12m left".
+    daysLeft: (d: number) => `${d} days left`,
+    dayLeft: (h: number) => `1d ${h}h left`,
+    hoursLeft: (h: number, m: number) => `${h}h ${m}m left`,
+    minutesLeft: (m: number) => `${m}m left`,
+    secondsLeft: (s: number) => `${s}s left`,
+    endsAt: (when: string) => `Ends ${when}`,
 
     // The stats, as icons with numbers; these are their hidden names.
-    prizeName: (amount: string, title: string) => `Prize: ${amount} and the title ${title}`,
     entrantsName: (n: number) => `${plural(n, "person", "people")} taking part`,
     crowdName: (n: number) => `${plural(n, "person", "people")} in the arena now`,
 
     // The repo.
-    folderName: (path: string) => `The challenge's folder: ${path}`,
-    copy: "Copy",
     copied: "Copied",
     copyName: "Copy the git clone command (for your fork)",
     fork: "Fork",
@@ -41,12 +41,28 @@ export const arenaWords = defineWords(
     githubName: "Open the folder on GitHub",
     rules: "Rules",
     points: (n: number) => `${n} pts`,
-    // Under the points table: who decides, and until when.
-    scoring: (deadline: string) => `Merged before ${deadline} only.`,
     notOpen: "The repo isn't public yet.",
     notOpenTitle: "Opening soon",
 
-    // Taking part.
+    // Taking part: three steps, then how it's graded.
+    stepsName: "How to take part",
+    joinStep: "Join",
+    joined: "Joined",
+    prStep: "Open a pull request",
+    autoStep: "Picked up automatically",
+    pasteStep: "Paste its link here",
+    pasteInstead: "Paste a link instead",
+    graded: "Judges label merged PRs",
+    gradedName: (table: string) => `Judges label each merged pull request, and each label is worth points: ${table}`,
+    mineChip: (n: number, pts: number) => `${n} PR · ${pts} pts`,
+    mineChipName: (n: number, pts: number) => `${plural(n, "pull request", "pull requests")} sent, ${pts} points. See them in the leaderboard`,
+
+    // The payout.
+    prizesName: "Prizes",
+    podium: "Podium",
+    prizeName: (place: string, amount: string | null, title: string | null) =>
+      `${place} place: ${[amount, title ? `the title ${title}` : "a podium badge"].filter(Boolean).join(" and ")}`,
+
     join: "Join",
     logIn: "Log in",
     submit: "Submit",
@@ -101,20 +117,19 @@ export const arenaWords = defineWords(
     tabs: { challenge: "Défi", board: "Classement", room: "Salon" },
     kinds: { bounty: "Chasse aux bugs", hackathon: "Hackathon", challenge: "Défi de code" },
 
-    days: (d, h) => `${d} j ${h} h`,
-    hours: (h, m) => `${h} h ${m} min`,
-    minutes: (m, s) => `${m} min ${s} s`,
-    seconds: (s) => `${s} s`,
     ended: "Terminé",
     timeLeftName: (left) => `Temps restant : ${left}`,
     endedName: "Le défi de la semaine est terminé",
+    daysLeft: (d) => `Encore ${d} jours`,
+    dayLeft: (h) => `Encore 1 j ${h} h`,
+    hoursLeft: (h, m) => `Encore ${h} h ${m} min`,
+    minutesLeft: (m) => `Encore ${m} min`,
+    secondsLeft: (s) => `Encore ${s} s`,
+    endsAt: (when) => `Se termine le ${when}`,
 
-    prizeName: (amount, title) => `Prix : ${amount} et le titre « ${title} »`,
     entrantsName: (n) => `${pluriel(n, "personne", "personnes")} en lice`,
     crowdName: (n) => `${pluriel(n, "personne", "personnes")} dans l'arène en ce moment`,
 
-    folderName: (path) => `Le dossier du défi : ${path}`,
-    copy: "Copier",
     copied: "Copié",
     copyName: "Copier la commande git clone (de votre fork)",
     fork: "Forker",
@@ -122,9 +137,24 @@ export const arenaWords = defineWords(
     githubName: "Ouvrir le dossier sur GitHub",
     rules: "Règles",
     points: (n) => `${n} pts`,
-    scoring: (deadline) => `Mergées avant le ${deadline} uniquement.`,
     notOpen: "Le dépôt n'est pas encore public.",
     notOpenTitle: "Bientôt ouvert",
+
+    stepsName: "Comment participer",
+    joinStep: "Inscrivez-vous",
+    joined: "Inscrit·e",
+    prStep: "Ouvrez une pull request",
+    autoStep: "Prise en compte automatiquement",
+    pasteStep: "Collez son lien ici",
+    pasteInstead: "Coller un lien à la place",
+    graded: "Les juges étiquettent les PR mergées",
+    gradedName: (table) => `Les juges étiquettent chaque pull request mergée, et chaque étiquette vaut des points : ${table}`,
+    mineChip: (n, pts) => `${n} PR · ${pts} pts`,
+    mineChipName: (n, pts) => `${pluriel(n, "pull request envoyée", "pull requests envoyées")}, ${pts} points. Les voir dans le classement`,
+
+    prizesName: "Prix",
+    podium: "Podium",
+    prizeName: (place, amount, title) => `${place} place : ${[amount, title ? `le titre « ${title} »` : "un badge de podium"].filter(Boolean).join(" et ")}`,
 
     join: "Participer",
     logIn: "Se connecter",

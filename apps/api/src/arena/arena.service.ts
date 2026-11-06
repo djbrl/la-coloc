@@ -24,7 +24,7 @@ import { ChatService } from "../chat/chat.service";
 import { Limiter } from "../chat/limiter";
 import { CreditService } from "../credit/credit.service";
 import { awardOf, badgeOf, wear } from "./badges";
-import { closeWeek, standings } from "./podium";
+import { closeWeek, type Prize, prizesOf, standings } from "./podium";
 import { catalogueEntry, type PointsRow, type Text } from "./catalogue";
 import { arenaJudges, type ArenaRepo, arenaRepo, fetchPull, folderIsOpen, GithubDown, isAuthor, parsePrUrl, type PullFacts, readPull, scoreOf } from "./scoring";
 import { challengeId, entryFor, isoDate, WEEK_MS, weekStartOf } from "./weeks";
@@ -78,7 +78,12 @@ export interface ArenaView {
     open: boolean | null;
     award: { key: string; title: Text };
     points: PointsRow[];
+    // What 1st, 2nd and 3rd place win: 1st the credit and the challenge's title, 2nd and 3rd a podium badge.
+    prizes: Prize[];
   };
+  // Whether a joined player's pull requests on the arena repo are added for them: GitHub's webhooks reach this
+  // server only through the GitHub App. False: they paste each one's address.
+  autoSubmit: boolean;
   entrants: number;
   joined: boolean;
   mine: ArenaSubmissionView[];
@@ -236,7 +241,9 @@ export class ArenaService {
         open: await this.folderOpen(c.repo, c.path),
         award: entry.award,
         points: entry.points,
+        prizes: prizesOf(entry, c.prizeFcfa),
       },
+      autoSubmit: this.github !== null,
       entrants,
       joined,
       mine: mine.map(submissionView),

@@ -1,8 +1,8 @@
-// The arena's small rules, pure so they are tested (arena.test.ts): the countdown's compact words, what the stadium's
-// big screen shows (ArenaDisplay, for the 3D lobby), a badge's words and colour, the pull request address a player
-// pastes, the clone command, and what the panel offers this viewer (log in, join, or send a pull request).
+// The arena's small rules, pure so they are tested (arena.test.ts): the time left, what the stadium's big screen shows (ArenaDisplay, for the 3D lobby), a badge's words and colour, the
+// labels and prizes, the pull request address a player pastes, the clone command, and what the panel offers this
+// viewer (log in, join, or send a pull request).
 import { language, type Lang, locale } from "../../i18n";
-import type { ArenaKind, ArenaView, Badge, Person } from "../../types";
+import type { ArenaChallenge, ArenaKind, ArenaPrize, ArenaView, Badge, Person } from "../../types";
 import type { IconName } from "../lobby/house/icons";
 import type { State } from "../lobby/panel/words";
 import { arenaWords as w } from "./words";
@@ -32,18 +32,19 @@ export function toDisplay(view: ArenaView, lang: Lang = language.lang): ArenaDis
   };
 }
 
-/** Time left until `endsAt`, compact, in the language chosen now: "2d 4h", "3h 12m", "12m 05s", "45s", "Ended". */
-export function countdown(endsAt: string, now: number = Date.now()): string {
+/** Time left until `endsAt`, in the language chosen now: "4 days left", "1d 6h left", "5h 12m left", "12m left",
+ *  "45s left", "Ended". A glance, not a stopwatch: seconds only in the last minute. */
+export function timeLeft(endsAt: string, now: number = Date.now()): string {
   const left = Math.floor((new Date(endsAt).getTime() - now) / 1000);
   if (!(left > 0)) return w.ended;
   const d = Math.floor(left / 86400);
   const h = Math.floor((left % 86400) / 3600);
   const m = Math.floor((left % 3600) / 60);
-  const s = left % 60;
-  if (d > 0) return w.days(d, h);
-  if (h > 0) return w.hours(h, m);
-  if (m > 0) return w.minutes(m, String(s).padStart(2, "0"));
-  return w.seconds(s);
+  if (d >= 2) return w.daysLeft(d);
+  if (d === 1) return w.dayLeft(h);
+  if (h > 0) return w.hoursLeft(h, m);
+  if (m > 0) return w.minutesLeft(m);
+  return w.secondsLeft(left);
 }
 
 /** Is the week over? */
@@ -103,6 +104,20 @@ export function folderUrl(repo: string, path: string): string {
   const folder = path.replace(/^\/+|\/+$/g, "");
   const base = repo.replace(/\.git$/, "").replace(/\/+$/, "");
   return folder ? `${base}/tree/HEAD/${folder}` : base;
+}
+
+/** A judges' label as a contestant reads it: "arena:critical" → "critical". */
+export const labelWord = (label: string) => label.replace(/^arena:/i, "");
+
+/** What 1st, 2nd and 3rd place win. An API from before `prizes` existed: worked out the way it awards them. */
+export function prizesFor(c: Pick<ArenaChallenge, "prizes" | "prizeFcfa" | "award" | "title">): ArenaPrize[] {
+  if (c.prizes?.length) return c.prizes;
+  const podium = { key: "podium", title: { en: `Podium · ${c.title.en}`, fr: `Podium · ${c.title.fr}` } };
+  return [
+    { place: 1, fcfa: c.prizeFcfa, badge: c.award },
+    { place: 2, fcfa: 0, badge: podium },
+    { place: 3, fcfa: 0, badge: podium },
+  ];
 }
 
 // ---- Sending a pull request ----

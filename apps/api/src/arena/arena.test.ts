@@ -159,6 +159,20 @@ describe("a city's challenge", () => {
     expect(changes).toContain("Dakar:arena");
   });
 
+  it("says what each place on the podium wins, and whether pull requests are picked up on their own", async () => {
+    const view = await arena.view("Dakar", null);
+    const entry = CATALOGUE.find((e) => e.slug === view.challenge.slug)!;
+    const podium = { key: "podium", title: { en: `Podium · ${entry.title.en}`, fr: `Podium · ${entry.title.fr}` } };
+    expect(view.challenge.prizes).toEqual([
+      { place: 1, fcfa: entry.prizeFcfa, badge: entry.award },
+      { place: 2, fcfa: 0, badge: podium },
+      { place: 3, fcfa: 0, badge: podium },
+    ]);
+    // Without the GitHub App no webhook reaches this server: each pull request is pasted.
+    expect(view.autoSubmit).toBe(false);
+    expect((await new ArenaService(db, chat, {} as never).view("Dakar", null)).autoSubmit).toBe(true);
+  });
+
   it("is a 404 for a city that doesn't exist", async () => {
     expect(await refusal(arena.view("Atlantis", null))).toEqual({ status: 404, code: "noCity" });
   });
@@ -301,6 +315,17 @@ describe("the podium", () => {
     expect(view.champion!.person.badge).toEqual(view.champion!.badge);
     expect((await user("sam")).badge).toMatchObject({ place: 2, key: "podium" });
     expect((await user("omar-gh")).badge).toBeNull();
+  });
+
+  it("awards exactly the prizes the arena showed during the week", async () => {
+    const c = await lastWeek();
+    now = WEDNESDAY;
+    const shown = (await arena.view("Dakar", null)).challenge.prizes;
+    now = NEXT_WEEK;
+    await arena.view("Dakar", null);
+    const awards = await db.select().from(arenaAwards).where(eq(arenaAwards.challengeId, c.id)).orderBy(arenaAwards.place);
+    expect(awards.map((a) => ({ place: a.place, badge: { key: a.key, title: { en: a.titleEn, fr: a.titleFr } } }))).toEqual(shown.map(({ place, badge }) => ({ place, badge })));
+    expect(shown[0].fcfa).toBe(c.prizeFcfa);
   });
 
   it("is awarded once, however many ask at once", async () => {
