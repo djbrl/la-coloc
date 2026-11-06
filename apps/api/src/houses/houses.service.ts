@@ -446,13 +446,12 @@ export class HousesService {
     if (!h) return null;
 
     const now = new Date();
-    const team = await this.teams([houseId]);
     // The workshop is each newcomer's own (Jib, 6 11): whoever else took a room there, and the seeded host and
-    // learners, are left out, so anybody present is just you. Only your rooms (or one you team up on), your place
+    // learners, are left out, so anybody present is just you. Only your rooms, your place
     // among its people, your news, and a channel of your own. Its chef, who runs it, still sees all of it.
     const solo = h.tutorial && !(viewerId && h.chefId === viewerId);
     const yours = (r: (typeof h.rooms)[number]) =>
-      !!viewerId && !r.demo && (r.occupantId === viewerId || (team.get(`${h.id}/${r.name}`) ?? []).some((u) => u.id === viewerId));
+      !!viewerId && !r.demo && r.occupantId === viewerId;
     const shownRooms = solo ? h.rooms.filter(yours) : h.rooms;
     const shownMembers = solo ? h.memberships.filter((m) => m.userId === viewerId) : h.memberships;
     const mine = viewerId ? h.memberships.find((m) => m.userId === viewerId) : undefined;
