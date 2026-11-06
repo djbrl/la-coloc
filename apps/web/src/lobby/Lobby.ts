@@ -40,6 +40,7 @@ import { cityKey, cityOwnsKeys, readLayout } from "./keys";
 import { play } from "./sound";
 import { groundMaterial, groundsFor, textures, waxPrint } from "./textures";
 import { FrameBudget } from "./frameBudget";
+import { cityHandle, madeUpFlatmate } from "./handle";
 import { isTourist } from "./tags";
 import { Tag, type TagKind, TagLayer } from "./tagLayer";
 import { declutter, type TagSpot } from "./tags";
@@ -183,6 +184,8 @@ interface Placed extends Thing {
   materials: { material: THREE.MeshStandardMaterial; color: THREE.Color }[];
   // A visitor waiting at the door while someone's knock is open (R32), and their "☝️" bubble.
   knocker: THREE.Group | null;
+  // Its name on a flag: an Arena tag joins it while someone living there takes part in this week's challenge.
+  flag: Tag;
 }
 
 interface EmptyPlot extends Thing {
@@ -278,6 +281,11 @@ const rotate = (x: number, z: number, a: number) => new THREE.Vector3(x * Math.c
 const apart = (a: THREE.Vector3, b: THREE.Vector3) => Math.hypot(a.x - b.x, a.z - b.z);
 
 // Who stands outside a house: everyone who rents a room there, once each (someone may rent several).
+/** The Arena tag on a house's flag while someone living there takes part this week (null: none). An older API: none. */
+function arenaTag(house: CityHouse): string | null {
+  return house.arena?.length ? words.arenaTag : null;
+}
+
 function flatmatesOf(house: CityHouse) {
   return [...new Map(house.rooms.flatMap((r) => (r.occupant ? [[r.occupant.login, r.occupant] as const] : []))).values()];
 }
@@ -921,6 +929,9 @@ export class Lobby {
       // The card Vue opens shows the latest state.
       p.house = house;
       p.target = { kind: "house", house };
+      // Someone living there joined this week's Arena, dropped out, or the week ended.
+      const arena = arenaTag(house);
+      if ((p.flag.words.arena ?? null) !== arena) p.flag.say({ arena });
       const live = liveState(house);
       const key = liveKey(live);
       if (key === p.live) continue;
@@ -1104,7 +1115,7 @@ export class Lobby {
 
   // ---- Everyone else who's online here ----
 
-  addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean; badge?: Badge | null; homeCity?: string | null }) {
+  addRemote(p: { login: string; name: string | null; avatar: string | null; x: number; z: number; ry: number; moving: boolean; badge?: Badge | null; homeCity?: string | null; example?: boolean }) {
     this.homeCities.set(p.login, p.homeCity ?? null);
     // The line says who we are too: that's where your own title and home city come from.
     if (p.login === this.opts.login) {
@@ -1113,7 +1124,8 @@ export class Lobby {
     }
     if (p.login === this.opts.login || this.remotes.has(p.login)) return;
     const name = p.name ?? p.login;
-    const { avatar, tag } = this.makePerson(p.login, name, "person");
+    // Their tag: "@login" for a real account, the name of an example person (handle.ts). Their card: their name.
+    const { avatar, tag } = this.makePerson(p.login, name, "person", cityHandle(p));
     this.tagBadges.set(tag, p.badge ?? null);
     this.trophy(tag);
     // Someone who just arrived stands at the neighbourhood's entrance, next to where you came in.
@@ -1509,8 +1521,10 @@ export class Lobby {
     group.rotation.y = yaw(facing);
     group.userData.houseId = house.id;
     group.userData.facing = facing;
-    // Its name on a flag, after a little square in the house's colour (its flatmates' rings, its marker on the map).
-    this.flags.push(new Tag(group, 6.4, { kind: "house", text: house.name, swatch: `#${new THREE.Color(colorFor(house.id)).getHexString()}` }));
+    // Its name on a flag, after a little square in the house's colour (its flatmates' rings, its marker on the map),
+    // and an Arena tag while someone living there takes part in this week's challenge.
+    const flag = new Tag(group, 6.4, { kind: "house", text: house.name, swatch: `#${new THREE.Color(colorFor(house.id)).getHexString()}`, arena: arenaTag(house) });
+    this.flags.push(flag);
     this.town.add(group);
     const box = this.solid(x, z, facing, placeholder.halfWidth * 2, placeholder.halfDepth * 2);
     // The placeholder is its own windows; the face takes over once the model is in.
@@ -1529,6 +1543,7 @@ export class Lobby {
       live: "",
       materials: [],
       knocker: null,
+      flag,
     };
     this.placed.push(placed);
     this.fitDoor(placed, facing, placeholder.halfDepth);
@@ -1591,7 +1606,7 @@ export class Lobby {
       .forEach((person, k) => {
         const login = person.login;
         const name = person.name ?? login;
-        const { avatar, tag } = this.makePerson(login, name, "small");
+        const { avatar, tag } = this.makePerson(login, name, "small", cityHandle({ ...person, example: madeUpFlatmate(house, person) }));
         avatar.visible = !this.remotes.has(login) && login !== this.opts.login;
         this.town.add(avatar);
         const npc: Npc = { login, avatar, home: new THREE.Vector3(), goal: new THREE.Vector3(), wait: Math.random() * 3, tag, target: { kind: "person", login, name }, spot: avatar.position };
@@ -1638,8 +1653,8 @@ export class Lobby {
       const dir: 1 | -1 = rand() < 0.5 ? 1 : -1;
       const stroll: Stroll = { block: Math.floor(rand() * this.sidewalks.length), at: Math.floor(rand() * 16), dir, lane: laneFor(dir, rand) };
       const at = standAt(this.sidewalks[stroll.block][stroll.at], stroll.lane);
-      // The tag shows their handle; the card (the target's name) their full name.
-      const { avatar, tag } = this.makePerson(who.login, who.login, "small");
+      // Made up: their name on the tag, never an @ (handle.ts); their full name on the card too.
+      const { avatar, tag } = this.makePerson(who.login, who.name, "small", cityHandle({ login: who.login, name: who.name, example: true }));
       avatar.position.set(at.x, 0, at.z);
       avatar.rotation.y = rand() * Math.PI * 2;
       const walker: Npc = {
@@ -2057,12 +2072,15 @@ export class Lobby {
 
   // ---- People ----
 
-  /** A placeholder person with a name tag (name, then their house) and a ring at their feet, in their house's colour. */
-  private makePerson(login: string, name: string, kind: TagKind): { avatar: THREE.Group; tag: Tag } {
+  /**
+   * A placeholder person with a name tag (`said`, their handle or name: handle.ts; then their house) and a ring at their
+   * feet, in their house's colour.
+   */
+  private makePerson(login: string, name: string, kind: TagKind, said = name): { avatar: THREE.Group; tag: Tag } {
     const avatar = makeAvatar(colorFor(login));
     avatar.userData.login = login;
     avatar.userData.name = name;
-    const tag = new Tag(avatar, 1.75, { kind, text: name });
+    const tag = new Tag(avatar, 1.75, { kind, text: said });
     this.badge(tag, login);
     const ring = new THREE.Mesh(RING, ringPaint(NOBODY));
     ring.rotation.x = -Math.PI / 2;

@@ -51,8 +51,11 @@ export const cardWords = defineWords(
     nothingOnline: "Nothing online yet.",
     // A made-up person (a seeded flatmate, a passer-by): said once, plainly, and their GitHub never linked.
     exampleLine: "Example person.",
-    github: "View on GitHub",
-    githubName: (login: string) => `View @${login} on GitHub (opens a new tab)`,
+    github: "See their GitHub",
+    githubName: (login: string) => `See @${login} on GitHub (opens a new tab)`,
+    // The GitHub key, off: why, for a screen reader and on hover.
+    githubOffExample: "No GitHub: this is an example person",
+    githubOffNone: "No GitHub: they didn't log in with it",
   },
   {
     and: "et",
@@ -91,8 +94,10 @@ export const cardWords = defineWords(
     write: "Écrire",
     nothingOnline: "Rien en ligne pour l'instant.",
     exampleLine: "Personne d'exemple.",
-    github: "Voir sur GitHub",
+    github: "Voir son GitHub",
     githubName: (login) => `Voir @${login} sur GitHub (nouvel onglet)`,
+    githubOffExample: "Pas de GitHub : c'est une personne d'exemple",
+    githubOffNone: "Pas de GitHub : cette personne ne s'est pas connectée avec",
   },
 );
 
@@ -160,6 +165,8 @@ export const hudWords = defineWords(
     arenaLeft: (days: number, hours: number, minutes: number) => (days ? `${days}d ${hours}h` : hours ? `${hours}h ${minutes}m` : `${minutes}m`),
     arenaOver: "Over",
     arenaWeek: "This week's challenge",
+    // On a house's flag while someone living there takes part in this week's challenge.
+    arenaTag: "Arena",
     // A title won in the Arena, after a name on its tag (hidden name of the chip).
     wonTitle: (title: string) => `Title: ${title}`,
     // Inside.vue: the window a house, a knock or a room opens in.
@@ -224,6 +231,7 @@ export const hudWords = defineWords(
     arenaLeft: (days, hours, minutes) => (days ? `${days} j ${hours} h` : hours ? `${hours} h ${minutes} min` : `${minutes} min`),
     arenaOver: "Terminé",
     arenaWeek: "Le défi de la semaine",
+    arenaTag: "Arène",
     wonTitle: (title) => `Titre : ${title}`,
     insideHouse: "Dans une maison",
     aKnock: "Une candidature",

@@ -4,10 +4,11 @@
 // its title, "This week's challenge." under it). The first tab tells it in order, quietly (Jib, 6 Nov: the old one was
 // "too loud"): what it pays and how long is left, one line on the challenge, one button to take part. How to take part
 // (three numbered steps with the real actions: fork, open a pull request, send it) and the rules, points and prizes are
-// folded away until asked for. The leaderboard (with your own pull requests on top) and the arena's chat room wait
-// behind the other two tabs. The view comes from the arena store (store.ts), which the lobby keeps fresh over the
+// folded away until asked for. Once in, "Drop out" sits on the line that says so, asking once more before it leaves
+// (your pull requests leave the leaderboard with you, and the Arena tag comes off your house). The leaderboard (with
+// your own pull requests on top) and the arena's chat room wait behind the other two tabs. The view comes from the arena store (store.ts), which the lobby keeps fresh over the
 // city's stream; a join or a pull request sent gives a newer view back at once.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useWhenBack } from "../../core";
 import { language } from "../../i18n";
 import { me, postJSON, sendJSON } from "../../session";
@@ -159,10 +160,27 @@ async function submit() {
 
 const takeBack = (id: string) => act(() => sendJSON<ArenaView>("DELETE", `${arenaUrl(props.city)}/submissions/${encodeURIComponent(id)}`));
 
+// Dropping out: a light "are you sure", then the API. Back to Join, with a word that it's done.
+const leaving = ref(false);
+const stayKey = ref<HTMLButtonElement | null>(null);
+async function askLeave() {
+  error.value = "";
+  said.value = "";
+  leaving.value = true;
+  await nextTick();
+  stayKey.value?.focus();
+}
+async function dropOut() {
+  const left = await act(() => sendJSON<ArenaView>("DELETE", `${arenaUrl(props.city)}/join`));
+  leaving.value = false;
+  if (left) said.value = w.droppedOut;
+}
+
 // A word said about the last thing done is stale on another tab.
 watch(tab, () => {
   error.value = "";
   said.value = "";
+  leaving.value = false;
 });
 
 // ---- 3. The payout ----
@@ -271,6 +289,13 @@ function onKey(e: KeyboardEvent) {
             </div>
             <RouterLink v-else-if="stage === 'login'" to="/login" class="button primary go"><Icon name="login" :size="18" />{{ w.logIn }}</RouterLink>
             <button v-else-if="stage === 'join'" type="button" class="primary go" :disabled="busy" @click="join"><Icon name="trophy" :size="18" />{{ w.join }}</button>
+            <div v-else-if="stage === 'joined' && leaving" class="leave" role="group" :aria-label="w.dropOutName">
+              <p><strong>{{ w.dropOutAsk }}</strong> {{ mine.count ? w.dropOutMine : w.dropOutLine }}</p>
+              <div class="leave-keys">
+                <button ref="stayKey" type="button" class="key" :disabled="busy" @click="leaving = false">{{ w.stay }}</button>
+                <button type="button" class="primary" :disabled="busy" @click="dropOut">{{ w.dropOut }}</button>
+              </div>
+            </div>
             <template v-else-if="stage === 'joined'">
               <div class="in">
                 <span class="status-mark ok" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
@@ -281,6 +306,7 @@ function onKey(e: KeyboardEvent) {
                 <button v-if="auto && !pasteOpen" type="button" class="key icon" :aria-label="w.pasteInstead" :title="w.pasteInstead" @click="pasteOpen = true">
                   <Icon name="link" :size="16" />
                 </button>
+                <button type="button" class="key" :aria-label="w.dropOutName" :title="w.dropOutName" :disabled="busy" @click="askLeave">{{ w.dropOut }}</button>
               </div>
               <form v-if="!auto || pasteOpen" class="send" novalidate @submit.prevent="submit">
                 <input v-model="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" :placeholder="w.prPlaceholder" :aria-label="w.prName" :aria-invalid="!!error" @input="error = ''" />
@@ -448,6 +474,14 @@ a.go:hover { text-decoration: none; }
 .send { display: flex; gap: 10px; min-width: 0; }
 .send input { flex: 1 1 auto; min-width: 0; font-size: 15px; }
 .send button { flex: none; white-space: nowrap; }
+/* Dropping out, asked once more: the question and what it means, then Stay (grey) and Drop out (red). */
+.leave { flex: none; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 14px; padding: 12px 14px; border-radius: var(--tile-r); background: var(--tile); }
+.leave p { margin: 0; flex: 1 1 220px; font-size: 14px; font-weight: 600; line-height: 20px; color: var(--muted); }
+.leave strong { color: var(--text); }
+.leave-keys { display: flex; gap: 8px; }
+.leave .key { background: var(--fill); }
+.leave .key:hover:not(:disabled) { background: var(--fill-hover); }
+.leave .primary { min-height: 40px; padding: 0 14px 3px; white-space: nowrap; }
 .soon { display: flex; align-items: flex-start; gap: 10px; }
 .soon p { margin: 0; font-size: 14px; line-height: 20px; color: var(--muted); }
 .soon strong { color: var(--text); }

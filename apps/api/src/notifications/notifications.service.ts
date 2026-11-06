@@ -28,8 +28,10 @@
 // (friends.ts) and tells the sender (friend_accepted). A no isn't sent back.
 // And rent: your share of a month taken from your credit (rent_paid), or not, for want of it (rent_due). Those are
 // written by houses/rent.ts, where the money moves.
+// And the Arena (aboutArena): your pull request was merged, with the points its label gave or none (arena_merged), or
+// closed without a merge (arena_closed). Written by arena/arena.service.ts, which hears it from GitHub.
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { boardPosts, type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, notifications, rooms, users } from "@coloc/db";
+import { type ArenaNews, boardPosts, type Db, type deployments, houseGuests, houses, type InviteState, memberships, type NotificationKind, notifications, rooms, users } from "@coloc/db";
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import { Subject, type Subscription } from "rxjs";
 import type { AuthConfig } from "../auth/auth.config";
@@ -89,6 +91,8 @@ export interface NotificationView {
   // Rent (rent_paid, rent_due): how much, in FCFA, and for which month ("2026-11").
   amount: number | null;
   month: string | null;
+  // The Arena (arena_merged, arena_closed): the pull request, its city's challenge, and the points it got.
+  arena?: ArenaNews;
   createdAt: string;
   read: boolean;
 }
@@ -413,6 +417,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         ...(r.payload.channel ? { chat: chatOf(r.payload.channel) } : {}),
         amount: r.payload.amount ?? null,
         month: r.payload.month ?? null,
+        ...(r.payload.arena ? { arena: r.payload.arena } : {}),
         createdAt: r.createdAt.toISOString(),
         read: r.readAt !== null,
       })),
@@ -445,6 +450,21 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       if (bumped.length) this.pushes.next(await this.loginOf(n.userId));
       else await this.create({ userId: n.userId, kind: n.kind, fromId: authorId, payload: { channel } });
     }
+  }
+
+  /**
+   * News of one of your Arena pull requests: merged (with its points, maybe none) or closed without a merge. The same
+   * pull request told the same way again (a judge labelled it after the merge, so the points changed) updates that
+   * line, brought back to the top and unread, rather than adding a second.
+   */
+  async aboutArena(userId: string, kind: "arena_merged" | "arena_closed", arena: ArenaNews) {
+    const again = await this.db
+      .update(notifications)
+      .set({ payload: { arena }, readAt: null, createdAt: new Date() })
+      .where(and(eq(notifications.userId, userId), eq(notifications.kind, kind), sql`${notifications.payload}->'arena'->>'url' = ${arena.url}`))
+      .returning({ id: notifications.id });
+    if (again.length) this.pushes.next(await this.loginOf(userId));
+    else await this.create({ userId, kind, payload: { arena } });
   }
 
   /** A board post was deleted: the lines about it go with it, since there's nothing left to open. */

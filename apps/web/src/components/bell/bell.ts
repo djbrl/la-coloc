@@ -8,8 +8,8 @@ import { bellWords as w } from "./words";
 
 // accept / decline: answer an invitation (to a house, to rent together, to a chat). house: open the house it's about. knock: open the knock's thread.
 // plot: walk to an empty plot (renting together). chat: open where it was said (the post, the city's room, the Arena).
-// credit: open your credit, to top up (rent you were short of).
-export type NoticeAction = "accept" | "decline" | "house" | "knock" | "plot" | "chat" | "credit";
+// credit: open your credit, to top up (rent you were short of). arena: open the Arena (news of your pull request).
+export type NoticeAction = "accept" | "decline" | "house" | "knock" | "plot" | "chat" | "credit" | "arena";
 
 export interface NoticeRow {
   title: string;
@@ -82,6 +82,15 @@ export function noticeRow(n: Notice): NoticeRow {
       return row(fw.request(who), n.state === "declined" ? w.youSaidNo : n.state === "withdrawn" ? w.takenBack : w.lapsed);
     case "friend_accepted":
       return row(fw.accepted(who), null);
+    // Your Arena pull request: merged, with the points its label gave or none (yet), or closed without a merge.
+    case "arena_merged": {
+      const a = n.arena;
+      if (!a) return row(w.arenaMergedBare, null);
+      if (a.points > 0) return row(w.arenaMerged(a.number, a.points), w.arenaWhy(a.title, a.label), ["arena"]);
+      return row(w.arenaMergedNone(a.number), w.arenaNoLabel, ["arena"]);
+    }
+    case "arena_closed":
+      return n.arena ? row(w.arenaClosed(n.arena.number), w.arenaClosedWhy, ["arena"]) : row(w.arenaClosedBare, w.arenaClosedWhy);
     default:
       // A kind this page doesn't know yet (a newer API): who it's from, and nothing to do.
       return row(who, null);
@@ -96,5 +105,7 @@ export function noticeMark(n: Notice, row: Pick<NoticeRow, "actions">): NoticeMa
   if (row.actions.includes("accept") || row.actions.includes("credit") || (n.kind === "knock" && row.actions.includes("knock"))) return "todo";
   if (n.kind === "build_failed" || n.kind === "invite_declined" || n.kind === "rent_together_no" || n.kind === "guest_declined") return "fail";
   if (n.kind === "knock_answer" && n.verdict !== "admitted") return "fail";
+  // An Arena pull request closed, or merged without points.
+  if (n.kind === "arena_closed" || (n.kind === "arena_merged" && !(n.arena?.points ?? 0))) return "fail";
   return "ok";
 }

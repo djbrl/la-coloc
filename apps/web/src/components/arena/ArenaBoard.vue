@@ -43,7 +43,8 @@ const won = computed(() => (props.view.champion ? badgeWords(props.view.champion
           </span>
         </template>
         <span v-if="r.person.badge" class="sub"><BadgeChip :badge="r.person.badge" /></span>
-        <span v-else-if="r.person.login !== nameOf(r.person)" class="sub">@{{ r.person.login }}</span>
+        <!-- A real account's handle; a made-up person (no GitHub) goes by their name alone (lobby/handle.ts). -->
+        <span v-else-if="r.person.login !== nameOf(r.person) && r.person.github !== false" class="sub">@{{ r.person.login }}</span>
         <template #meta>
           <span class="pts">{{ w.points(r.points) }}</span>
           <span class="prs" role="img" :aria-label="w.prsName(r.prs)">{{ w.prs(r.prs) }}</span>

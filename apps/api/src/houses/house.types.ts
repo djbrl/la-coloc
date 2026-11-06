@@ -215,6 +215,9 @@ export interface CityHouseView {
   cpu: number;
   // What happened here in the last 10 minutes, newest first, at most 10 (houses/happenings.ts).
   recent: CityHappening[];
+  // Its people taking part in this week's Arena challenge (logins): the city shows an Arena tag on the house while
+  // there's anyone. Empty when nobody is, or once the week is over.
+  arena: string[];
 }
 
 // One moment in a house, as the city plays it. `id` is stable (made from the row it comes from), so a page that

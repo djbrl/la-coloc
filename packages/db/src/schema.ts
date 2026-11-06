@@ -465,7 +465,11 @@ export type NotificationKind =
   // Rent (apps/api/src/houses/rent.ts): your share of a house's month was taken from your credit, or it couldn't be
   // because your credit is too low (once a month; topping up pays it). The amount and month are in the payload.
   | "rent_paid"
-  | "rent_due";
+  | "rent_due"
+  // Your Arena pull request was merged (arena_merged, with the points its arena:* label gave, maybe none) or closed
+  // without a merge (arena_closed). payload.arena says which one (apps/api/src/arena/arena.service.ts).
+  | "arena_merged"
+  | "arena_closed";
 
 // Only invitations (house_invite, rent_together, guest_ask, and the retired team_invite and team_ask) have a state; the other kinds are news, and
 // leave it null.
@@ -480,6 +484,18 @@ export interface NotificationPayload {
   // Rent: how much, in whole FCFA, and for which month ("2026-11").
   amount?: number;
   month?: string;
+  // An Arena pull request (arena_merged, arena_closed): which one, in which city's challenge, and what it scored.
+  arena?: ArenaNews;
+}
+
+export interface ArenaNews {
+  city: string;
+  url: string;
+  number: number;
+  title: string | null;
+  points: number;
+  // The arena:* label that gave the points, or null: none (yet).
+  label: string | null;
 }
 
 // La Coloc's own notifications, shown under the bell. GitHub can't message a user for us, so the news lives here.

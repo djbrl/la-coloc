@@ -79,6 +79,8 @@ type ArenaView = {
 };
 ```
 `POST /api/cities/:city/arena/join` (login) → `ArenaView`.
+`DELETE /api/cities/:city/arena/join` (login) → `ArenaView`: drops out of this week's challenge. Your entry and your
+pull requests in it go (you leave the leaderboard); joining again starts from nothing. Not in it: 404 `arenaNotIn`.
 `POST /api/cities/:city/arena/submissions` body `{ url }` (login; joins if not yet) → `ArenaView`. The API checks the
 PR via GitHub (the App client if configured, else unauthenticated public API): right repo, author == user's GitHub
 login, created after the week started. Refusals carry codes (French in apps/web/src/refusals.ts):
@@ -92,6 +94,16 @@ Arena chat: channel `arena:<City>` in `messages`: `GET /api/cities/:city/arena/c
 stream `GET /api/cities/:city/stream` also emits `what: "arena"` when the arena chat, entrants, leaderboard or
 challenge change.
 `PUT /api/me/badge` `{ id: string | null }` → `{ badge: Badge | null }` (wear one of your awards, or none).
+
+The Arena tag on a house: `CityHouseView.arena: string[]` lists the logins of its occupants entered in a challenge
+running now (not closed, between its start and end). The lobby draws a red "Arena" chip on the house's flag while it
+isn't empty. Joining, dropping out and a week's close ping those people's houses, so the city stream sends them again.
+
+News under the bell: when GitHub says (a webhook, a look at the panel, or the week's last look) that one of your
+submissions went from open to merged, or from open to closed without a merge, you get a notification: `arena_merged`
+or `arena_closed`, with `arena: { city, url, number, title, points, label }` (`label`: the arena:* label that gave the
+points, or null). A merged one whose points change later (a judge labelled it after the merge) updates that same line,
+unread again. A pull request merged before we ever heard of it, then picked up by the webhook, is news too.
 
 ## 3D (apps/web/src/lobby)
 - `Neighbourhood.blocks[].kind` gains `"arena"` (replaces `"park"` in generated cities; the tutorial map keeps its

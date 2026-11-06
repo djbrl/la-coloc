@@ -39,3 +39,14 @@ describe("where things go in a name tag", () => {
     expect(textAt).toBe(10 + 10 + 7);
   });
 });
+
+describe("a house's flag", () => {
+  it("makes room for an Arena tag after the name while someone there takes part", () => {
+    const plain = tagLayout({ kind: "house", text: "Ndaje", swatch: "#123456" }, false, measure);
+    const { arena, textAt, width } = tagLayout({ kind: "house", text: "Ndaje", swatch: "#123456", arena: "Arena" }, false, measure);
+    expect(plain.arena).toBeNull();
+    expect(arena!.at).toBe(textAt + 30 + 6);
+    expect(width).toBe(arena!.at + arena!.w + 10);
+    expect(width).toBeGreaterThan(plain.width);
+  });
+});
