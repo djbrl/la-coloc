@@ -5,7 +5,7 @@
 // the bill), and if it was their last room here they stay a flatmate until then, with no room (memberships.leaving_month).
 // settleLeases does the second step, lazily: when the API starts and every hour, for any month that's over.
 import { ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
-import { applications, chores, type Db, deployments, houses, leaseEnds, memberships, messages, repos, roomSecrets, roomTeammates, rooms } from "@coloc/db";
+import { applications, chores, type Db, deployments, houses, leaseEnds, memberships, messages, repos, roomSecrets, rooms } from "@coloc/db";
 import { and, asc, count, eq, inArray, isNotNull, lt } from "drizzle-orm";
 import { AgentRegistry } from "../agents/agent.registry";
 import { isCoreDown } from "../core/core";
@@ -52,7 +52,7 @@ export class LeasesService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * The occupant ends their lease. The room is free now, its containers go, and nothing of theirs stays in it: no
-   * project, no repo, no secrets, no team, no history. The rent stays as it was until the month is over: `until`.
+   * project, no repo, no secrets, no history. The rent stays as it was until the month is over: `until`.
    */
   async leave(houseId: string, roomName: string, user: { id: string; login: string; name: string | null }, now = new Date()): Promise<{ until: string }> {
     const { house, room } = await this.find(houseId, roomName);
@@ -64,7 +64,6 @@ export class LeasesService implements OnModuleInit, OnModuleDestroy {
         .update(rooms)
         .set({ occupantId: null, status: "empty", url: null, project: null, projectDescription: null, ad: null, lastDeployId: null, branch: null, buildPath: ".", port: null, source: null })
         .where(eq(rooms.id, room.id));
-      await tx.delete(roomTeammates).where(eq(roomTeammates.roomId, room.id));
       await tx.delete(roomSecrets).where(and(eq(roomSecrets.houseId, houseId), eq(roomSecrets.room, roomName)));
       // A build still on its way has no record to report to any more (recordDeployStatus ignores it).
       await tx.delete(deployments).where(and(eq(deployments.houseId, houseId), eq(deployments.room, roomName)));
@@ -107,8 +106,6 @@ export class LeasesService implements OnModuleInit, OnModuleDestroy {
 
   private async settleHouse(houseId: string, gone: string[]): Promise<void> {
     const outcome = await this.db.transaction(async (tx) => {
-      const houseRooms = await tx.select({ id: rooms.id }).from(rooms).where(eq(rooms.houseId, houseId));
-      if (houseRooms.length) await tx.delete(roomTeammates).where(and(inArray(roomTeammates.roomId, houseRooms.map((r) => r.id)), inArray(roomTeammates.userId, gone)));
       await tx.delete(chores).where(and(eq(chores.houseId, houseId), eq(chores.status, "open"), inArray(chores.assigneeId, gone)));
       await tx.delete(memberships).where(and(eq(memberships.houseId, houseId), inArray(memberships.userId, gone)));
 

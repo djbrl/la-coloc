@@ -4,7 +4,7 @@
 
 ## 1. The story
 
-Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's own SSH: it's our API, speaking SSH through the `ssh2` library. The API reads the name as room `djbrl` in house `sacre-coeur`, looks up the people who may enter that room (the occupant and teammates still in the house), and checks that Awa's key is one of theirs and that she really holds it. Then it asks the house's caretaker, over the WebSocket the caretaker already keeps open, to open a shell. The caretaker runs `docker exec` in the room's running container, so Awa lands inside the project with its user, disk, network and limits, never on the server. Keystrokes go one way, output comes back in small pieces, paced so a fast command can't flood a slow connection. When she leaves, the caretaker hangs up on what she started.
+Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's own SSH: it's our API, speaking SSH through the `ssh2` library. The API reads the name as room `djbrl` in house `sacre-coeur`, looks up who may enter that room (only the person who lives in it), and checks that Awa's key is one of theirs and that she really holds it. Then it asks the house's caretaker, over the WebSocket the caretaker already keeps open, to open a shell. The caretaker runs `docker exec` in the room's running container, so Awa lands inside the project with its user, disk, network and limits, never on the server. Keystrokes go one way, output comes back in small pieces, paced so a fast command can't flood a slow connection. When she leaves, the caretaker hangs up on what she started.
 
 ## 2. The hops
 
@@ -14,7 +14,7 @@ Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's 
    ▼
  port 2222 (ufw allows it; deploy/setup.sh)
    ▼
- API · SshGateway (ssh.gateway.ts) ── who may enter? ── SshService ── Postgres (rooms, room_teammates, memberships, ssh_keys)
+ API · SshGateway (ssh.gateway.ts) ── who may enter? ── SshService ── Postgres (rooms, ssh_keys)
    │  Shell object
    ▼
  API · ShellBroker (agents/shell.broker.ts) ── AgentRegistry.send
@@ -35,7 +35,7 @@ Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's 
 
 **`apps/api/src/ssh/ssh.gateway.ts`** is the door. `onModuleInit` (`:45-50`) starts it only if port and key file are set; `listen` (`:53-63`). `welcome` (`:69-112`) drops over-limit connections (`:71`), gives 20 s to log in (`:77`), and closes a login with no session after 2 min (`:100`). `check` (`:118-130`) does the key test. `session` (`:132-153`) takes `pty`, `window-change`, `shell`, `exec` and refuses `subsystem` (sftp). `run` (`:155-229`) opens the shell, enforces 4 per person / 40 per server (`:173`), the 30 min idle timer (`:177-185`), acks output (`:192`), turns reasons into messages (`:194-203`) and re-checks access every 60 s (`:207-217`).
 
-**`apps/api/src/ssh/ssh.service.ts`** decides who. `parseLogin` (`:37-42`) splits `room.house`. `people` (`:102-115`): the occupant plus teammates who still have a membership in the house; nobody for an empty or example (`demo`) room. `keysFor` (`:118-122`) returns their keys; `mayStay` (`:125-127`) is the 60 s re-check. Also key management: `parsePublicKey` (`:27-34`), `add` (`:59-66`, refuses private keys), `importGithub` (`:69-81`), 10 keys a person (`:86`).
+**`apps/api/src/ssh/ssh.service.ts`** decides who. `parseLogin` (`:37-42`) splits `room.house`. `occupant` (`:102-108`): the person who lives in the room, and nobody else; nobody for an empty or example (`demo`) room. `keysFor` (`:111-115`) returns their keys; `mayStay` (`:118-120`) is the 60 s re-check. Also key management: `parsePublicKey` (`:27-34`), `add` (`:59-66`, refuses private keys), `importGithub` (`:69-81`), 10 keys a person (`:86`).
 
 **`ssh.controller.ts`** is `/api/me/ssh-keys`: list (`:25-28`), add (`:31-36`), GitHub import for real GitHub accounts only (`:39-44`), delete (`:47-51`). **`ssh.module.ts`** wires them.
 
@@ -47,12 +47,12 @@ Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's 
 
 **`apps/agent/src/shell.ts`** opens the shell. `start` (`:53-89`) finds the running prod container, `exec`s `shellCommand` (`:19-22`) with `HOME` set to the room's kept folder and the terminal size. The command first writes its process number to `/tmp/.coloc-shell-<id>` (`pidFile`, `:23`). Input sent before the shell is ready waits (`when`, `:104-108`). `relay` (`:158-194`) sends output in 48 KB base64 pieces, pauses at 1 MB unacknowledged (`:172`); `ack` (`:110-115`) resumes below 256 KB. `close` (`:123-131`) and `finish` (`:196-209`) run `stopCommand`, a `kill -HUP` on that process group (`:25-31`). `sweep` (`:139-147`) does it for every leftover shell after a crash.
 
-**Web.** `rooms.service.ts:110` puts `ssh: { host, port, user }` in the room page, except for the chef and example rooms or houses; `rooms.controller.ts:99-104` adds who's in. `room.ts:71` `sshLine` builds the command. `RoomOverview.vue:157-169` is the tile with faces; `RoomSsh.vue` is the tab: the line, Copy, your keys, paste, "Use my GitHub keys", and a GitHub import the first time it opens (`:77-84`).
+**Web.** `rooms.service.ts:101-106` puts `ssh: { host, port, user }` in the room page for its occupant only, never the chef, another flatmate, or an example room or house; `rooms.controller.ts:99-104` adds who's in. `room.ts:71` `sshLine` builds the command. `RoomOverview.vue:157-169` is the tile with faces; `RoomSsh.vue` is the tab: the line, Copy, your keys, paste, "Use my GitHub keys", and a GitHub import the first time it opens (`:77-84`).
 
 ## 4. Security decisions, and why
 
 - **Public keys only.** `check` refuses every other method (`ssh.gateway.ts:119`). A key matches first (`:124`), then its signature is verified (`:127-128`), so the person must hold the private key.
-- **Who may enter.** Occupant and current teammates (`ssh.service.ts:102-115`). The chef can restart a flatmate's project but has no business in its files. Example rooms open to nobody. Re-checked every 60 s, so someone taken off a team is out within a minute.
+- **Who may enter.** The occupant only (`ssh.service.ts:102-108`). Nobody else gets the address from La Coloc either: if someone else should have it, the occupant gives it to them. The chef can restart a flatmate's project but has no business in its files. Example rooms open to nobody. Re-checked every 60 s, so someone who moved out is out within a minute.
 - **Identical refusals.** Unknown room, wrong key, bad name, password: all `ctx.reject(["publickey"])` (`:89`, `:93`), so `Permission denied (publickey)` looks the same.
 - **No real server login.** A person only ever gets a `docker exec` inside the room; the machine's own sshd on 22 is separate.
 - **Backpressure.** Each output piece is acked only when the SSH channel has taken it (`ssh.gateway.ts:192`). The caretaker pauses Docker's stream at 1 MB unacked and resumes below 256 KB. A slow laptop slows the command; nothing piles up in the API.

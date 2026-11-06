@@ -5,7 +5,6 @@
 //   crash:  the room's window flashes red, a dark puff from the roof, a sound. The other windows stay as they were:
 //           one room going down doesn't take its neighbours with it.
 //   live:   the fireworks (`celebrate`).
-//   team:   confetti in two colours at the door.
 import type { CityHappening } from "../types";
 
 export type Plan =
@@ -14,8 +13,7 @@ export type Plan =
   // `window`: the room's place among the house's windows, or -1 when the house has no room by that name (the puff
   // and the sound still come).
   | { kind: "crash"; window: number }
-  | { kind: "celebrate" }
-  | { kind: "confetti"; logins: string[] };
+  | { kind: "celebrate" };
 
 /**
  * The plan for a happening at a house. `here(login)`: whether that person's figure stands at the house right now;
@@ -31,8 +29,6 @@ export function planFor(h: CityHappening, here: (login: string) => boolean, room
       return { kind: "crash", window: rooms.indexOf(h.room) };
     case "live":
       return { kind: "celebrate" };
-    case "team":
-      return { kind: "confetti", logins: h.logins ?? [] };
     default:
       // A kind this page doesn't know yet (a newer API): nothing.
       return null;

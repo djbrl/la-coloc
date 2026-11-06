@@ -17,8 +17,6 @@ import { shortRepo } from "../cards";
 import PanelHead from "../panel/PanelHead.vue";
 import Panel from "../panel/Panel.vue";
 import { roomState } from "../panel/words";
-import { firstName, teamNames, teamUp } from "../team";
-import TeamUp from "../TeamUp.vue";
 import { sheetStep } from "../sheetStep";
 import { canKnock, liveAddress, personActions, type RoomKey, roomKeys, type Situation } from "./crew";
 import Icon from "./Icon.vue";
@@ -33,7 +31,7 @@ const person = computed(() => props.room.occupant);
 // By who lives there, not `viewer.room`: that's only your first room.
 const mine = computed(() => !!person.value && person.value.login === props.situation.viewer?.login);
 const name = computed(() => (person.value ? (person.value.name ?? person.value.login) : ""));
-const first = computed(() => (person.value ? firstName(person.value) : ""));
+const first = computed(() => person.value?.name?.trim().split(/\s+/)[0] || person.value?.login || "");
 const project = computed(() => props.room.project ?? seeded(props.room.projectDescription));
 const about = computed(() => (props.room.project ? seeded(props.room.projectDescription) : null));
 const state = computed(() => roomState(props.room, props.house.status, props.house.demo));
@@ -44,7 +42,7 @@ const ad = computed(() => seeded(props.room.ad));
 // The band: the project when there is one, else whose room it is.
 const title = computed(() => {
   if (!person.value) return canKnock(props.situation) ? w.roomForYou : w.plan.freeRoom;
-  return project.value ?? (mine.value ? w.plan.yours : teamNames(person.value, props.room.team));
+  return project.value ?? (mine.value ? w.plan.yours : name.value);
 });
 
 const keys = computed(() => roomKeys(props.room, props.situation));
@@ -57,12 +55,6 @@ const actions = computed(() =>
       })
     : null,
 );
-// A flatmate of yours: teaming up on one of your two projects (team.ts).
-const team = computed(() => {
-  const v = props.situation.viewer;
-  if (!person.value || !v?.member) return null;
-  return teamUp({ login: person.value.login, example: !!actions.value?.example }, v, props.house, v.room, notices.sent);
-});
 // A free room, to someone who lives here: they can take it, or bring someone in. The page names both, so the plus on
 // the floor plan isn't a riddle.
 const invitable = computed(() => !person.value && !!props.situation.viewer?.member && !props.house.tutorial && props.house.status !== "making");
@@ -156,9 +148,6 @@ onBeforeUnmount(() => {
             @{{ person.login }}<Icon name="external" :size="14" />
           </a>
           <span v-else class="handle">@{{ person.login }}</span>
-          <ul v-if="room.team?.length" class="team" :aria-label="teamNames(person, room.team)">
-            <li v-for="p in room.team" :key="p.login"><Avatar :person="p" :size="32" decorative /></li>
-          </ul>
         </template>
       </div>
       <p v-if="person" class="about" :class="{ none: !about }">{{ about ?? w.plan.noDescription }}</p>
@@ -182,7 +171,7 @@ onBeforeUnmount(() => {
         </li>
       </ul>
 
-      <div v-if="keys.main || keys.second || actions?.invite || team || invitable || readOnly || error" class="keys">
+      <div v-if="keys.main || keys.second || actions?.invite || invitable || readOnly || error" class="keys">
         <p v-if="error" class="error" role="alert">{{ error }}</p>
         <RouterLink v-if="keys.main?.kind === 'login'" to="/login" class="button primary key"><Icon name="login" :size="20" />{{ w.logInToKnock }}</RouterLink>
         <button v-else-if="keys.main" type="button" class="primary key" :disabled="busy" :aria-label="key(keys.main).name" @click="press(keys.main)">
@@ -196,7 +185,6 @@ onBeforeUnmount(() => {
         </button>
         <span v-else-if="actions?.invite?.kind === 'invited'" class="done"><Icon name="tick" :size="18" />{{ bw.invited }}</span>
         <ShareHouse v-if="invitable" :house-id="house.id" :name="house.name" :city="house.city" :word="w.plan.invite" quiet />
-        <TeamUp v-if="team && person" :state="team" :house-id="house.id" :login="person.login" :first="first" size="small" />
         <!-- A refusal's way out. -->
         <button v-if="error" type="button" class="second key" @click="emit('back')">{{ w.back }}</button>
         <p v-if="readOnly" class="say">{{ w.details.exampleOnly }}</p>
@@ -219,8 +207,6 @@ onBeforeUnmount(() => {
 .name strong { min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .name :deep(.badge-chip) { flex: 0 1 auto; min-width: 22px; }
 .handle { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; font-size: 16px; font-weight: 600; color: var(--handle); }
-.team { display: flex; list-style: none; margin: 4px 0 0; padding: 0; }
-.team li + li { margin-left: -8px; }
 .about { font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
 .about.none { color: var(--muted); }
 /* The numbers: a flat tile each, the number big and its word small under it. */

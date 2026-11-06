@@ -78,7 +78,7 @@ describe("sounds", () => {
     expect(made.oscillators).toBe(10);
   });
 
-  it("play the city's happenings: a crash, a coin and a team", async () => {
+  it("play the city's happenings: a crash and a coin", async () => {
     const { FakeContext, made } = fakeAudio();
     vi.stubGlobal("window", { matchMedia: () => ({ matches: false }), AudioContext: FakeContext });
     const { play, settings } = await load();
@@ -88,9 +88,6 @@ describe("sounds", () => {
     expect(made.noises).toBe(1);
     play("coin");
     expect(made.oscillators).toBe(4);
-    play("team");
-    expect(made.oscillators).toBe(6);
-    expect(made.noises).toBe(2);
   });
 
   it("do nothing when sounds are off in settings", async () => {

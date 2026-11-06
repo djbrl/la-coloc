@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { arenaAwards, arenaChallenges, creditEntries, type Db, houses as houseRows, messages, roomTeammates, rooms, sessions, users } from "@coloc/db";
+import { arenaAwards, arenaChallenges, creditEntries, type Db, houses as houseRows, messages, rooms, sessions, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import type { ApiToAgent } from "@coloc/protocol";
 import { HttpException } from "@nestjs/common";
@@ -130,17 +130,6 @@ describe("the demo reset", () => {
     await demo.reset(req);
     expect((await db.select().from(users).where(eq(users.login, "awa")))[0].badge).toEqual(awaBefore);
     expect((await me.me(req)).user).toMatchObject({ badge: { key: "test-pilot", city: "Tunis" }, badges: [{ id: award.id }] });
-  });
-
-  it("plants Sacré-Cœur's team again: Moussa on Awa's Ndaje", async () => {
-    const req = await loggedIn("fatou");
-    const teamOnNdaje = async () => (await houses.view("sacre-coeur"))!.rooms.find((r) => r.name === "awa")!.team.map((p) => p.login);
-    expect(await teamOnNdaje()).toEqual(["moussa"]);
-    // Moussa left the team; the reset brings him back.
-    await db.delete(roomTeammates);
-    expect(await teamOnNdaje()).toEqual([]);
-    await demo.reset(req);
-    expect(await teamOnNdaje()).toEqual(["moussa"]);
   });
 
   it("can run twice in a row once the cooldown is over", async () => {

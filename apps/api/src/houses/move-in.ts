@@ -1,9 +1,9 @@
 // Moving someone into a free room: the one way in, shared by the doorbell (the house voted yes) and invitations
 // (a flatmate offered the room and they said yes). Keeping it in one place keeps the rules the same both ways: the
 // room must still be free (two people can't both move in), the newcomer joins the back of the tontine line, and the
-// room starts clean (no ad, no project, nothing online, no team left from before). Someone who already lives in the
+// room starts clean (no ad, no project, nothing online). Someone who already lives in the
 // house and takes another room keeps their membership: their role and their place in the line.
-import { type Db, leaseEnds, memberships, roomTeammates, rooms } from "@coloc/db";
+import { type Db, leaseEnds, memberships, rooms } from "@coloc/db";
 import { and, count, eq, isNull, max, ne } from "drizzle-orm";
 import { WORKSHOP_ID } from "./money";
 
@@ -19,7 +19,6 @@ export async function moveInto(tx: Runner, houseId: string, room: string, userId
     .where(and(eq(rooms.houseId, houseId), eq(rooms.name, room), isNull(rooms.occupantId), eq(rooms.demo, false)))
     .returning({ id: rooms.id });
   if (!taken.length) return false;
-  await tx.delete(roomTeammates).where(eq(roomTeammates.roomId, taken[0].id));
   const [{ last }] = await tx.select({ last: max(memberships.tontinePosition) }).from(memberships).where(eq(memberships.houseId, houseId));
   // Newcomers join the back of the tontine line. Someone who was on their way out is staying after all.
   await tx

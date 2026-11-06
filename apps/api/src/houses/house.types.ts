@@ -37,9 +37,6 @@ export interface RoomView {
   demo: boolean;
   // The project's repository, for flatmates only: a linked repo may be private, and the house view is public.
   repo: string | null;
-  // Flatmates of the house who teamed up on this room's project, not counting its occupant ([] when none), first
-  // to join first. They may update, restart and set up the room like its occupant (rooms.service.ts manageable).
-  team: PersonView[];
 }
 
 export interface DeploymentView {
@@ -202,7 +199,7 @@ export interface CityHouseView {
   // The lobby plot it rented ("2.1.0.1"), or null: the lobby places it near the market.
   plot: string | null;
   // building: a prod deploy is running for that room right now, even if an older version is live.
-  rooms: (Pick<RoomView, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant" | "team"> & { building: boolean })[];
+  rooms: (Pick<RoomView, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant"> & { building: boolean })[];
   // Reviews waiting in this house, and how many of them are late. Counts only: titles are for flatmates.
   openChores: number;
   lateChores: number;
@@ -226,9 +223,7 @@ export type CityHappening =
   // A room's app ran out of memory or crashed, and was restarted. Its neighbours kept running.
   | { id: string; at: string; kind: "crash"; room: string }
   // A room's project went live (a prod deploy).
-  | { id: string; at: string; kind: "live"; room: string }
-  // Flatmates teamed up on a room: everyone on it now, the occupant first.
-  | { id: string; at: string; kind: "team"; room: string; logins: string[] };
+  | { id: string; at: string; kind: "live"; room: string };
 
 // What the city stream says after its first word: these houses are new or different, those are gone.
 export interface CityChange {

@@ -8,7 +8,6 @@
 import { computed } from "vue";
 import type { HouseView, Room } from "../../../types";
 import Avatar from "../../Avatar.vue";
-import { teamNames } from "../team";
 import StatusDot from "../panel/StatusDot.vue";
 import StatusPill from "../panel/StatusPill.vue";
 import { roomState } from "../panel/words";
@@ -67,7 +66,7 @@ function said(room: Room): string {
   const r = rent(room);
   const pays = r ? w.plan.pays(fcfa(r)) : "";
   if (!room.occupant) return `${freeWord()}. ${pays}`;
-  const who = props.mine.includes(room.name) ? w.plan.yours : teamNames(room.occupant, room.team);
+  const who = props.mine.includes(room.name) ? w.plan.yours : (room.occupant.name ?? room.occupant.login);
   return `${who}, @${room.occupant.login}. ${project(room) ?? w.noProject} ${about(room) ?? ""} ${pays}`;
 }
 </script>
@@ -106,7 +105,7 @@ function said(room: Room): string {
             <span class="who">
               <Avatar :person="room.occupant" :size="wide(room) ? 52 : 36" decorative />
               <span class="names">
-                <span class="name">{{ mine.includes(room.name) ? w.plan.yours : teamNames(room.occupant, room.team) }}</span>
+                <span class="name">{{ mine.includes(room.name) ? w.plan.yours : (room.occupant.name ?? room.occupant.login) }}</span>
                 <span class="handle">@{{ room.occupant.login }}</span>
               </span>
               <span v-if="wide(room) && rent(room)" class="big-rent">

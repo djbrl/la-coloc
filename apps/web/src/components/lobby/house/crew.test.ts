@@ -138,11 +138,6 @@ describe("a room's page: its keys", () => {
     expect(roomKeys(room("nine", person("jib")), situation({ viewer: flatmate })).main).toEqual({ kind: "manage" });
   });
 
-  it("manages a flatmate's room for their teammate, after the Chat key", () => {
-    expect(roomKeys(room("two", awa, { team: [person("jib")] }), situation({ viewer: flatmate }))).toEqual({ main: { kind: "chat", login: "awa" }, second: { kind: "manage" } });
-    expect(roomKeys(room("two", awa, { team: [person("kofi")] }), situation({ viewer: flatmate })).main).toEqual({ kind: "chat", login: "awa" });
-  });
-
   it("chats with a flatmate, made-up or not", () => {
     expect(roomKeys(room("two", awa), situation({ viewer: flatmate }))).toEqual({ main: { kind: "chat", login: "awa" }, second: null });
     expect(roomKeys(room("two", seeded), situation({ viewer: flatmate })).main).toEqual({ kind: "chat", login: "ibou" });

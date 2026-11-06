@@ -19,8 +19,7 @@ export type Sound =
   | "keys"
   | "tick"
   | "crash"
-  | "coin"
-  | "team";
+  | "coin";
 
 // Everything a sound needs to be built: the audio context, the master volume, and a bit of noise to reuse.
 interface Audio {
@@ -226,12 +225,6 @@ const recipes: Record<Sound, (a: Audio, t: number) => void> = {
     tone(a, t + 0.07, 0.3, E5 * 2, 0.13, { type: "triangle", dull: 5000 });
   },
 
-  // Flatmates teamed up: a little pop of confetti, then two notes going up together.
-  team: (a, t) => {
-    puff(a, t, 0.05, 1500, 0.3);
-    tone(a, t + 0.02, 0.25, G5, 0.12, { type: "triangle", dull: 3500 });
-    tone(a, t + 0.1, 0.3, B5, 0.12, { type: "triangle", dull: 3500 });
-  },
 };
 
 // How soon the same sound may play again, in milliseconds. Footsteps are slower than the rest.

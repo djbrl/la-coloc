@@ -223,7 +223,6 @@ describe("uploading a project", () => {
   it("lets a chef choose the code only for a room nobody lives in", () => {
     const person = { id: "1" } as never;
     expect(canChangeCode({ as: "flatmate", room: { occupant: person } })).toBe(true);
-    expect(canChangeCode({ as: "teammate", room: { occupant: person } })).toBe(true);
     expect(canChangeCode({ as: "chef", room: { occupant: person } })).toBe(false);
     expect(canChangeCode({ as: "chef", room: { occupant: null } })).toBe(true);
   });

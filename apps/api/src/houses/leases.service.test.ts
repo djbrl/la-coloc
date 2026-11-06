@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { chores, type Db, deployments, houses, leaseEnds, memberships, repos, roomSecrets, roomTeammates, rooms, usageSamples, users } from "@coloc/db";
+import { chores, type Db, deployments, houses, leaseEnds, memberships, repos, roomSecrets, rooms, usageSamples, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -114,7 +114,6 @@ describe("ending a lease", () => {
     expect(sent).toEqual([{ type: "cancel_build", room: "awa" }, { type: "remove_room", room: "awa" }]);
 
     expect(await room("awa")).toMatchObject({ occupantId: null, status: "empty", url: null, project: null, projectDescription: null, ad: null, source: null, lastDeployId: null });
-    expect(await db.select().from(roomTeammates).where(eq(roomTeammates.roomId, r.id))).toEqual([]);
     expect(await db.select().from(repos).where(eq(repos.githubId, 77))).toEqual([]);
     expect(await db.select().from(roomSecrets).where(eq(roomSecrets.houseId, HOUSE))).toEqual([]);
     expect(await db.select().from(chores).where(eq(chores.repoId, 77))).toEqual([]);

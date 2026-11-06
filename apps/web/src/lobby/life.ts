@@ -1,8 +1,8 @@
 // The city's life, as the street shows it: speech bubbles over people (`say`), each house's happenings played at the
 // house (`happening`: an envelope and a coin for a review, a red window and a dark puff for a crash, fireworks for a
-// project going live, confetti for a team), and smoke from busy roofs. The lobby owns one `CityLife`, tells it what
+// project going live), and smoke from busy roofs. The lobby owns one `CityLife`, tells it what
 // it needs through a small `LifeHost` (where a house is, who stands where), and ticks it every frame. Everything
-// here is cheap: one pool of particles for all the smoke, one for all the confetti, a few small meshes per flight.
+// here is cheap: one pool of particles for all the smoke, a few small meshes per flight.
 // With calm motion nothing flies: soft glows instead (glow.ts).
 import * as THREE from "three";
 import type { CityHappening } from "../types";
@@ -10,8 +10,6 @@ import { SpeechBubbles } from "./bubbles";
 import { Courier } from "./courier";
 import { Glows, softDot } from "./glow";
 import { planFor } from "./happenings";
-import { colorFor } from "./models";
-import { ParticlePool } from "./particles";
 import { RoofSmoke } from "./smoke";
 import { play } from "./sound";
 import type { HouseFace } from "./windows";
@@ -20,7 +18,6 @@ import type { HouseFace } from "./windows";
 const AT_HOUSE = 7;
 // How often the roofs are looked at again for the smoke (a model loading in moves its roof), in seconds.
 const ROOFS_EVERY = 1.5;
-const CONFETTI = 70;
 const GOLD = 0xf5c542;
 
 /** A house as its happenings need it: its door, the top of its roof, its windows, its rooms in window order. */
@@ -65,11 +62,10 @@ export class CityLife {
   private courier = new Courier();
   private glows = new Glows();
   private smoke = new RoofSmoke(softDot());
-  private confetti = new ParticlePool(CONFETTI * 3, false);
   private sinceRoofs = Infinity;
 
   constructor(private host: LifeHost) {
-    this.object.add(this.courier.object, this.glows.object, this.smoke.object, this.confetti.points);
+    this.object.add(this.courier.object, this.glows.object, this.smoke.object);
   }
 
   /** A speech bubble over someone, if they're on screen here (see bubbles.ts). */
@@ -124,16 +120,6 @@ export class CityLife {
       case "celebrate":
         this.host.celebrate(houseId);
         return;
-      case "confetti": {
-        const [a, b] = plan.logins.length >= 2 ? [colorFor(plan.logins[0]), colorFor(plan.logins[1])] : [colorFor(houseId), GOLD];
-        const at = house.door.clone().setY(1);
-        if (calm) {
-          this.glows.glow(at.clone().setX(at.x - 0.35), a, 1.8);
-          this.glows.glow(at.clone().setX(at.x + 0.35), b, 1.8);
-        } else this.burst(at, a, b);
-        play("team");
-        return;
-      }
     }
   }
 
@@ -160,37 +146,12 @@ export class CityLife {
     this.smoke.tick(dt);
     this.courier.tick(dt);
     this.glows.tick(dt);
-    this.confetti.tick(dt);
   }
 
   dispose() {
     this.clear();
     this.smoke.dispose();
     this.glows.dispose();
-    this.confetti.dispose();
-  }
-
-  // Confetti thrown up from a point, in two colours: little squares that fly up and out, then flutter down.
-  private burst(at: THREE.Vector3, a: number, b: number) {
-    for (let i = 0; i < CONFETTI; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const out = 0.6 + Math.random() * 1.6;
-      this.confetti.emit({
-        x: at.x,
-        y: at.y,
-        z: at.z,
-        vx: Math.cos(angle) * out,
-        vy: 3.2 + Math.random() * 2.2,
-        vz: Math.sin(angle) * out,
-        life: 1.5 + Math.random() * 0.6,
-        size: 0.14 + Math.random() * 0.07,
-        grow: 0,
-        color: i % 2 ? a : b,
-        alpha: 1,
-        gravity: 5.5,
-        drag: 1.6,
-      });
-    }
   }
 }
 

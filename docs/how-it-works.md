@@ -77,11 +77,9 @@ There are two ways in.
   someone moved in, someone linked repos). Only public repos are named; private ones are only counted ("+2"). Called
   the "fridge" in the code.
 - **Your room's page:** build settings, secret keys (stored encrypted), logs, restart and update.
-- **Teaming up:** flatmates can team up on one room's project. From a flatmate's card, "Team up" asks to join their
-  project or brings them into yours; they answer under the bell. A teammate can update, restart and set up that
-  room like the person who lives there, and keeps their own room; the one who lives there still pays its share of
-  the bill. At most three teammates, same house only. The review rotation never picks someone from the pull
-  request's own project, and reviewing your own project takes nothing off your rent.
+- **Your room is yours:** only you manage it, open a shell in it or see its SSH address (the chef can update and
+  restart it). To work with a flatmate, ask them for a review. The review rotation never picks you for your own
+  project, and reviewing your own project takes nothing off your rent.
 - **Sharing a house:** the share key in a house's panel copies its link or sends it on WhatsApp; the link shows the
   house's name, a line about it and a picture of its city.
 
@@ -173,7 +171,7 @@ A room's SSH tab gives you one line to copy. It opens a shell inside your runnin
 
 Putting a new version online ends the shell and resets everything except `/home/your-room`, which is where you arrive and where `~` points. `project` in there is a link to the running code, replaced by each deploy. The room page's Inside tab shows that folder and what's running without going in, and can put something you started on a port at the room's address. Files there stay yours until you end the lease, when they're deleted. So a fix that should last belongs in your code.
 
-It opens with your SSH keys: a GitHub account starts with the ones GitHub lists, or you paste one. The room's occupant and their teammates can get in. The chef can't, since a room is its occupant's own.
+It opens with your SSH keys: a GitHub account starts with the ones GitHub lists, or you paste one. Only the room's occupant can get in, and only they see the line. The chef can't, since a room is its occupant's own.
 
 ## Not built yet
 

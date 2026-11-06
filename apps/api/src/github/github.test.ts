@@ -108,16 +108,13 @@ describe("chores", () => {
     expect(await svc.handle("pull_request", opened(1))).toBe("already assigned");
   });
 
-  it("never asks the room's teammates to review its project, and finds nobody when everyone is on it", async () => {
+  it("never asks the room's occupant to review its project, and ignores a row left over from teaming up", async () => {
     const id = async (login: string) => (await db.query.users.findFirst({ where: (u, { eq }) => eq(u.login, login) }))!.id;
     const [awaRoom] = await db.select().from(rooms).where(and(eq(rooms.houseId, "sacre-coeur"), eq(rooms.name, "awa")));
-    // Jib teams up on Ndaje, and Moussa opens the pull request (a collaborator on Awa's repo): Awa is the occupant,
-    // Jib her teammate, so neither may review it, and Moussa wrote it.
+    // An older database may still say Jib teamed up on Ndaje: that counts for nothing now.
     await db.insert(roomTeammates).values({ roomId: awaRoom.id, userId: await id("jib") });
-    expect(await svc.handle("pull_request", opened(1, gh.moussa))).toBe("nobody to review");
-    expect(await db.select().from(chores)).toHaveLength(0);
-    // Awa opens one herself: Moussa isn't on the project, so he reviews it, never Jib.
-    expect(await svc.handle("pull_request", opened(2))).toBe("assigned moussa");
+    // Moussa opens a pull request on Awa's repo (a collaborator): Awa lives there and Moussa wrote it, so Jib reviews.
+    expect(await svc.handle("pull_request", opened(1, gh.moussa))).toBe("assigned jib");
   });
 
   it("waits for drafts to be ready", async () => {

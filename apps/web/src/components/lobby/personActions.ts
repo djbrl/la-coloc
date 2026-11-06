@@ -8,7 +8,7 @@
 //     "Invited", which you can take back), to the room you pick when there are several.
 //   - You have no house, or yours is full: ask them to share a house, even if one or both of you live somewhere
 //     already (once; then "Asked", which you can take back).
-//   - Nothing when they live with you already (the card offers to team up instead), or when you're logged out.
+//   - Nothing when they live with you already, or when you're logged out.
 // An example person (made up so the city isn't empty): the offer shows, disabled, with why. Nothing real happens.
 // And their GitHub profile, for a real account only.
 import type { CityHouse, Notices } from "../../types";

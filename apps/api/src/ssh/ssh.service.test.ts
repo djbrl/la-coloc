@@ -119,11 +119,14 @@ describe("who may enter a room", () => {
     expect(await ssh.mayStay("sacre-coeur", room.name, chef)).toBe(false);
   });
 
-  it("is a teammate too, while they still live in the house", async () => {
-    await db.insert(roomTeammates).values({ roomId: room.id, userId: chef });
-    expect((await openers()).sort()).toEqual([awa, chef].sort());
-    await db.delete(memberships).where(and(eq(memberships.houseId, "sacre-coeur"), eq(memberships.userId, chef)));
+  it("is nobody else: not another flatmate, not a row left over from teaming up", async () => {
+    const [{ id: moussa }] = await db.select({ id: users.id }).from(users).where(eq(users.login, "moussa"));
+    await ssh.add(moussa, newKey());
+    // Teaming up is gone, but an older database may still say Moussa was on Awa's team.
+    await db.insert(roomTeammates).values({ roomId: room.id, userId: moussa });
     expect(await openers()).toEqual([awa]);
+    expect(await ssh.mayStay("sacre-coeur", room.name, moussa)).toBe(false);
+    expect(await ssh.mayStay("sacre-coeur", room.name, awa)).toBe(true);
   });
 
   it("is nobody for an empty room, an example room, or one that isn't there", async () => {

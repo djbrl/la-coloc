@@ -28,10 +28,6 @@ describe("a house's happenings", () => {
     expect(planFor({ id: "l1", at, kind: "live", room: "Sabar" }, () => false, rooms)).toEqual({ kind: "celebrate" });
   });
 
-  it("throw confetti for a team, in the colours of the people on it", () => {
-    expect(planFor({ id: "t1", at, kind: "team", room: "Ndaje", logins: ["awa", "moussa"] }, () => false, rooms)).toEqual({ kind: "confetti", logins: ["awa", "moussa"] });
-  });
-
   it("ignore a kind this page doesn't know yet", () => {
     const newer = { id: "x", at, kind: "party" } as unknown as CityHappening;
     expect(planFor(newer, () => true, rooms)).toBeNull();
