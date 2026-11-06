@@ -1,4 +1,5 @@
 // What the friends list shows, and the friend key on a person's card. Pure, so it's tested: the components only draw.
+import type { Sent } from "../../session";
 import type { Friend, Friends, FriendStatus } from "../../types";
 import { friendWords as w } from "../list/words";
 
@@ -42,3 +43,16 @@ export function friendKey(person: { login: string; isMe: boolean; example: boole
   if (mine) return { kind: "asked", id: mine.id };
   return { kind: "add" };
 }
+
+// What the list's box says after Add: who you added (or that you're friends, if they had added you), the API's
+// refusal, or, when nobody here has that login, a link to send them instead.
+export type AddAnswer = { kind: "said"; text: string } | { kind: "error"; text: string } | { kind: "invite"; login: string };
+
+export function addAnswer(login: string, sent: Sent<{ friends: boolean }>): AddAnswer {
+  if (sent.ok) return { kind: "said", text: sent.data.friends ? w.nowFriends(login) : w.sentTo(login) };
+  if (sent.code === "nobodyByLogin") return { kind: "invite", login };
+  return { kind: "error", text: sent.message };
+}
+
+/** The link to send someone who isn't here yet: the site's front door, where they log in with GitHub. */
+export const inviteLink = (origin: string) => new URL("/", origin).href;

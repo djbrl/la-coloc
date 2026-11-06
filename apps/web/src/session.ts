@@ -52,7 +52,8 @@ export async function logout(): Promise<boolean> {
   return true;
 }
 
-export type Sent<T> = { ok: true; data: T } | { ok: false; message: string; down?: boolean };
+// `code`: the refusal's code when the API gave one ("nobodyByLogin"), for a form that answers one refusal its own way.
+export type Sent<T> = { ok: true; data: T } | { ok: false; message: string; down?: boolean; code?: string };
 
 // One JSON request, whatever the method. It never throws: when the core isn't answering (no answer, a proxy's 502,
 // 503 or 504, `core_down`, an empty 500) it says so in plain words and `down: true`, so a form can keep what was
@@ -79,7 +80,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
   if (res.ok) return { ok: true, data: data as T };
   // The API's refusal, in the reader's language when it has a code (refusals.ts).
   const message = typeof data?.message === "string" ? refusalText(data as Refusal) : res.status === 401 ? downWords.logInFirst : downWords.failed;
-  return { ok: false, message };
+  return typeof data?.code === "string" ? { ok: false, message, code: data.code } : { ok: false, message };
 }
 
 // POSTs JSON. The API only accepts JSON bodies, which other sites can't send with your cookies.

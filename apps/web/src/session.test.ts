@@ -72,6 +72,11 @@ describe("writes when the API answers", () => {
     expect("down" in res).toBe(false);
   });
 
+  it("keeps the refusal's code, so a form can answer that one its own way", async () => {
+    fetchMock.mockResolvedValue(json({ message: "Nobody by that name lives in La Coloc.", code: "nobodyByLogin" }, 404));
+    expect(await postJSON("/api/friends", { to: "ghost" })).toEqual({ ok: false, message: "Nobody by that name lives in La Coloc.", code: "nobodyByLogin" });
+  });
+
   it("says 'Log in first.' for a 401 without a message, and 'That didn't work.' otherwise", async () => {
     fetchMock.mockResolvedValue(new Response("", { status: 401 }));
     expect(await postJSON("/api/x", {})).toEqual({ ok: false, message: "Log in first." });

@@ -116,6 +116,38 @@ export function stateWords(status: RoomStatus, deployments: Pick<Deployment, "ki
   return last ? w.notOnlineYet : w.neverBuilt;
 }
 
+// The Overview's one thing to look at: how the room is, in a few words, and the line under them saying the next step
+// (the foot's main button does it) or, online, where it lives. A failed build says why instead.
+export type FocusKind = "noCode" | "ready" | "building" | "live" | "down" | "failed";
+export interface OverviewFocus {
+  kind: FocusKind;
+  title: string;
+  // The next step in words, or why the build failed. Online, there's none: the address is the line.
+  line: string | null;
+  mark: "ok" | "fail" | "none";
+}
+
+const BUILDING = ["queued", "cloning", "building", "starting"];
+
+export function overviewFocus(
+  room: Pick<RoomManage["room"], "status">,
+  deployments: Pick<Deployment, "kind" | "status" | "updatedAt" | "detail">[],
+  code: { has: boolean; branch: string | null },
+  now = Date.now(),
+): OverviewFocus {
+  const last = deployments.find((d) => d.kind === "prod");
+  const state = stateWords(room.status, deployments, now);
+  if (room.status === "deploying" || BUILDING.includes(last?.status ?? "")) return { kind: "building", title: w.buildingNow, line: w.focus.building, mark: "none" };
+  if (buildFailed(last)) {
+    const title = w.failedAgo(span(now - new Date(last!.updatedAt).getTime()));
+    return { kind: "failed", title, line: w.trouble[buildTrouble(last!.detail)], mark: "fail" };
+  }
+  if (room.status === "live") return { kind: "live", title: state, line: null, mark: "ok" };
+  if (room.status === "down") return { kind: "down", title: state, line: w.focus.down, mark: "none" };
+  if (!code.has) return { kind: "noCode", title: w.notOnlineYet, line: w.focus.noCode, mark: "none" };
+  return { kind: "ready", title: state, line: w.focus.ready(refWord(code.branch ?? "default")), mark: "none" };
+}
+
 export interface CodeRow {
   term: string;
   value: string;

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // The friends list: a white card under the top bar's keys, over whatever page is open. Requests waiting for you
 // first (yes or no), then your friends, the most present first, each with a dot on their face (online green, idle
-// yellow, away grey, offline dim) and the city they walk in; then the requests you sent, which you can take back. A
-// row opens the conversation with that friend in the chat sheet. A box at the foot adds someone by login, the way
-// every sheet ends. Esc or X closes it.
+// yellow, away grey, offline dim) and the city they walk in; then the people you added, which you can take back. A
+// row opens the conversation with that friend in the chat sheet. A box at the foot adds someone by GitHub username,
+// the way every sheet ends; nobody here by that name, it gives the site's address to send them. With no friends, one
+// centred line says how. Esc or X closes it.
 import { computed, nextTick, ref, watch } from "vue";
 import { chatSheet, openChat } from "../../conversations";
 import { acceptFriend, askFriend, declineFriend, friends, friendsSheet, loadFriends, removeFriend, takeBackFriend } from "../../friends";
@@ -12,7 +13,7 @@ import Avatar from "../Avatar.vue";
 import Icon from "../lobby/house/Icon.vue";
 import ListRow from "../lobby/panel/ListRow.vue";
 import { friendWords as w } from "../list/words";
-import { connected, sortFriends, statusLine } from "./friends";
+import { addAnswer, connected, inviteLink, sortFriends, statusLine } from "./friends";
 
 const card = ref<HTMLElement | null>(null);
 const login = ref("");
@@ -21,11 +22,21 @@ const error = ref("");
 const busy = ref(false);
 // The friend whose remove key was pressed once: a second press removes them.
 const sure = ref<string | null>(null);
+// The login typed isn't anyone here: who, and whether the link to send them was just copied.
+const invite = ref<string | null>(null);
+const copied = ref(false);
+const link = inviteLink(location.origin);
 
 const list = computed(() => sortFriends(friends.friends));
 const online = computed(() => connected(friends.friends));
-const empty = computed(() => !friends.friends.length && !friends.requests.length && !friends.sent.length);
+// No friends and nobody waiting on you: one line says how to add someone (what you sent still shows under it).
+const empty = computed(() => !friends.friends.length && !friends.requests.length);
 const nameOf = (p: Person) => p.name ?? p.login;
+
+// Typing another login puts the link away.
+watch(login, () => {
+  if (login.value.trim()) invite.value = null;
+});
 
 watch(
   () => friendsSheet.open,
@@ -33,6 +44,7 @@ watch(
     said.value = "";
     error.value = "";
     sure.value = null;
+    invite.value = null;
     if (!open) return;
     void loadFriends();
     await nextTick();
@@ -73,14 +85,24 @@ async function add() {
   busy.value = true;
   error.value = "";
   said.value = "";
-  const sent = await askFriend(who);
+  invite.value = null;
+  const answer = addAnswer(who, await askFriend(who));
   busy.value = false;
-  if (!sent.ok) {
-    error.value = sent.message;
+  if (answer.kind === "error") {
+    error.value = answer.text;
     return;
   }
   login.value = "";
-  said.value = sent.data.friends ? w.nowFriends(who) : w.sentTo(who);
+  if (answer.kind === "said") said.value = answer.text;
+  else {
+    invite.value = answer.login;
+    copied.value = false;
+  }
+}
+
+async function copyLink() {
+  await navigator.clipboard?.writeText(link).catch(() => undefined);
+  copied.value = true;
 }
 
 // The conversation with them, in the chat sheet (which takes this card's place).
@@ -109,7 +131,7 @@ async function remove(f: Friend) {
           <button type="button" class="sign-x" :aria-label="w.close" @click="close"><span aria-hidden="true">X</span></button>
         </header>
         <div class="sign-body body">
-          <p v-if="empty && friends.loaded" class="soft small empty">{{ w.empty }}</p>
+          <p v-if="empty && friends.loaded" class="empty">{{ w.empty }}</p>
 
           <!-- Waiting for you: yes or no. -->
           <section v-if="friends.requests.length" class="group">
@@ -163,7 +185,7 @@ async function remove(f: Friend) {
           <section v-if="friends.sent.length" class="group">
             <h3 class="label">{{ w.sentHead }}</h3>
             <ul class="list">
-              <ListRow v-for="s in friends.sent" :key="s.id" :title="nameOf(s.to)" :sub="w.asked" class="asked">
+              <ListRow v-for="s in friends.sent" :key="s.id" :title="nameOf(s.to)" :sub="w.waitingYes" class="asked">
                 <template #lead><Avatar :person="s.to" :size="40" decorative /></template>
                 <template #end>
                   <button type="button" class="key" :disabled="busy" :aria-label="w.takeBackName(nameOf(s.to))" :title="w.takeBackName(nameOf(s.to))" @click="run(() => takeBackFriend(s.id))">
@@ -176,6 +198,16 @@ async function remove(f: Friend) {
 
           <p v-if="error" class="error small" role="alert">{{ error }}</p>
           <p v-else-if="said" class="soft small" role="status">{{ said }}</p>
+          <!-- Nobody here by that login: the site's address, to send them. -->
+          <div v-else-if="invite" class="invite" role="status">
+            <p class="small">{{ w.notHere(invite) }}</p>
+            <div class="invite-row">
+              <input :value="link" readonly :aria-label="w.inviteLink" @focus="($event.target as HTMLInputElement).select()" />
+              <button type="button" class="key copy" @click="copyLink">
+                <Icon :name="copied ? 'tick' : 'copy'" :size="18" /><span class="word">{{ copied ? w.copied : w.copy }}</span>
+              </button>
+            </div>
+          </div>
           <form class="add" @submit.prevent="add">
             <input v-model="login" type="text" :placeholder="w.addPlaceholder" :aria-label="w.addLabel" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false" />
             <button type="submit" class="primary" :disabled="busy || !login.trim()">{{ w.add }}</button>
@@ -204,7 +236,14 @@ async function remove(f: Friend) {
 .add { flex: none; display: flex; gap: 8px; }
 .add input { flex: 1; min-width: 0; }
 .add .primary { flex: none; width: 120px; }
-.empty { margin: 0; }
+/* No friends yet: one small centred line, the box under it does the rest. */
+.empty { margin: 0; padding: 18px 12px 6px; text-align: center; font: 600 14px/20px var(--font); color: var(--muted); text-wrap: balance; }
+/* The link to send someone who isn't here: the address, read-only, and its copy key. */
+.invite { display: grid; gap: 8px; }
+.invite p { margin: 0; color: var(--muted); }
+.invite-row { display: flex; gap: 8px; }
+.invite-row input { flex: 1; min-width: 0; font: 500 14px/1 var(--code); color: var(--text); }
+.key.copy { width: auto; height: auto; align-self: stretch; padding: 0 14px 3px !important; font-size: 14px; font-weight: 800; }
 .list { list-style: none; margin: 0; padding: 0 4px; display: grid; }
 .list :deep(.list-row) { min-height: 56px; gap: 12px; }
 .list :deep(.list-row .title) { font-size: 15px; }

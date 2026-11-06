@@ -3,7 +3,8 @@ import { IDLE_MS, presenceNow } from "../../activity";
 import { language } from "../../i18n";
 import type { Friend, Friends, Notice } from "../../types";
 import { noticeRow } from "../bell/bell";
-import { connected, friendKey, sortFriends, statusLine, waiting } from "./friends";
+import { friendWords } from "../list/words";
+import { addAnswer, connected, friendKey, inviteLink, sortFriends, statusLine, waiting } from "./friends";
 
 afterEach(() => {
   language.lang = "en";
@@ -31,6 +32,33 @@ describe("the friends list", () => {
     expect(waiting(0)).toBe("");
     expect(waiting(3)).toBe("3");
     expect(waiting(12)).toBe("9+");
+  });
+});
+
+describe("adding someone from the list", () => {
+  it("says who you added, or that you're friends when they had added you", () => {
+    expect(addAnswer("sam", { ok: true, data: { friends: false } })).toEqual({ kind: "said", text: "You added @sam." });
+    expect(addAnswer("sam", { ok: true, data: { friends: true } })).toEqual({ kind: "said", text: "You and @sam are friends." });
+  });
+
+  it("offers a link to send when nobody here has that login, and shows any other refusal", () => {
+    expect(addAnswer("ghost", { ok: false, message: "Nobody by that name lives in La Coloc.", code: "nobodyByLogin" })).toEqual({ kind: "invite", login: "ghost" });
+    expect(addAnswer("sam", { ok: false, message: "You're friends already.", code: "alreadyFriends" })).toEqual({ kind: "error", text: "You're friends already." });
+    expect(addAnswer("sam", { ok: false, message: "Waiting for the city.", down: true })).toEqual({ kind: "error", text: "Waiting for the city." });
+  });
+
+  it("links to the site's front door", () => {
+    expect(inviteLink("https://lacoloc.example")).toBe("https://lacoloc.example/");
+    expect(inviteLink("http://localhost:5173")).toBe("http://localhost:5173/");
+  });
+
+  it("calls the people you added that, not 'asked'", () => {
+    expect(friendWords.sentHead).toBe("You added");
+    expect(friendWords.asked).toBe("You added");
+    expect(friendWords.empty).toContain("GitHub username");
+    expect(friendWords.notHere("ghost")).toBe("@ghost isn't on La Coloc yet. Send them this link:");
+    language.lang = "fr";
+    expect(friendWords.sentHead).toBe("Vous avez ajouté");
   });
 });
 

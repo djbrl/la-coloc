@@ -21,6 +21,7 @@ import {
   logTail,
   memoryUse,
   neverOnline,
+  overviewFocus,
   parsePort,
   projectTitle,
   readTrouble,
@@ -65,6 +66,50 @@ describe("the update tile", () => {
     expect(canRestart("down", [])).toBe(true);
     expect(canRestart("failed", [build("prod", "live")])).toBe(true);
     expect(neverOnline("deploying", [build("prod", "live")])).toBe(false);
+  });
+});
+
+describe("the Overview's one thing to look at", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  const code = { has: true, branch: "main" };
+
+  it("with no project, says to upload one", () => {
+    expect(overviewFocus({ status: "empty" }, [], { has: false, branch: null }, now)).toEqual({
+      kind: "noCode",
+      title: "Not online yet",
+      line: "Upload a project to put it online.",
+      mark: "none",
+    });
+  });
+
+  it("with code that never went up, says where it would go online from", () => {
+    expect(overviewFocus({ status: "empty" }, [], code, now)).toMatchObject({ kind: "ready", title: "Never built yet", line: "Ready to go online from main." });
+    expect(overviewFocus({ status: "empty" }, [], { has: true, branch: null }, now).line).toBe("Ready to go online from default branch.");
+  });
+
+  it("while it builds, says it goes online at the end, even with an older version still up", () => {
+    expect(overviewFocus({ status: "deploying" }, [], code, now)).toMatchObject({ kind: "building", title: "Building now" });
+    expect(overviewFocus({ status: "live" }, [build("prod", "building"), build("prod", "live", "2026-10-07T12:00:00Z")], code, now).kind).toBe("building");
+  });
+
+  it("online, says since when and leaves the line to the address", () => {
+    expect(overviewFocus({ status: "live" }, [build("prod", "live", "2026-10-07T12:00:00Z")], code, now)).toEqual({ kind: "live", title: "Online for 3 days", line: null, mark: "ok" });
+  });
+
+  it("stopped, says to restart it", () => {
+    expect(overviewFocus({ status: "down" }, [build("prod", "live")], code, now)).toMatchObject({ kind: "down", title: "Stopped", line: "Restart it to bring it back." });
+  });
+
+  it("after a failed build, says when and why, even with the version before it still online", () => {
+    const failed = { ...build("prod", "failed", "2026-10-10T10:00:00Z"), detail: "out of memory" };
+    const want = { kind: "failed", title: "Its last build failed 2 hours ago", mark: "fail", line: expect.stringContaining("ran out of memory") };
+    expect(overviewFocus({ status: "failed" }, [failed], code, now)).toMatchObject(want);
+    expect(overviewFocus({ status: "live" }, [failed, build("prod", "live", "2026-10-07T12:00:00Z")], code, now)).toMatchObject(want);
+  });
+
+  it("doesn't call a cancelled build a failure", () => {
+    const cancelled = { ...build("prod", "failed"), detail: "build cancelled" };
+    expect(overviewFocus({ status: "live" }, [cancelled, build("prod", "live", "2026-10-07T12:00:00Z")], code, now).kind).toBe("live");
   });
 });
 
