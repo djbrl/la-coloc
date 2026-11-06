@@ -7,6 +7,9 @@ npm run licences:check
 ```
 
 **State on 12 10 2026** (`npm run licences`, commit `ffce382`): 318 packages, all permissive: MIT 259 · Apache-2.0 23 · ISC 17 · BSD-3-Clause 15 · BSD-2-Clause 2 · 0BSD 1 · Unlicense 1.
+The other direct dependencies: NestJS (MIT), rxjs (Apache-2.0), reflect-metadata (Apache-2.0), zod (MIT), `ws` (MIT),
+dockerode (Apache-2.0), `tar-fs` (MIT), Vue and vue-router (MIT), Vite and `@vitejs/plugin-vue` (MIT), Vitest (MIT), TypeScript
+(Apache-2.0), `vue-tsc` (MIT), `tsx` (MIT), and their `@types/*` packages (MIT).
 Added since 02 10: Drizzle ORM (Apache-2.0) and drizzle-kit (MIT), node-postgres `pg` (MIT), PGlite (Apache-2.0, tests only).
 Added 09 10: three.js (MIT) for the 3D lobby; smee-client (ISC, development only) to relay GitHub webhooks.
 Added 15 10 (branch `ui-refresh`): two fonts, self-hosted from npm: `@fontsource/bricolage-grotesque` and `@fontsource/jetbrains-mono`
@@ -47,7 +50,7 @@ Ground textures (grass, asphalt, paving, sidewalk) are drawn in code (`apps/web/
 If they fail to load, the lobby falls back to shapes built in code (`apps/web/src/lobby/models.ts`).
 
 ## Runtime environment (not distributed, not modified, not linked)
-Linux kernel (GPL-2.0), Docker Engine (Apache-2.0), Traefik (MIT), Postgres (PostgreSQL licence), container base images
+Ubuntu and the Linux kernel (GPL-2.0), Docker Engine (Apache-2.0), Traefik (MIT), Caddy (Apache-2.0), Postgres (PostgreSQL licence), container base images
 (e.g. `node:22-alpine`, which contains BusyBox under GPL-2.0). These run the solution; they are not part of its code.
 
 ## Traps avoided

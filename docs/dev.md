@@ -1,6 +1,6 @@
 # Install and run La Coloc
 
-*Updated 17 Oct 2026. Start here if you have a laptop and no history. What the pieces are:
+*Updated 6 Nov 2026. Start here if you have a laptop and no history. What the pieces are:
 [architecture.md](architecture.md).*
 
 **What you get:** the city in your browser, a real house (Sacré-Cœur) whose rooms are built and served by Docker on
@@ -90,9 +90,10 @@ echo "COLOC_TUTORIAL_REPO=file://$PWD" >> dev/.env.local
 ```
 
 - The key encrypts room secrets.
-- `COLOC_TUTORIAL_REPO` tells the quest to take its starter page (`examples/hello`) from **your clone**, because the
-  GitHub repo is private and the caretaker has no GitHub credentials. It reads the clone's `main` branch, so the
-  starter page you see is the one committed on your `main`.
+- `COLOC_TUTORIAL_REPO` tells the quest to take its starter page (`examples/hello`) from **your clone** instead of
+  GitHub, so it builds without the network and the caretaker needs no GitHub credentials. It reads the clone's `main`
+  branch, so the starter page you see is the one committed on your `main`. The live server does the same with its own
+  copy (`/var/lib/coloc/starter`).
 - The template already turns on the dev login (`COLOC_DEV_LOGIN=1`) and the demo reset. **Never set the dev login on a
   real server.** The API ignores it anyway when `COLOC_PUBLIC_URL` is `https://`.
 - `npm run up` adds this laptop's own keys to the file on its first run (see
@@ -205,12 +206,15 @@ the API's `COLOC_PUBLIC_URL` and the GitHub App's callback expect 5175.
 Go to http://localhost:5175/login and choose the development login. Pick `jib` (chef of Sacré-Cœur, and an admin),
 `awa`, `moussa` or `koffi`, or type a new name to be a newcomer. Use a private window to be two people at once.
 
-- A **new name gets the quest** "Your first home". Your page goes online at `http://<name>.atelier.coloc.localhost:8000`
-  (`<name>-home` if that room name is taken in another house, as for `jib`). Settings can restart the quest.
-- **To knock:** log in as someone new, walk to Sacré-Cœur, knock on `room-4`; then log in as `jib` and `awa` in two
-  other windows to vote.
+- A **new name** first picks a look and gets its credit, then plays the quest "Your first home". Your page goes
+  online at `http://<name>.atelier.coloc.localhost:8000` (`<name>-home` if that room name is taken in another house,
+  as for `jib`). Settings can restart the quest.
+- **To apply** (a knock in the code): log in as someone new, walk to Sacré-Cœur, apply for `room-4`; then log in as
+  `jib` and `awa` in two other windows to vote.
 - **To invite:** log in as `jib`, click a newcomer in the street, "Invite to my house". Their bell shows it.
-- **Settings** (the gear): language, day / night, sounds, the list view, the quest, and for admins the demo reset.
+- **Settings** (the gear): language, 3D or Dashboard, quality, sounds, motion, key shortcuts, your Arena title, the
+  welcome and the quest again, who you blocked or muted, removing the GitHub App, deleting your account, logging out,
+  and for admins the demo reset.
 
 Every address, live, is on **http://localhost:5175/dev/start.html** (development only). The main ones:
 
@@ -247,8 +251,9 @@ log); a real server takes webhooks directly.
 
 ## Sharing the city from a laptop
 
-Until the real server exists, `npm run share` lets a teammate try the city without installing anything. The site goes
-on Vercel; the API, Docker and the caretakers stay on your laptop behind a Cloudflare quick tunnel.
+Before the city had a server of its own, `npm run share` let a teammate try it without installing anything, and it
+still works. The site goes on Vercel; the API, Docker and the caretakers stay on your laptop behind a Cloudflare quick
+tunnel.
 
 You need `cloudflared` (`brew install cloudflared`) and the Vercel CLI logged in (`npx vercel login`). Then:
 
@@ -280,9 +285,10 @@ The site and the API change together: deploy the site again whenever you restart
 and the rooms. It copies this checkout as it is on disk, so nothing needs to be committed first.
 
 ```bash
-COLOC_SSH="ssh -i ~/.ssh/coloc_datacloud.pem -o IdentitiesOnly=yes" deploy/push.sh 194.62.97.180
+deploy/push.sh <server ip>     # COLOC_SSH="ssh -i <key>" picks the SSH key
 ```
 
+The live city runs this way on a Systalink Datacloud VPS since 5 Nov 2026, at https://coloc.194-62-97-180.sslip.io.
 Run it again to update: data and keys stay, and only an empty city gets seeded. Without a domain the city is at
 `coloc.<ip with dashes>.sslip.io`, which needs no DNS; pass a domain as the second argument once it has a wildcard record.
 
@@ -295,6 +301,16 @@ Run it again to update: data and keys stay, and only an empty city gets seeded. 
   `dev/.env.github`, and each seeded caretaker has its own short file with no database password or GitHub keys.
 - **Docker's files are on their own XFS disk**, a file at `/var/lib/coloc-docker.img` mounted at `/var/lib/docker`, so each room can be held to a size. On a server that already ran without it, `setup.sh` copies the files across, which stops the rooms for a minute, and leaves the old copy in `/var/lib/docker.before-xfs` to delete once all is well.
 - **SSH into rooms** uses port 2222, which `setup.sh` opens, and a host key made once in `/etc/coloc`. To close it: `ufw delete allow 2222/tcp`.
+- **Paid houses** get their caretaker on the same machine (`COLOC_LANDLORD_*` in `/etc/coloc/coloc.env`), under
+  `<house>.<domain>`.
+- **Backups and the disk:** a database dump every night at 03:30 into `/var/backups/coloc` (7 kept;
+  `deploy/pull-backup.sh <ip>` copies the newest to a laptop), and a disk check every 15 minutes
+  (see "Backups and the disk" in [architecture.md](architecture.md)).
+- **Alerts:** put `COLOC_ALERT_URL=https://ntfy.sh/<a topic only you know>` in `/etc/coloc/alert.env`, and the disk
+  check posts there when a disk passes 80%. The same address as the GitHub secret `COLOC_ALERT_URL` turns on the
+  uptime alarm (`.github/workflows/uptime.yml`): every 10 minutes GitHub opens the site and `/api/health`, and if both
+  tries a minute apart fail, it posts "La Coloc is down". Subscribe to the topic in the ntfy app to get it on a phone.
+- **PayDunya:** put the keys in `/etc/coloc/paydunya.env` and run `deploy/push.sh` again.
 - **Logs:** `journalctl -u coloc-api -f`, and `journalctl -u coloc-caretaker@atelier -f`.
 
 The GitHub App has one webhook address. Pointing it at a server means pushes stop reaching a laptop's smee relay until
@@ -317,7 +333,9 @@ it's pointed back.
 npm test
 ```
 
-Builds the shared packages and runs every package's tests (669 on 17 Oct 2026, about a minute, no Docker). One package:
+Builds the shared packages and runs every package's tests (about 1 350 in 134 files on 6 Nov 2026, no Docker).
+GitHub runs the build, the tests and the licence check on every push to `main` and every pull request
+(`.github/workflows/ci.yml`). One package:
 `npm test -w @coloc/api`. One file: `npm test -w @coloc/api -- src/houses/exchange.test.ts`. By name:
 `npm test -w @coloc/domain -- -t "tontine"`. If you changed `packages/*`, run `npm run build:packages` first.
 `npm run licences:check` must print `licences OK: no copyleft`.
@@ -361,6 +379,11 @@ It puts `examples/hello` in Jib's room and `examples/memory-hog` in Moussa's 128
 | `COLOC_DEV_AGENT_SECRET`, `COLOC_DEV_HOUSE_DOMAIN` | `dev-secret-change-me`, `coloc.localhost` | Read by the seed and the demo reset: the development houses' key (written by `npm run up`) and their domain |
 | `COLOC_TUTORIAL_REPO`, `COLOC_TUTORIAL_PATH` | the GitHub repo, `examples/hello` | Where the quest's starter page comes from |
 | `COLOC_GITHUB_*` | none | The GitHub App's keys, written by `npm run dev:github-app` |
+| `COLOC_PAYDUNYA_MASTER_KEY`, `COLOC_PAYDUNYA_PRIVATE_KEY`, `COLOC_PAYDUNYA_TOKEN` | off: nobody is offered to buy credit | Buying credit with PayDunya (`credit/paydunya.ts`). On a laptop they go in `dev/.env.paydunya`, which git ignores and which `npm run start -w @coloc/api` reads (`npm run up` doesn't); on a server in `/etc/coloc/paydunya.env`. Use the test keys: the Clé Principale, and the test Clé Privée and Token |
+| `COLOC_PAYDUNYA_LIVE` | off: PayDunya's sandbox, no real money | `1` uses PayDunya's live API with real money. Needs the production keys and an activated business account |
+| `COLOC_ARENA_REPO`, `COLOC_ARENA_JUDGES` | `https://github.com/Djbrl/la-coloc-arena`; `COLOC_ADMINS` | The Arena's public repo, and the GitHub logins that judge it ([arena.md](arena.md)) |
+| `COLOC_SSH_PORT`, `COLOC_SSH_HOST`, `COLOC_SSH_HOST_KEY_FILE`, `COLOC_SSH_BIND` | off; `0.0.0.0` | SSH into rooms: the port, the host name shown on the room page, the host key, and the address it listens on. Off unless the port and key file are set ([ssh-walkthrough.md](ssh-walkthrough.md)) |
+| `COLOC_LANDLORD_AGENT`, `COLOC_LANDLORD_API_URL`, `COLOC_LANDLORD_KEY`, `COLOC_LANDLORD_MAX`, `COLOC_LANDLORD_DOMAIN` | off; `3`, `coloc.localhost` | Start a paid house's caretaker on this machine (see step 6) |
 
 **A caretaker** (it reads no file; set them in the shell):
 
@@ -376,8 +399,6 @@ It puts `examples/hello` in Jib's room and `examples/memory-hog` in Moussa's 128
 | `COLOC_PROXY_CONTAINER`, `COLOC_ROUTE_SETTLE_MS` | `coloc-traefik`, `2000` | Traefik's container, and how long to wait for it to follow a new route |
 | `COLOC_ROOM_INTERNET` | off: rooms are sealed | `1`: rooms can reach the internet (never the other rooms) |
 | `COLOC_ROOM_DISK_MB` | off: rooms are read-only, and run as nobody | Writable disk of this size, and kept files in `/home/your-room` of this size. Needs Docker on XFS with quotas, which `deploy/setup.sh` sets up |
-| `COLOC_PAYDUNYA_MASTER_KEY`, `COLOC_PAYDUNYA_PRIVATE_KEY`, `COLOC_PAYDUNYA_TOKEN` | off: nobody is offered to buy credit | Buying credit with PayDunya (`credit/paydunya.ts`). On a laptop they go in `dev/.env.paydunya`, which git ignores; on a server in `/etc/coloc/paydunya.env`. Use the test keys: the Clé Principale, and the test Clé Privée and Token |
-| `COLOC_PAYDUNYA_LIVE` | off: PayDunya's sandbox, no real money | `1` uses PayDunya's live API with real money. Needs the production keys and an activated business account |
 | `COLOC_BUILD_OFFLINE` | off | `1`: builds get no network |
 | `COLOC_BUILD_SLOTS` | `1` | How many builds run at once on this house |
 | `COLOC_ALLOW_LOCAL_REPOS` | off | Build from `file://` folders: a comma list of exact addresses, or `1` for any. **Development only** |

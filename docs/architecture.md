@@ -1,8 +1,9 @@
 # Architecture
 
-*Rewritten 16 Oct 2026 against the code, updated 17 Oct 2026 after the review fixes. The product's ideas:
-[how-it-works.md](how-it-works.md). Words: [glossary.md](glossary.md). Every library is MIT, Apache, BSD, ISC or
-OFL (contest Art. 6, checked by `npm run licences:check`).*
+*Rewritten 16 Oct 2026 against the code, updated 6 Nov 2026. The product's ideas:
+[how-it-works.md](how-it-works.md). Words: [glossary.md](glossary.md). Every library is under a permissive licence
+(MIT, Apache, BSD, ISC and a few like them; fonts under OFL, the IP-to-country data under CC-BY-4.0), as contest Art. 6
+asks and `npm run licences:check` checks ([licences.md](licences.md)).*
 
 ## The pieces
 
@@ -12,7 +13,7 @@ OFL (contest Art. 6, checked by `npm run licences:check`).*
      │  WebSocket /lobby-ws: the lobby's live line                    │  App installed (via smee in development)
      ▼                                                                ▼
   ┌──────────────────────────── API (apps/api, NestJS) ────────────────────────────┐
-  │ login · houses · knocks · rooms · GitHub · notifications · chat · lobby · tut. │
+  │ login · houses · rooms · GitHub · credit · arena · chat · SSH · lobby · quest  │
   └───────┬──────────────────────────────────────────────────────┬─────────────────┘
           │ Drizzle (packages/db)                                 │ WebSocket /agent (packages/protocol)
           ▼                                                       ▼ the caretaker dials out; a house opens no port
@@ -31,7 +32,8 @@ OFL (contest Art. 6, checked by `npm run licences:check`).*
 | **Caretaker** (`apps/agent`) | Builds each room's project with Docker, runs it with its limits, measures usage, reports back. Plain Node | Each house server |
 | **Traefik** | The front door of a house server: sends `<room>.<house domain>` to the right container | Each house server, in Docker |
 | **GitHub App** | Login, linking repos, reviewers on pull requests, previews, deploy on merge | GitHub |
-| **Caddy** | On a real server, the only public door: the built site, HTTPS for everything, rooms handed to Traefik | The server (`deploy/`) |
+| **Caddy** | On a real server, the only public door: the built site, HTTPS for everything, rooms handed to Traefik | The server (`deploy/`); the live one is a Systalink Datacloud VPS |
+| **PayDunya** | Buying credit in test mode: its hosted checkout takes the payment, the API asks it to confirm | PayDunya |
 | **Vercel + tunnel** | Only for `npm run share`: the site on Vercel, the API on a laptop behind a Cloudflare tunnel | Vercel, Cloudflare |
 
 Choices worth saying to a jury:
@@ -62,8 +64,9 @@ Choices worth saying to a jury:
    at a time per house (`slots.ts`; with no network if `COLOC_BUILD_OFFLINE=1`), and starts a new container with its
    walls (`room-spec.ts`: memory and CPU caps, a limited disk, its own network; see "A room as a small server"). It clones only `https://` repos; a `file://` folder only
    when `COLOC_ALLOW_LOCAL_REPOS` names it (in development, the quest's starter page).
-5. It checks the new container answers, rewrites the room's route file so Traefik sends visitors to it, waits for
-   Traefik to follow, then stops the old one. Nobody sees a gap.
+5. It checks the new container answers, and that something listens on the project's port on more than 127.0.0.1
+   (`listening.ts`, so an app that only listens inside never shows as live). Then it rewrites the room's route file
+   so Traefik sends visitors to it, waits for Traefik to follow, then stops the old one. Nobody sees a gap.
    A room's source can also be `docker://name:tag`: pulled instead of cloned and built, then the same walls. While it
    builds, its lines go back as `deploy_log` batches; the API keeps the latest ones in memory (`agents/logs.broker.ts`)
    and the log window asks `GET .../rooms/:room/build-log?from=N` once a second (`components/room/BuildLog.vue`).
@@ -124,9 +127,16 @@ room's CPU and memory, which feed the bill.
 
 Fake money counted in FCFA, in `apps/api/src/credit/`: `users.credit`, and a `credit_entries` ledger whose unique `key`
 stops anything being charged or paid twice. `GET /api/credit` is your balance and history; `/api/me` carries the balance.
-A server's first month, rent and a project's first time online spend it. A review and first place in the Arena earn it.
-Limits: one server and three projects a person (`houses/money.ts`). Replacing it with real money means swapping
-`houses/payment.ts` and these few calls.
+Everyone starts with 15 000. A server's first month, rent and a project's first time online (1 000) spend it. A review
+(500) and first place in the Arena earn it. Limits: one server, three projects and three rooms a person
+(`houses/money.ts`).
+
+Credit can be bought with PayDunya (`credit/paydunya.ts`, `credit/top-up.ts`), in its test mode unless
+`COLOC_PAYDUNYA_LIVE=1`: 2 000, 5 000 or 10 000 FCFA, by mobile money or card on PayDunya's own page
+(`POST /api/credit/top-up` answers its address). Whether the person comes back (`GET .../top-up/back`) or PayDunya
+sends its notice (`POST .../top-up/notice`, checked against its hash), the API asks PayDunya's confirm call about the
+invoice and adds credit only for a completed one, keyed by the invoice's token, so hearing twice adds nothing. Then it
+pays any rent the person was short of. Without the three PayDunya keys, buying isn't offered.
 
 Rent goes by itself (`houses/rent.ts`): a flatmate's line of the month's bill is taken the moment they move in (a knock
 admitted, an invitation accepted, another room taken, or the server paid for after they joined), then for each new month
@@ -178,7 +188,7 @@ A knock only lists public repos: its link is shown to the house.
 
 We rent out a room of a server, not a deploy button. Deploying is the main use, but a room behaves like a small Linux machine, within these limits.
 
-- **Disk:** writable, 1 GB, with another 1 GB in `/home/your-room` (`COLOC_ROOM_DISK_MB`). When it's full the app gets "no space left", and the neighbours notice nothing. A redeploy starts a new container, so everything resets except `/home/room`. A restart keeps everything.
+- **Disk:** writable, 1 GB, with another 1 GB in `/home/your-room` (`COLOC_ROOM_DISK_MB`). When it's full the app gets "no space left", and the neighbours notice nothing. A redeploy starts a new container, so everything resets except `/home/your-room`. A restart keeps everything.
 - **Who keeps the disk honest:** only XFS with project quotas lets Docker enforce a size per container, so `deploy/setup.sh` puts `/var/lib/docker` on an XFS disk file (`/var/lib/coloc-docker.img`, 85% of the free space).
 - **Kept files belong to a person.** The volume is named after the occupant (`roomHomeVolume`), so the next tenant gets an empty one by construction, even if a lease ended while the server was off. `removeRoom` deletes it when the room empties. A pull request's preview gets no kept files.
 - **Root:** an image runs as the user it asked for, root included, because `userns-remap` makes root in a room user 100000 on the machine. It holds seven rights inside the room (`ROOM_CAPS`): enough for `apt install` or official nginx, nothing touching the kernel or the network. `no-new-privileges`, Docker's seccomp profile and the memory, CPU and process limits stay on. `rootIsRemapped` checks this: without it, the app runs as nobody.
@@ -213,10 +223,30 @@ The gateway only starts with `COLOC_SSH_PORT` and `COLOC_SSH_HOST_KEY_FILE` set.
 ## The chat
 
 Every conversation is a channel in the `messages` table: `house:<id>`, `application:<id>`, `dm:<id>:<id>` (two
-user ids, sorted, so a pair has one channel), `city:<City>` and `post:<id>` (a board post's replies). The rules
-live in `apps/api/src/chat/` (`chat.service.ts`, `board.service.ts`): who reads and writes each channel, blocks,
-reports, and an in-memory brake (`limiter.ts`, a sliding window per person; one API process, so that's enough).
-The web's side is `apps/web/src/components/chat/` and `conversations.ts`.
+user ids, sorted, so a pair has one channel), `city:<City>`, `arena:<City>` and `post:<id>` (a board post's replies).
+The rules live in `apps/api/src/chat/` (`chat.service.ts`, `board.service.ts`): who reads and writes each channel, and
+an in-memory brake (`limiter.ts`, a sliding window per person; one API process, so that's enough). A reply under your
+post or an `@login` in a city's room, its arena or a post's replies rings that person's bell, at most five people a
+message (`notifications/message-news.ts`). The web's side is `apps/web/src/components/chat/` and `conversations.ts`.
+
+Each chat's ⋯ menu leads to `apps/api/src/safety/`. A **block** stops direct messages, invitations and friend requests
+both ways, hides the person's words everywhere, and ends a friendship. A **mute** (a person, or a group chat) silences
+the bell and the unread dot but still shows the words (`mutes.ts`). A **report** of a person, message, post or group
+chat keeps a copy of the words and rings each admin's bell (`COLOC_ADMINS`); nothing happens by itself. Settings lists
+what you blocked and muted (`GET /api/safety`). Nobody is told.
+
+## Friends
+
+A friend request is answered under the bell like an invitation (`notifications.service.ts`, `askFriend`); a yes is one
+`friendships` row per pair. `GET /api/friends` lists friends with how present each one is and the city they walk in,
+taken from the lobby's memory (see the live line above), plus requests waiting both ways.
+
+## Where you start, and sharing a house
+
+At first login the API picks the city nearest the country the address is in (`auth/homeCity.ts`), from DB-IP's
+country file read on this machine. Only the city is kept, never the address. A house's share link opens
+`GET /api/share/house/:id` (`share/share.ts`): a small HTML page with the house, a picture of its city and the preview
+tags chat apps read, since their crawlers run no JavaScript.
 
 ## When the database is down
 
@@ -242,11 +272,12 @@ stops with one sentence per missing piece.
 ## The database
 
 The tables, in `packages/db/src/schema.ts`: `users`, `sessions`, `houses`, `rooms`, `memberships` (who lives where,
-their place in the tontine), `deployments`, `fridge_notes` (house news), `usage_samples`, `applications` and `votes`
-(knocks), `messages` (every chat: houses, knocks, direct, cities, board replies), `board_posts`, `blocks`,
-`chat_reads` (how far you read a conversation), `reports`, `room_secrets`, `repos` (a GitHub repo linked to a room),
-`github_installations` (who installed the GitHub App where, for the repo picker), `chores` (one pull request, one
-reviewer), `bill_payments` and `notifications`. A month's bill is worked out from usage and
+their place in the tontine), `lease_ends`, `house_guests`, `deployments`, `fridge_notes` (house news), `usage_samples`,
+`applications` and `votes` (knocks), `messages` (every chat: houses, knocks, direct, cities, arenas, board replies),
+`board_posts`, `blocks`, `mutes`, `friendships`, `chat_reads` (how far you read a conversation), `reports`,
+`room_secrets`, `repos` (a GitHub repo linked to a room), `github_installations` (who installed the GitHub App where,
+for the repo picker), `chores` (one pull request, one reviewer), `bill_payments`, `credit_entries`, `ssh_keys`,
+`notifications`, and the Arena's `arena_challenges`, `arena_entries`, `arena_submissions` and `arena_awards`. A month's bill is worked out from usage and
 reviews when asked; it is not stored. Who is online lives only in the API's memory. Migrations are in
 `packages/db/drizzle/`, and the API applies new ones when it starts.
 
@@ -260,23 +291,29 @@ reviews. Keeping the table spared a migration. The old `team_*` notifications ar
 apps/
   web/           the website
     src/lobby/       the 3D engine: Lobby.ts, streets (neighbourhood.ts), city looks (cityStyle.ts), passers-by, sounds
-    src/components/  LobbyView.vue (the city screen), lobby/ (cards, panels, minimap, quest), bell/, room/, list/
-    src/pages/       the list view's pages, login, and a style guide (development only)
+    src/components/  LobbyView.vue (the city screen), lobby/ (cards, panels, minimap, quest), bell/, room/, chat/,
+                     friends/, arena/, landing/, list/ (the Dashboard)
+    src/pages/       the landing, login, plain house, room and knock pages, and a style guide (development only)
     src/i18n.ts      English and French words
     public/          3D models (lobby/), install.sh
-  api/src/       the API, one folder per area: auth, houses, doorbell (knocks), rooms, github, agents (caretakers),
-                 notifications, chat (messages, city rooms, the board), lobby, tutorial (the quest), demo,
-                 seed (the example city), core (database down)
+  api/src/       the API, one folder per area: auth, houses (with rent and leases), doorbell (knocks), rooms, github,
+                 agents (caretakers), notifications, chat (messages, city rooms, the board), safety (blocks, mutes,
+                 reports), friends, credit (with PayDunya), arena, ssh, account (leaving), share, lobby,
+                 tutorial (the quest), demo, seed (the example city), core (database down)
   agent/src/     the caretaker: deploy.ts, docker.ts, room-spec.ts (the walls), slots.ts (builds take turns),
-                 proxy.ts (route files), meter.ts
+                 builds.ts (cancelling), recipe.ts, inspect.ts, listening.ts, proxy.ts (route files), inside.ts,
+                 shell.ts (SSH), meter.ts
 packages/
   protocol/      every message between the API and a caretaker, checked with zod
   domain/        pure rules: reviewer rotation, bill split, tontine turn, knock votes
   db/            tables and migrations
 examples/        small apps to put in rooms: hello (the quest's starter page), ndaje, prix-marche, memory-hog
+challenges/      the Arena's challenges, copied to its public repo by scripts/arena-repo.mjs
 dev/             docker-compose.yml (Traefik and Postgres for a laptop), .env.example
+deploy/          setup.sh and push.sh (a whole server), Caddyfile, the systemd units, backups and the disk check
 scripts/         up.mjs (`npm run up`: everything at once), dev-keys.mjs (the laptop's own keys), share.mjs,
-                 github-app.mjs, webhooks.mjs, isolation-demo.sh
+                 github-app.mjs, webhooks.mjs, isolation-demo.sh, arena-repo.mjs, pack-glb.mjs, perf.mjs,
+                 render-landing.mjs
 docs/            these docs
 ```
 
@@ -297,10 +334,9 @@ A good hour of reading: `packages/protocol/src/index.ts` → `apps/agent/src/roo
 
 Planned at the start, not in the code. Each is on [TODO.md](../TODO.md) or was cut:
 
-- A database per room (the "kitchen"), backups, showing a room how much disk it uses, and a second address for a second project in a room.
+- A database per room (the "kitchen"), backups of rooms' kept files, showing a room how much disk it uses, and a second address for a second project in a room.
 - A job queue (pg-boss) and timed jobs: webhooks are handled straight away, and a few timers do the rest.
-- Real payment and a real hosting provider: `houses/payment.ts` simulates the first, `houses/landlord.ts` stands in for the second.
+- Real money and a real hosting provider: PayDunya runs in test mode, `houses/payment.ts` simulates paying for a server, and `houses/landlord.ts` starts each paid house's caretaker on La Coloc's own server instead of buying a machine.
 - gVisor for stronger walls, and more stacks without a Dockerfile (Railpack would replace `recipe.ts` if they pile up).
 - GitHub's Deployments panel (needs one more App permission).
 - `bills` and `listings` tables (a free room's ad is a column on `rooms`).
-- Real payments.

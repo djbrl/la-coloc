@@ -26,8 +26,6 @@ approval first. Details of anything done: [docs/build-notes.md](docs/build-notes
 - **The quest's starter page must be reachable on a real server** · S · **needs Jib**. The caretaker clones without
   credentials, and the default `COLOC_TUTORIAL_REPO` and the seeded rooms point at our private repo. *Done when:* the
   examples live in a public repo (or the repo goes public) and a fresh visitor finishes the quest on the shared site.
-- **Risk review of rooms as small servers** · **needs Jib**. Internet, a writable disk and root inside a room open up
-  abuse, disk and backup risks: see "Risk review" in [docs/todo-jib.md](docs/todo-jib.md). *Done when:* each one is fixed or accepted.
 - **Real people in real rooms** · M · **needs Jib**. Eight of nine houses are examples. *Done when:* at least three
   real people with real repos live in rooms before the peer vote.
 - **The demo video** · M · Jib. About three minutes, opening on the city, in French with English subtitles. A shot

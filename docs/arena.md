@@ -1,4 +1,4 @@
-# The Arena: shared contract (17 Oct 2026)
+# The Arena: shared contract (17 Oct 2026, updated 6 Nov 2026)
 
 Every city (not the tutorial's workshop map) gets a landmark, **the Arena**, a stadium on the block that used to be
 the park. Players gather there, chat in the arena's own room, and take part in **the week's challenge**: a GitHub repo
@@ -25,7 +25,9 @@ README in this repo under `challenges/<slug>/README.md` explaining the task and 
 Points: a submission is a pull request to the arena repo by the submitter (matched by GitHub id, else login ignoring
 case), opened after the week started. **Merged and labelled by the judges** → points (bounties by label: `arena:low`
 10, `arena:medium` 25, `arena:high` 50, `arena:critical` 100; hackathons `arena:entry` 30; challenges `arena:entry`
-20). No `arena:` label → 0 (an ordinary contribution). Open → 0 ("waiting"), closed unmerged → 0. A merge after the
+20). A judge may instead write the label in a comment on the pull request ("LGTM arena:critical"): the API puts that
+label on it and takes off any other `arena:` label, and the `labeled` webhook then scores it (`judgeSays`). No `arena:`
+label → 0 (an ordinary contribution). Open → 0 ("waiting"), closed unmerged → 0. A merge after the
 week's end scores 0. Before a week closes, the API asks GitHub once more about its open pull requests (a few seconds
 at most), so a Sunday-evening merge counts without a webhook.
 
@@ -33,8 +35,9 @@ Rules added after the 17 Oct review (docs: challenges/README.md):
 - **Judges** (`COLOC_ARENA_JUDGES`, else `COLOC_ADMINS`) merge and label; they can't join (`arenaJudge`).
 - **One arena a week**: joining a second city's arena that week is refused (`arenaOtherCity`), so a pull request
   counts in one city.
-- **The prize** (1st place's FCFA) comes off the winner's line of their house bill in the month they win it, paid by
-  La Coloc: `BillLineView.prize`.
+- **The prize** (1st place's FCFA) goes to the winner's credit when the week closes (`closeAndAward`, keyed so it's
+  paid once), and also comes off the winner's line of their house bill in the month they win it, paid by La Coloc:
+  `BillLineView.prize`.
 - **The repo must be public.** `ArenaView.challenge.open` says whether anyone can open the challenge's folder (asked
   without credentials, remembered 10 minutes); when false the panel says it opens soon and offers no join. Use a
   dedicated public repo (`COLOC_ARENA_REPO`) rather than the private product repo.
@@ -113,6 +116,6 @@ unread again. A pull request merged before we ever heard of it, then picked up b
 - `lobby.setArena(display: ArenaDisplay | null)` with
   `ArenaDisplay = { title: string; kind: "bounty" | "hackathon" | "challenge"; endsAt: string; champion: string | null; entrants: number }`
   (already in the chosen language; the big screen redraws at most once a minute).
-- `lobby.goToArena()` walks/travels you to the entrance. Event `onArenaCrowd(n)` when the number of people
+- `lobby.goToArena()` walks/travels you to the entrance. Event `onArenaCrowd(n, you)` when the number of people
   (you, others online, passers-by) inside the arena changes.
 - Name tags show the badge: a small chip with a trophy and the title, gold/silver/bronze by place, next to the name.

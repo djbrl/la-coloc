@@ -1,10 +1,10 @@
 # SSH into a room, end to end
 
-*Written 3 Nov 2026 against the code on `house-room-ui`. A study guide for the jury. If it disagrees with the code, the code is right.*
+*Written 3 Nov 2026 against the code on `house-room-ui`; line numbers checked again on 6 Nov 2026 against `main`. A study guide for the jury. If it disagrees with the code, the code is right.*
 
 ## 1. The story
 
-Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's own SSH: it's our API, speaking SSH through the `ssh2` library. The API reads the name as room `djbrl` in house `sacre-coeur`, looks up who may enter that room (only the person who lives in it), and checks that Awa's key is one of theirs and that she really holds it. Then it asks the house's caretaker, over the WebSocket the caretaker already keeps open, to open a shell. The caretaker runs `docker exec` in the room's running container, so Awa lands inside the project with its user, disk, network and limits, never on the server. Keystrokes go one way, output comes back in small pieces, paced so a fast command can't flood a slow connection. When she leaves, the caretaker hangs up on what she started.
+Awa types `ssh -p 2222 awa.sacre-coeur@<host>`. Port 2222 isn't the machine's own SSH: it's our API, speaking SSH through the `ssh2` library. The API reads the name as room `awa` in house `sacre-coeur`, looks up who may enter that room (only the person who lives in it), and checks that Awa's key is one of theirs and that she really holds it. Then it asks the house's caretaker, over the WebSocket the caretaker already keeps open, to open a shell. The caretaker runs `docker exec` in the room's running container, so Awa lands inside the project with its user, disk, network and limits, never on the server. Keystrokes go one way, output comes back in small pieces, paced so a fast command can't flood a slow connection. When she leaves, the caretaker hangs up on what she started.
 
 ## 2. The hops
 
@@ -31,7 +31,7 @@ Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's 
 
 ## 3. File by file, in the order a connection passes
 
-**`deploy/setup.sh`** opens 2222 (`:24-25`; the server's own sshd stays on 22, keys only, `:27`), makes an ed25519 host key once in `/etc/coloc` (`:116-118`) and writes `COLOC_SSH_PORT`, `COLOC_SSH_HOST`, `COLOC_SSH_HOST_KEY_FILE` (`:138-140`).
+**`deploy/setup.sh`** opens 2222 (`:54-55`; the server's own sshd stays on 22, keys only, `:57-58`), makes an ed25519 host key once in `/etc/coloc` (`:147-148`) and writes `COLOC_SSH_PORT`, `COLOC_SSH_HOST`, `COLOC_SSH_HOST_KEY_FILE` (`:170-172`).
 
 **`apps/api/src/ssh/ssh.gateway.ts`** is the door. `onModuleInit` (`:45-50`) starts it only if port and key file are set; `listen` (`:53-63`). `welcome` (`:69-112`) drops over-limit connections (`:71`), gives 20 s to log in (`:77`), and closes a login with no session after 2 min (`:100`). `check` (`:118-130`) does the key test. `session` (`:132-153`) takes `pty`, `window-change`, `shell`, `exec` and refuses `subsystem` (sftp). `run` (`:155-229`) opens the shell, enforces 4 per person / 40 per server (`:173`), the 30 min idle timer (`:177-185`), acks output (`:192`), turns reasons into messages (`:194-203`) and re-checks access every 60 s (`:207-217`).
 
@@ -47,7 +47,7 @@ Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's 
 
 **`apps/agent/src/shell.ts`** opens the shell. `start` (`:53-89`) finds the running prod container, `exec`s `shellCommand` (`:19-22`) with `HOME` set to the room's kept folder and the terminal size. The command first writes its process number to `/tmp/.coloc-shell-<id>` (`pidFile`, `:23`). Input sent before the shell is ready waits (`when`, `:104-108`). `relay` (`:158-194`) sends output in 48 KB base64 pieces, pauses at 1 MB unacknowledged (`:172`); `ack` (`:110-115`) resumes below 256 KB. `close` (`:123-131`) and `finish` (`:196-209`) run `stopCommand`, a `kill -HUP` on that process group (`:25-31`). `sweep` (`:139-147`) does it for every leftover shell after a crash.
 
-**Web.** `rooms.service.ts:101-106` puts `ssh: { host, port, user }` in the room page for its occupant only, never the chef, another flatmate, or an example room or house; `rooms.controller.ts:99-104` adds who's in. `room.ts:71` `sshLine` builds the command. `RoomOverview.vue:157-169` is the tile with faces; `RoomSsh.vue` is the tab: the line, Copy, your keys, paste, "Use my GitHub keys", and a GitHub import the first time it opens (`:77-84`).
+**Web.** `rooms.service.ts:100-107` puts `ssh: { host, port, user }` in the room page for its occupant only, never the chef, another flatmate, or an example room or house; `rooms.controller.ts:99-104` adds who's in. `room.ts:71` `sshLine` builds the command. `RoomOverview.vue:157-161` is the SSH row: the line, or the names of who's in; `RoomSsh.vue` is the tab: the line, Copy, your keys, paste, "Use my GitHub keys", and a GitHub import the first time it opens (`:80-83`).
 
 ## 4. Security decisions, and why
 
@@ -71,7 +71,7 @@ Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's 
 
 1. **Why not a real sshd in each container?** Rooms run any image; `docker exec` only needs `/bin/sh`. No port per room, keys in one database, access checked live.
 2. **Why 2222?** 22 is the machine's own SSH for admins. Two programs can't share a port.
-3. **Two people at once?** Each gets their own `docker exec` and shell id, in the same container and files. Both show on the Overview tile.
+3. **Two shells at once?** Only the occupant gets in, with up to four shells. Each gets its own `docker exec` and shell id, in the same container and files. The Overview's SSH row says who's in.
 4. **What happens on a restart?** API restart: every SSH connection drops; the caretaker reconnects and hangs up the old shells. Caretaker restart: the API tells the person "The line to the house's server dropped.", and the new caretaker sweeps leftover shells.
 5. **And a redeploy?** The shell lives in the old container; when it goes, the stream ends and the session closes.
 6. **How is the host key kept?** Made once by `setup.sh` in `/etc/coloc`, mode 640, owner root, group coloc, never regenerated, so `known_hosts` never warns. Not in git.
@@ -87,15 +87,14 @@ Awa types `ssh -p 2222 djbrl.sacre-coeur@<host>`. Port 2222 isn't the machine's 
 ## 6. Two-minute demo
 
 1. (20 s) A live room I live in, SSH tab: "one line, and my keys, from my GitHub."
-2. (20 s) Copy, paste in a terminal. "The API checks my key against this room's people." Show `whoami`, `pwd`, `ls project`.
-3. (20 s) Back in the browser, the Overview tile shows my face: "it knows who's in."
+2. (20 s) Copy, paste in a terminal. "The API checks my key against this room's occupant." Show `whoami`, `pwd`, `ls project`.
+3. (20 s) Back in the browser, the Overview's SSH row shows my name: "it knows who's in."
 4. (20 s) `ssh -p 2222 nope.sacre-coeur@<host>`: `Permission denied (publickey)`. "Same answer for a room that doesn't exist and a key that's wrong."
 5. (20 s) `sftp -P 2222 <room>.<house>@<host>`: refused. "Shell only."
 6. (20 s) `seq 1 10000000` then Ctrl-C. "Output is paced: the caretaker pauses above 1 MB." `exit`: "what I started stops, unless `nohup`."
 
 ## Doc mismatches
 
-- `architecture.md` says example rooms have no way in; the page also hides SSH in example *houses* (`rooms.service.ts:110`), but the door only checks `room.demo` (`ssh.service.ts:107`), not `house.demo`.
+- `architecture.md` says example rooms have no way in; the page also hides SSH in example *houses* (`rooms.service.ts:102`), but the door only checks `room.demo` (`ssh.service.ts:107`), not `house.demo`.
 - "Every refusal reads the same, so nobody can use it to find out which rooms exist": true for refusals, but the "you may sign" answer (`ssh.gateway.ts:126`) and timing can reveal it to someone holding a public key.
 - "A login that opens no shell closes after 2 min": the timer stops when a *session* opens (`ssh.gateway.ts:104`), even if no shell or command is ever asked for. Such a session then has no idle limit.
-- `agents/shell.broker.ts` is at `apps/api/src/agents/shell.broker.ts`.

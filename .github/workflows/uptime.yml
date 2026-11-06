@@ -1,0 +1,30 @@
+# The uptime alarm: every 10 minutes, GitHub asks the live city whether it's up (its page, and /api/health, which also
+# checks the database). Two failures a minute apart send one line to the phone through ntfy (secret COLOC_ALERT_URL,
+# https://ntfy.sh/<a topic only Jib knows>, the same one the server's disk check uses). GitHub may run it a few
+# minutes late; it's an alarm, not a stopwatch.
+name: Uptime
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Is the city up?
+        env:
+          SITE: https://coloc.194-62-97-180.sslip.io
+          ALERT: ${{ secrets.COLOC_ALERT_URL }}
+        run: |
+          up() { curl -fsS -m 20 -o /dev/null "$SITE/" && curl -fsS -m 20 -o /dev/null "$SITE/api/health"; }
+          if up; then echo "up"; exit 0; fi
+          sleep 60
+          if up; then echo "up on the second try"; exit 0; fi
+          echo "down"
+          if [ -n "$ALERT" ]; then
+            curl -fsS -m 20 -H "Title: La Coloc is down" -H "Priority: high" -d "$SITE didn't answer twice in a minute." "$ALERT"
+          fi
+          exit 1
