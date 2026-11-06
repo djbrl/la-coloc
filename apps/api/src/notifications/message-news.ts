@@ -5,9 +5,12 @@
 // author you blocked is, for you, not there: its replies and mentions don't reach you. A person gets one line per
 // kind and place, not one per message: notifications.service.ts updates their unread one instead of adding another.
 //
+// Someone who muted the one writing, or the group chat it was said in (safety/mutes.ts), hears nothing either.
+//
 // The city's room itself tells nobody: the chat's tabs count what's new there (chat.service.ts, `cityUnread`).
 import { blocks, boardPosts, type Db, messages, type NotificationKind, users } from "@coloc/db";
 import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { whoMuted } from "../safety/mutes";
 
 // The most people one message can mention: enough to call a few friends over, not to ping a whole city.
 export const MAX_MENTIONS = 5;
@@ -75,5 +78,6 @@ export async function messageNews(db: Db, channel: string, messageId: number, au
       ),
     );
   const apart = new Set(rows.map((r) => (ids.includes(r.blockerId) ? r.blockerId : r.blockedId)));
-  return others.filter((n) => !apart.has(n.userId));
+  const quiet = await whoMuted(db, ids, authorId, channel);
+  return others.filter((n) => !apart.has(n.userId) && !quiet.has(n.userId));
 }

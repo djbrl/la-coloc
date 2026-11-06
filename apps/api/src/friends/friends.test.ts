@@ -12,6 +12,7 @@ import { HousesService } from "../houses/houses.service";
 import type { LobbyGateway } from "../lobby/lobby.gateway";
 import { Presence } from "../lobby/presence";
 import { NotificationsService } from "../notifications/notifications.service";
+import { SafetyService } from "../safety/safety.service";
 import { seedCity } from "../seed/city";
 import { FriendsService } from "./friends.service";
 
@@ -66,6 +67,8 @@ async function status(p: Promise<unknown>): Promise<number | "ok"> {
 }
 
 const ask = (from: string, to: string) => service.askFriend(ids[from], to);
+// Blocking is the safety service's (safety/safety.service.ts).
+const safetyOf = () => new SafetyService(db, new HousesService(db), service, { admins: [] });
 const logins = async (who: string) => (await friends.list(ids[who])).friends.map((f) => f.login).sort();
 // Lets the async subscriber of statusChanges finish its queries.
 const settle = () => new Promise((r) => setTimeout(r, 20));
@@ -156,14 +159,14 @@ describe("friends and blocks", () => {
   it("blocking a friend ends the friendship, and a waiting request", async () => {
     await service.accept(ids.sam, (await ask("fatou", "sam")).id);
     const { id } = await ask("kofi", "fatou");
-    await chat.block(ids.fatou, "sam");
-    await chat.block(ids.fatou, "kofi");
+    await safetyOf().block(ids.fatou, "sam");
+    await safetyOf().block(ids.fatou, "kofi");
     expect(await logins("fatou")).toEqual([]);
     expect(await logins("sam")).toEqual([]);
     const [n] = await db.select().from(notifications).where(eq(notifications.id, id));
     expect(n.state).toBe("expired");
     // Unblocking doesn't bring it back.
-    await chat.unblock(ids.fatou, "sam");
+    await safetyOf().unblock(ids.fatou, "sam");
     expect(await logins("fatou")).toEqual([]);
   });
 });

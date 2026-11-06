@@ -427,6 +427,8 @@ export type NotificationKind =
   // Someone asks to be your friend (answered like an invitation), then friend_accepted tells them you said yes.
   | "friend_request"
   | "friend_accepted"
+  // For the admins: someone reported a person, a message, a post or a group chat (`report`).
+  | "report"
   // Rent, taken from your credit when you move in and every month after (`amount`, `month`), or due for want of it.
   | "rent_paid"
   | "rent_due"
@@ -454,6 +456,8 @@ export interface Notice {
   // The Arena (arena_merged, arena_closed): the pull request, the city's challenge, and the points it got (label: the
   // arena:* label that gave them, or null).
   arena?: { city: string; url: string; number: number; title: string | null; points: number; label: string | null };
+  // A report, for the admins: what kind, who it's about (none for a group chat), and its first words.
+  report?: { kind: "message" | "post" | "person" | "group"; about: string | null; excerpt: string } | null;
   createdAt: string;
   read: boolean;
 }
@@ -491,7 +495,9 @@ export interface Friends {
 export interface ConversationItem {
   with: Person;
   last: { body: string; at: string; mine: boolean };
+  // None while you've muted them (`muted`).
   unread: number;
+  muted?: boolean;
 }
 
 export interface Conversations {
@@ -503,9 +509,24 @@ export interface Conversations {
 export interface Conversation {
   with: Person & { example: boolean };
   blocked: boolean;
+  muted?: boolean;
   canWrite: boolean;
   why: string | null;
   messages: Message[];
+}
+
+/** A group chat you muted: a city's room, its Arena's, or a house's living room. */
+export interface MutedGroup {
+  channel: string;
+  place: "city" | "arena" | "house";
+  name: string;
+}
+
+/** What you blocked and muted (GET /api/safety, apps/api/src/safety): Settings lists it, each with its way back. */
+export interface SafetyView {
+  blocked: Person[];
+  muted: Person[];
+  groups: MutedGroup[];
 }
 
 /** A post on a city's board. */

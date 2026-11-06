@@ -11,6 +11,8 @@ import type { AuthService } from "../auth/auth.service";
 import { DoorbellService } from "../doorbell/doorbell.service";
 import { HousesService } from "../houses/houses.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { SafetyController } from "../safety/safety.controller";
+import { SafetyService } from "../safety/safety.service";
 import { seedCity } from "../seed/city";
 import { BoardService } from "./board.service";
 import { dmChannel } from "./channels";
@@ -24,6 +26,8 @@ let doorbell: DoorbellService;
 let chat: ChatService;
 let board: BoardService;
 let controller: ChatController;
+let safety: SafetyService;
+let safetyController: SafetyController;
 let pushed: string[];
 let changes: string[];
 let as: string | null;
@@ -55,6 +59,8 @@ beforeEach(async () => {
     config: loadAuthConfig({ COLOC_ADMINS: "admin" }),
   } as unknown as AuthService;
   controller = new ChatController(chat, board, auth);
+  safety = new SafetyService(db, houses, notifications, auth.config);
+  safetyController = new SafetyController(safety, auth);
   for (const u of await db.query.users.findMany()) ids[u.login] = u.id;
   // Two newcomers and an admin, with real GitHub accounts; Awa of Sacré-Cœur logged in with GitHub too.
   await newcomer("fatou", 101);
@@ -165,7 +171,7 @@ describe("direct messages", () => {
 describe("blocking", () => {
   it("stops direct messages both ways, and hides the conversation for the one who blocked", async () => {
     await chat.sendDm(ids.fatou, "sam", "hi");
-    await chat.block(ids.sam, "fatou");
+    await safety.block(ids.sam, "fatou");
     expect(await status(chat.sendDm(ids.fatou, "sam", "hello?"))).toBe(403);
     expect(await status(chat.sendDm(ids.sam, "fatou", "bye"))).toBe(403);
     expect((await chat.conversations(ids.sam)).items).toEqual([]);
@@ -173,9 +179,9 @@ describe("blocking", () => {
     expect(forSam).toMatchObject({ blocked: true, canWrite: false, messages: [] });
     const forFatou = await chat.conversation(ids.fatou, "sam");
     expect(forFatou).toMatchObject({ blocked: false, canWrite: false });
-    expect((await chat.blocks(ids.sam)).people.map((p) => p.login)).toEqual(["fatou"]);
+    expect((await safety.blocks(ids.sam)).people.map((p) => p.login)).toEqual(["fatou"]);
 
-    await chat.unblock(ids.sam, "fatou");
+    await safety.unblock(ids.sam, "fatou");
     expect(await status(chat.sendDm(ids.fatou, "sam", "friends again?"))).toBe("ok");
   });
 
@@ -184,8 +190,8 @@ describe("blocking", () => {
     await chat.postToCity("Dakar", ids.sam, "Salut");
     const { id } = await board.create("Dakar", ids.fatou, { tag: "help", title: "Docker?", body: "Help" });
     await doorbell.postToHouse("sacre-coeur", ids.jib, "Hello house");
-    await chat.block(ids.sam, "fatou");
-    await chat.block(ids.awa, "jib");
+    await safety.block(ids.sam, "fatou");
+    await safety.block(ids.awa, "jib");
     expect((await chat.cityChat("Dakar", ids.sam)).messages.map((m) => m.body)).toEqual(["Salut"]);
     expect((await chat.cityChat("Dakar", ids.awa)).messages.map((m) => m.body)).toEqual(["Bonjour Dakar", "Salut"]);
     expect((await chat.cityChat("Dakar", null)).messages).toHaveLength(2);
@@ -196,7 +202,7 @@ describe("blocking", () => {
   });
 
   it("needs a login", async () => {
-    expect(await status(controller.block({ login: "fatou" }, req))).toBe(401);
+    expect(await status(safetyController.block({ login: "fatou" }, req))).toBe(401);
   });
 });
 
@@ -329,14 +335,14 @@ describe("reporting", () => {
     const m = await chat.postToCity("Dakar", ids.fatou, "something rude");
     const p = await board.create("Dakar", ids.fatou, { tag: "other", title: "Rude", body: "post" });
     as = "sam";
-    expect(await status(controller.report({ kind: "message", id: m.id, reason: "rude" }, req))).toBe("ok");
-    expect(await status(controller.report({ kind: "message", id: m.id }, req))).toBe("ok");
-    expect(await status(controller.report({ kind: "post", id: p.id }, req))).toBe("ok");
+    expect(await status(safetyController.report({ kind: "message", id: m.id, reason: "rude" }, req))).toBe("ok");
+    expect(await status(safetyController.report({ kind: "message", id: m.id }, req))).toBe("ok");
+    expect(await status(safetyController.report({ kind: "post", id: p.id }, req))).toBe("ok");
     expect(await db.select().from(reports)).toHaveLength(2);
 
-    expect(await status(controller.reports(req))).toBe(403);
+    expect(await status(safetyController.reports(req))).toBe(403);
     as = "admin";
-    const { reports: list } = await controller.reports(req);
+    const { reports: list } = await safetyController.reports(req);
     expect(list.map((r) => [r.kind, r.reporter, r.author, r.body])).toEqual(
       expect.arrayContaining([
         ["message", "sam", "fatou", "something rude"],
@@ -348,13 +354,13 @@ describe("reporting", () => {
   it("only reaches what you can read, and not your own words", async () => {
     await chat.sendDm(ids.fatou, "sam", "private");
     const [dm] = await db.select().from(messages).where(eq(messages.channel, dmChannel(ids.fatou, ids.sam)));
-    expect(await status(chat.report(ids.awa, { kind: "message", id: String(dm.id) }))).toBe(404);
-    expect(await status(chat.report(ids.sam, { kind: "message", id: String(dm.id) }))).toBe("ok");
-    expect(await status(chat.report(ids.fatou, { kind: "message", id: String(dm.id) }))).toBe(400);
-    expect(await status(chat.report(ids.sam, { kind: "message", id: "999999" }))).toBe(404);
-    expect(await status(chat.report(ids.sam, { kind: "post", id: "not-a-post" }))).toBe(404);
+    expect(await status(safety.report(ids.awa, { kind: "message", id: String(dm.id) }))).toBe(404);
+    expect(await status(safety.report(ids.sam, { kind: "message", id: String(dm.id) }))).toBe("ok");
+    expect(await status(safety.report(ids.fatou, { kind: "message", id: String(dm.id) }))).toBe(400);
+    expect(await status(safety.report(ids.sam, { kind: "message", id: "999999" }))).toBe(404);
+    expect(await status(safety.report(ids.sam, { kind: "post", id: "not-a-post" }))).toBe(404);
     as = null;
-    expect(await status(controller.report({ kind: "message", id: String(dm.id) }, req))).toBe(401);
+    expect(await status(safetyController.report({ kind: "message", id: String(dm.id) }, req))).toBe(401);
   });
 });
 

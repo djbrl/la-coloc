@@ -25,6 +25,7 @@ const fr: Record<string, (r: Refusal) => string> = {
   theyBlocked: () => "Cette personne n'accepte pas vos messages.",
   noMessage: () => "Ce message n'existe pas.",
   noPost: () => "Cette annonce n'existe pas.",
+  noGroup: () => "Cette discussion de groupe n'existe pas.",
   noReply: () => "Cette réponse n'existe pas.",
   onlyAuthorPost: () => "Seul son auteur peut supprimer une annonce.",
   onlyAuthorReply: () => "Seul son auteur peut supprimer une réponse.",

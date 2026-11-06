@@ -462,6 +462,9 @@ export type NotificationKind =
   // never sent back).
   | "friend_request"
   | "friend_accepted"
+  // Someone reported a person, a message, a post or a group chat (apps/api/src/safety): each admin (COLOC_ADMINS)
+  // hears of it, with what was reported in the payload.
+  | "report"
   // Rent (apps/api/src/houses/rent.ts): your share of a house's month was taken from your credit, or it couldn't be
   // because your credit is too low (once a month; topping up pays it). The amount and month are in the payload.
   | "rent_paid"
@@ -484,6 +487,8 @@ export interface NotificationPayload {
   // Rent: how much, in whole FCFA, and for which month ("2026-11").
   amount?: number;
   month?: string;
+  // A report, for the admins: what kind, who it's about (a login; none for a group chat), and its first words.
+  report?: { kind: ReportKind; about: string | null; excerpt: string };
   // An Arena pull request (arena_merged, arena_closed): which one, in which city's challenge, and what it scored.
   arena?: ArenaNews;
 }
@@ -531,6 +536,20 @@ export const blocks = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] })],
+);
+
+// Someone muted a person or a group chat: no bell and no unread dot from them any more, though their words still
+// show. A row is about a person (`mutedId`) or a group chat's channel ("city:Dakar", "house:<id>", "arena:Dakar"),
+// never both (apps/api/src/safety). Nobody is told.
+export const mutes = pgTable(
+  "mutes",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    mutedId: uuid("muted_id").references(() => users.id, { onDelete: "cascade" }),
+    channel: text("channel"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("mutes_person").on(t.userId, t.mutedId), uniqueIndex("mutes_channel").on(t.userId, t.channel)],
 );
 
 // Two people who said yes to being friends: they see each other's status (online, idle, away) and city in their
@@ -581,19 +600,20 @@ export const boardPosts = pgTable(
   (t) => [index("board_posts_city_active").on(t.city, t.activeAt)],
 );
 
-export type ReportKind = "message" | "post";
+export type ReportKind = "message" | "post" | "person" | "group";
 
-// Someone reported a message or a board post. A copy of the words is kept, so the report still says what was
-// written once the original is deleted. The admins (COLOC_ADMINS) read the list; nothing happens by itself.
+// Someone reported a message, a board post, a person or a group chat. A copy of the words is kept (a message's, a
+// post's, or a group chat's last lines), so the report still says what was written once the original is deleted. The
+// admins (COLOC_ADMINS) hear of it under their bell and read the list; nothing happens by itself.
 export const reports = pgTable(
   "reports",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     reporterId: uuid("reporter_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     kind: text("kind").$type<ReportKind>().notNull(),
-    // A message's id, or a post's.
+    // A message's id, a post's, a person's user id, or a group chat's channel.
     targetId: text("target_id").notNull(),
-    // Where it was said: a message's channel, or "city:<City>" for a post.
+    // Where it was said: a message's channel, "city:<City>" for a post, the group chat itself, or "" for a person.
     channel: text("channel").notNull(),
     authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
     body: text("body").notNull(),

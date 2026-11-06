@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { badge, boardTabs, chatTabs, linkParts, messageAction, pickTab, shownNews, stripBidi } from "./chat";
+import { badge, boardTabs, chatTabs, linkParts, messageAction, messageParts, pickTab, shownNews, stripBidi } from "./chat";
 
 describe("the chat sheet's tabs", () => {
   it("are your messages, plus the house when you have one; a visitor gets messages, to be asked to log in", () => {
@@ -105,5 +105,34 @@ describe("what a link shows", () => {
     const parts = linkParts("get https://evil.example/‮fdp.exe ⁦now⁩‏");
     expect(parts.map((p) => p.text).join("")).toBe("get https://evil.example/fdp.exe now");
     expect(stripBidi("a‪b‬c‎d")).toBe("abcd");
+  });
+});
+
+describe("mentions in a message", () => {
+  it("mark each @login, and yours apart, whatever the case", () => {
+    expect(messageParts("salut @Sam et @fatou !", "fatou")).toEqual([
+      { text: "salut " },
+      { text: "@Sam", mention: "sam" },
+      { text: " et " },
+      { text: "@fatou", mention: "fatou", me: true },
+      { text: " !" },
+    ]);
+    expect(messageParts("@FATOU", "Fatou")).toEqual([{ text: "@FATOU", mention: "fatou", me: true }]);
+  });
+
+  it("leave email addresses, words and links alone", () => {
+    expect(messageParts("write to sam@coloc.dev", null)).toEqual([{ text: "write to sam@coloc.dev" }]);
+    expect(messageParts("a@b", null)).toEqual([{ text: "a@b" }]);
+    expect(messageParts("see https://x.dev/@sam then @awa", null)).toEqual([
+      { text: "see " },
+      { text: "https://x.dev/@sam", href: "https://x.dev/@sam" },
+      { text: " then " },
+      { text: "@awa", mention: "awa" },
+    ]);
+  });
+
+  it("is plain text when nobody is mentioned, and a lone @ stays text", () => {
+    expect(messageParts("hello @ everyone", "sam")).toEqual([{ text: "hello @ everyone" }]);
+    expect(messageParts("", "sam")).toEqual([]);
   });
 });

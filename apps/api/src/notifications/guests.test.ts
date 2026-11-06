@@ -6,7 +6,7 @@ import { testDb } from "@coloc/db/dist/testing";
 import { HttpException } from "@nestjs/common";
 import { and, eq, isNull } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { ChatService } from "../chat/chat.service";
+import { SafetyService } from "../safety/safety.service";
 import { DoorbellService } from "../doorbell/doorbell.service";
 import { guestStanding, GUEST_ASK_MS, GUEST_NO_MS } from "../houses/guests";
 import { HousesService } from "../houses/houses.service";
@@ -164,13 +164,13 @@ describe("leaving the chat", () => {
   });
 });
 
-describe("reading a guest's channel through the chat service", () => {
+describe("reading a guest's channel through the safety service", () => {
   it("opens the house's channel to a guest only", async () => {
-    const chat = new ChatService(db, houses, service) as unknown as { canRead(channel: string, userId: string): Promise<boolean> };
+    const safety = new SafetyService(db, houses, service, { admins: [] }) as unknown as { canRead(channel: string, userId: string): Promise<boolean> };
     await service.askToChat(ids.fatou, HOUSE);
-    expect(await chat.canRead(`house:${HOUSE}`, ids.fatou)).toBe(false);
+    expect(await safety.canRead(`house:${HOUSE}`, ids.fatou)).toBe(false);
     await service.accept(ids.jib, (await theAsk("jib")).id);
-    expect(await chat.canRead(`house:${HOUSE}`, ids.fatou)).toBe(true);
+    expect(await safety.canRead(`house:${HOUSE}`, ids.fatou)).toBe(true);
   });
 });
 

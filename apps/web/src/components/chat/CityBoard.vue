@@ -16,7 +16,8 @@ import ChatPanel from "../ChatPanel.vue";
 import Icon from "../lobby/house/Icon.vue";
 import { noteWhen } from "../lobby/house/notes";
 import ListRow from "../lobby/panel/ListRow.vue";
-import { BOARD_TAGS, type BoardTag, linkParts, MAX_MESSAGE, MAX_POST, MAX_TITLE, stripBidi } from "./chat";
+import { BOARD_TAGS, type BoardTag, MAX_MESSAGE, MAX_POST, MAX_TITLE, stripBidi } from "./chat";
+import SaidText from "./SaidText.vue";
 import { chatWords as w } from "./words";
 
 const posts = ref<BoardPost[]>([]);
@@ -137,6 +138,17 @@ async function submit() {
   boardSheet.post = sent.data.id;
 }
 
+// Left and right (or up and down) move the kind, and the focus with it, as in any radio group.
+function kindKey(e: KeyboardEvent) {
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (step === undefined) return;
+  e.preventDefault();
+  const to = (BOARD_TAGS.indexOf(tag.value) + step + BOARD_TAGS.length) % BOARD_TAGS.length;
+  tag.value = BOARD_TAGS[to];
+  const group = e.currentTarget as HTMLElement;
+  void nextTick(() => group.querySelectorAll<HTMLButtonElement>("[role=radio]")[to]?.focus());
+}
+
 // Ctrl or Cmd + Enter posts from the body; Enter alone is a new line there.
 function bodyKey(e: KeyboardEvent) {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void submit();
@@ -185,15 +197,30 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
         <button type="button" class="icon-key" :aria-label="w.back" @click="back"><Icon name="back" :size="18" /></button>
         <h3>{{ w.newPost }}</h3>
       </div>
-      <div class="tags" role="radiogroup" :aria-label="w.tagName">
-        <button v-for="t in BOARD_TAGS" :key="t" type="button" role="radio" class="tag-pick" :aria-checked="tag === t" @click="tag = t">
-          <Icon :name="tagIcon[t]" :size="15" />{{ w.tags[t] }}
+      <!-- What it's about: one row of icons on a grey rail, the chosen one in white with its word. -->
+      <div class="kinds" role="radiogroup" :aria-label="w.tagName" @keydown="kindKey">
+        <button
+          v-for="t in BOARD_TAGS"
+          :key="t"
+          type="button"
+          role="radio"
+          class="kind"
+          :aria-checked="tag === t"
+          :aria-label="w.tags[t]"
+          :title="w.tags[t]"
+          :tabindex="tag === t ? 0 : -1"
+          @click="tag = t"
+        >
+          <Icon :name="tagIcon[t]" :size="18" /><span v-if="tag === t" class="kind-word" aria-hidden="true">{{ w.tags[t] }}</span>
         </button>
       </div>
-      <input ref="titleEl" v-model="title" :placeholder="w.title" :aria-label="w.title" :maxlength="MAX_TITLE" />
-      <textarea v-model="body" :placeholder="w.body" :aria-label="w.body" :maxlength="MAX_POST" rows="5" @keydown="bodyKey" />
-      <p v-if="error" class="error small" role="alert">{{ error }}</p>
-      <button class="primary" :disabled="busy">{{ w.post }}</button>
+      <input ref="titleEl" v-model="title" class="field" :placeholder="w.title" :aria-label="w.title" :maxlength="MAX_TITLE" />
+      <textarea v-model="body" class="field grow-field" :placeholder="w.body" :aria-label="w.body" :maxlength="MAX_POST" rows="5" @keydown="bodyKey" />
+      <div class="foot">
+        <p v-if="error" class="error small" role="alert">{{ error }}</p>
+        <button type="button" class="quiet" @click="back">{{ w.cancel }}</button>
+        <button class="primary" :disabled="busy">{{ w.post }}</button>
+      </div>
     </form>
 
     <!-- One post and its replies. -->
@@ -214,7 +241,7 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
       <article class="post">
         <h3>{{ stripBidi(open.post.title) }}</h3>
         <p class="by soft small"><Avatar :person="open.post.author" :size="20" decorative />{{ w.by(nameOf(open.post), noteWhen(open.post.createdAt)) }}<BadgeChip v-if="open.post.author.badge" :badge="open.post.author.badge" /></p>
-        <p class="text"><template v-for="(part, i) in linkParts(open.post.body)" :key="i"><a v-if="part.href" :href="part.href" target="_blank" rel="noopener noreferrer nofollow ugc">{{ part.text }}</a><template v-else>{{ part.text }}</template></template></p>
+        <p class="text"><SaidText :text="open.post.body" :me="me?.login ?? null" /></p>
       </article>
       <p v-if="error" class="error small" role="alert">{{ error }}</p>
       <ChatPanel
@@ -293,14 +320,21 @@ const nameOf = (p: BoardPost) => p.author.name ?? p.author.login;
 .post h3 { margin: 0; font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
 .by { margin: 0; display: flex; align-items: center; gap: 6px; }
 .text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
-.text a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-/* Writing a post: the tags on a grey rail (the chosen one in white, as a tab), then the two fields and the button. */
-.compose { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
-.tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: var(--tile-r); background: var(--sunken); }
-.tag-pick { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 0 10px; border-radius: 10px; background: transparent; color: var(--muted); box-shadow: none; font: 800 14px/1.1 var(--font); }
-.tag-pick:hover:not(:disabled) { background: transparent; color: var(--text); }
-.tag-pick[aria-checked="true"], .tag-pick[aria-checked="true"]:hover:not(:disabled) { background: var(--surface); color: var(--text); box-shadow: 0 2px 0 rgba(23, 21, 26, 0.14); }
-.compose input, .compose textarea { width: 100%; border-radius: 12px; }
-.compose textarea { resize: vertical; min-height: 96px; font: inherit; }
-.compose > .primary { align-self: flex-end; }
+/* Writing a post: the kind on one grey rail, the title, what to say (it takes the room left), then Cancel and Post on
+   one line at the bottom. Padded inside its scroll, so a focused field's ring isn't cut. */
+.compose { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding: 6px; margin: -6px; }
+.kinds { flex: none; display: flex; gap: 4px; padding: 4px; min-width: 0; border-radius: var(--tile-r); background: var(--sunken); }
+.kind { flex: 0 0 44px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 0; min-height: 40px; padding: 0 10px; border-radius: 10px; background: transparent; color: var(--muted); box-shadow: none; font: 800 14px/1.1 var(--font); }
+.kind:hover:not(:disabled) { background: transparent; color: var(--text); }
+.kind:focus-visible { outline-offset: -3px; }
+/* The chosen kind takes the rest of the rail, with its word. */
+.kind[aria-checked="true"], .kind[aria-checked="true"]:hover:not(:disabled) { flex: 1 1 auto; justify-content: flex-start; background: var(--surface); color: var(--text); box-shadow: 0 2px 0 rgba(23, 21, 26, 0.14); }
+.kind-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compose .field { flex: none; width: 100%; border-radius: 12px; }
+.compose .grow-field { flex: 1 1 auto; min-height: 120px; resize: none; font: inherit; }
+.foot { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.foot .error { flex: 1 1 auto; min-width: 0; margin: 0; }
+.foot button { flex: none; min-height: 44px; padding: 0 18px var(--lip); white-space: nowrap; }
+.foot .quiet { background: var(--fill); color: var(--text); box-shadow: var(--quiet-edge); }
+.foot .quiet:hover:not(:disabled) { background: var(--fill-hover); }
 </style>

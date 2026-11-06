@@ -3,6 +3,7 @@
 import type { Notice } from "../../types";
 import { monthName } from "../lobby/house/exchange";
 import { fcfa } from "../lobby/house/server";
+import { chatWords as cw } from "../chat/words";
 import { friendWords as fw } from "../list/words";
 import { bellWords as w } from "./words";
 
@@ -91,6 +92,9 @@ export function noticeRow(n: Notice): NoticeRow {
     }
     case "arena_closed":
       return n.arena ? row(w.arenaClosed(n.arena.number), w.arenaClosedWhy, ["arena"]) : row(w.arenaClosedBare, w.arenaClosedWhy);
+    // For the admins: someone reported something. Who reported what, and its first words; acting on it is by hand.
+    case "report":
+      return row(cw.reportLine(who, n.report?.kind ?? "person", n.report?.about ?? null), n.report?.excerpt || null);
     default:
       // A kind this page doesn't know yet (a newer API): who it's from, and nothing to do.
       return row(who, null);
