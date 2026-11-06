@@ -866,7 +866,7 @@ export class Lobby {
 
   /**
    * Plays one of a house's happenings at the house (life.ts, happenings.ts): a review's envelope and coin, a crash's
-   * red window and puff, a project's fireworks, a team's confetti. A house that isn't in this neighbourhood: nothing.
+   * red window and puff, a project's fireworks. A house that isn't in this neighbourhood: nothing.
    */
   happening(houseId: string, h: CityHappening) {
     this.life.happening(houseId, h);

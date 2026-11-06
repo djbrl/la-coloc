@@ -28,8 +28,8 @@ export class GithubReposController {
     return this.repos.list(await this.user(req));
   }
 
-  // Same rule as the settings (RoomsService.updateSettings): where the code comes from is the flatmate's and their
-  // teammates'. A deploy carries the room's secrets, so whoever picks the code can read them.
+  // Same rule as the settings (RoomsService.updateSettings): where the code comes from is the flatmate's. A deploy
+  // carries the room's secrets, so whoever picks the code can read them.
   @Post("houses/:id/rooms/:room/import")
   @HttpCode(200)
   async import(@Param("id") id: string, @Param("room") roomName: string, @Body() body: unknown, @Req() req: HttpRequest) {

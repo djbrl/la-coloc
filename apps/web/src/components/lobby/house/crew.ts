@@ -97,7 +97,7 @@ export function footFor(s: Situation): Foot {
 
 // ---- A room's page, and a person on the housemates' list: what you can do about them ----
 
-// One key on a room's page: manage it (yours, or a project you team up on), chat, knock, see the knock you have, or
+// One key on a room's page: manage it (yours), chat, knock, see the knock you have, or
 // take the free room in a house you already live in.
 export type RoomKey =
   | { kind: "manage" }
@@ -121,7 +121,7 @@ export function chatKey(person: Pick<Person, "login">, s: Situation): RoomKey | 
 }
 
 /** What a room's page offers: the main key, and a second one when there's more to do. Chat comes first on anyone else. */
-export function roomKeys(room: Pick<Room, "name" | "occupant" | "demo" | "team">, s: Situation): { main: RoomKey | null; second: RoomKey | null } {
+export function roomKeys(room: Pick<Room, "name" | "occupant" | "demo">, s: Situation): { main: RoomKey | null; second: RoomKey | null } {
   const v = s.viewer;
   const one = (main: RoomKey | null) => ({ main, second: null });
   const canLogIn = !s.demo && !s.tutorial && s.freeRooms.length > 0;
@@ -135,7 +135,6 @@ export function roomKeys(room: Pick<Room, "name" | "occupant" | "demo" | "team">
   const chat = chatKey(room.occupant, s);
   if (!v) return one(chat);
   if (room.occupant.login === v.login) return one({ kind: "manage" });
-  if (room.team?.some((p) => p.login === v.login)) return { main: chat, second: { kind: "manage" } };
   if (v.member) return one(chat);
   if (v.application) return { main: chat, second: { kind: "thread", id: v.application } };
   if (canKnock(s)) return { main: chat, second: s.freeRooms.length === 1 ? { kind: "knock", room: s.freeRooms[0] } : { kind: "pick" } };

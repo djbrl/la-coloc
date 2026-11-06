@@ -1,4 +1,4 @@
-// What the city plays on a house: its last ten minutes (reviews, crashes, deploys going live, teams), read back from
+// What the city plays on a house: its last ten minutes (reviews, crashes, deploys going live), read back from
 // the rows the API already writes, and the roof's smoke (the rooms' CPU added up).
 import "reflect-metadata";
 import { chores, type Db, fridgeNotes, users } from "@coloc/db";
@@ -111,22 +111,12 @@ describe("the roof's smoke", () => {
   });
 });
 
-describe("teams on the house's views", () => {
-  it("are empty on the bare city, and the seeded life puts Moussa on Awa's Ndaje, not as news", async () => {
-    expect((await svc.view("sacre-coeur"))!.rooms.every((r) => r.team.length === 0)).toBe(true);
+describe("the seeded life", () => {
+  it("is a month old: nothing to play on a fresh city, and no room lists anyone but its occupant", async () => {
     await seedCity(db, { agentSecret: "s", domain: (id) => `${id}.coloc.dev`, life: true });
-    const house = (await svc.city()).houses.find((h) => h.id === "sacre-coeur")!;
-    expect(house.rooms.find((r) => r.name === "awa")!.team.map((p) => p.login)).toEqual(["moussa"]);
-    expect(house.recent.filter((h) => h.kind === "team")).toEqual([]);
-    // And the seeded life is a month old: nothing to play on a fresh city.
-    expect((await svc.city()).houses.flatMap((h) => h.recent)).toEqual([]);
-  });
-
-  it("drop someone who no longer lives in the house", async () => {
-    await seedCity(db, { agentSecret: "s", domain: (id) => `${id}.coloc.dev`, life: true });
-    const { memberships } = await import("@coloc/db");
-    const [moussa] = await db.select().from(users).where(eq(users.login, "moussa"));
-    await db.delete(memberships).where(eq(memberships.userId, moussa.id));
-    expect((await svc.view("sacre-coeur"))!.rooms.find((r) => r.name === "awa")!.team).toEqual([]);
+    const city = await svc.city();
+    expect(city.houses.flatMap((h) => h.recent)).toEqual([]);
+    expect(city.houses.flatMap((h) => h.rooms).some((r) => "team" in r)).toBe(false);
+    expect((await svc.view("sacre-coeur"))!.rooms.some((r) => "team" in r)).toBe(false);
   });
 });

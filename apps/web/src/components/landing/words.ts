@@ -13,7 +13,7 @@ export const storyWords = defineWords(
     points: [
       { title: "A real server.", line: "SSH terminal, persistent folder and HTTPS address, in every room." },
       { title: "Shared rent.", line: "Four rooms per house. Every new flatmate lowers everyone's share." },
-      { title: "Neighbours who code.", line: "Cross code reviews, team projects, a channel in every house." },
+      { title: "Neighbours who code.", line: "Cross code reviews, a hand when a build fails, a channel in every house." },
       { title: "Paid with mobile money.", line: "Wave or Orange Money, through PayDunya. Everyone pays their own line." },
     ],
     rent: {
@@ -41,13 +41,13 @@ export const storyWords = defineWords(
     neighbours: {
       title: "Neighbours who code.",
       line: "Every house is a small team. A whole city of developers, door to door.",
-      points: ["Cross code reviews", "Projects built together", "A channel in every house"],
+      points: ["Cross code reviews", "A hand when a build fails", "A channel in every house"],
       channel: "# channel",
       house: "Medina house",
       said: ["Can someone review PR #12? The contributions API.", "On it. I'll deploy the SDK right after."],
       board: [
         { state: "To review", what: "Contributions API" },
-        { state: "Teamed up", what: "Mobile money SDK" },
+        { state: "Online", what: "Mobile money SDK" },
         { state: "Reviewed", what: "Deploy docs" },
       ],
     },
@@ -76,7 +76,7 @@ export const storyWords = defineWords(
     points: [
       { title: "Un vrai serveur.", line: "Terminal SSH, dossier persistant et adresse HTTPS, dans chaque chambre." },
       { title: "Un loyer partagé.", line: "Quatre chambres par maison. Chaque arrivée fait baisser la part de tous." },
-      { title: "Des voisins qui codent.", line: "Revues de code croisées, projets en équipe, un salon par maison." },
+      { title: "Des voisins qui codent.", line: "Revues de code croisées, un coup de main quand une construction échoue, un salon par maison." },
       { title: "Payé en Mobile Money.", line: "Wave ou Orange Money, via PayDunya. Chacun règle sa ligne." },
     ],
     rent: {
@@ -104,13 +104,13 @@ export const storyWords = defineWords(
     neighbours: {
       title: "Des voisins qui codent.",
       line: "Chaque maison est une petite équipe. Une ville entière de développeurs, porte à porte.",
-      points: ["Revues de code croisées", "Projets montés à plusieurs", "Un salon par maison"],
+      points: ["Revues de code croisées", "Un coup de main quand une construction échoue", "Un salon par maison"],
       channel: "# salon",
       house: "maison Médina",
       said: ["Quelqu'un peut relire la PR #12 ? L'API des cotisations.", "Je prends. Je déploie le SDK juste après."],
       board: [
         { state: "À relire", what: "API des cotisations" },
-        { state: "En équipe", what: "SDK Mobile Money" },
+        { state: "En ligne", what: "SDK Mobile Money" },
         { state: "Relue", what: "Docs de déploiement" },
       ],
     },

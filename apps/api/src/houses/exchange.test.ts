@@ -161,20 +161,20 @@ describe("the house page", () => {
     expect(bill.lines.reduce((s, l) => s + l.due, 0)).toBe(12_000 - bill.pool);
   });
 
-  it("pays nothing for a review of your own project: teammates of a room reviewing each other", async () => {
-    // Repo 1 lives in Moussa's room, and Awa teamed up on it.
+  it("pays nothing for a review of your own project, and a flatmate's review of it as usual", async () => {
+    // Repo 1 lives in Moussa's room. An older database may still say Awa teamed up on it: that counts for nothing now.
     await db.insert(repos).values({ githubId: 1, fullName: "Djbrl/coloc-test", houseId: "sacre-coeur", room: "moussa", installationId: 7 });
     const [moussaRoom] = await db.select().from(rooms).where(and(eq(rooms.houseId, "sacre-coeur"), eq(rooms.name, "moussa")));
     await db.insert(roomTeammates).values({ roomId: moussaRoom.id, userId: await userId("awa") });
-    // Awa reviews Moussa's pull request (their shared project); Jib, who isn't on it, reviews another.
+    // Awa and Jib each review one of Moussa's pull requests.
     await chore(1, "awa", "moussa", { done: new Date() });
     await chore(2, "jib", "moussa", { done: new Date() });
-    // A late one between the two teammates isn't a skipped house chore either.
+    // One of Moussa's own, assigned to him and late (from before the rotation knew better), isn't a skipped chore.
     await chore(3, "moussa", "awa", { due: new Date(Date.now() - HOUR) });
 
     const bill = (await svc.view("sacre-coeur", await userId("jib")))!.bill!;
     const line = (login: string) => bill.lines.find((l) => l.login === login)!;
-    expect(line("awa")).toMatchObject({ reviews: 0, credit: 0 });
+    expect(line("awa")).toMatchObject({ reviews: 1, credit: 500 });
     expect(line("jib")).toMatchObject({ reviews: 1, credit: 500 });
     expect(line("moussa")).toMatchObject({ skipped: 0, surcharge: 0 });
   });

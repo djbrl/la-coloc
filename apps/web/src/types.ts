@@ -35,10 +35,6 @@ export interface Room {
   usage: RoomUsage | null;
   // A seeded example room in a real house (the workshop's other learners): it shows as lived in, but nothing runs.
   demo?: boolean;
-  // Flatmates of the same house who team up on this room's project, not counting its occupant ([] when none).
-  // They can update, restart and set up the room like its occupant; the occupant still pays its share. The API always
-  // sends it; optional so pages built before teams (and their test fixtures) still type-check.
-  team?: Person[];
 }
 
 export interface Deployment {
@@ -236,7 +232,7 @@ export interface CityHouse {
   // The lobby plot it rented ("block column.block row.plot column.plot row"), or null: placed near the market.
   plot: string | null;
   // building: a prod deploy is running for that room right now, even if an older version is live.
-  rooms: (Pick<Room, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant" | "team"> & { building: boolean })[];
+  rooms: (Pick<Room, "name" | "status" | "url" | "project" | "projectDescription" | "ad" | "occupant"> & { building: boolean })[];
   // Reviews waiting in this house, and how many are late. Counts only: titles are for flatmates.
   openChores: number;
   lateChores: number;
@@ -262,9 +258,7 @@ export type CityHappening =
   // A room's app was killed or crashed (out of memory, exited) and restarted. Its neighbours kept running.
   | { id: string; at: string; kind: "crash"; room: string }
   // A room's project went live (a prod deploy).
-  | { id: string; at: string; kind: "live"; room: string }
-  // Flatmates teamed up on a room: everyone on it now, the occupant first.
-  | { id: string; at: string; kind: "team"; room: string; logins: string[] };
+  | { id: string; at: string; kind: "live"; room: string };
 
 export interface Me {
   login: string;
@@ -361,9 +355,8 @@ export type RoomInsideTrouble = "not_running" | "no_shell" | "failed";
 export interface RoomManage {
   // `chef`: you run the house, even when this is your own room and `as` says flatmate (an older API leaves it out).
   house: { id: string; name: string; domain: string; agentOnline: boolean; strictReviews: boolean; chef?: boolean };
-  // flatmate: you live in this room. teammate: you teamed up on it (same rights as its flatmate). chef: you run the
-  // house (update and restart only).
-  as: "flatmate" | "chef" | "teammate";
+  // flatmate: you live in this room. chef: you run the house (update and restart only).
+  as: "flatmate" | "chef";
   // How to SSH in. Null: this server has no SSH, or a shell isn't for you (a chef, an example room).
   // `people`: who has a shell in this room right now.
   ssh?: { host: string; port: number; user: string; people?: Person[] } | null;
@@ -380,8 +373,6 @@ export interface RoomManage {
     limits: { memoryMb: number; cpus: number };
     usage: RoomUsage | null;
     occupant: Person | null;
-    // Teammates on this room's project, not counting the occupant (always sent; optional for older fixtures).
-    team?: Person[];
   };
   settings: {
     project: string | null;
@@ -419,13 +410,6 @@ export type NotificationKind =
   | "knock_answer"
   // A flatmate's build failed: only your own house hears about it, and not the person who ran it.
   | "build_failed"
-  // Teaming up (flatmates of one house, on one room's project). team_invite: the room's occupant asks you to join
-  // their project (`room`). team_ask: a flatmate asks to join yours (`room` is yours). Both are answered like
-  // invitations; team_accepted / team_declined tell the sender how it went.
-  | "team_invite"
-  | "team_ask"
-  | "team_accepted"
-  | "team_declined"
   // Someone asks to join a full house's group chat (each flatmate gets one, the first answer counts), then how it went.
   | "guest_ask"
   | "guest_accepted"
@@ -451,8 +435,7 @@ export interface Notices {
   unread: number;
   items: Notice[];
   // Your invitations still waiting for an answer: the person card says "Invited" instead of offering another.
-  // `room`: the room a team request is about (null for the others).
-  sent: { id: string; kind: "house_invite" | "rent_together" | "team_invite" | "team_ask"; to: string; houseId: string | null; room?: string | null }[];
+  sent: { id: string; kind: "house_invite" | "rent_together"; to: string; houseId: string | null }[];
 }
 
 // ---- The chat (apps/api/src/chat): direct messages, a city's room and its board ----

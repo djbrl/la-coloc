@@ -1,6 +1,6 @@
 // A room, as its flatmate manages it: build settings, secrets, history.
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
-import { type Db, deployments, houses, memberships, repos, roomSecrets, roomTeammates, rooms, users } from "@coloc/db";
+import { type Db, deployments, houses, memberships, repos, roomSecrets, rooms, users } from "@coloc/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { DB } from "../db/db.module";
 import { HousesService, person } from "../houses/houses.service";
@@ -36,10 +36,6 @@ export class RoomsService {
     @Inject(SECRETS) private readonly box: SecretBox | null,
   ) {}
 
-  /**
-   * The room, if `userId` may manage it: its flatmate (who lives there), a teammate on its project (a flatmate of the
-   * same house who teamed up on it: the same rights as its flatmate), or the house's chef (update and restart only).
-   */
   /** The room's latest real build (previews have their own addresses and aren't what the room is showing). */
   async lastBuild(houseId: string, roomName: string) {
     const [d] = await this.db
@@ -51,31 +47,28 @@ export class RoomsService {
     return d ?? null;
   }
 
+  /**
+   * The room, if `userId` may manage it: its flatmate (who lives there), or the house's chef (update and restart only).
+   * Nobody else, not even another flatmate: a room is one person's. Working together goes through reviews.
+   */
   async manageable(houseId: string, roomName: string, userId: string) {
     const [room] = await this.db.select().from(rooms).where(and(eq(rooms.houseId, houseId), eq(rooms.name, roomName)));
     if (!room) throw new NotFoundException("No such room.");
     if (room.occupantId === userId) return { room, as: "flatmate" as const };
     const [m] = await this.db.select().from(memberships).where(and(eq(memberships.houseId, houseId), eq(memberships.userId, userId)));
-    // A teammate only while they still live in the house, and only on a room someone lives in.
-    if (m && room.occupantId) {
-      const [mate] = await this.db
-        .select({ userId: roomTeammates.userId })
-        .from(roomTeammates)
-        .where(and(eq(roomTeammates.roomId, room.id), eq(roomTeammates.userId, userId)));
-      if (mate) return { room, as: "teammate" as const };
-    }
     if (m?.role === "chef") return { room, as: "chef" as const };
     throw new ForbiddenException("This isn't your room.");
   }
 
   /**
-   * The room, if `userId` could open a shell in it: what's inside is for them alone, not the chef, who only updates and
-   * restarts. Command lines and file names can say more than a project's page does. An example room has nothing inside.
+   * The room, if `userId` could open a shell in it: what's inside is for its flatmate alone, not the chef, who only
+   * updates and restarts. Command lines and file names can say more than a project's page does. An example room has
+   * nothing inside.
    */
   async enterable(houseId: string, roomName: string, userId: string) {
     const { room, as } = await this.manageable(houseId, roomName, userId);
     const [house] = await this.db.select({ demo: houses.demo }).from(houses).where(eq(houses.id, houseId));
-    if (as === "chef" || room.demo || house?.demo) throw new ForbiddenException("This isn't your room.");
+    if (as !== "flatmate" || room.demo || house?.demo) throw new ForbiddenException("This isn't your room.");
     return room;
   }
 
@@ -103,13 +96,16 @@ export class RoomsService {
       .orderBy(desc(deployments.createdAt))
       .limit(15);
     const live = house!.rooms.find((r) => r.name === roomName)!;
+    // Only the flatmate who lives here gets in (SshService, enterable). Nobody else learns the SSH address from us:
+    // if they're to have it, the flatmate gives it to them.
+    const enters = as === "flatmate" && !room.demo && !house!.demo;
     return {
       house: { id: house!.id, name: house!.name, domain: house!.domain, agentOnline: house!.agentOnline, strictReviews: house!.rules.strictReviews, chef: house!.viewer?.role === "chef" },
       as,
-      // The SSH tab, for those a shell would open to (SshService). Not the chef, and not an example room.
-      ssh: as !== "chef" && !room.demo && !house!.demo && sshAddress() ? { ...sshAddress()!, user: `${room.name}.${houseId}` } : null,
-      // The Inside tab, for the same people (enterable), with or without SSH on this server.
-      inside: as !== "chef" && !room.demo && !house!.demo,
+      // The SSH tab, for the one a shell would open to. Not the chef, and not an example room.
+      ssh: enters && sshAddress() ? { ...sshAddress()!, user: `${room.name}.${houseId}` } : null,
+      // The Inside tab, for the same person, with or without SSH on this server.
+      inside: enters,
       // For the occupant, unless the room has no lease to end (the workshop, an example): the Lease tab's numbers.
       lease:
         as === "flatmate" && !room.demo && !house!.demo && !house!.tutorial
@@ -123,7 +119,6 @@ export class RoomsService {
         limits: { memoryMb: room.memoryMb, cpus: room.cpus },
         usage: live.usage,
         occupant: live.occupant,
-        team: live.team,
       },
       settings: {
         project: room.project,
@@ -152,8 +147,8 @@ export class RoomsService {
 
   async updateSettings(houseId: string, roomName: string, userId: string, s: RoomSettings) {
     const { room, as } = await this.manageable(houseId, roomName, userId);
-    // Where the code comes from is the flatmate's (and their teammates', whom they chose): a deploy carries the room's
-    // secrets, so whoever picks the code can read them. The chef may still name, restart and update a room, from the
+    // Where the code comes from is the flatmate's: a deploy carries the room's secrets, so whoever picks the code can
+    // read them. The chef may still name, restart and update a room, from the
     // code it already has.
     const moves = (k: "source" | "branch" | "buildPath") => s[k] !== undefined && (s[k]?.trim() || null) !== (room[k] ?? null);
     if (as === "chef" && room.occupantId && (moves("source") || moves("branch") || moves("buildPath"))) {

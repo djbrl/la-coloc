@@ -1,6 +1,6 @@
-// A pool of particles drawn as one `THREE.Points` (one draw call, buffers reused): the roofs' smoke and the
-// teams' confetti (life.ts) are each one pool for the whole city. Every particle flies with its own speed, gravity and
-// drag, grows or not, and fades in then out over its life. When the pool is full, the oldest particle is reused.
+// A pool of particles drawn as one `THREE.Points` (one draw call, buffers reused): the roofs' smoke (smoke.ts) is one
+// pool for the whole city. Every particle flies with its own speed, gravity and drag, grows or not, and fades in
+// then out over its life. When the pool is full, the oldest particle is reused.
 //
 // Each particle has its own size and opacity, which three.js's PointsMaterial can't do, so this is a small shader:
 // the size is in world units (turned into pixels from the camera's zoom), and the dot is either soft and round

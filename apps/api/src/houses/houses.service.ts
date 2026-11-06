@@ -14,7 +14,6 @@ import {
   leaseEnds,
   memberships,
   repos,
-  roomTeammates,
   rooms,
   type RoomStatus,
   usageSamples,
@@ -448,7 +447,6 @@ export class HousesService {
     const myRooms = viewerId ? h.rooms.filter((r) => r.occupantId === viewerId).map((r) => r.name) : [];
     const viewerRow = viewerId ? (mine?.user ?? (await this.db.query.users.findFirst({ where: eq(users.id, viewerId) }))) : undefined;
     const live = this.usage.get(houseId);
-    const team = await this.teams([houseId]);
 
     let recentDeployments: DeploymentView[] | null = null;
     let notes: FridgeNoteView[] | null = null;
@@ -506,7 +504,6 @@ export class HousesService {
         usage: live?.get(r.name) ?? null,
         demo: r.demo,
         repo: mine && r.occupantId ? repoLink(linked.find((l) => l.room === r.name)?.fullName, r.source) : null,
-        team: r.occupantId ? (team.get(`${h.id}/${r.name}`) ?? []).map((u) => person(u)!) : [],
       })),
       viewer: viewerRow
         ? {
@@ -636,14 +633,8 @@ export class HousesService {
     };
     const choresOf = byHouse(choreRows);
     const knocksOf = byHouse(knocks);
-    const housesById = new Map(all.map((h) => [h.id, h]));
-    // Who teamed up on which room, and what just happened in each house (a review, a crash, a deploy, a team).
-    const team = await this.teams(all.map((h) => h.id));
-    const teamLogins = (houseId: string, room: string) => {
-      const occupant = housesById.get(houseId)?.rooms.find((r) => r.name === room)?.occupant;
-      return occupant ? [occupant.login, ...(team.get(`${houseId}/${room}`) ?? []).map((u) => u.login)] : [];
-    };
-    const recent = await happenings(this.db, all.map((h) => h.id), teamLogins, now);
+    // What just happened in each house (a review, a crash, a deploy).
+    const recent = await happenings(this.db, all.map((h) => h.id), now);
 
     return {
       houses: all.map((h) => ({
@@ -666,7 +657,6 @@ export class HousesService {
           projectDescription: r.projectDescription,
           ad: r.occupantId ? null : r.ad,
           occupant: person(r.occupant),
-          team: r.occupantId ? (team.get(`${h.id}/${r.name}`) ?? []).map((u) => person(u)!) : [],
           building: !!r.occupantId && building.has(`${h.id}/${r.name}`),
         })),
         openChores: (choresOf.get(h.id) ?? []).filter((c) => c.status === "open").length,
@@ -721,35 +711,12 @@ export class HousesService {
   }
 
   /**
-   * Everyone on a room's project: its occupant, then its teammates (user ids). Empty for a free or missing room.
-   * They never review that project's pull requests, and a review among them earns no credit on the bill.
+   * Everyone on a room's project: its occupant (user ids). Empty for a free or missing room. They never review that
+   * project's pull requests. A list, so the rotation reads the same if a project ever has more than one person again.
    */
   async projectPeople(houseId: string, roomName: string): Promise<string[]> {
     const r = await this.room(houseId, roomName);
-    if (!r?.occupantId) return [];
-    return [r.occupantId, ...((await this.teams([houseId])).get(`${houseId}/${roomName}`) ?? []).map((u) => u.id)];
-  }
-
-  /**
-   * Who teamed up on which room of `houseIds`, as "<house>/<room>" → people, first to join first. Only people who
-   * still live in that house: a row left behind by someone who moved out doesn't count.
-   */
-  async teams(houseIds: string[]): Promise<Map<string, UserRow[]>> {
-    const out = new Map<string, UserRow[]>();
-    if (!houseIds.length) return out;
-    const rows = await this.db
-      .select({ houseId: rooms.houseId, room: rooms.name, user: users })
-      .from(roomTeammates)
-      .innerJoin(rooms, eq(rooms.id, roomTeammates.roomId))
-      .innerJoin(users, eq(users.id, roomTeammates.userId))
-      .innerJoin(memberships, and(eq(memberships.houseId, rooms.houseId), eq(memberships.userId, roomTeammates.userId)))
-      .where(inArray(rooms.houseId, houseIds))
-      .orderBy(asc(roomTeammates.addedAt));
-    for (const r of rows) {
-      const key = `${r.houseId}/${r.room}`;
-      out.set(key, [...(out.get(key) ?? []), r.user]);
-    }
-    return out;
+    return r?.occupantId ? [r.occupantId] : [];
   }
 
   // Reviews done inside the house since the start of this calendar month.
@@ -801,16 +768,14 @@ export class HousesService {
       .select({ assigneeId: chores.assigneeId, repoId: chores.repoId, status: chores.status, dueAt: chores.dueAt, doneAt: chores.doneAt, lateNotedAt: chores.lateNotedAt })
       .from(chores)
       .where(and(eq(chores.houseId, h.id), or(gte(chores.doneAt, since), gte(chores.createdAt, since), and(eq(chores.status, "open"), isNotNull(chores.lateNotedAt)))));
-    // A review of your own project (the room its repo is in: you live there, or teamed up on it) is no chore for the
-    // house: it neither earns a credit nor counts as skipped. The rotation never asks for one; this catches a review
-    // assigned before a team formed.
-    const team = await this.teams([h.id]);
+    // A review of your own project (the room its repo is in: you live there) is no chore for the house: it neither
+    // earns a credit nor counts as skipped. The rotation never asks for one; this catches a review assigned before
+    // you moved into that room.
     const repoRooms = await this.db.select({ githubId: repos.githubId, room: repos.room }).from(repos).where(eq(repos.houseId, h.id));
     const ownProject = (c: { assigneeId: string; repoId: number }) => {
       const roomName = repoRooms.find((r) => r.githubId === c.repoId)?.room;
       const room = h.rooms.find((r) => r.name === roomName);
-      if (!room?.occupantId) return false;
-      return room.occupantId === c.assigneeId || (team.get(`${h.id}/${room.name}`) ?? []).some((u) => u.id === c.assigneeId);
+      return !!room?.occupantId && room.occupantId === c.assigneeId;
     };
     const monthChores = allChores.filter((c) => !ownProject(c));
     const reviews = (id: string) => monthChores.filter((c) => c.assigneeId === id && c.status === "done" && c.doneAt && c.doneAt >= since).length;

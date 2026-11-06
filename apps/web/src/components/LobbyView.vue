@@ -666,7 +666,7 @@ function newsFrom(houses: CityHouse[]) {
 }
 
 // The city's happenings (cityLife.ts): a review done, a room's app crashing and coming back, a project going
-// live, flatmates teaming up. Each is played once, by the engine, at its house, if that house is on screen. The
+// live. Each is played once, by the engine, at its house, if that house is on screen. The
 // first list only counts as seen (a list still empty because the core was down doesn't count as a first list).
 const happenings = cityHappenings();
 // A project going live shows twice (its window lights up, and a "live" happening comes): one set of fireworks.

@@ -12,7 +12,7 @@ import { parseLogin, SshService } from "./ssh.service";
 const AUTH_TIMEOUT_MS = 20_000;
 // Nothing typed or printed for this long: the shell closes.
 const IDLE_MS = 30 * 60_000;
-// How often someone inside is checked: they may have moved out, or left the team.
+// How often someone inside is checked: they may have moved out.
 const RECHECK_MS = 60_000;
 const SHELLS_PER_PERSON = 4;
 const SHELLS_PER_SERVER = 40;

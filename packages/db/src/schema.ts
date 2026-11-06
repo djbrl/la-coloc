@@ -155,9 +155,10 @@ export const rooms = pgTable(
   (t) => [uniqueIndex("rooms_house_name").on(t.houseId, t.name)],
 );
 
-// Flatmates who team up on one room's project. The room's occupant stays its occupant (and pays its share of the
-// bill); a teammate may update, restart, redeploy and set up the room like them, and keeps their own room. Only
-// flatmates of the room's house, at most three per room (apps/api/src/notifications/teams.ts).
+// Unused since 6 Nov 2026. It held the flatmates who teamed up on a room's project, with the same rights as its
+// occupant. Teaming up is gone: a room, its shell and its SSH address are one person's, and working together goes
+// through reviews. The table stays so no migration is needed; nothing reads or writes it, and a room's rows go with
+// the room (cascade).
 export const roomTeammates = pgTable(
   "room_teammates",
   {
@@ -441,9 +442,8 @@ export type NotificationKind =
   | "knock_answer"
   // A flatmate's build failed, so you can offer a hand.
   | "build_failed"
-  // Teaming up on a room's project, between flatmates of one house. team_invite: the room's occupant asks a flatmate
-  // to join their project. team_ask: a flatmate asks the occupant to let them join. Both are answered like
-  // invitations, and the sender is told: team_accepted or team_declined.
+  // Retired: teaming up on a room's project is gone. Old rows may still say these; the bell leaves them out and they
+  // can't be answered (notifications.service.ts RETIRED).
   | "team_invite"
   | "team_ask"
   | "team_accepted"
@@ -454,7 +454,7 @@ export type NotificationKind =
   | "guest_accepted"
   | "guest_declined";
 
-// Only invitations (house_invite, rent_together, team_invite, team_ask) have a state; the other kinds are news, and
+// Only invitations (house_invite, rent_together, guest_ask, and the retired team_invite and team_ask) have a state; the other kinds are news, and
 // leave it null.
 export type InviteState = "open" | "accepted" | "declined" | "withdrawn" | "expired";
 

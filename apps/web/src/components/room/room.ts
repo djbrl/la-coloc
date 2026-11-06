@@ -184,7 +184,7 @@ export function settingsBody(form: SettingsForm, githubLinked: boolean, port: nu
   return { project: form.project, projectDescription: form.projectDescription, ...codeBody(form, githubLinked, port) };
 }
 
-/** Where the code comes from is the flatmate's and their teammates' to say; a chef only for a room nobody lives in. */
+/** Where the code comes from is the flatmate's to say; a chef only for a room nobody lives in. */
 export const canChangeCode = (data: Pick<RoomManage, "as"> & { room: Pick<RoomManage["room"], "occupant"> }) => data.as !== "chef" || !data.room.occupant;
 
 /** A Docker image's name, the way the API takes it: `nginx:alpine`, `you/app:1.0`. */

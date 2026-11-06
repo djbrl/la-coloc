@@ -1,11 +1,11 @@
 // What just happened in each house, for the city to play: a review done, a room's app crashed and restarted, a
-// project went live, flatmates teamed up. The city is polled (every 4 s on the shared site), so a moment can't be a
+// project went live. The city is polled (every 4 s on the shared site), so a moment can't be a
 // one-off push that a page between two polls would miss: each house carries its last few minutes as a list, and the
 // page plays the ones whose id it hasn't seen.
 //
 // Nothing new is recorded for this: every moment is read back from rows the API already writes (chores, fridge
-// notes, deployments, room_teammates). Each id is made from its row, so it never changes from one poll to the next.
-import { chores, type Db, deployments, fridgeNotes, roomTeammates, rooms, users } from "@coloc/db";
+// notes, deployments). Each id is made from its row, so it never changes from one poll to the next.
+import { chores, type Db, deployments, fridgeNotes, users } from "@coloc/db";
 import { and, eq, gte, inArray, isNotNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { CityHappening } from "./house.types";
@@ -18,11 +18,8 @@ export const HAPPENINGS_PER_HOUSE = 10;
 // The fridge notes that say a room's app went down and came back on its own (see fridge.ts noteForRoomEvent).
 const CRASH_NOTES = new Set(["oom", "crashed"]);
 
-/**
- * The last ten minutes of each of `houseIds`, newest first, at most HAPPENINGS_PER_HOUSE each. `teamOf` gives who
- * is on a room's project now (occupant first), for a team that formed.
- */
-export async function happenings(db: Db, houseIds: string[], teamOf: (houseId: string, room: string) => string[], now = new Date()): Promise<Map<string, CityHappening[]>> {
+/** The last ten minutes of each of `houseIds`, newest first, at most HAPPENINGS_PER_HOUSE each. */
+export async function happenings(db: Db, houseIds: string[], now = new Date()): Promise<Map<string, CityHappening[]>> {
   const out = new Map<string, CityHappening[]>(houseIds.map((id) => [id, []]));
   if (!houseIds.length) return out;
   const since = new Date(now.getTime() - HAPPENING_WINDOW_MS);
@@ -55,17 +52,6 @@ export async function happenings(db: Db, houseIds: string[], teamOf: (houseId: s
     .from(deployments)
     .where(and(inArray(deployments.houseId, houseIds), eq(deployments.kind, "prod"), eq(deployments.status, "live"), gte(deployments.updatedAt, since)));
   for (const d of lives) add(d.houseId, { id: `live:${d.id}`, at: d.at.toISOString(), kind: "live", room: d.room });
-
-  // Teams that formed: someone joined a room's project.
-  const joined = await db
-    .select({ roomId: roomTeammates.roomId, userId: roomTeammates.userId, at: roomTeammates.addedAt, houseId: rooms.houseId, room: rooms.name })
-    .from(roomTeammates)
-    .innerJoin(rooms, eq(rooms.id, roomTeammates.roomId))
-    .where(and(inArray(rooms.houseId, houseIds), gte(roomTeammates.addedAt, since)));
-  for (const j of joined) {
-    const logins = teamOf(j.houseId, j.room);
-    if (logins.length > 1) add(j.houseId, { id: `team:${j.roomId}:${j.userId}`, at: j.at.toISOString(), kind: "team", room: j.room, logins });
-  }
 
   for (const [id, list] of out) out.set(id, list.sort((a, b) => b.at.localeCompare(a.at)).slice(0, HAPPENINGS_PER_HOUSE));
   return out;

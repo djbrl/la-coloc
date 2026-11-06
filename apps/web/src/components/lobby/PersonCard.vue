@@ -3,9 +3,8 @@
 // what you can do about it. Chat first, on everyone but you: a direct conversation in the chat sheet (messageAction in
 // chat/chat.ts). Logged out, it takes you to log in. For a made-up person (a seeded flatmate, or a passer-by the lobby
 // invents) it's there but off, and one plain line says why. Then at most two more keys (streetActions in
-// personActions.ts): see their house, and invite them to yours or ask them to share one. A flatmate of yours gets
-// "Team up" instead (TeamUp.vue: join their project, or bring them into yours). A real GitHub account's name is a link
-// to their profile, and someone else's card has a key for it too.
+// personActions.ts): see their house, and invite them to yours or ask them to share one. A real GitHub account's name
+// is a link to their profile, and someone else's card has a key for it too.
 import { computed, ref } from "vue";
 import { openChat } from "../../conversations";
 import { inviteToHouse, notices, rentTogether, withdrawInvite } from "../../notices";
@@ -21,8 +20,6 @@ import LobbyCard from "./LobbyCard.vue";
 import StatusDot from "./panel/StatusDot.vue";
 import { roomLine, roomState } from "./panel/words";
 import { streetActions } from "./personActions";
-import { teamUp } from "./team";
-import TeamUp from "./TeamUp.vue";
 import { cardWords as w } from "./words";
 import { seeded } from "../seeded";
 
@@ -71,13 +68,6 @@ const actions = computed(() =>
   ),
 );
 const offer = computed(() => actions.value.offer);
-// A flatmate of yours: teaming up on a project (team.ts) takes "See their house"'s place, since their house is yours.
-const team = computed(() => {
-  const mine = props.myHouse;
-  if (!mine || props.home?.houseId !== mine.id) return null;
-  const myRoom = me.value?.houses.find((h) => h.id === mine.id)?.room ?? null;
-  return teamUp({ login: props.login, example: madeUp.value }, me.value, mine, myRoom, notices.sent);
-});
 // Chat: the first key on anyone but you (chat/chat.ts).
 const message = computed(() => messageAction({ isMe: props.isMe }, me.value));
 // The free room to offer, when your house has several: the first until you pick another.
@@ -159,9 +149,8 @@ async function send(kind: "invite" | "share" | "withdraw") {
         </button>
       </div>
 
-      <div v-if="team || actions.see || offer" class="moves">
-        <TeamUp v-if="team && myHouse" :state="team" :house-id="myHouse.id" :login="login" :first="first" />
-        <button v-else-if="actions.see" class="big move" :aria-label="bw.seeHouseName(actions.see.houseName)" @click="emit('see', actions.see!.houseId)">
+      <div v-if="actions.see || offer" class="moves">
+        <button v-if="actions.see" class="big move" :aria-label="bw.seeHouseName(actions.see.houseName)" @click="emit('see', actions.see!.houseId)">
           <Icon name="house" :size="20" /> {{ bw.seeHouse }}
         </button>
         <button v-if="offer?.kind === 'invite'" class="big move" :disabled="offer.example || busy" :aria-label="bw.inviteHomeName(offer.houseName)" @click="send('invite')">

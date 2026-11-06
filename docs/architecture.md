@@ -136,7 +136,7 @@ A person can rent up to 3 rooms (`MAX_ROOMS_PER_PERSON`; the workshop doesn't co
 
 The billing cycle is the calendar month (UTC). Ending a lease (`POST .../leave`, `houses/leases.service.ts`) has two steps:
 
-- **Right away** the room is free for anyone: any build is cancelled, its containers go, and its project, repo link, secrets, team and history are removed.
+- **Right away** the room is free for anyone: any build is cancelled, its containers go, and its project, repo link, secrets and history are removed.
 - **When the month ends** the money follows. A `lease_ends` row keeps the room on the bill of the person who left, and not on a new occupant's, so no line moves this month. If it was their last room there they stay a flatmate until then, with no room (`memberships.leaving_month`).
 
 `settleLeases` does the second step, when the API starts and every hour: it removes people who have left, passes the chef's role to the first in the tontine line if the chef was one of them (the only time the chef changes), and closes a house with nobody left.
@@ -173,11 +173,11 @@ Still one room, one address: several things can run inside, and visitors reach o
 
 `ssh -p 2222 <room>.<house>@<city host>` opens a shell inside a room's running project. There's no real login on the server: the API is the SSH server, and the person never touches the machine.
 
-1. **The door** (`apps/api/src/ssh/ssh.gateway.ts`, the `ssh2` library, public keys only). The name says which room. The offered key must belong to its occupant or a teammate who still lives in the house (`SshService.people`). The chef has no way in, and example rooms have none. Every refusal reads the same, so nobody can use it to find out which rooms exist.
+1. **The door** (`apps/api/src/ssh/ssh.gateway.ts`, the `ssh2` library, public keys only). The name says which room. The offered key must belong to its occupant, and nobody else (`SshService.occupant`). Only the occupant sees the address on the room page; anyone else has it only if the occupant gives it to them. The chef has no way in, and example rooms have none. Every refusal reads the same, so nobody can use it to find out which rooms exist.
 2. **The line** (`apps/api/src/agents/shell.broker.ts`). Bytes go over the caretaker's existing websocket, so no room or server needs a port of its own.
 3. **The shell** (`apps/agent/src/shell.ts`). A `docker exec` in the room's running prod container, so it has what the project has: same user, disk, network and limits. Closing the line doesn't stop a `docker exec`, so the shell writes down its process number and the caretaker hangs up on that group, as any server does: `nohup` and `tmux` keep running until the next deploy. `sweep` does the same for what a crashed caretaker left behind.
 
-Only a shell or a command: no passwords, no sftp, no port forwarding. Limits: 4 shells a person, 40 a server, 200 connections, 30 new connections a minute per address, 20 s to log in, 30 min idle, and a login that opens no shell closes after 2 min. Access is checked again every 60 s, so someone taken off a team is out within a minute.
+Only a shell or a command: no passwords, no sftp, no port forwarding. Limits: 4 shells a person, 40 a server, 200 connections, 30 new connections a minute per address, 20 s to log in, 30 min idle, and a login that opens no shell closes after 2 min. Access is checked again every 60 s, so someone who moved out is out within a minute.
 
 Output is paced: the caretaker pauses above 1 MB not yet acknowledged and resumes below 256 KB, and the API acknowledges once SSH has taken the bytes. Input that arrives while the shell is still starting waits for it, because a pipe doesn't wait.
 
@@ -226,6 +226,10 @@ their place in the tontine), `deployments`, `fridge_notes` (house news), `usage_
 reviewer), `bill_payments` and `notifications`. A month's bill is worked out from usage and
 reviews when asked; it is not stored. Who is online lives only in the API's memory. Migrations are in
 `packages/db/drizzle/`, and the API applies new ones when it starts.
+
+`room_teammates` is still there but unused. It held teaming up, where a flatmate got the same rights on another's
+room. That went on 6 Nov: a room, its shell and its SSH address are one person's, and working together goes through
+reviews. Keeping the table spared a migration. The old `team_*` notifications are left out of the bell.
 
 ## Where things live
 
@@ -276,5 +280,5 @@ Planned at the start, not in the code. Each is on [TODO.md](../TODO.md) or was c
 - Real payment and a real hosting provider: `houses/payment.ts` simulates the first, `houses/landlord.ts` stands in for the second.
 - gVisor for stronger walls, and more stacks without a Dockerfile (Railpack would replace `recipe.ts` if they pile up).
 - GitHub's Deployments panel (needs one more App permission).
-- `bills` and `listings` tables (a free room's ad is a column on `rooms`). Teams are `room_teammates`, migration 0017.
+- `bills` and `listings` tables (a free room's ad is a column on `rooms`).
 - Real payments.

@@ -1,9 +1,9 @@
-// Who may SSH into which room, and the keys they do it with. A room opens to the person who lives in it and to their
-// teammates, and to nobody else: not the chef, who can restart a flatmate's project but has no business in its files.
+// Who may SSH into which room, and the keys they do it with. A room opens to the person who lives in it and to nobody
+// else: not another flatmate, and not the chef, who can restart a flatmate's project but has no business in its files.
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { type Db, memberships, roomTeammates, rooms, sshKeys, users } from "@coloc/db";
+import { type Db, rooms, sshKeys, users } from "@coloc/db";
 import { RoomName } from "@coloc/protocol";
-import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { utils } from "ssh2";
 import { DB } from "../db/db.module";
@@ -98,31 +98,24 @@ export class SshService {
     await this.db.update(users).set({ sshKeysChosen: true }).where(eq(users.id, userId));
   }
 
-  /** The people who may enter this room right now. */
-  private async people(houseId: string, roomName: string): Promise<string[]> {
+  /** The one person who may enter this room right now: whoever lives in it. Null for a free or example room. */
+  private async occupant(houseId: string, roomName: string): Promise<string | null> {
     const [room] = await this.db
       .select()
       .from(rooms)
       .where(and(eq(rooms.houseId, houseId), eq(rooms.name, roomName), isNotNull(rooms.occupantId)));
-    if (!room?.occupantId || room.demo) return [];
-    // A teammate only while they still live in the house, as on the room page (RoomsService.manageable).
-    const mates = await this.db
-      .select({ userId: roomTeammates.userId })
-      .from(roomTeammates)
-      .innerJoin(memberships, and(eq(memberships.userId, roomTeammates.userId), eq(memberships.houseId, houseId)))
-      .where(eq(roomTeammates.roomId, room.id));
-    return [room.occupantId, ...mates.map((m) => m.userId)];
+    return room?.occupantId && !room.demo ? room.occupantId : null;
   }
 
-  /** Every key that opens this room, each with its owner. */
+  /** Every key that opens this room, each with its owner (always the occupant). */
   async keysFor(houseId: string, roomName: string): Promise<RoomKey[]> {
-    const people = await this.people(houseId, roomName);
-    if (!people.length) return [];
-    return this.db.select({ userId: sshKeys.userId, publicKey: sshKeys.publicKey }).from(sshKeys).where(inArray(sshKeys.userId, people));
+    const occupant = await this.occupant(houseId, roomName);
+    if (!occupant) return [];
+    return this.db.select({ userId: sshKeys.userId, publicKey: sshKeys.publicKey }).from(sshKeys).where(eq(sshKeys.userId, occupant));
   }
 
-  /** Still allowed in, for someone already inside: they may have moved out, or left the team. */
+  /** Still allowed in, for someone already inside: they may have moved out. */
   async mayStay(houseId: string, roomName: string, userId: string): Promise<boolean> {
-    return (await this.people(houseId, roomName)).includes(userId);
+    return (await this.occupant(houseId, roomName)) === userId;
   }
 }
