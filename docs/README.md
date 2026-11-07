@@ -32,7 +32,7 @@
 | [ai-usage.md](ai-usage.md) | The AI declaration. Add a row after notable AI-assisted work (only grows) |
 | [declaration-soumission.md](declaration-soumission.md) | The three declarations for submission, in French: ownership, components and licences, AI |
 | [build-notes.md](build-notes.md) | A dated log of what was built, how it was checked and what was rough (only grows) |
-| [screenshots/](screenshots/) | Screenshots from the build notes: the quest (`first-home/`), the chat (`chat/`) and the style guide (`ui-refresh/`) |
+| [screenshots/](screenshots/) | Screenshots from the build notes: the quest (`first-home/`), the chat (`chat/`), the style guide (`ui-refresh/`) and the five submission shots of the live city (`submission/`) |
 
 ## Archive
 
