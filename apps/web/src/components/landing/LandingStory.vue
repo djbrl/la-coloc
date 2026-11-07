@@ -1,9 +1,11 @@
 <script setup lang="ts">
 // Below the street, the landing tells La Coloc as a film (mockup L on the design canvas): big pictures of the city and
 // its people taken in the game, one title and one sentence a screen, and the app's windows turned into simple cards
-// (a floor plan of faces, a repo going online, a share of the rent). The chat is five frames of the same street,
-// crossfading as the bubbles appear. The pictures are in public/landing/story; the words follow the language.
+// (a floor plan of faces, a repo going online, a share of the rent). The city, the Arena and the four cities are short
+// loops filmed in the live city (LoopShot); the chat is five frames of the same street, crossfading as the bubbles
+// appear. The pictures and films are in public/landing/story; the words follow the language.
 import { num } from "../../i18n";
+import LoopShot from "./LoopShot.vue";
 import { storyWords as w } from "./words";
 
 defineProps<{ loginAt: string }>();
@@ -24,7 +26,7 @@ const GITHUB =
   <main id="how" class="story" tabindex="-1">
     <!-- The city, full width, the words over its foot. -->
     <section class="shot" aria-labelledby="story-square">
-      <img :src="`${PICTURES}/square.webp`" :alt="w.square.alt" loading="lazy" width="1800" height="1125" />
+      <LoopShot class="pic" name="square" :alt="w.square.alt" :width="1280" :height="800" />
       <div class="over">
         <h2 id="story-square" class="huge">{{ w.square.title }}</h2>
         <p>{{ w.square.line }}</p>
@@ -91,7 +93,7 @@ const GITHUB =
 
     <!-- The Arena, full width like the city. -->
     <section class="shot" aria-labelledby="story-arena">
-      <img :src="`${PICTURES}/arena.webp`" :alt="w.arena.alt" loading="lazy" width="1800" height="1125" />
+      <LoopShot class="pic" name="arena" :alt="w.arena.alt" :width="1280" :height="800" />
       <div class="over">
         <h2 id="story-arena" class="huge">{{ w.arena.title }}</h2>
         <p>{{ w.arena.line }}</p>
@@ -103,7 +105,7 @@ const GITHUB =
       <h2 id="story-cities">{{ w.cities.title }}</h2>
       <p class="under">{{ w.cities.line }}</p>
       <div class="four">
-        <img v-for="c in CITIES" :key="c" :src="`${PICTURES}/city-${c.toLowerCase()}.webp`" :alt="c" loading="lazy" width="1200" height="630" />
+        <LoopShot v-for="c in CITIES" :key="c" class="pic" :name="`city-${c.toLowerCase()}`" :alt="c" :width="600" :height="800" />
       </div>
     </section>
 
@@ -139,7 +141,8 @@ img { display: block; }
 
 /* A picture full width, the words on a dark fade at its foot. */
 .shot { position: relative; padding: 0; }
-.shot img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+.pic { display: block; }
+.shot .pic { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
 .shot .over { position: absolute; inset: auto 0 0 0; padding: 160px 64px 56px; background: linear-gradient(transparent, rgba(23, 21, 26, 0.88)); }
 .shot h2 { color: #ffffff; }
 .shot p { color: #e6e2ea; }
@@ -205,7 +208,7 @@ img { display: block; }
 /* The cities: four portraits in a row. */
 .cities { padding-bottom: 120px; }
 .four { margin-top: 40px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.four img { width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 18px; }
+.four .pic { width: 100%; height: auto; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 18px; }
 
 /* The last call, on the sun yellow. */
 .end { padding: 112px 24px; background: var(--sun); color: var(--ink); display: grid; justify-items: center; gap: 28px; text-align: center; }
@@ -230,7 +233,7 @@ img { display: block; }
   section { padding: 80px 20px; }
   .duo, .red { grid-template-columns: 1fr; gap: 32px; }
   .shot .over { padding: 96px 20px 28px; }
-  .shot img { aspect-ratio: 4 / 5; }
+  .shot .pic { aspect-ratio: 4 / 5; }
   .four { grid-template-columns: 1fr 1fr; }
   .cell { padding: 20px; }
   .cell .face { width: 76px; height: 76px; }

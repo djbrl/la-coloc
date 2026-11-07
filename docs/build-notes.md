@@ -1353,3 +1353,16 @@ answers GitHub's webhook there), and it rewrites the houses' domains, the rooms'
 which a dump of the database showed were the only places holding the old address (2 houses, 1 room). `deploy/push.sh`
 keeps the server's domain when none is given, so an update can't move the city back by accident. The new Caddy config
 was checked with `caddy validate` on the server before the move.
+
+
+## 7 Nov 2026: the landing's city moves
+
+The landing's pictures of the city (the square, the Arena, the four cities) are now loops of 10 to 12 seconds, filmed
+in the live city as a visitor, with the windows hidden and the name tags left on. The recorder was a throwaway script
+over Chrome's debugging protocol: it held the page's clock still and moved it one frame at a time, so each frame of
+the 30 a second is drawn whole however long the drawing took, and it steered the camera by moving the hidden visitor.
+The camera goes out and comes back on a slow sine, and ffmpeg dissolves the last second into the first, so the loop
+has no seam. They're H.264 only: four VP9 films side by side wouldn't all play in Chrome, while four H.264 ones did.
+`LoopShot.vue` loads a film only when it comes on screen and pauses it when it leaves; with calm motion asked for, it
+shows the still (the loop's first frame) instead. The six films weigh 6 MB in all, about 0.8 MB a city and 1.3 to 1.5
+MB for the wide ones.
