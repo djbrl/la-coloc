@@ -1951,6 +1951,8 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
   .coin-key { top: 12px; left: calc(12px + 46px + 6px); height: 46px; padding: 0 10px; gap: 5px; font-size: 15px; }
   .coin-key.alone { left: 12px; }
+  /* No room beside the search on a phone: the visitor's key goes under it, its one line only. */
+  .coin-key.spectator { top: calc(12px + 46px + 8px); left: 12px; }
   .spectator-words small { display: none; }
   .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
