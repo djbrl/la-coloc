@@ -1,5 +1,23 @@
 # La Coloc
 
+> [!IMPORTANT]
+> ## 🧾 Jury: to test a payment, use this PayDunya sandbox account
+>
+> | | |
+> |---|---|
+> | **Email** | `jury.cadev2026@gmail.com` |
+> | **Password** | `jurycadev2026` |
+>
+> 1. Open https://lacoloc-dev.duckdns.org and sign in with GitHub.
+> 2. Click your credit (top left, **15 000**), then **Add credit** and pick an amount.
+> 3. On PayDunya's test page, log in with the account above and confirm. The credit lands in the city right after.
+>
+> It's PayDunya's **test mode**: no real money moves.
+>
+> **🇫🇷 Jury : pour tester un paiement**, utilisez ce compte de test PayDunya (`jury.cadev2026@gmail.com` /
+> `jurycadev2026`). Connectez-vous avec GitHub, cliquez sur votre crédit en haut à gauche, puis **Ajouter du crédit**.
+> Mode test : aucun vrai argent ne circule.
+
 **A city of dev houses.** La Coloc is a walkable 3D city where developers rent rooms in shared servers, called houses.
 Your room runs your GitHub project online, built and served by a small program on the house's server. Flatmates split
 the server bill, and each code review you do for them pays part of your rent.
