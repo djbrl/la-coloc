@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The welcome, one idea per step, over the live lobby: what the city is, how the rent works, what a room does, and
-// how you get one, with an invitation to log in for a visitor. Picking your look comes first, in CharacterCreation.vue.
+// how you get one, with an invitation to log in for a visitor. A visitor also hears, right after the welcome, that they
+// can only look: talking, renting and going online need a GitHub login. Picking your look comes first, in CharacterCreation.vue.
 // It floats at the bottom like the tutorial's cards, in carte blanche: an icon on its soft red tile, a title, one line,
 // and at the foot the dots, Back (or Skip on the first step) and the one red Next, which Enter presses.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
@@ -18,7 +19,7 @@ const emit = defineEmits<{
 const loggedIn = computed(() => !!me.value);
 // A touch screen has no keys to show.
 const keyboard = !window.matchMedia("(hover: none)").matches;
-const steps = computed(() => ["city", "rent", "push", "knock", ...(keyboard ? ["keys"] : [])]);
+const steps = computed(() => ["city", ...(loggedIn.value ? [] : ["spectator"]), "rent", "push", "knock", ...(keyboard ? ["keys"] : [])]);
 const step = ref(0);
 const current = computed(() => steps.value[step.value]);
 const title = ref<HTMLElement | null>(null);
@@ -39,7 +40,7 @@ function finish() {
 }
 
 // Each step's icon, on the head's tile.
-const ICON: Record<string, IconName> = { city: "house", rent: "coin", push: "rocket", knock: "knock", keys: "keyboard" };
+const ICON: Record<string, IconName> = { city: "house", spectator: "eye", rent: "coin", push: "rocket", knock: "knock", keys: "keyboard" };
 
 // Escape leaves; Enter moves on, unless the focus is on another button or a link, which Enter presses as usual.
 function key(e: KeyboardEvent) {
@@ -69,6 +70,10 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
             <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.cityTitle }}</h2>
             <p class="sign-sub lines">{{ w.city }}</p>
           </template>
+          <template v-else-if="current === 'spectator'">
+            <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.spectatorTitle }}</h2>
+            <p class="sign-sub lines">{{ w.spectator }}</p>
+          </template>
           <template v-else-if="current === 'rent'">
             <h2 id="onboarding-title" ref="title" tabindex="-1">{{ w.rentTitle }}</h2>
             <p class="sign-sub lines">{{ w.rent }}</p>
@@ -88,7 +93,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", key, true));
       </Transition>
 
       <div class="sign-body body">
-        <RouterLink v-if="current === 'knock' && !loggedIn" class="button login" to="/login"><Icon name="login" :size="20" />{{ w.logIn }}</RouterLink>
+        <RouterLink v-if="(current === 'spectator' || current === 'knock') && !loggedIn" class="button login" to="/login"><Icon name="login" :size="20" />{{ w.logIn }}</RouterLink>
         <ul v-if="current === 'keys'" class="keys">
           <li><span class="caps"><kbd v-for="k in ARROWS" :key="k">{{ k }}</kbd></span>{{ w.keysWalk }}</li>
           <li><span class="caps"><kbd>{{ caps.e }}</kbd></span>{{ w.keysUse }}</li>

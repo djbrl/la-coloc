@@ -86,6 +86,12 @@ export const welcomeWords = defineWords(
     knockBefore: "A",
     knockAfter: "blue window is free. Apply, and the house votes.",
     logIn: "Log in with GitHub",
+    // Someone walking in without an account: they can look, not take part (the welcome's second step, and the chip
+    // top left that stays until they log in).
+    spectatorTitle: "Spectator mode",
+    spectator: "Look around all you like. To talk to people, rent a room or put a project online, log in with GitHub.",
+    spectatorChip: "Spectator mode",
+    spectatorChipSub: "Log in with GitHub to play",
     keysTitle: "Getting around",
     keysWalk: "walk",
     keysUse: "go in, use",
@@ -118,6 +124,10 @@ export const welcomeWords = defineWords(
     knockBefore: "Une fenêtre",
     knockAfter: "bleue est libre. Postulez, et la maison vote.",
     logIn: "Se connecter avec GitHub",
+    spectatorTitle: "Mode spectateur",
+    spectator: "Regardez autant que vous voulez. Pour parler aux gens, louer une chambre ou mettre un projet en ligne, connectez-vous avec GitHub.",
+    spectatorChip: "Mode spectateur",
+    spectatorChipSub: "Connectez-vous avec GitHub pour jouer",
     keysTitle: "Se déplacer",
     keysWalk: "marcher",
     keysUse: "entrer, utiliser",

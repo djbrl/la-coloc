@@ -73,7 +73,7 @@ import { digits, needsCharacter } from "./credit";
 import CreditCard from "./CreditCard.vue";
 import Onboarding from "./Onboarding.vue";
 import { boardWords as bw, missionWords } from "./lobby/words";
-import { creditWords as cw, lobbyWords as w } from "./words";
+import { creditWords as cw, lobbyWords as w, welcomeWords as ww } from "./words";
 
 const props = defineProps<{ houses: CityHouse[] }>();
 
@@ -1392,6 +1392,11 @@ function statsOf(name: string) {
       <button v-if="shows('tools') && me?.credit !== undefined" class="hud coin-key" :class="{ alone: inWorkshop }" :aria-label="cw.chip(fcfa(me.credit))" :title="cw.chip(fcfa(me.credit))" @click="creditOpen = true">
         <Icon name="coin" :size="24" /><span>{{ digits(me.credit) }}</span>
       </button>
+      <!-- A visitor has no credit: in its place, that they can only look, until they log in (the key leads there). -->
+      <RouterLink v-if="shows('tools') && meLoaded && !me" class="hud coin-key spectator" :class="{ alone: inWorkshop }" to="/login" :title="ww.spectator">
+        <Icon name="eye" :size="24" />
+        <span class="spectator-words"><b>{{ ww.spectatorChip }}</b><small>{{ ww.spectatorChipSub }}</small></span>
+      </RouterLink>
       <button v-if="shows('tools') && !inWorkshop" class="hud find-key" :aria-label="w.find" :title="w.find" @click="openSheet('find')">
         <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="3" /><path d="M16 16l6 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>
       </button>
@@ -1805,6 +1810,11 @@ function statsOf(name: string) {
 .find-key:hover:not(:disabled), .coin-key:hover:not(:disabled) { background: var(--tile); }
 .find-key:active:not(:disabled), .coin-key:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(20, 12, 18, 0.45); }
 .find-key svg, .coin-key svg { flex: none; color: var(--accent); }
+/* The visitor's key: what they are, then how to do more, in two lines. */
+.spectator { text-decoration: none; }
+.spectator-words { display: grid; gap: 3px; text-align: left; }
+.spectator-words b { font: 800 16px/1.1 var(--font); }
+.spectator-words small { font: 700 13px/1.1 var(--font); color: var(--muted); }
 .place { top: 24px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 8px; height: 62px; min-height: 0; padding: 0 16px; border: 0; border-radius: var(--tile-r); background: var(--panel-red); color: var(--on-panel); box-shadow: 0 5px 0 var(--accent-lip); cursor: pointer; }
 .place .city { font: 800 20px/1.1 var(--font); white-space: nowrap; }
 .lobby-number { top: 94px; right: calc(24px + var(--keys-width, 0px) + 8px); display: flex; align-items: center; gap: 6px; height: 46px; min-height: 0; padding: 0 12px; border: 0; border-radius: var(--tile-r); background: var(--surface); color: var(--text); font: 800 16px/1 var(--font); box-shadow: 0 3px 0 var(--hairline); cursor: pointer; }
@@ -1941,6 +1951,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
   .coin-key { top: 12px; left: calc(12px + 46px + 6px); height: 46px; padding: 0 10px; gap: 5px; font-size: 15px; }
   .coin-key.alone { left: 12px; }
+  .spectator-words small { display: none; }
   .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
   .lobby-number { top: 66px; right: calc(12px + var(--keys-width, 0px) + 6px); }
