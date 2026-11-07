@@ -1,134 +1,104 @@
-// What the landing says below the street, once the visitor scrolls: what La Coloc sells, in six short sections.
-// Impersonal and to the point, like a product page; the figures are the real defaults (256 MB and 0.5 vCPU a room,
-// four rooms a house), the addresses and names in the drawings are made up.
+// What the landing says below the street, once the visitor scrolls: mockup L on the design canvas, "le film". Big
+// pictures of the city and its people, one title and one sentence a screen, and the app's windows turned into simple
+// cards. Each title is one natural phrase, each line one full sentence saying what the feature does, in "vous". The
+// figures are the real defaults (256 MB and 0.5 vCPU a room, four rooms, 12 000 FCFA a house so 3 000 a share, 500 of
+// credit a review); the names are the seeded flatmates of Sacré-Cœur, and the repo is made up.
 import { defineWords } from "../../i18n";
 
 export const storyWords = defineWords(
   "landingStory",
   {
     down: "How it works",
-    title: "A whole server, for the price of a room.",
-    demo: "Try the demo",
-    moveIn: "Move in",
-    points: [
-      { title: "A real server.", line: "SSH terminal, persistent folder and HTTPS address, in every room." },
-      { title: "Shared rent.", line: "Four rooms per house. Every new flatmate lowers everyone's share." },
-      { title: "Neighbours who code.", line: "Cross code reviews, a hand when a build fails, a channel in every house." },
-      { title: "Paid with mobile money.", line: "Wave or Orange Money, through PayDunya. Everyone pays their own line." },
-    ],
-    rent: {
-      title: "Every flatmate brings the rent down.",
-      line: "The house costs the same. Each share shrinks with every arrival.",
-      unit: "FCFA a month, per flatmate",
-      tags: ["1 flatmate", "2 flatmates", "3 flatmates", "Full house"],
-      house: (lit: number) => `${lit} of 4 rooms taken`,
+    square: {
+      title: "A city where every house is a team of devs",
+      line: "Walk from street to street to see what the other houses are working on, in Dakar as in Tunis.",
+      alt: "A square in Dakar in La Coloc, with devs walking around",
     },
-    pipe: {
-      title: "From a GitHub repo to a live address.",
-      line: "Each room builds the project and puts it online. Live logs, restarts and the SSH terminal stay within reach.",
-      repo: "// the repo",
-      room: "// the room, over SSH",
-      roomName: "The room",
+    talk: {
+      title: "Talk to whoever you run into",
+      line: "Your messages show up in a bubble over your avatar, for everyone walking past to read.",
+      alt: "Four flatmates chatting in the street, their messages over their heads",
+    },
+    room: {
+      title: "Your room is a real server",
+      line: "Every flatmate has their own container, on day and night, with SSH access and an HTTPS address.",
+      alt: "A house of four rooms: Moussa, Awa, Jib, and a free room",
+      you: "You?",
+      memory: "256 MB",
+    },
+    push: {
+      title: "Connect your GitHub repo and your project goes online",
+      line: "Every time you merge into main, your room fetches the latest version and puts it back online by itself.",
+      alt: "A GitHub repo going online",
       online: "Online",
     },
-    specs: {
-      title: "Resources reserved, room by room.",
-      line: "Each room has its own share of the server. A project that crashes restarts on its own, and the neighbours keep running.",
-      memory: "MB of memory",
-      cpu: "vCPU",
-      split: "the rent, full house",
+    rent: {
+      title: "Rent split between four flatmates",
+      line: "Your share is paid in credit that you top up with Wave or Orange Money, and every review you do for a flatmate earns you more.",
+      alt: "Your share: 3 000 FCFA, topped up with Wave or Orange Money",
+      perReview: "+500 FCFA per review",
     },
-    neighbours: {
-      title: "Neighbours who code.",
-      line: "Every house is a small team. A whole city of developers, door to door.",
-      points: ["Cross code reviews", "A hand when a build fails", "A channel in every house"],
-      channel: "# channel",
-      house: "Medina house",
-      said: ["Can someone review PR #12? The contributions API.", "On it. I'll deploy the SDK right after."],
-      board: [
-        { state: "To review", what: "Contributions API" },
-        { state: "Online", what: "Mobile money SDK" },
-        { state: "Reviewed", what: "Deploy docs" },
-      ],
+    arena: {
+      title: "A coding challenge every week",
+      line: "The whole city meets at the Arena to work on the same challenge for the week.",
+      alt: "The Arena, in the middle of the city",
     },
-    pay: {
-      title: "Paid with mobile money.",
-      line: "Credit tops up with Wave or Orange Money, through PayDunya. Each flatmate pays their own line. No transfers, no spreadsheets, no chasing.",
-      bill: "The bill",
-      billSays: "Each flatmate pays their own line. The bill updates live.",
-      room: (n: number) => `Room ${n}`,
-      due: "due",
-      paid: "Paid",
-      credit: "Credit",
-      creditSays: "Topped up with mobile money, from a phone.",
-      via: "through PayDunya",
+    cities: {
+      title: "Other cities to visit",
+      line: "Dakar, Kigali, Marrakech and Tunis each have their own houses and devs, and you go from one to another whenever you like.",
     },
     end: {
-      title: "The next free room is up for grabs.",
+      title: "Join the coloc!",
+      line: "Log in with GitHub to move in with Moussa, Awa and Jib.",
       moveIn: "Move in with GitHub",
     },
+    hosted: "Hosted on Datacloud",
   },
   {
     down: "Comment ça marche",
-    title: "Un serveur entier, au prix d'une chambre.",
-    demo: "Essayer la démo",
-    moveIn: "Emménager",
-    points: [
-      { title: "Un vrai serveur.", line: "Terminal SSH, dossier persistant et adresse HTTPS, dans chaque chambre." },
-      { title: "Un loyer partagé.", line: "Quatre chambres par maison. Chaque arrivée fait baisser la part de tous." },
-      { title: "Des voisins qui codent.", line: "Revues de code croisées, un coup de main quand une construction échoue, un salon par maison." },
-      { title: "Payé en Mobile Money.", line: "Wave ou Orange Money, via PayDunya. Chacun règle sa ligne." },
-    ],
-    rent: {
-      title: "Chaque coloc fait baisser le loyer.",
-      line: "Le prix de la maison est fixe. La part de chacun fond à chaque arrivée.",
-      unit: "FCFA par mois et par coloc",
-      tags: ["1 coloc", "2 colocs", "3 colocs", "Maison pleine"],
-      house: (lit: number) => `${lit} chambres prises sur 4`,
+    square: {
+      title: "Une ville où chaque maison est une équipe de devs",
+      line: "Promenez-vous de rue en rue pour voir sur quoi travaillent les autres maisons, à Dakar comme à Tunis.",
+      alt: "Une place de Dakar dans La Coloc, des devs qui se promènent",
     },
-    pipe: {
-      title: "Du dépôt GitHub à l'adresse en ligne.",
-      line: "Chaque chambre construit le projet et le met en ligne. Journaux en direct, redémarrage et terminal SSH restent à portée de main.",
-      repo: "// le dépôt",
-      room: "// la chambre, en SSH",
-      roomName: "La chambre",
+    talk: {
+      title: "Parlez à ceux que vous croisez",
+      line: "Vos messages apparaissent dans une bulle au-dessus de votre avatar, visibles par tous ceux qui passent à côté.",
+      alt: "Quatre colocs discutent dans la rue, leurs messages au-dessus de leurs têtes",
+    },
+    room: {
+      title: "Votre chambre est un vrai serveur",
+      line: "Chaque coloc a son propre conteneur, allumé jour et nuit, avec un accès SSH et une adresse en HTTPS.",
+      alt: "Un appartement de quatre chambres : Moussa, Awa, Jib, et une chambre libre",
+      you: "Vous ?",
+      memory: "256 Mo",
+    },
+    push: {
+      title: "Branchez votre dépôt GitHub et votre projet passe en ligne",
+      line: "À chaque merge sur main, votre chambre récupère la dernière version et la remet en ligne toute seule.",
+      alt: "Un dépôt GitHub qui se met en ligne",
       online: "En ligne",
     },
-    specs: {
-      title: "Des ressources réservées, chambre par chambre.",
-      line: "Chaque chambre a sa part du serveur, à elle seule. Un projet qui plante est relancé tout seul, et les voisins continuent de tourner.",
-      memory: "Mo de mémoire",
-      cpu: "vCPU",
-      split: "le loyer, maison pleine",
+    rent: {
+      title: "Un loyer partagé entre quatre colocs",
+      line: "Votre part se paie en crédit, que vous rechargez en Wave ou en Orange Money, et chaque code que vous relisez pour un coloc vous en rapporte.",
+      alt: "Votre part : 3 000 FCFA, rechargés avec Wave ou Orange Money",
+      perReview: "+500 FCFA par code relu",
     },
-    neighbours: {
-      title: "Des voisins qui codent.",
-      line: "Chaque maison est une petite équipe. Une ville entière de développeurs, porte à porte.",
-      points: ["Revues de code croisées", "Un coup de main quand une construction échoue", "Un salon par maison"],
-      channel: "# salon",
-      house: "maison Médina",
-      said: ["Quelqu'un peut relire la PR #12 ? L'API des cotisations.", "Je prends. Je déploie le SDK juste après."],
-      board: [
-        { state: "À relire", what: "API des cotisations" },
-        { state: "En ligne", what: "SDK Mobile Money" },
-        { state: "Relue", what: "Docs de déploiement" },
-      ],
+    arena: {
+      title: "Un défi de code chaque semaine",
+      line: "Toute la ville se retrouve à l'Arène pour travailler sur le même sujet pendant la semaine.",
+      alt: "L'Arène, au milieu de la ville",
     },
-    pay: {
-      title: "Payé en Mobile Money.",
-      line: "Le crédit se recharge par Wave ou Orange Money, via PayDunya. Chaque coloc règle sa ligne. Ni virement, ni tableur, ni relance.",
-      bill: "La facture",
-      billSays: "Chaque coloc règle sa ligne. La facture se suit en direct.",
-      room: (n: number) => `Chambre ${n}`,
-      due: "à régler",
-      paid: "Payé",
-      credit: "Le crédit",
-      creditSays: "Rechargé en Mobile Money, depuis le téléphone.",
-      via: "via PayDunya",
+    cities: {
+      title: "D'autres villes à visiter",
+      line: "Dakar, Kigali, Marrakech et Tunis ont chacune leurs maisons et leurs devs, et vous passez de l'une à l'autre quand vous voulez.",
     },
     end: {
-      title: "La prochaine chambre libre est à prendre.",
+      title: "Rejoignez la coloc !",
+      line: "Connectez-vous avec GitHub pour emménager avec Moussa, Awa et Jib.",
       moveIn: "Emménager avec GitHub",
     },
+    hosted: "Hébergé sur Datacloud",
   },
 );

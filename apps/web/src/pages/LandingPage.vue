@@ -239,7 +239,7 @@ onBeforeUnmount(() => {
       <a href="https://github.com/Djbrl/la-coloc" rel="noopener" target="_blank">GitHub</a>
     </footer>
   </div>
-  <LandingStory :login-at="loginAt" @demo="tryDemo" />
+  <LandingStory :login-at="loginAt" />
 </template>
 
 <style scoped>
