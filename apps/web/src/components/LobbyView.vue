@@ -1949,12 +1949,13 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 /* Not much width: the search shrinks to its icon, the place to its name. */
 @media (max-width: 520px) {
   /* A phone: the keys are smaller and tighter (App.vue), and so are these. */
-  .coin-key { top: 12px; left: calc(12px + 46px + 6px); height: 46px; padding: 0 10px; gap: 5px; font-size: 15px; }
-  .coin-key.alone { left: 12px; }
-  /* No room beside the search on a phone: the visitor's key goes under it, its one line only. */
+  /* With five keys (once you have a house) the top row has no room for the search and the credit both: the credit
+     keeps the corner, and the search joins the turning keys down the right. */
+  .coin-key { top: 12px; left: 12px; height: 46px; padding: 0 10px; gap: 5px; font-size: 15px; }
+  /* No room in the top row on a phone: the visitor's key goes under it, its one line only. */
   .coin-key.spectator { top: calc(12px + 46px + 8px); left: 12px; }
   .spectator-words small { display: none; }
-  .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: 0 3px 0 rgba(20, 12, 18, 0.45); }
+  .find-key { top: calc(68px + 2 * (46px + 6px) + var(--core-offset, 0px)); left: auto; right: 12px; width: 46px; height: 46px; box-shadow: 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
   /* The keys and the credit fill the top row on a phone: the place goes on the second row, beside the turning keys. */
   .lobby-number { top: calc(68px + 46px + 8px + var(--core-offset, 0px)); right: calc(12px + 46px + 6px); }
