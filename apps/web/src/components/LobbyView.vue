@@ -1956,14 +1956,17 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .spectator-words small { display: none; }
   .find-key { top: 12px; left: 12px; width: 46px; height: 46px; box-shadow: 0 3px 0 rgba(20, 12, 18, 0.45); }
   .find-key svg { width: 22px; height: 22px; }
-  .lobby-number { top: 66px; right: calc(12px + var(--keys-width, 0px) + 6px); }
-  .place { top: 12px; right: calc(12px + var(--keys-width, 0px) + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
+  /* The keys and the credit fill the top row on a phone: the place goes on the second row, beside the turning keys. */
+  .lobby-number { top: calc(68px + 46px + 8px + var(--core-offset, 0px)); right: calc(12px + 46px + 6px); }
+  .place { top: calc(68px + var(--core-offset, 0px)); right: calc(12px + 46px + 6px); height: 46px; max-width: 110px; padding: 0 8px; gap: 4px; box-shadow: 0 3px 0 var(--accent-lip); }
   .place svg { display: none; }
   .place .city { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
   .prompt { gap: 10px; padding-left: 14px; font-size: 15px; max-width: 100%; }
   .prompt strong { font-size: 16px; }
   .prompt .soft, .prompt kbd { display: none; }
-  .prompt > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* Too narrow for both side by side: the words on top, whole, and the button under them. */
+  .prompt { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; white-space: normal; }
+  .prompt > span { min-width: 0; padding: 0 4px; line-height: 1.2; }
   /* The prompt moves to the left, beside the minimap rather than under it. The coach (lifted)
      keeps the middle. */
   .centre:not(.lifted) { left: 12px; bottom: max(28px, env(safe-area-inset-bottom)); transform: none; align-items: flex-start; max-width: calc(100vw - 180px); }
@@ -1971,7 +1974,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
   .tools { top: calc(68px + var(--core-offset, 0px)); right: 12px; bottom: auto; flex-direction: column; gap: 6px; }
   .tools button { width: 46px; height: 46px; box-shadow: 0 3px 0 var(--accent-lip); }
   /* One line: the city's name is already top right, and anything longer ends in "…". */
-  .top { top: calc(68px + var(--core-offset, 0px)); left: 12px; right: 64px; transform: none; max-width: none; padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top { top: calc(68px + var(--core-offset, 0px)); left: 12px; right: calc(64px + 110px + 6px); transform: none; max-width: none; padding: 7px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top p { font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
   .top .wide { display: none; }
   .top .narrow { display: inline; }
