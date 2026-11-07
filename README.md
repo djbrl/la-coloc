@@ -4,7 +4,14 @@
 Your room runs your GitHub project online, built and served by a small program on the house's server. Flatmates split
 the server bill, and each code review you do for them pays part of your rent.
 
-![A newcomer's first project going online in the workshop house: the quest's tracker at the top, the launch card at the bottom](docs/screenshots/first-home/3-launch-live.jpg)
+![Dakar's central square: the city board, the baobab, people walking by, and the minimap in the corner](docs/screenshots/submission/1-city-square.jpg)
+
+| | |
+|---|---|
+| ![Sacré-Cœur's floor plan: three flatmates' rooms, a free one, and the house's monthly bill](docs/screenshots/submission/2-house-floor-plan.jpg) | ![A live room: its address, memory, CPU and the SSH command](docs/screenshots/submission/3-room-live.jpg) |
+| **A house:** its rooms, who lives there, and the monthly bill. | **A room:** a project online, with its address and SSH. |
+| ![The Arena's weekly challenge: Accessibility hunt, 20 000 FCFA for first place](docs/screenshots/submission/4-arena.jpg) | ![The travel map: eight cities across Africa](docs/screenshots/submission/5-travel-map.jpg) |
+| **The Arena:** a weekly challenge per city, with a prize. | **Travel:** eight cities, one map. |
 
 ## What you can do in it
 
