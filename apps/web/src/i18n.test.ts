@@ -118,14 +118,14 @@ describe("reading words", () => {
 
   it("says the bill and the tontine in French, with French dates", () => {
     language.lang = "fr";
-    const awa = { login: "awa", name: "Awa", share: 3000, reviews: 4, credit: 2000, skipped: 0, surcharge: 0, due: 1000, paid: false };
-    expect(lineWords(awa, "jib")).toEqual({ reviews: `Awa a relu 4 PR\u00a0: ${fcfa(2000)} en moins.`, owes: `Awa doit ${fcfa(1000)}.` });
-    expect(lineWords(awa, "awa")).toEqual({ reviews: `Vous avez relu 4 PR\u00a0: ${fcfa(2000)} en moins.`, owes: `Vous devez ${fcfa(1000)}.` });
+    const awa = { login: "awa", name: "Awa", share: 3000, reviews: 4, credit: 2000, due: 3000, paid: false };
+    expect(lineWords(awa, "jib")).toEqual({ reviews: `Awa a relu 4 PR\u00a0: ${fcfa(2000)} de crédit.`, owes: `Awa doit ${fcfa(3000)}.` });
+    expect(lineWords(awa, "awa")).toEqual({ reviews: `Vous avez relu 4 PR\u00a0: ${fcfa(2000)} de crédit.`, owes: `Vous devez ${fcfa(3000)}.` });
     expect(lineWords({ ...awa, reviews: 0 }, "awa").reviews).toBe("Vous n'avez pas encore relu de PR.");
     expect(reviewsLine(1)).toBe("1 revue échangée ce mois-ci.");
     expect(reviewsLine(23)).toBe("23 revues échangées ce mois-ci.");
     expect(billHead({ total: 12000, month: "2026-10", reviewCredit: 500 })).toBe(
-      `${fcfa(12000)} pour octobre, partagés selon l'usage. Chaque revue en retire ${fcfa(500)}.`,
+      `${fcfa(12000)} pour octobre, partagés selon l'usage. Chaque revue rapporte ${fcfa(500)} de crédit.`,
     );
     expect(dayName("2026-11-01T00:00:00.000Z")).toBe("1er novembre");
     const moussa = { login: "moussa", name: "Moussa Diop", avatarUrl: null };

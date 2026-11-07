@@ -7,8 +7,8 @@ in the [glossary](glossary.md). How the pieces fit: [architecture.md](architectu
 
 La Coloc is **a city of dev houses**. You walk a 3D city, find a **house** with a free **room**, and move in. A house
 is one server rented together. Your room is your own walled-off part of it, where your GitHub project is built and
-put online. The house splits the server's **bill**, and every code **review** you do for a flatmate takes money off
-your share. Developers trade reviews, help and server space: that is the "exchange" in the contest's subject, *an
+put online. The house splits the server's **bill**, and every code **review** you do for a flatmate earns you credit
+toward your share. Developers trade reviews, help and server space: that is the "exchange" in the contest's subject, *an
 African exchange platform built for devs by devs*.
 
 ## The problem it answers
@@ -95,7 +95,7 @@ end of the month. Settings can also delete your account, or remove the GitHub Ap
   history, what's inside, SSH, the lease, restart and update. A build can be cancelled.
 - **Your room is yours:** only you manage it, open a shell in it or see its SSH address (the chef can update and
   restart it). To work with a flatmate, ask them for a review. The review rotation never picks you for your own
-  project, and reviewing your own project takes nothing off your rent.
+  project, and reviewing your own project earns nothing.
 - **Sharing a house:** the share key in a house's panel copies its link or sends it on WhatsApp; the link shows the
   house's name, a line about it and a picture of its city.
 
@@ -108,15 +108,15 @@ end of the month. Settings can also delete your account, or remove the GitHub Ap
 4. You merge. The caretaker builds the new version, checks it starts, then switches visitors to it. If it fails, the
    old version keeps running and you see why.
 
-Each review done this month takes **500 FCFA** off the reviewer's line of the bill, and adds 500 FCFA to their credit.
+Each review done adds **500 FCFA** to the reviewer's credit at once, and credit is what rent is paid from.
 The app calls them "Reviews"; the code calls them "chores".
 
 ## The bill
 
 - The house's monthly cost is split between flatmates: 60 % by room size (like rent), 40 % by the CPU each room
   really used. The caretaker measures usage every 30 seconds.
-- Your review credits come off your line. Whoever let a review go late pays for them first, up to 500 FCFA a late
-  review; the house's pool covers the rest. A first place in the Arena also comes off the winner's line.
+- Your line is your whole share. Reviews and a first place in the Arena pay in credit when they happen, so they
+  never come off the bill too: one reward, paid once. A late review costs nothing on the bill.
 - Each country's usual ways to pay are named (Wave and Orange Money in Senegal, MTN MoMo in Côte d'Ivoire…).
 - **Rent goes by itself:** your line is taken from your credit when you move in and then each month, with a line under
   the bell. Short of credit, nothing goes below zero: the month stays unpaid and is taken once you have the credit.

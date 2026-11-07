@@ -48,17 +48,17 @@ describe("the Reviews tab", () => {
     expect(reviewSituation(splitReviews([chore("awa", "jib", { late: true })], "jib")).kind).toBe("othersOnly");
   });
 
-  it("says it in one plain sentence, with what a review takes off the rent", () => {
-    expect(reviewSummary(splitReviews([chore("jib", "awa")], "jib"), "500 FCFA")).toBe("1 review to do. Each takes 500 FCFA off your rent.");
+  it("says it in one plain sentence, with what a review earns in credit", () => {
+    expect(reviewSummary(splitReviews([chore("jib", "awa")], "jib"), "500 FCFA")).toBe("1 review to do. Each earns you 500 FCFA in credit.");
     expect(reviewSummary(splitReviews([chore("jib", "awa"), chore("jib", "awa")], "jib"), "500 FCFA")).toBe(
-      "2 reviews to do. Each takes 500 FCFA off your rent.",
+      "2 reviews to do. Each earns you 500 FCFA in credit.",
     );
     expect(reviewSummary(splitReviews([chore("jib", "awa", { late: true })], "jib"), "500 FCFA")).toBe(
       "1 review late. It adds to your rent.",
     );
     expect(reviewSummary(splitReviews([], "jib"), "500 FCFA")).toMatch(/^Nothing to review\./);
     language.lang = "fr";
-    expect(reviewSummary(splitReviews([chore("jib", "awa")], "jib"), "500 FCFA")).toBe("1 revue à faire. Chacune retire 500 FCFA du loyer.");
+    expect(reviewSummary(splitReviews([chore("jib", "awa")], "jib"), "500 FCFA")).toBe("1 revue à faire. Chacune vous rapporte 500 FCFA de crédit.");
   });
 
   it("titles a row as a sentence: what you review, or who reviews whose", () => {

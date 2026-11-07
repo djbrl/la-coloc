@@ -496,7 +496,7 @@ function run(from: "starter" | "github") {
   source.value = from;
   void tutorial.deploy(from);
 }
-// Chapter 8: what a review takes off the rent, from the workshop's bill (500 FCFA when it has none).
+// Chapter 8: what a review earns in credit, from the workshop's bill (500 FCFA when it has none).
 const credit = computed(() => fcfa(tutorial.view.value?.bill?.reviewCredit ?? 500));
 // "Well done": your first name.
 const myFirstName = computed(() => me.value?.name?.trim().split(/\s+/)[0] || me.value?.login || null);

@@ -93,14 +93,12 @@ describe("the Arena's seeded past", () => {
 });
 
 describe("the winner's prize", () => {
-  it("comes off their own line of the house bill that month, and nobody else's", async () => {
+  it("never comes off the house bill: it's paid in credit, so everyone owes their share", async () => {
     const { HousesService } = await import("../houses/houses.service");
     const awa = await user("awa");
     const view = await new HousesService(db).view("sacre-coeur", awa.id);
     const lines = view!.bill!.lines;
-    const mine = lines.find((l) => l.login === "awa")!;
-    expect(mine.prize).toBeGreaterThan(0);
-    expect(mine.due).toBe(Math.max(0, mine.share - mine.credit + mine.surcharge - mine.prize));
-    expect(lines.filter((l) => l.login !== "awa").every((l) => l.prize === 0)).toBe(true);
+    expect(lines.find((l) => l.login === "awa")).toBeDefined();
+    for (const l of lines) expect(l.due).toBe(l.share);
   });
 });

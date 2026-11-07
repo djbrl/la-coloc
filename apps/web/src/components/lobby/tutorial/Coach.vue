@@ -30,7 +30,7 @@ const props = defineProps<{
   error: string;
   // Where the last launch came from, so "Try again" launches the same thing.
   source: "starter" | "github";
-  // What a review takes off the rent, already written as money ("500 FCFA").
+  // What a review earns in credit, already written as money ("500 FCFA").
   credit: string;
   // The repos you let La Coloc see on GitHub (chapter 4's picker); null until asked.
   choices?: RepoChoices | null;

@@ -1,6 +1,6 @@
 // The house's Reviews tab, in words. Behind it are the API's "chores": when a flatmate opens a pull request, the
 // house picks the next reviewer in turn (apps/api/src/github/chores.service.ts) and gives them 24 hours. Each review
-// done takes a credit off the reviewer's rent, and one let go late adds up to as much to it (packages/domain bill.ts).
+// done earns the reviewer credit, which pays their rent; one let go late is only noted in the house's news.
 // The panel calls them "reviews", because that's what they are to a newcomer; "chore" stays the API's word.
 //
 // This file decides what the tab shows and says: your reviews first, the rest of the house's behind a button, and
@@ -48,7 +48,7 @@ export function reviewSituation(lists: ReviewLists): ReviewSituation {
   return { kind: "none" };
 }
 
-/** The tab's one sentence about you. `credit` is what a review takes off the rent, already written ("500 FCFA"). */
+/** The tab's one sentence about you. `credit` is what a review earns in credit, already written ("500 FCFA"). */
 export function reviewSummary(lists: ReviewLists, credit: string): string {
   const s = reviewSituation(lists);
   switch (s.kind) {

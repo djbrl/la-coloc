@@ -22,7 +22,7 @@ const props = defineProps<{
   cpus?: number;
   // The first rent to pay before the keys: your share, the server's whole cost, how many share it, and how people pay there.
   rent?: { share: number; total: number; shares?: number; operators: string[] } | null;
-  // What a review takes off the rent, already written as money ("500 FCFA").
+  // What a review earns in credit, already written as money ("500 FCFA").
   credit?: string;
 }>();
 const emit = defineEmits<{ next: [] }>();

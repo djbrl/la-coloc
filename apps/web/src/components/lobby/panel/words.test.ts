@@ -41,9 +41,9 @@ describe("the panels' words", () => {
     expect(houseTrouble({ ...h, demo: true })).toBe("Example house.");
   });
 
-  it("explains the Reviews tab with what a review takes off the rent, in plain words", () => {
+  it("explains the Reviews tab with what a review earns in credit, in plain words", () => {
     expect(explain.chores("500 FCFA")).toMatch(/^Flatmates review your code, you review theirs\./);
-    expect(explain.chores("500 FCFA")).toMatch(/Each review takes 500 FCFA off your rent\.$/);
+    expect(explain.chores("500 FCFA")).toMatch(/Each review earns you 500 FCFA in credit\.$/);
     // The house's notice board, never "the fridge": a newcomer has no reason to know the joke.
     expect(explain.fridge).not.toMatch(/fridge/i);
   });

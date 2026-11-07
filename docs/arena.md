@@ -36,8 +36,7 @@ Rules added after the 17 Oct review (docs: challenges/README.md):
 - **One arena a week**: joining a second city's arena that week is refused (`arenaOtherCity`), so a pull request
   counts in one city.
 - **The prize** (1st place's FCFA) goes to the winner's credit when the week closes (`closeAndAward`, keyed so it's
-  paid once), and also comes off the winner's line of their house bill in the month they win it, paid by La Coloc:
-  `BillLineView.prize`.
+  paid once). That's the whole prize: it doesn't come off their house bill as well.
 - **The repo must be public.** `ArenaView.challenge.open` says whether anyone can open the challenge's folder (asked
   without credentials, remembered 10 minutes); when false the panel says it opens soon and offers no join. Use a
   dedicated public repo (`COLOC_ARENA_REPO`) rather than the private product repo.

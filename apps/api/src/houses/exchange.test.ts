@@ -135,7 +135,7 @@ describe("the house page", () => {
     expect((await svc.view("atelier"))!.tontine).toBeNull();
   });
 
-  it("gives flatmates the bill: usage share, reviews paid as rent, skips charged, how to pay", async () => {
+  it("gives flatmates the bill: usage share owed whole, reviews and the credit they earned, how to pay", async () => {
     await chore(1, "awa", "jib", { done: new Date() });
     await chore(2, "awa", "moussa", { done: new Date() });
     await chore(3, "awa", "jib", { done: new Date() });
@@ -153,15 +153,15 @@ describe("the house page", () => {
     const line = (login: string) => bill.lines.find((l) => l.login === login)!;
     // Split by room size (256, 256, 128 MB): nobody used CPU.
     expect([line("jib").share, line("awa").share, line("moussa").share]).toEqual([4_800, 4_800, 2_400]);
-    expect(line("awa")).toMatchObject({ reviews: 3, credit: 1_500, due: 3_300, paid: false });
-    expect(line("moussa")).toMatchObject({ skipped: 1, surcharge: 500, due: 2_900 });
+    // Awa's reviews paid her in credit when she did them: her rent stays her share.
+    expect(line("awa")).toMatchObject({ reviews: 3, credit: 1_500, due: 4_800, paid: false });
+    // Moussa's late review costs him nothing on the bill.
+    expect(line("moussa")).toMatchObject({ reviews: 0, credit: 0, due: 2_400 });
     expect(line("jib").due).toBe(4_800);
-    // Moussa's skip paid 500 of Awa's 1 500; the pool pays the rest.
-    expect(bill.pool).toBe(1_000);
-    expect(bill.lines.reduce((s, l) => s + l.due, 0)).toBe(12_000 - bill.pool);
+    expect(bill.lines.reduce((s, l) => s + l.due, 0)).toBe(12_000);
   });
 
-  it("pays nothing for a review of your own project, and a flatmate's review of it as usual", async () => {
+  it("counts no review of your own project, and a flatmate's review of it as usual", async () => {
     // Repo 1 lives in Moussa's room. An older database may still say Awa teamed up on it: that counts for nothing now.
     await db.insert(repos).values({ githubId: 1, fullName: "Djbrl/coloc-test", houseId: "sacre-coeur", room: "moussa", installationId: 7 });
     const [moussaRoom] = await db.select().from(rooms).where(and(eq(rooms.houseId, "sacre-coeur"), eq(rooms.name, "moussa")));
@@ -169,14 +169,14 @@ describe("the house page", () => {
     // Awa and Jib each review one of Moussa's pull requests.
     await chore(1, "awa", "moussa", { done: new Date() });
     await chore(2, "jib", "moussa", { done: new Date() });
-    // One of Moussa's own, assigned to him and late (from before the rotation knew better), isn't a skipped chore.
-    await chore(3, "moussa", "awa", { due: new Date(Date.now() - HOUR) });
+    // One of Moussa's own, assigned to him and done (from before the rotation knew better), isn't counted.
+    await chore(3, "moussa", "awa", { done: new Date() });
 
     const bill = (await svc.view("sacre-coeur", await userId("jib")))!.bill!;
     const line = (login: string) => bill.lines.find((l) => l.login === login)!;
     expect(line("awa")).toMatchObject({ reviews: 1, credit: 500 });
     expect(line("jib")).toMatchObject({ reviews: 1, credit: 500 });
-    expect(line("moussa")).toMatchObject({ skipped: 0, surcharge: 0 });
+    expect(line("moussa")).toMatchObject({ reviews: 0, credit: 0 });
   });
 
   it("lets a flatmate mark their own line paid, once, and nobody else", async () => {

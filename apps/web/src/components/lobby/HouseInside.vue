@@ -177,8 +177,8 @@ const tontineText = computed(() => tontineLine(tontine.value, me.value));
 const turnFaces = computed(() => (tontine.value?.current ? [tontine.value.current, ...tontine.value.line.slice(0, 4)] : []));
 // The house's review rule, said where the reviews are (the chef's switch sits at its end).
 const ruleText = computed(() => ruleLine(!!house.value?.rules.strictReviews));
-// What a review takes off the rent, as the tab's number: "−500 FCFA" (a true minus).
-const perReview = computed(() => `\u2212${fcfa(house.value?.bill?.reviewCredit ?? 500)}`);
+// What a review earns in credit, as the tab's number: "+500 FCFA".
+const perReview = computed(() => `+${fcfa(house.value?.bill?.reviewCredit ?? 500)}`);
 
 // A guest let into the chat from outside a full house reads and writes the channel, and nothing else of the house.
 const chatGuest = computed(() => !member.value && viewer.value?.guest === "accepted");
@@ -661,9 +661,9 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
           @paid="paid"
           @back="paying = false"
         />
-        <!-- The month's bill in numbers: the server, the rooms, your part. Then what a review takes off and how many you
-             did, and everyone's line in a fold: who, what their reviews took off, what they owe (the sentence for it on
-             hover and for a screen reader), and a tick once paid. -->
+        <!-- The month's bill in numbers: the server, the rooms, your part. Then what a review earns in credit and how
+             many you did, and everyone's line in a fold: who, what their reviews earned, what they owe (the sentence
+             for it on hover and for a screen reader), and a tick once paid. -->
         <template v-else-if="bill">
           <p v-if="example" class="label">{{ w.exampleTag }}</p>
           <ul class="stats">
@@ -672,9 +672,8 @@ const payButton = computed(() => member.value && shownTab.value === "bill" && !!
             <li v-if="myLine"><strong>{{ fcfa(myLine.paid ? (myLine.paidAmount ?? myLine.due) : myLine.due) }}</strong><span>{{ myLine.paid ? w.stats.paid : w.stats.yourPart }}</span></li>
           </ul>
           <div class="facts">
-            <p class="fact"><span>{{ w.bill.eachReview }}</span><strong>&minus;{{ fcfa(bill.reviewCredit) }}</strong></p>
+            <p class="fact"><span>{{ w.bill.eachReview }}</span><strong>+{{ fcfa(bill.reviewCredit) }}</strong></p>
             <p v-if="myLine" class="fact"><span>{{ w.bill.yourReviews }}</span><strong>{{ myLine.reviews }}</strong></p>
-            <p v-if="bill.pool" class="fact"><span>{{ w.bill.pool }}</span><strong>{{ fcfa(bill.pool) }}</strong></p>
           </div>
           <div class="fold tile-box">
             <button type="button" class="fold-key" :aria-expanded="linesOpen" aria-controls="house-bill-lines" @click="linesOpen = !linesOpen">

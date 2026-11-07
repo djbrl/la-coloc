@@ -51,7 +51,6 @@ export const houseWords = defineWords(
     bill: {
       eachReview: "Each review done",
       yourReviews: "Your reviews this month",
-      pool: "The house pool covers",
       everyone: "Each flatmate's part",
     },
     // The News tab's day headings ("Yesterday" is the common word).
@@ -95,7 +94,7 @@ export const houseWords = defineWords(
     // The Reviews tab (chores.ts): the pull requests the house gave someone to review.
     reviews: {
       late: (late: number) => (late === 1 ? "1 review late. It adds to your rent." : `${late} reviews late. They add to your rent.`),
-      todo: (count: number, credit: string) => `${plural(count, "review", "reviews")} to do. Each takes ${credit} off your rent.`,
+      todo: (count: number, credit: string) => `${plural(count, "review", "reviews")} to do. Each earns you ${credit} in credit.`,
       othersOnly: (count: number) => `Nothing for you. ${plural(count, "review", "reviews")} for flatmates.`,
       none: "Nothing to review.",
       yours: (author: string, title: string) => `Review ${author}'s “${title}”`,
@@ -176,13 +175,10 @@ export const houseWords = defineWords(
     // The exchange in sentences (exchange.ts).
     thisMonth: "this month",
     reviewsTraded: (n: number) => (n > 0 ? `${plural(n, "review", "reviews")} traded this month.` : "No reviews traded this month."),
-    billHead: (total: string, month: string, credit: string) => `${total} for ${month}, split by use. Each review takes ${credit} off.`,
-    pool: (pool: string) => `The house pool covers ${pool}.`,
+    billHead: (total: string, month: string, credit: string) => `${total} for ${month}, split by use. Each review earns ${credit} in credit.`,
     you: "You",
-    reviewed: (who: string, you: boolean, prs: number, credit: string) => `${who} reviewed ${plural(prs, "PR", "PRs")}: ${credit} off.`,
+    reviewed: (who: string, you: boolean, prs: number, credit: string) => `${who} reviewed ${plural(prs, "PR", "PRs")}: ${credit} in credit.`,
     notReviewed: (who: string, you: boolean) => `${who} ${you ? "haven't" : "hasn't"} reviewed a PR yet.`,
-    skipped: (surcharge: string) => `Skipped reviews add ${surcharge}. `,
-    arenaPrize: (prize: string) => `Arena prize: ${prize} off, paid by La Coloc. `,
     hasPaid: (who: string, you: boolean, amount: string) => `${who} paid ${amount}.`,
     owesNothing: (who: string, you: boolean) => `${who} ${you ? "owe" : "owes"} nothing this month.`,
     owes: (who: string, you: boolean, amount: string) => `${who} ${you ? "owe" : "owes"} ${amount}.`,
@@ -241,7 +237,6 @@ export const houseWords = defineWords(
     bill: {
       eachReview: "Chaque revue faite",
       yourReviews: "Vos revues ce mois-ci",
-      pool: "La caisse commune couvre",
       everyone: "La part de chaque coloc",
     },
     today: "Aujourd'hui",
@@ -277,7 +272,7 @@ export const houseWords = defineWords(
 
     reviews: {
       late: (late) => (late === 1 ? "1 revue en retard. Elle alourdit votre loyer." : `${late} revues en retard. Elles alourdissent votre loyer.`),
-      todo: (count, credit) => `${pluriel(count, "revue", "revues")} à faire. Chacune retire ${credit} du loyer.`,
+      todo: (count, credit) => `${pluriel(count, "revue", "revues")} à faire. Chacune vous rapporte ${credit} de crédit.`,
       othersOnly: (count) => `Rien pour vous. ${pluriel(count, "revue", "revues")} pour les colocs.`,
       none: "Rien à relire.",
       yours: (author, title) => `Relire « ${title} » de ${author}`,
@@ -350,13 +345,10 @@ export const houseWords = defineWords(
 
     thisMonth: "ce mois-ci",
     reviewsTraded: (n) => (n > 0 ? `${pluriel(n, "revue échangée", "revues échangées")} ce mois-ci.` : "Aucune revue échangée ce mois-ci."),
-    billHead: (total, month, credit) => `${total} pour ${month}, partagés selon l'usage. Chaque revue en retire ${credit}.`,
-    pool: (pool) => `La caisse commune couvre ${pool}.`,
+    billHead: (total, month, credit) => `${total} pour ${month}, partagés selon l'usage. Chaque revue rapporte ${credit} de crédit.`,
     you: "Vous",
-    reviewed: (who, you, prs, credit) => `${who} ${you ? "avez" : "a"} relu ${prs} PR : ${credit} en moins.`,
+    reviewed: (who, you, prs, credit) => `${who} ${you ? "avez" : "a"} relu ${prs} PR : ${credit} de crédit.`,
     notReviewed: (who, you) => (you ? "Vous n'avez pas encore relu de PR." : `${who} n'a pas encore relu de PR.`),
-    skipped: (surcharge) => `Les revues manquées ajoutent ${surcharge}. `,
-    arenaPrize: (prize) => `Prix de l'arène : ${prize} de moins, payés par La Coloc. `,
     hasPaid: (who, you, amount) => `${who} ${you ? "avez" : "a"} payé ${amount}.`,
     owesNothing: (who, you) => (you ? "Vous ne devez rien ce mois-ci." : `${who} ne doit rien ce mois-ci.`),
     owes: (who, you, amount) => (you ? `Vous devez ${amount}.` : `${who} doit ${amount}.`),

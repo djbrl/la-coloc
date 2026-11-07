@@ -24,8 +24,8 @@ describe("the workshop's examples", () => {
     expect(bill.month).toBe("2026-11");
     expect(bill.lines.map((l) => l.login)).toEqual(["fatou", "example-awa", "example-moussa", "example-fatou"]);
     const owed = bill.lines.reduce((sum, l) => sum + l.due, 0);
-    expect(owed).toBe(bill.total - bill.pool);
-    expect(bill.lines[0]).toMatchObject({ share: 3000, credit: 1000, due: 2000, paid: true });
+    expect(owed).toBe(bill.total);
+    expect(bill.lines[0]).toMatchObject({ share: 3000, credit: 1000, due: 3000, paid: true });
     expect(toPay(bill, you.login)).toBeNull();
   });
 });

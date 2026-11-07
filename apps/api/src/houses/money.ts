@@ -18,7 +18,7 @@ export function operatorsFor(country: string): string[] {
   return OPERATORS[country] ?? [];
 }
 
-// Each review done for the house this month knocks this much off your line of the bill (see creditReviews).
+// Each review done for the house earns its reviewer this much credit (chores.service.ts), which pays their rent.
 export const REVIEW_CREDIT_FCFA = 500;
 
 // The city's fake money: what everyone starts with (the column's default in packages/db says the same), and what a

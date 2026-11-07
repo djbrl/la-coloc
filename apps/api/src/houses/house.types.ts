@@ -122,7 +122,7 @@ export interface HouseView {
   reviewsThisMonth: number;
   // Public: whose project the house rallies behind this fortnight, who comes next, and when the turn passes.
   tontine: TontineView | null;
-  // Flatmates only: this month's bill, with reviews paid as rent.
+  // Flatmates only: this month's bill, and the reviews each flatmate did.
   bill: BillView | null;
 }
 
@@ -138,18 +138,13 @@ export interface BillLineView {
   name: string | null;
   // Their part of the server, by room size and CPU used (domain splitBill).
   share: number;
-  // Reviews they did this month, and what those knocked off (reviews × reviewCredit, at most their share).
+  // Reviews they did this month, and the credit those earned them (reviews × reviewCredit, paid when each was done).
   reviews: number;
   credit: number;
-  // Reviews they let go late this month, and what they pay towards everyone's credits because of it.
-  skipped: number;
-  surcharge: number;
-  // An Arena prize won this month (1st place), taken off their line and paid by La Coloc, not by the house.
-  prize: number;
-  // What they owe: share − credit + surcharge − prize, never below zero.
+  // What they owe: their whole share. Reviews and Arena prizes pay in credit, never off the bill.
   due: number;
   paid: boolean;
-  // What was taken when it was paid (rent goes out early in the month; `due` moves with reviews after). Null: unpaid.
+  // What was taken when it was paid (rent goes out early in the month; `due` moves with CPU used after). Null: unpaid.
   paidAmount: number | null;
 }
 
@@ -158,11 +153,9 @@ export interface BillView {
   month: string;
   // The house's monthly cost, in FCFA.
   total: number;
-  // FCFA knocked off per review done this month.
+  // FCFA of credit each review done earns.
   reviewCredit: number;
   lines: BillLineView[];
-  // Credits nobody's skipped chores paid for: the house pool covers them, so the lines add up to total − pool.
-  pool: number;
   // How to pay in the house's country, as text (no logos).
   operators: string[];
   // What to write in the payment's note.

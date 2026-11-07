@@ -26,26 +26,20 @@ export function exampleReviews(you: Person, now = new Date()): Chore[] {
   ];
 }
 
-// One line of the example bill: a share, reviews done off it, a late review's surcharge on it.
-function line(p: Pick<Person, "login" | "name">, reviews: number, skipped: number, paid: boolean): BillLine {
-  const credit = Math.min(SHARE, reviews * REVIEW_CREDIT);
-  const surcharge = skipped * REVIEW_CREDIT;
-  return { login: p.login, name: p.name, share: SHARE, reviews, credit, skipped, surcharge, due: SHARE - credit + surcharge, paid };
+// One line of the example bill: a share, owed whole, and the credit its reviews earned.
+function line(p: Pick<Person, "login" | "name">, reviews: number, paid: boolean): BillLine {
+  return { login: p.login, name: p.name, share: SHARE, reviews, credit: reviews * REVIEW_CREDIT, due: SHARE, paid };
 }
 
 /** This month's bill for a house of four: you (paid, as the first rent was) and three made-up flatmates. */
 export function exampleBill(you: Pick<Person, "login" | "name">, operators: string[], now = new Date()): Bill {
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const lines = [line(you, 2, 0, true), line(AWA, 1, 0, true), line(MOUSSA, 0, 1, false), line(FATOU, 3, 0, false)];
-  const credits = lines.reduce((sum, l) => sum + l.credit, 0);
-  const surcharges = lines.reduce((sum, l) => sum + l.surcharge, 0);
+  const lines = [line(you, 2, true), line(AWA, 1, true), line(MOUSSA, 0, false), line(FATOU, 3, false)];
   return {
     month,
     total: SHARE * lines.length,
     reviewCredit: REVIEW_CREDIT,
     lines,
-    // Credits no late review paid for: the house pool covers them, so the lines add up to the total less the pool.
-    pool: credits - surcharges,
     operators,
     reference: `COLOC-EXAMPLE-${month}`,
   };

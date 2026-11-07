@@ -2,7 +2,7 @@
 // never in the workshop or an example house, never below zero; and every charge is news under the bell.
 import "reflect-metadata";
 import { createHash } from "node:crypto";
-import { billPayments, creditEntries, type Db, houses as housesTable, memberships, notifications, rooms, users } from "@coloc/db";
+import { arenaAwards, arenaChallenges, billPayments, chores, creditEntries, type Db, houses as housesTable, memberships, notifications, rooms, users } from "@coloc/db";
 import { testDb } from "@coloc/db/dist/testing";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -15,7 +15,7 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { seedCity } from "../seed/city";
 import { HousesService } from "./houses.service";
 import { LeasesService } from "./leases.service";
-import { monthOf, WELCOME_CREDIT_FCFA, WORKSHOP_ID } from "./money";
+import { monthOf, REVIEW_CREDIT_FCFA, WELCOME_CREDIT_FCFA, WORKSHOP_ID } from "./money";
 
 let db: Db;
 let houses: HousesService;
@@ -217,6 +217,45 @@ describe("too little credit", () => {
     // Heard twice, it adds and takes nothing more.
     await credit.notice({ data: { hash: sha512("master"), invoice: { token: "test_paid" } } });
     expect(await balance("awa")).toBe(100 + 5_000 - due);
+  });
+});
+
+// A review earns its reviewer credit (chores.service.ts) and a first place in the Arena earns its prize in credit
+// (arena.service.ts). Neither should also come off a rent taken later in the same month: that pays it twice.
+describe("rewards are paid once", () => {
+  // Awa can't pay at the start of the month, then earns something, then gets enough credit for her rent.
+  const shortThenEarn = async (earn: () => Promise<void>) => {
+    await db.update(users).set({ credit: 100 }).where(eq(users.id, ids.awa));
+    await run();
+    const due = (await houses.billLine(HOUSE, ids.awa))!.due;
+    await earn();
+    await houses.credit.earn(ids.awa, 50_000, "topup", "topup:test");
+    await run();
+    return { due, charged: (await paid("awa"))[0].amount };
+  };
+
+  it("takes the whole rent after a review, since the review was already paid in credit", async () => {
+    const { due, charged } = await shortThenEarn(async () => {
+      const [chore] = await db
+        .insert(chores)
+        .values({ houseId: HOUSE, repoId: 999, repoFullName: "x/y", prNumber: 1, prTitle: "t", prUrl: "u", assigneeId: ids.awa, status: "done", dueAt: new Date(), doneAt: new Date() })
+        .returning();
+      await houses.credit.earn(ids.awa, REVIEW_CREDIT_FCFA, "review", `review:${chore.id}`);
+    });
+    expect(charged).toBe(due);
+  });
+
+  it("takes the whole rent after an Arena win, since the prize was already paid in credit", async () => {
+    const { due, charged } = await shortThenEarn(async () => {
+      const now = new Date();
+      await db.insert(arenaChallenges).values({ id: "test-week", city: "Dakar", weekStart: now.toISOString().slice(0, 10), startsAt: now, endsAt: now, slug: "s", kind: "challenge", repo: "r", path: "p", prizeFcfa: 25_000 });
+      const [award] = await db
+        .insert(arenaAwards)
+        .values({ challengeId: "test-week", userId: ids.awa, place: 1, key: "k", titleEn: "t", titleFr: "t", city: "Dakar", week: now.toISOString().slice(0, 10) })
+        .returning();
+      await houses.credit.earn(ids.awa, 25_000, "arena", `arena:${award.id}`);
+    });
+    expect(charged).toBe(due);
   });
 });
 

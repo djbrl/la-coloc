@@ -1,7 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import {
   applications,
-  arenaAwards,
   arenaChallenges,
   arenaEntries,
   billPayments,
@@ -21,7 +20,7 @@ import {
   users,
 } from "@coloc/db";
 import { BUILD_CANCELLED, type DeployKind, type DeployStatus, type RoomEvent, RoomName, type RoomsSnapshot, type Usage } from "@coloc/protocol";
-import { creditReviews, splitBill, tontineTurn } from "@coloc/domain";
+import { splitBill, tontineTurn } from "@coloc/domain";
 import { and, asc, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { auditTime, concatMap, filter, Subject, tap } from "rxjs";
@@ -766,9 +765,9 @@ export class HousesService {
 
   /**
    * This month's bill, as the flatmates see it. The house's monthly cost is split by room size and CPU used
-   * (domain splitBill), then reviews are paid as rent (domain creditReviews): each review done this month knocks
-   * REVIEW_CREDIT_FCFA off its reviewer's line, paid for by whoever let reviews go late, and by the house pool for
-   * the rest. Null when the house pays nothing (the workshop) or has nobody in it.
+   * (domain splitBill), and each line is that share, taken whole from its person's credit (rent.ts). Reviews and
+   * Arena prizes pay in credit when they happen, so they don't come off the bill too. Null when the house pays
+   * nothing (the workshop) or has nobody in it.
    */
   private async bill(h: BillHouse, now: Date): Promise<BillView | null> {
     if (h.monthlyCostFcfa == null || h.memberships.length === 0) return null;
@@ -799,67 +798,44 @@ export class HousesService {
     if (usage.every((u) => u.reservedMemoryMb === 0)) usage = usage.map((u) => ({ ...u, reservedMemoryMb: 1 }));
     const shares = splitBill(h.monthlyCostFcfa, usage);
 
-    // Reviews done this month, and reviews that went late this month (still open past due, or flagged late).
-    const allChores = await this.db
-      .select({ assigneeId: chores.assigneeId, repoId: chores.repoId, status: chores.status, dueAt: chores.dueAt, doneAt: chores.doneAt, lateNotedAt: chores.lateNotedAt })
+    // Reviews done this month. Each one already paid its reviewer in credit (chores.service.ts), as an Arena win pays
+    // its prize: the bill only says how many, and never takes them off the rent as well.
+    const doneChores = await this.db
+      .select({ assigneeId: chores.assigneeId, repoId: chores.repoId })
       .from(chores)
-      .where(and(eq(chores.houseId, h.id), or(gte(chores.doneAt, since), gte(chores.createdAt, since), and(eq(chores.status, "open"), isNotNull(chores.lateNotedAt)))));
-    // A review of your own project (the room its repo is in: you live there) is no chore for the house: it neither
-    // earns a credit nor counts as skipped. The rotation never asks for one; this catches a review assigned before
-    // you moved into that room.
+      .where(and(eq(chores.houseId, h.id), eq(chores.status, "done"), gte(chores.doneAt, since)));
+    // A review of your own project (the room its repo is in: you live there) is no chore for the house and isn't
+    // counted. The rotation never asks for one; this catches a review assigned before you moved into that room.
     const repoRooms = await this.db.select({ githubId: repos.githubId, room: repos.room }).from(repos).where(eq(repos.houseId, h.id));
     const ownProject = (c: { assigneeId: string; repoId: number }) => {
       const roomName = repoRooms.find((r) => r.githubId === c.repoId)?.room;
       const room = h.rooms.find((r) => r.name === roomName);
       return !!room?.occupantId && room.occupantId === c.assigneeId;
     };
-    const monthChores = allChores.filter((c) => !ownProject(c));
-    const reviews = (id: string) => monthChores.filter((c) => c.assigneeId === id && c.status === "done" && c.doneAt && c.doneAt >= since).length;
-    const skipped = (id: string) =>
-      monthChores.filter((c) => c.assigneeId === id && ((c.lateNotedAt !== null && c.lateNotedAt >= since) || (c.status === "open" && c.dueAt < now))).length;
-
-    const { lines, pool } = creditReviews(
-      shares.map((s) => ({ memberId: s.memberId, share: s.amount, reviews: reviews(s.memberId), skipped: skipped(s.memberId) })),
-      REVIEW_CREDIT_FCFA,
-    );
+    const reviews = (id: string) => doneChores.filter((c) => c.assigneeId === id && !ownProject(c)).length;
     const paid = await this.db
       .select({ userId: billPayments.userId, amount: billPayments.amount })
       .from(billPayments)
       .where(and(eq(billPayments.houseId, h.id), eq(billPayments.month, month)));
-    // Arena prizes won this month (first places), by winner: La Coloc pays them, so they come off the winner's own
-    // line without touching anyone else's or the pool.
-    const ids = h.memberships.map((m) => m.userId);
-    const prizes = ids.length
-      ? await this.db
-          .select({ userId: arenaAwards.userId, prize: arenaChallenges.prizeFcfa })
-          .from(arenaAwards)
-          .innerJoin(arenaChallenges, eq(arenaChallenges.id, arenaAwards.challengeId))
-          .where(and(inArray(arenaAwards.userId, ids), eq(arenaAwards.place, 1), gte(arenaAwards.createdAt, since)))
-      : [];
-    const prizeOf = (id: string) => prizes.filter((p) => p.userId === id).reduce((sum, p) => sum + p.prize, 0);
 
     return {
       month,
       total: h.monthlyCostFcfa,
       reviewCredit: REVIEW_CREDIT_FCFA,
-      lines: lines.map((l) => {
-        const m = h.memberships.find((x) => x.userId === l.memberId)!;
+      lines: shares.map((s) => {
+        const m = h.memberships.find((x) => x.userId === s.memberId)!;
         return {
           login: m.user.login,
           name: m.user.name,
-          share: l.share,
-          reviews: reviews(l.memberId),
-          credit: l.credit,
-          skipped: skipped(l.memberId),
-          surcharge: l.surcharge,
-          prize: Math.min(prizeOf(l.memberId), Math.max(0, l.due)),
-          due: Math.max(0, l.due - prizeOf(l.memberId)),
-          paid: paid.some((p) => p.userId === l.memberId),
-          // What was taken: rent goes out early in the month, and reviews done since lower `due`, not what was paid.
-          paidAmount: paid.find((p) => p.userId === l.memberId)?.amount ?? null,
+          share: s.amount,
+          reviews: reviews(s.memberId),
+          credit: reviews(s.memberId) * REVIEW_CREDIT_FCFA,
+          due: s.amount,
+          paid: paid.some((p) => p.userId === s.memberId),
+          // What was taken: rent goes out early in the month, and the share can move with CPU used after.
+          paidAmount: paid.find((p) => p.userId === s.memberId)?.amount ?? null,
         };
       }),
-      pool,
       operators: operatorsFor(h.country),
       reference: billReference(h.id, month),
     };

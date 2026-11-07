@@ -85,7 +85,7 @@ const CHANNELS: Record<string, [login: string, body: string][]> = {
     ["moussa", "Waaw, merci Awa. Long week at work, I'm a bit behind."],
     ["jib", "No stress. The fixtures can wait a day."],
     ["awa", "Small question: my room used more memory during the sale last night. Does it change the bill?"],
-    ["jib", "A little: the bill is split by room size and CPU. But your reviews come off your line, so you're fine."],
+    ["jib", "A little: the bill is split by room size and CPU. But every review earns you credit, so you're fine."],
     ["awa", "Reviews as rent, I like it. Jërëjëf!"],
     ["moussa", "Mon PR sur le cache des prix est prêt quand vous voulez."],
     ["jib", "I'll take it after lunch. Then I'm off to the match."],

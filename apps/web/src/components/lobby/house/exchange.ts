@@ -28,11 +28,9 @@ export function dayName(iso: string): string {
 /** The house's one public line about reviews: "23 reviews traded this month." */
 export const reviewsLine = (n: number): string => w.reviewsTraded(n);
 
-/** The bill's first sentences: the total, the month, what a review is worth, and what the house pool covers (the
- *  credits nobody's skipped reviews paid for, so the lines add up to less than the total). */
-export function billHead(bill: Pick<Bill, "total" | "month" | "reviewCredit"> & { pool?: number }): string {
-  const head = w.billHead(fcfa(bill.total), monthName(bill.month), fcfa(bill.reviewCredit));
-  return bill.pool ? `${head} ${w.pool(fcfa(bill.pool))}` : head;
+/** The bill's first sentences: the total, the month, and what a review earns in credit. */
+export function billHead(bill: Pick<Bill, "total" | "month" | "reviewCredit">): string {
+  return w.billHead(fcfa(bill.total), monthName(bill.month), fcfa(bill.reviewCredit));
 }
 
 /** Your own line first, then everyone else in the house's order. */
@@ -40,18 +38,14 @@ export function linesYoursFirst<T extends Pick<BillLine, "login">>(lines: T[], m
   return [...lines].sort((a, b) => Number(b.login === me) - Number(a.login === me));
 }
 
-/** One person's line of the bill as two sentences: what their reviews took off, then what they owe (or paid).
- *  "Awa reviewed 4 PRs: 2 000 FCFA off." / "Awa owes 1 000 FCFA." Names, never he or she. */
+/** One person's line of the bill as two sentences: what their reviews earned, then what they owe (or paid).
+ *  "Awa reviewed 4 PRs: 2 000 FCFA in credit." / "Awa owes 3 000 FCFA." Names, never he or she. */
 export function lineWords(line: BillLine, me: string | null): { reviews: string; owes: string } {
   const you = line.login === me;
   const who = you ? w.you : first(line);
   const reviews = line.reviews > 0 ? w.reviewed(who, you, line.reviews, fcfa(line.credit)) : w.notReviewed(who, you);
-  // Their part of everyone's credits, for reviews they let go late.
-  const skipped = line.surcharge > 0 ? w.skipped(fcfa(line.surcharge)) : "";
-  // An Arena prize won this month: La Coloc pays that part, not the house.
-  const prize = line.prize && line.prize > 0 ? w.arenaPrize(fcfa(line.prize)) : "";
-  // Paid: what was taken then (rent goes early in the month; reviews done since lower `due`, not what was paid).
-  const owes = line.paid ? w.hasPaid(who, you, fcfa(line.paidAmount ?? line.due)) : line.due <= 0 ? `${prize}${w.owesNothing(who, you)}` : `${skipped}${prize}${w.owes(who, you, fcfa(line.due))}`;
+  // Paid: what was taken then (rent goes early in the month; the share can move with CPU used after).
+  const owes = line.paid ? w.hasPaid(who, you, fcfa(line.paidAmount ?? line.due)) : line.due <= 0 ? w.owesNothing(who, you) : w.owes(who, you, fcfa(line.due));
   return { reviews, owes };
 }
 

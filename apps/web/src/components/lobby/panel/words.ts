@@ -21,7 +21,7 @@ export const explain = defineWords(
     // The Reviews tab (the API's "chores") and the News tab (the API's "fridge"), told behind the panel's "?"
     // (Explain.vue): what it is and why it matters, in at most three short lines.
     chores: (credit: string) =>
-      `Flatmates review your code, you review theirs. Each review takes ${credit} off your rent.`,
+      `Flatmates review your code, you review theirs. Each review earns you ${credit} in credit.`,
     fridge: "The house's notice board. It fills itself.",
     // The round "?" button that shows those lines.
     whatIsThis: "What is this?",
@@ -45,7 +45,7 @@ export const explain = defineWords(
     knock: "Demandez une chambre libre. Les colocs votent.",
     channel: "La discussion de groupe de la maison.",
     chores: (credit) =>
-      `Les colocs relisent votre code, vous relisez le leur. Chaque revue retire ${credit} de votre loyer.`,
+      `Les colocs relisent votre code, vous relisez le leur. Chaque revue vous rapporte ${credit} de crédit.`,
     fridge: "Le tableau d'affichage de la maison. Il se remplit tout seul.",
     whatIsThis: "C'est quoi ?",
     bill: "Coût du serveur par mois, partagé selon l'usage. Les revues allègent votre part.",

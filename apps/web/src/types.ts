@@ -177,19 +177,13 @@ export interface BillLine {
   name: string | null;
   // Their part of the server, by room size and CPU used.
   share: number;
-  // Reviews they did this month, and what those knocked off (reviews × reviewCredit, at most their share).
+  // Reviews they did this month, and the credit those earned them (reviews × reviewCredit).
   reviews: number;
   credit: number;
-  // Reviews they let go late this month, and what they pay towards everyone's credits because of it
-  // (at most reviewCredit per skip).
-  skipped: number;
-  surcharge: number;
-  // An Arena prize won this month, taken off their line (La Coloc pays it). An older API leaves it out.
-  prize?: number;
-  // What they owe: share − credit + surcharge − prize.
+  // What they owe: their whole share. Reviews and Arena prizes pay in credit, never off the bill.
   due: number;
   paid: boolean;
-  // What was taken when it was paid (rent goes out early in the month, `due` moves with reviews after). Null: unpaid.
+  // What was taken when it was paid (rent goes out early in the month, `due` moves with CPU used after). Null: unpaid.
   paidAmount?: number | null;
 }
 
@@ -198,11 +192,9 @@ export interface Bill {
   month: string;
   // The house's monthly cost, in FCFA.
   total: number;
-  // FCFA knocked off per review done this month (500).
+  // FCFA of credit each review done earns (500).
   reviewCredit: number;
   lines: BillLine[];
-  // Credits no skipped review paid for: the house pool covers them, so the lines add up to total − pool.
-  pool: number;
   // How to pay in the house's country, as text only (no logos): ["Wave", "Orange Money", "Free Money"].
   operators: string[];
   // What to write in the payment's note: "COLOC-SACRE-COEUR-2026-10".

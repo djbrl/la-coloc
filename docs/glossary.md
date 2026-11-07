@@ -19,7 +19,7 @@
 | **Guest** | Someone from outside let into a full house's channel by a flatmate, and nothing else of the house. |
 | **Review** (a *chore* in the code) | Reading a flatmate's pull request on GitHub; La Coloc picks the reviewer in turn. |
 | **Bill** | The house's monthly server cost, split between flatmates by room size and CPU used. |
-| **Rent credit** | Each review you do takes 500 FCFA off your line of the bill; a late review costs its reviewer up to as much. |
+| **Rent credit** | Each review you do earns you 500 FCFA of credit, which pays your rent. A late review costs nothing on the bill; the house's news notes it. |
 | **Credit** | The city's fake money in FCFA: 15 000 to start, spent on servers, rent and a first deploy, earned by reviews and the Arena, bought with PayDunya in test mode. |
 | **Rent** | Your line of the bill, taken from your credit when you move in and then every month, with a line under the bell each time. |
 | **Tontine** | A turn that passes from flatmate to flatmate every two weeks, so the house rallies behind one project at a time. |
