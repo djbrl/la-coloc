@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Is the city up?
         env:
-          SITE: https://coloc.194-62-97-180.sslip.io
+          SITE: https://lacoloc-dev.duckdns.org
           ALERT: ${{ secrets.COLOC_ALERT_URL }}
         run: |
           up() { curl -fsS -m 20 -o /dev/null "$SITE/" && curl -fsS -m 20 -o /dev/null "$SITE/api/health"; }

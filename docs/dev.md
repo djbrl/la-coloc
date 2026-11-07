@@ -288,9 +288,13 @@ and the rooms. It copies this checkout as it is on disk, so nothing needs to be 
 deploy/push.sh <server ip>     # COLOC_SSH="ssh -i <key>" picks the SSH key
 ```
 
-The live city runs this way on a Systalink Datacloud VPS since 5 Nov 2026, at https://coloc.194-62-97-180.sslip.io.
-Run it again to update: data and keys stay, and only an empty city gets seeded. Without a domain the city is at
-`coloc.<ip with dashes>.sslip.io`, which needs no DNS; pass a domain as the second argument once it has a wildcard record.
+The live city runs this way on a Systalink Datacloud VPS since 5 Nov 2026, at https://lacoloc-dev.duckdns.org (a free
+DuckDNS name on Jib's account; DuckDNS answers for every name under it, which the rooms need). Run it again to update:
+data and keys stay, only an empty city gets seeded, and the city keeps the domain it has. A new server starts at
+`coloc.<ip with dashes>.sslip.io`, which needs no DNS. To move the city, pass the new domain (with a wildcard record) as
+the second argument once: the houses, the rooms' addresses and their routes move with it, and the old address
+redirects to the new one (`/etc/coloc/old-domains`). Then add the new GitHub sign-in callback and webhook to the
+GitHub App. The city moved from `coloc.194-62-97-180.sslip.io` on 7 Nov 2026.
 
 - **Caddy is the only public door.** It serves `apps/web/dist`, sends `/api`, `/lobby-ws` and `/agent` to the API, and sends
   every other address under the domain to Traefik. A room gets its certificate the first time someone visits it.

@@ -3,13 +3,19 @@
 #
 #   deploy/push.sh <server ip> [domain]
 #
-# Without a domain the city is at coloc.<ip with dashes>.sslip.io, which needs no DNS. COLOC_SSH overrides how to reach
-# the server, for a particular key: COLOC_SSH="ssh -i ~/.ssh/some_key" deploy/push.sh 1.2.3.4
+# Without a domain the city keeps the address it has, or on a new server coloc.<ip with dashes>.sslip.io, which needs
+# no DNS. A new domain moves the city: setup.sh moves the houses and rooms, and the old address redirects to the new.
+# COLOC_SSH overrides how to reach the server, for a particular key: COLOC_SSH="ssh -i ~/.ssh/some_key" deploy/push.sh 1.2.3.4
 set -euo pipefail
 
 ip=${1:?usage: deploy/push.sh <server ip> [domain]}
-domain=${2:-coloc.${ip//./-}.sslip.io}
 ssh_cmd=${COLOC_SSH:-ssh}
+# No domain given: keep the one the server already has, so an update never moves the city by accident.
+domain=${2:-}
+if [ -z "$domain" ]; then
+  domain=$($ssh_cmd "root@$ip" "sed -n 's|^COLOC_PUBLIC_URL=https://||p' /etc/coloc/coloc.env 2>/dev/null" || true)
+  domain=${domain:-coloc.${ip//./-}.sslip.io}
+fi
 root=$(cd "$(dirname "$0")/.." && pwd)
 
 $ssh_cmd "root@$ip" 'command -v rsync >/dev/null || (apt-get update -q && apt-get install -y -q rsync); mkdir -p /opt/coloc/src /etc/coloc'

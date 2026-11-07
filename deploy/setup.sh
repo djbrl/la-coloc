@@ -152,6 +152,13 @@ touch "$ETC/github.env"
 touch "$ETC/paydunya.env"
 # Where the disk alarm also sends its message, written by hand: COLOC_ALERT_URL=https://ntfy.sh/<topic>. Optional.
 touch "$ETC/alert.env"
+# Moving the city to a new domain: the address it had goes on the list of old ones, which redirect to the new one
+# (section 5), and its houses and rooms move with it (section 6).
+previous=$(sed -n 's|^COLOC_PUBLIC_URL=https://||p' "$ETC/coloc.env" 2>/dev/null || true)
+touch "$ETC/old-domains"
+if [ -n "$previous" ] && [ "$previous" != "$COLOC_DOMAIN" ]; then echo "$previous" >> "$ETC/old-domains"; fi
+{ grep -vxF "$COLOC_DOMAIN" "$ETC/old-domains" || true; } | sort -u > "$ETC/old-domains.new"
+mv "$ETC/old-domains.new" "$ETC/old-domains"
 cat > "$ETC/coloc.env.new" <<SETTINGS
 PORT=4100
 COLOC_PUBLIC_URL=https://$COLOC_DOMAIN
@@ -214,6 +221,22 @@ say "Starting the database and the rooms' proxy"
 docker compose --env-file "$ETC/coloc.env" -f "$SRC/deploy/docker-compose.yml" -p coloc up -d --remove-orphans
 
 sed "s/COLOC_SITE/$COLOC_DOMAIN/g" "$SRC/deploy/Caddyfile" > /etc/caddy/Caddyfile
+# Old addresses send people to the new one. GitHub's webhook is still answered there, since GitHub doesn't follow
+# redirects and the App's settings may still name the old address.
+while read -r old; do
+  [ -n "$old" ] || continue
+  cat >> /etc/caddy/Caddyfile <<OLD
+
+$old {
+	handle /api/github/webhook {
+		reverse_proxy 127.0.0.1:4100
+	}
+	handle {
+		redir https://$COLOC_DOMAIN{uri} permanent
+	}
+}
+OLD
+done < "$ETC/old-domains"
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 systemctl enable caddy
 systemctl restart caddy
@@ -242,6 +265,20 @@ done
 if [ "$(query 'select count(*) from houses')" = "0" ]; then
   say "Seeding the city"
   as_coloc "set -a; . $ETC/coloc.env; set +a; cd apps/api && node dist/seed/run.js"
+fi
+
+# --- 6. A new domain: the houses, the rooms' addresses and their routes move to it ---------------------------------
+
+if [ -n "$previous" ] && [ "$previous" != "$COLOC_DOMAIN" ]; then
+  say "Moving the city from $previous to $COLOC_DOMAIN"
+  # Only the end of each address changes: atelier.<old> becomes atelier.<new>.
+  query "update houses set domain = left(domain, length(domain) - length('$previous')) || '$COLOC_DOMAIN' where domain like '%$previous'" >/dev/null
+  query "update rooms set url = replace(url, '.$previous', '.$COLOC_DOMAIN') where url like '%.$previous%'" >/dev/null
+  previous_re=$(printf '%s' "$previous" | sed 's/[.]/[.]/g')
+  for f in "$DATA"/agent/proxy/*.yml; do
+    if [ -e "$f" ]; then sed -i "s/[.]$previous_re/.$COLOC_DOMAIN/g" "$f"; fi
+  done
+  systemctl restart coloc-api.service
 fi
 systemctl restart coloc-caretaker@sacre-coeur.service coloc-caretaker@atelier.service
 

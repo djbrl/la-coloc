@@ -25,7 +25,7 @@ The rules are in `docs/contest-rules.md` (copy of 3 Nov). **Submissions close on
 
 ## Done
 
-- The city runs on Datacloud since 5 Nov: https://coloc.194-62-97-180.sslip.io (Art. 6, the purchase `vps-cadev-032` validated "Produit Systalink actif").
+- The city runs on Datacloud since 5 Nov, at https://lacoloc-dev.duckdns.org since 7 Nov (the old sslip address redirects there; Art. 6, the purchase `vps-cadev-032` validated "Produit Systalink actif").
 - `main` holds everything that's live.
 - All chat was wiped on 6 Nov before submission; the dump from just before is in `~/coloc-backups`.
 - Nightly backups, a disk check every 15 minutes, and an uptime alarm (see `docs/dev.md`).

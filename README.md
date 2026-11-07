@@ -8,7 +8,7 @@ the server bill, and each code review you do for them pays part of your rent.
 
 ## What you can do in it
 
-It runs at https://coloc.194-62-97-180.sslip.io, on a Systalink Datacloud server set up by [`deploy/`](deploy/).
+It runs at https://lacoloc-dev.duckdns.org, on a Systalink Datacloud server set up by [`deploy/`](deploy/).
 
 - **Walk the city** in eight African cities, each with its own look, and travel between them on a map of Africa.
   Settings can show the same city as a Dashboard, with no 3D.
@@ -17,7 +17,7 @@ It runs at https://coloc.194-62-97-180.sslip.io, on a Systalink Datacloud server
   invitation, or by renting a server for a house of your own.
 - **Push to go live:** merge a pull request and your room rebuilds with no downtime; open one and you get a preview.
 - **Use your room as a small server:** SSH into it, see what runs inside, and keep files in `/home/your-room`.
-- **Review your flatmates' code:** La Coloc picks the reviewer in turn, and each review takes 500 FCFA off your rent.
+- **Review your flatmates' code:** La Coloc picks the reviewer in turn, and each review earns you 500 FCFA of credit, which pays your rent.
 - **Pay rent in credit:** your share of the bill (by room size and CPU used) is taken from your in-city credit each
   month. Buy more with PayDunya in test mode (mobile money or card); no real money moves.
 - **Play the Arena:** a weekly challenge per city, answered with pull requests on GitHub, with points, a podium and a

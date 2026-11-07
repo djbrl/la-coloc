@@ -2,7 +2,7 @@
 
 Le formulaire de soumission de la plateforme ne demande que le lien live, la vidéo, le dépôt et le produit Systalink. Le règlement demande en plus trois déclarations « lors de la soumission » : elles sont réunies ici, et ce fichier est joint à la page du projet.
 
-Projet : La Coloc, https://coloc.194-62-97-180.sslip.io, code sur https://github.com/djbrl/la-coloc.
+Projet : La Coloc, https://lacoloc-dev.duckdns.org, code sur https://github.com/djbrl/la-coloc.
 Participant : Djibril Sy (Jib).
 
 ## 1. Titularité

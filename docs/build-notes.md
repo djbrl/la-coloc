@@ -1327,3 +1327,29 @@ The lockfile was regenerated for that (86 packages moved within their ranges). 1
 is reachable here (docs/todo-jib.md, item 32). All 1278 tests pass; on the droplet the caretakers reconnected and the
 lobby socket answered.
 
+
+## 7 Nov 2026: a reward is paid once
+
+A review paid its reviewer twice: 500 FCFA of credit when it was done (`chores.service.ts`), and 500 off their line of
+the house bill (`creditReviews`). A first place in the Arena did the same with its whole prize. The money only moved
+twice when rent was taken after the reward in the same month, for example someone short of credit on the 1st who then
+won and topped up: two tests in `rent.test.ts` showed rent of 4 300 instead of 4 800 after a review, and 0 instead of
+4 800 after a 25 000 FCFA win. On the live server no review or prize had been credited yet, so nobody was paid twice.
+
+Jib's call: keep the credit, drop the bill side and the late-review charge. A line of the bill is now the person's
+whole share. `reviews` and `credit` (what the reviews earned) stay on it to show, and `skipped`, `surcharge`, `prize`
+and the house `pool` are gone, with `creditReviews` in the domain package. The house window says "+500" per review and
+"in credit" instead of "off". A late review still gets its note in the house's news. All tests pass (domain 16, API
+625, web 659).
+
+
+## 7 Nov 2026: a real-looking address
+
+The city moves from `coloc.194-62-97-180.sslip.io` to `lacoloc-dev.duckdns.org`, a free DuckDNS name on Jib's account
+(`lacoloc`, `la-coloc` and `coloc` were taken). DuckDNS answers for every name under it, so rooms work at
+`<room>.<house>.lacoloc-dev.duckdns.org` with no other DNS record. `deploy/setup.sh` now moves a city by itself when the
+domain changes: it keeps the old address in `/etc/coloc/old-domains`, Caddy redirects it to the new one (and still
+answers GitHub's webhook there), and it rewrites the houses' domains, the rooms' addresses and their Traefik routes,
+which a dump of the database showed were the only places holding the old address (2 houses, 1 room). `deploy/push.sh`
+keeps the server's domain when none is given, so an update can't move the city back by accident. The new Caddy config
+was checked with `caddy validate` on the server before the move.
