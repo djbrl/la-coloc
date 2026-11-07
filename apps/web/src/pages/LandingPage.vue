@@ -178,7 +178,7 @@ onBeforeUnmount(() => {
   <div class="landing" :class="{ entering }">
     <AccountGone />
     <header class="top">
-      <span class="brand">La Coloc</span>
+      <span class="brand"><img class="mark" src="/logo.svg" alt="" width="32" height="34" />La Coloc</span>
       <nav :aria-label="w.nav">
         <button type="button" class="key lang" :lang="language.lang === 'fr' ? 'en' : 'fr'" :aria-label="w.otherLanguage" @click="setLang(language.lang === 'fr' ? 'en' : 'fr')">
           {{ language.lang === "fr" ? "EN" : "FR" }}
@@ -268,7 +268,8 @@ onBeforeUnmount(() => {
 
 /* The header: the sky's own colour at the top of the picture, so the night runs on behind it. */
 .top { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: var(--head); padding: 0 24px; background: var(--ground); color: var(--title); }
-.brand { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
+.brand .mark { flex: none; width: 32px; height: 34px; }
 .top nav { display: flex; align-items: center; gap: 6px; }
 .key { display: flex; align-items: center; justify-content: center; min-height: 42px; height: 42px; padding: 0 14px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--title); font: 600 16px/1 var(--font); white-space: nowrap; }
 .key:hover:not(:disabled) { background: #2a2036; color: var(--title); text-decoration: none; }

@@ -63,7 +63,7 @@ const gear = (() => {
   <!-- The lobby can ask for the bar to go (the tutorial does, until its last step; so does the landing). -->
   <header v-show="lobbyUi.chrome" class="bar" :class="{ float: fullscreen, 'under-window': lobbyUi.inside }">
     <nav class="inner" :aria-label="w.main">
-      <RouterLink to="/" class="logo">La Coloc</RouterLink>
+      <RouterLink to="/" class="logo"><img class="mark" src="/logo.svg" alt="" width="30" height="32" />La Coloc</RouterLink>
       <div ref="keysEl" class="side">
         <template v-if="meLoaded">
           <!-- The chat: your own conversations. The city's chat and its board are on the board in the square. -->
@@ -123,7 +123,9 @@ const gear = (() => {
   color: var(--on-panel);
 }
 .inner { height: 100%; max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.logo { font: 400 20px/1 var(--brand); text-transform: uppercase; color: inherit; white-space: nowrap; }
+.logo { display: inline-flex; align-items: center; gap: 10px; font: 400 20px/1 var(--brand); text-transform: uppercase; color: inherit; white-space: nowrap; }
+/* The mark is the bar's own red, so a thin white ring keeps its shape on it. */
+.logo .mark { flex: none; width: 30px; height: 32px; border-radius: 8px; outline: 2px solid rgba(255, 255, 255, 0.9); }
 .logo:hover { text-decoration: none; }
 .side { display: flex; align-items: center; gap: 8px; min-width: 0; }
 /* The chat, the bell and the gear are the same key, in or out of the lobby: red, with a lip. */
