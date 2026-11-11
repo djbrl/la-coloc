@@ -13,10 +13,14 @@ const fr: Record<string, (r: Refusal) => string> = {
   // Deleting your account.
   typeYourLogin: () => "Tapez votre identifiant pour confirmer.",
 
-  // Buying credit with PayDunya.
+  // Buying credit (PayDunya or Paxity).
   topUpClosed: () => "On ne peut pas acheter de crédit ici.",
   topUpAmount: () => "Choisissez un des montants proposés.",
-  topUpDown: () => "PayDunya ne répond pas. Réessayez dans un instant.",
+  topUpDown: () => "Le service de paiement ne répond pas. Réessayez dans un instant.",
+  topUpPhone: () => "Entrez un numéro mobile money de ce pays.",
+  topUpMethod: () => "Choisissez un des moyens de paiement proposés.",
+  topUpRefused: () => "Le paiement a été refusé. Vérifiez le numéro et le moyen de paiement.",
+  topUpSlowDown: () => "Ça fait beaucoup de demandes de paiement. Attendez quelques minutes et réessayez.",
 
   // Chat: direct messages, a city's room and its board.
   adminsOnly: () => "Seuls les admins de la ville peuvent lire les signalements.",

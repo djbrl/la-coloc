@@ -34,6 +34,7 @@ asks and `npm run licences:check` checks ([licences.md](licences.md)).*
 | **GitHub App** | Login, linking repos, reviewers on pull requests, previews, deploy on merge | GitHub |
 | **Caddy** | On a real server, the only public door: the built site, HTTPS for everything, rooms handed to Traefik | The server (`deploy/`); the live one is a Systalink Datacloud VPS |
 | **PayDunya** | Buying credit in test mode: its hosted checkout takes the payment, the API asks it to confirm | PayDunya |
+| **Paxity** | The other way to buy credit, in test mode: it charges a mobile money number, the person approves on their phone, the API asks it to confirm | Paxity |
 | **Vercel + tunnel** | Only for `npm run share`: the site on Vercel, the API on a laptop behind a Cloudflare tunnel | Vercel, Cloudflare |
 
 Choices worth saying to a jury:
@@ -131,18 +132,29 @@ Everyone starts with 15 000. A server's first month, rent and a project's first 
 (500) and first place in the Arena earn it. Limits: one server, three projects and three rooms a person
 (`houses/money.ts`).
 
-Credit can be bought with PayDunya (`credit/paydunya.ts`, `credit/top-up.ts`), in its test mode unless
-`COLOC_PAYDUNYA_LIVE=1`: 2 000, 5 000 or 10 000 FCFA, by mobile money or card on PayDunya's own page
-(`POST /api/credit/top-up` answers its address). Whether the person comes back (`GET .../top-up/back`) or PayDunya
-sends its notice (`POST .../top-up/notice`, checked against its hash), the API asks PayDunya's confirm call about the
-invoice and adds credit only for a completed one, keyed by the invoice's token, so hearing twice adds nothing. Then it
-pays any rent the person was short of. Without the three PayDunya keys, buying isn't offered.
+Credit is bought through one payment provider (`credit/payments.ts`): PayDunya or Paxity, whichever has its keys
+(Paxity if both do, unless `COLOC_PAYMENTS=paydunya`). The amounts are 2 000, 5 000 or 10 000 FCFA, in test mode
+unless `COLOC_PAYDUNYA_LIVE=1`, or a `pax_live_` key with `COLOC_PAXITY_LIVE=1`. Without keys, buying isn't offered.
+
+- **PayDunya** (`credit/paydunya.ts`) takes mobile money or a card on its own page (`POST /api/credit/top-up` answers
+  its address). The person comes back (`GET .../top-up/back`) or PayDunya sends its notice (`POST .../top-up/notice`,
+  checked against its hash).
+- **Paxity** (`credit/paxity.ts`, its v2 API) charges a number: the credit window asks for the country, the number and
+  the operator (Wave, Orange Money, Free Money, MTN MoMo, Moov Money, by country), and `POST /api/credit/top-up`
+  answers what the payer should do (`pending`: instructions, a link into the operator's app, a QR code). The window then
+  asks `GET .../top-up/check?ref=` every three seconds until it's paid, failed or expired; Paxity's notice to
+  `POST .../top-up/notice` is only a hint. A person may start five such requests in ten minutes, since each one makes
+  a phone ring. Amounts go as `amount_minor` in francs (`COLOC_PAXITY_AMOUNT_FACTOR=100` if Paxity wants centimes).
+
+Whichever way we hear about a payment, the API asks the provider about it (`credit/top-up.ts`) and adds credit only
+for a completed one in francs, for the person it was made for, keyed by the payment's own reference, so hearing twice
+adds nothing. Then it pays any rent the person was short of.
 
 Rent goes by itself (`houses/rent.ts`): a flatmate's line of the month's bill is taken the moment they move in (a knock
 admitted, an invitation accepted, another room taken, or the server paid for after they joined), then for each new month
 by the hourly settle in `leases.service.ts`. A `rent` credit entry keyed by house, month and person, and a
 `bill_payments` row, mean one month is never taken twice. Each charge is a `rent_paid` notification. Short of credit,
-nothing goes below zero: the month stays unpaid, a `rent_due` says so once, and the next run or a PayDunya top-up pays
+nothing goes below zero: the month stays unpaid, a `rent_due` says so once, and the next run or a top-up pays
 it. Never in the workshop or an example house. An unpaid month has no other consequence.
 
 ## A full house's chat
@@ -298,7 +310,7 @@ apps/
     public/          3D models (lobby/), install.sh
   api/src/       the API, one folder per area: auth, houses (with rent and leases), doorbell (knocks), rooms, github,
                  agents (caretakers), notifications, chat (messages, city rooms, the board), safety (blocks, mutes,
-                 reports), friends, credit (with PayDunya), arena, ssh, account (leaving), share, lobby,
+                 reports), friends, credit (with PayDunya or Paxity), arena, ssh, account (leaving), share, lobby,
                  tutorial (the quest), demo, seed (the example city), core (database down)
   agent/src/     the caretaker: deploy.ts, docker.ts, room-spec.ts (the walls), slots.ts (builds take turns),
                  builds.ts (cancelling), recipe.ts, inspect.ts, listening.ts, proxy.ts (route files), inside.ts,
@@ -336,7 +348,7 @@ Planned at the start, not in the code. Each is on [TODO.md](../TODO.md) or was c
 
 - A database per room (the "kitchen"), backups of rooms' kept files, showing a room how much disk it uses, and a second address for a second project in a room.
 - A job queue (pg-boss) and timed jobs: webhooks are handled straight away, and a few timers do the rest.
-- Real money and a real hosting provider: PayDunya runs in test mode, `houses/payment.ts` simulates paying for a server, and `houses/landlord.ts` starts each paid house's caretaker on La Coloc's own server instead of buying a machine.
+- Real money and a real hosting provider: PayDunya and Paxity run in test mode, `houses/payment.ts` simulates paying for a server, and `houses/landlord.ts` starts each paid house's caretaker on La Coloc's own server instead of buying a machine.
 - gVisor for stronger walls, and more stacks without a Dockerfile (Railpack would replace `recipe.ts` if they pile up).
 - GitHub's Deployments panel (needs one more App permission).
 - `bills` and `listings` tables (a free room's ad is a column on `rooms`).

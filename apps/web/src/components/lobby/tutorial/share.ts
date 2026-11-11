@@ -29,8 +29,8 @@ export function whatsappLink(text: string): string {
  * quiet border of `border` modules all round so phones can read it. Each run of dark modules on a row is one
  * rectangle, which keeps the path short.
  */
-export function qrPath(text: string, border = 2): { d: string; size: number } {
-  const { data } = encode(text, { ecc: "M", border: 0 });
+export function qrPath(text: string, border = 2, ecc: "L" | "M" = "M"): { d: string; size: number } {
+  const { data } = encode(text, { ecc, border: 0 });
   const n = data.length;
   const parts: string[] = [];
   data.forEach((row, y) => {
