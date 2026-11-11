@@ -3,6 +3,7 @@
 // confirm call says about an invoice, never what arrives at our door. Test mode unless COLOC_PAYDUNYA_LIVE=1.
 // Docs: https://developers.paydunya.com/doc/FR/http_json
 import { createHash } from "node:crypto";
+import type { PaymentProvider } from "./payments";
 
 export interface PaydunyaConfig {
   masterKey: string;
@@ -28,7 +29,10 @@ export interface Invoice {
   userId: string | null;
 }
 
-export class Paydunya {
+export class Paydunya implements PaymentProvider {
+  readonly kind = "page";
+  readonly name = "PayDunya";
+
   constructor(
     private readonly config: PaydunyaConfig,
     private readonly http: typeof fetch = fetch,
@@ -36,6 +40,11 @@ export class Paydunya {
 
   get live(): boolean {
     return this.config.live;
+  }
+
+  // The key credit entries from PayDunya have always had: the invoice's token.
+  ledgerKey(token: string): string {
+    return `topup:${token}`;
   }
 
   /** A checkout page for this amount, for this person. Where they land afterwards gets `?token=` added by PayDunya. */

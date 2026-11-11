@@ -315,6 +315,7 @@ GitHub App. The city moved from `coloc.194-62-97-180.sslip.io` on 7 Nov 2026.
   uptime alarm (`.github/workflows/uptime.yml`): every 10 minutes GitHub opens the site and `/api/health`, and if both
   tries a minute apart fail, it posts "La Coloc is down". Subscribe to the topic in the ntfy app to get it on a phone.
 - **PayDunya:** put the keys in `/etc/coloc/paydunya.env` and run `deploy/push.sh` again.
+- **Paxity:** put the keys in `/etc/coloc/paxity.env` and run `deploy/push.sh` again. With both, Paxity takes the payments unless `COLOC_PAYMENTS=paydunya`.
 - **Logs:** `journalctl -u coloc-api -f`, and `journalctl -u coloc-caretaker@atelier -f`.
 
 The GitHub App has one webhook address. Pointing it at a server means pushes stop reaching a laptop's smee relay until
@@ -383,8 +384,13 @@ It puts `examples/hello` in Jib's room and `examples/memory-hog` in Moussa's 128
 | `COLOC_DEV_AGENT_SECRET`, `COLOC_DEV_HOUSE_DOMAIN` | `dev-secret-change-me`, `coloc.localhost` | Read by the seed and the demo reset: the development houses' key (written by `npm run up`) and their domain |
 | `COLOC_TUTORIAL_REPO`, `COLOC_TUTORIAL_PATH` | the GitHub repo, `examples/hello` | Where the quest's starter page comes from |
 | `COLOC_GITHUB_*` | none | The GitHub App's keys, written by `npm run dev:github-app` |
-| `COLOC_PAYDUNYA_MASTER_KEY`, `COLOC_PAYDUNYA_PRIVATE_KEY`, `COLOC_PAYDUNYA_TOKEN` | off: nobody is offered to buy credit | Buying credit with PayDunya (`credit/paydunya.ts`). On a laptop they go in `dev/.env.paydunya`, which git ignores and which `npm run start -w @coloc/api` reads (`npm run up` doesn't); on a server in `/etc/coloc/paydunya.env`. Use the test keys: the Clé Principale, and the test Clé Privée and Token |
+| `COLOC_PAYDUNYA_MASTER_KEY`, `COLOC_PAYDUNYA_PRIVATE_KEY`, `COLOC_PAYDUNYA_TOKEN` | off: nobody is offered to buy credit | Buying credit with PayDunya (`credit/paydunya.ts`). On a laptop they go in `dev/.env.paydunya`, which git ignores and which `npm run start -w @coloc/api` reads (and `npm run up`); on a server in `/etc/coloc/paydunya.env`. Use the test keys: the Clé Principale, and the test Clé Privée and Token |
 | `COLOC_PAYDUNYA_LIVE` | off: PayDunya's sandbox, no real money | `1` uses PayDunya's live API with real money. Needs the production keys and an activated business account |
+| `COLOC_PAXITY_API_KEY`, `COLOC_PAXITY_ORG_ID` | off: Paxity isn't offered | Buying credit with Paxity (`credit/paxity.ts`): a `pax_test_…` key and the organisation id from Paxity's merchant dashboard. On a laptop in `dev/.env.paxity` (git ignores it), on a server in `/etc/coloc/paxity.env` |
+| `COLOC_PAXITY_LIVE` | off: a `pax_live_` key is refused | `1` lets a live key move real money |
+| `COLOC_PAXITY_URL` | `https://api-v2.paxity.io` | Paxity's API, to point at a stand-in |
+| `COLOC_PAXITY_AMOUNT_FACTOR` | `1` | `100` if Paxity wants `amount_minor` in centimes rather than francs |
+| `COLOC_PAYMENTS` | Paxity if its keys are set, else PayDunya | `paydunya` or `paxity` picks one when both have keys |
 | `COLOC_ARENA_REPO`, `COLOC_ARENA_JUDGES` | `https://github.com/Djbrl/la-coloc-arena`; `COLOC_ADMINS` | The Arena's public repo, and the GitHub logins that judge it ([arena.md](arena.md)) |
 | `COLOC_SSH_PORT`, `COLOC_SSH_HOST`, `COLOC_SSH_HOST_KEY_FILE`, `COLOC_SSH_BIND` | off; `0.0.0.0` | SSH into rooms: the port, the host name shown on the room page, the host key, and the address it listens on. Off unless the port and key file are set ([ssh-walkthrough.md](ssh-walkthrough.md)) |
 | `COLOC_LANDLORD_AGENT`, `COLOC_LANDLORD_API_URL`, `COLOC_LANDLORD_KEY`, `COLOC_LANDLORD_MAX`, `COLOC_LANDLORD_DOMAIN` | off; `3`, `coloc.localhost` | Start a paid house's caretaker on this machine (see step 6) |

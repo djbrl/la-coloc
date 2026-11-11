@@ -150,6 +150,8 @@ rm -f "$ETC/ssh_host_ed25519_key.pub"
 touch "$ETC/github.env"
 # PayDunya's test keys, written by hand (docs/dev.md). Without them, buying credit simply isn't offered.
 touch "$ETC/paydunya.env"
+# Paxity's test keys, the same way (credit/paxity.ts). With both, Paxity takes the payments unless COLOC_PAYMENTS says otherwise.
+touch "$ETC/paxity.env"
 # Where the disk alarm also sends its message, written by hand: COLOC_ALERT_URL=https://ntfy.sh/<topic>. Optional.
 touch "$ETC/alert.env"
 # Moving the city to a new domain: the address it had goes on the list of old ones, which redirect to the new one
@@ -180,7 +182,7 @@ COLOC_SSH_HOST_KEY_FILE=$ETC/ssh_host_ed25519_key
 COLOC_ROOM_INTERNET=1
 COLOC_ROOM_DISK_MB=1024
 SETTINGS
-cat "$ETC/secrets.env" "$ETC/github.env" "$ETC/paydunya.env" >> "$ETC/coloc.env.new"
+cat "$ETC/secrets.env" "$ETC/github.env" "$ETC/paydunya.env" "$ETC/paxity.env" >> "$ETC/coloc.env.new"
 mv "$ETC/coloc.env.new" "$ETC/coloc.env"
 agent_secret=$(sed -n 's/^COLOC_DEV_AGENT_SECRET=//p' "$ETC/secrets.env")
 

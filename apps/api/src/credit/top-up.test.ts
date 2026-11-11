@@ -59,8 +59,8 @@ describe("buying credit with PayDunya", () => {
 
   it("adds the credit once for a completed invoice, however many times we hear about it", async () => {
     const { paydunya } = fakePaydunya({ test_paid: { status: "completed", total_amount: 5_000, user_id: awa } });
-    expect(await settleTopUp(paydunya, credit, "test_paid")).toEqual({ status: "completed", added: 5_000 });
-    expect(await settleTopUp(paydunya, credit, "test_paid")).toEqual({ status: "completed", added: 0 });
+    expect(await settleTopUp(paydunya, credit, "test_paid")).toEqual({ status: "completed", added: 5_000, userId: awa });
+    expect(await settleTopUp(paydunya, credit, "test_paid")).toEqual({ status: "completed", added: 0, userId: awa });
     expect(await credit.balance(awa)).toBe(WELCOME_CREDIT_FCFA + 5_000);
   });
 

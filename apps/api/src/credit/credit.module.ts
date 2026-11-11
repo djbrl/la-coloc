@@ -1,8 +1,8 @@
 import { Module } from "@nestjs/common";
 import { HousesModule } from "../houses/houses.module";
-import { CreditController, PAYDUNYA } from "./credit.controller";
+import { CreditController, PAYMENTS } from "./credit.controller";
 import { CreditService } from "./credit.service";
-import { loadPaydunyaConfig, Paydunya } from "./paydunya";
+import { loadPayments } from "./payments";
 
 @Module({
   // A top-up pays any rent someone was short of (HousesService.rentCollector).
@@ -10,8 +10,8 @@ import { loadPaydunyaConfig, Paydunya } from "./paydunya";
   controllers: [CreditController],
   providers: [
     CreditService,
-    // PayDunya when its keys are set (credit/paydunya.ts), nothing otherwise.
-    { provide: PAYDUNYA, useFactory: () => { const config = loadPaydunyaConfig(); return config ? new Paydunya(config) : null; } },
+    // PayDunya or Paxity when their keys are set (credit/payments.ts), nothing otherwise.
+    { provide: PAYMENTS, useFactory: () => loadPayments() },
   ],
 })
 export class CreditModule {}

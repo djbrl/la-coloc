@@ -159,7 +159,7 @@ const sharing = share
 run(
   "api",
   "node",
-  ["--env-file-if-exists=../../dev/.env.local", "--env-file-if-exists=../../dev/.env.github", "dist/main.js"],
+  ["--env-file-if-exists=../../dev/.env.local", "--env-file-if-exists=../../dev/.env.github", "--env-file-if-exists=../../dev/.env.paydunya", "--env-file-if-exists=../../dev/.env.paxity", "dist/main.js"],
   {
     env: {
       PORT: String(PORT),

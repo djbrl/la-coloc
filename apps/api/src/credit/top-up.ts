@@ -1,22 +1,27 @@
-// Buying credit with PayDunya: a few fixed amounts, paid on PayDunya's own page. Whichever way we hear about a payment
-// (the person coming back, or PayDunya's notice), we ask PayDunya itself, and add the credit once: the entry's key is
-// the invoice's token, so hearing twice adds nothing the second time.
+// Buying credit: a few fixed amounts, paid through the server's payment provider (payments.ts: PayDunya's page or a
+// Paxity mobile-money request). Whichever way we hear about a payment (the person coming back, the page asking while
+// it waits, or the provider's notice), we ask the provider itself, and add the credit once: the entry's key comes from
+// the payment's own reference, so hearing twice adds nothing the second time.
 import type { CreditService } from "./credit.service";
-import type { Paydunya } from "./paydunya";
+import type { PaymentProvider } from "./payments";
 
 export const TOP_UP_AMOUNTS_FCFA = [2_000, 5_000, 10_000];
 
-export const topUpKey = (token: string) => `topup:${token}`;
-
 /**
- * What PayDunya says about this invoice, and whether this call is the one that added the credit. `then`: what to do
- * for the person once it's added (pay any rent they were short of).
+ * What the provider says about this payment, whose it is, and whether this call is the one that added the credit.
+ * `then`: what to do for the person once it's added (pay any rent they were short of).
  */
-export async function settleTopUp(paydunya: Paydunya, credit: CreditService, token: string, then?: (userId: string) => Promise<void>): Promise<{ status: string; added: number }> {
-  const invoice = await paydunya.confirm(token);
-  if (!invoice) return { status: "unknown", added: 0 };
-  if (invoice.status !== "completed" || !invoice.userId || !TOP_UP_AMOUNTS_FCFA.includes(invoice.amount)) return { status: invoice.status, added: 0 };
-  const added = await credit.earn(invoice.userId, invoice.amount, "topup", topUpKey(token));
-  if (added) await then?.(invoice.userId);
-  return { status: invoice.status, added: added ? invoice.amount : 0 };
+export async function settleTopUp(
+  provider: PaymentProvider,
+  credit: CreditService,
+  ref: string,
+  then?: (userId: string) => Promise<void>,
+): Promise<{ status: string; added: number; userId: string | null }> {
+  const payment = await provider.confirm(ref);
+  if (!payment) return { status: "unknown", added: 0, userId: null };
+  const { status, userId } = payment;
+  if (status !== "completed" || !userId || !TOP_UP_AMOUNTS_FCFA.includes(payment.amount)) return { status, added: 0, userId };
+  const added = await credit.earn(userId, payment.amount, "topup", provider.ledgerKey(ref));
+  if (added) await then?.(userId);
+  return { status, added: added ? payment.amount : 0, userId };
 }
